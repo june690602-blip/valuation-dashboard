@@ -1,0 +1,13 @@
+# 비밀값
+.streamlit/secrets.toml
+.env
+
+# 캐시·파생물
+data/cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+Thumbs.db
+.DS_Store
