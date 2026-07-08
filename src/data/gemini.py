@@ -33,6 +33,14 @@ def get_api_key() -> str | None:
     for env in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
         if os.environ.get(env):
             return os.environ[env].strip()
+    try:  # Streamlit Cloud는 비밀을 st.secrets로 제공
+        import streamlit as st
+        for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+            v = st.secrets.get(k)
+            if v:
+                return str(v).strip()
+    except Exception:
+        pass
     v = _from_secrets("GEMINI_API_KEY")
     return str(v).strip() if v else None
 

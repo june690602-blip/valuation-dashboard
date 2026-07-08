@@ -55,10 +55,17 @@ DART_MAP: dict[str, tuple] = {
 
 
 def get_api_key() -> str | None:
-    """환경변수 → secrets.toml 순으로 키를 찾는다 (streamlit 없이도 동작)."""
+    """환경변수 → st.secrets(Streamlit Cloud) → 로컬 secrets.toml 순으로 키를 찾는다."""
     k = os.environ.get("OPENDART_API_KEY")
     if k:
         return k.strip()
+    try:  # Streamlit Cloud는 비밀을 st.secrets로 제공
+        import streamlit as st
+        v = st.secrets.get("OPENDART_API_KEY")
+        if v:
+            return str(v).strip()
+    except Exception:
+        pass
     secrets = ROOT / ".streamlit" / "secrets.toml"
     if secrets.exists():
         try:
