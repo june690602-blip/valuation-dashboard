@@ -175,11 +175,16 @@ def _render_news_section():
     if not items:
         st.info("관련 뉴스를 찾지 못했습니다.")
         return
-    for it in items:
+    # 거시 기사 PEST 관점 태그 (키워드 규칙 — 키 불필요)
+    from src.analysis.ai_analysis import keyword_classify_news
+    from src.ui.components import news_badge_html
+    for it in keyword_classify_news("", "", items):
         meta = " · ".join(x for x in (it.get("source"), it.get("date")) if x)
-        st.markdown(f"- [{it['title']}]({it.get('link') or '#'})  "
+        badges = " ".join(news_badge_html(t) for t in it.get("tags", []))
+        st.markdown(f"- [{it['title']}]({it.get('link') or '#'}) {badges} "
                     f"<span style='color:#898781;font-size:0.85em;'>{meta}</span>",
                     unsafe_allow_html=True)
+    st.caption("태그는 PEST(정책·경제·사회·기술) 관점의 키워드 분류입니다.")
 
 
 # ── 페이지 엔트리 ───────────────────────────────────────────────────

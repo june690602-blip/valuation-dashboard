@@ -467,23 +467,90 @@ def render_price_tab(d):
                    "종목 선이 지수 위에 있으면 그만큼 시장을 초과한 것입니다.")
 
 
-def render_news_tab(d):
-    from src.data.gemini import is_available
-    from src.data.news import fetch_news
+@st.cache_data(ttl=21600, show_spinner=False)
+def cached_news_categories(name: str, sector: str, headline_key: tuple, items_json: str):
+    """Gemini 분류 캐시 — 실패하면 호출부가 키워드 폴백."""
+    import json as _json
+
+    from src.analysis.ai_analysis import classify_news_categories
+    return classify_news_categories(name, sector, _json.loads(items_json))
+
+
+def _gather_news(d) -> list[dict]:
+    """기업(종목명) + 산업(업종어) + 거시(금리·환율 등) 헤드라인을 모아 중복 제거."""
+    from src.data.news import fetch_news, fetch_topic_news
+    items: list[dict] = []
     try:
-        items = fetch_news(d.name, d.market, d.yahoo_ticker)
+        items += fetch_news(d.name, d.market, d.yahoo_ticker)
     except Exception:
-        items = []
+        pass
+    sector_q = (d.sector or d.industry or "").strip()
+    if sector_q:
+        try:
+            items += fetch_topic_news(f"{sector_q} 산업" if d.market == "KR" else f"{sector_q} industry",
+                                      d.market, limit=6)
+        except Exception:
+            pass
+    try:
+        macro_q = "기준금리 OR 물가 OR 환율" if d.market == "KR" else "Fed OR inflation OR treasury yields"
+        items += fetch_topic_news(macro_q, d.market, limit=6)
+    except Exception:
+        pass
+    seen, out = set(), []
+    for it in items:
+        k = it.get("title", "")[:40]
+        if k and k not in seen:
+            seen.add(k)
+            out.append(it)
+    return out
+
+
+def render_news_tab(d):
+    import json as _json
+
+    from src.analysis.ai_analysis import keyword_classify_news
+    from src.data.gemini import is_available
+
+    items = _gather_news(d)
     if not items:
         st.info("관련 뉴스를 찾지 못했습니다. (종목명 검색 결과 없음)")
         return
 
-    st.markdown(f"**{d.name} 최근 뉴스 헤드라인** — 출처: Google News")
-    for it in items:
-        meta = " · ".join(x for x in (it.get("source"), it.get("date")) if x)
-        link = it.get("link") or "#"
-        st.markdown(f"- [{it['title']}]({link})  <span style='color:#898781;font-size:0.85em;'>{meta}</span>",
+    # 분류: Gemini(가능하면) → 키워드 폴백. 실패해도 뉴스 자체는 항상 보여준다.
+    classified, how = None, "키워드 규칙"
+    if is_available():
+        try:
+            key = tuple(it.get("title", "")[:40] for it in items)
+            classified = cached_news_categories(d.name, d.sector or "", key,
+                                                _json.dumps(items, ensure_ascii=False))
+            how = "AI(Gemini) 분류"
+        except Exception:
+            classified = None
+    if classified is None:
+        classified = keyword_classify_news(d.name, d.sector or "", items)
+
+    st.markdown(f"**{d.name} 관련 뉴스 — 기업 · 산업 · 거시로 구분** "
+                f"(출처: Google News, 분류: {how})")
+    st.caption("기본적 분석의 순서(경제 → 산업 → 기업)를 따라 배치했습니다. 거시 기사에는 "
+               "PEST(정책·경제·사회·기술) 관점 태그를 붙입니다.")
+
+    from src.ui.components import news_badge_html
+    sections = [("🏢 기업", "기업", "이 회사 자체의 소식 — 실적·수주·신제품·지배구조"),
+                ("🏭 산업", "산업", "업종·경쟁사·시장 전반 — 회사의 물길이 되는 흐름"),
+                ("🌐 거시", "거시", "금리·물가·환율·정책 — 모든 자산에 깔리는 바닥 흐름")]
+    for title, cat, desc in sections:
+        group = [it for it in classified if it.get("category") == cat]
+        if not group:
+            continue
+        st.markdown(f"##### {title} <span style='color:#898781;font-size:0.8rem;'>{desc}</span>",
                     unsafe_allow_html=True)
+        for it in group:
+            meta = " · ".join(x for x in (it.get("source"), it.get("date")) if x)
+            badges = " ".join(news_badge_html(t) for t in it.get("tags", []))
+            st.markdown(
+                f"- [{it['title']}]({it.get('link') or '#'}) {badges} "
+                f"<span style='color:#898781;font-size:0.85em;'>{meta}</span>",
+                unsafe_allow_html=True)
 
     st.divider()
     ai_key = f"news_ai_{d.ticker}"

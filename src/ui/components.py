@@ -131,6 +131,20 @@ def verdict_badge_html(verdict: str | None, gap: float | None,
     </div>"""
 
 
+# 뉴스 카테고리·태그 배지 색 (카테고리는 팔레트 시리즈, 태그는 중립)
+NEWS_CAT_COLORS = {"기업": "#2a78d6", "산업": "#1baf7a", "거시": "#4a3aa7"}
+
+
+def news_badge_html(text: str, kind: str = "tag") -> str:
+    """뉴스 카테고리('기업'·'산업'·'거시')/태그 미니 배지."""
+    if kind == "category":
+        bg, fg = NEWS_CAT_COLORS.get(text, "#898781"), "#fff"
+    else:
+        bg, fg = "#f0efec", "#52514e"
+    return (f"<span style='background:{bg};color:{fg};padding:1px 8px;border-radius:10px;"
+            f"font-size:0.78rem;white-space:nowrap;'>{text}</span>")
+
+
 def score_bar_html(score: float | None, width: int = 90) -> str:
     """0~100 백분위 미니 바."""
     if score is None:

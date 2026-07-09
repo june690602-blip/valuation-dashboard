@@ -81,6 +81,93 @@ def analyze_news(name: str, items: list[dict]) -> str:
     return generate_text(prompt, temperature=0.45, max_tokens=1400) + DISCLAIMER
 
 
+# ── ②-b 뉴스 카테고리 분류 (거시/산업/기업 + 태그) ──────────────────
+NEWS_CATEGORIES = ("기업", "산업", "거시")
+EVENT_TAGS = ("실적", "수주·계약", "M&A", "규제·소송", "지배구조", "신제품")
+PEST_TAGS = ("정책 P", "경제 E", "사회 S", "기술 T")
+
+# 키워드 폴백 규칙 — Gemini 키가 없거나 실패해도 분류가 동작해야 한다(무키 원칙)
+_MACRO_KW = ("기준금리", "금리", "물가", "인플레", "CPI", "환율", "연준", "Fed", "FOMC",
+             "한국은행", "한은", "GDP", "수출", "무역", "국채", "경기", "고용", "실업")
+_EVENT_KW = {
+    "실적": ("실적", "영업이익", "매출", "순이익", "어닝", "컨센서스"),
+    "수주·계약": ("수주", "계약", "공급", "납품", "협약"),
+    "M&A": ("인수", "합병", "M&A", "지분 인수", "매각"),
+    "규제·소송": ("규제", "소송", "제재", "과징금", "조사", "리콜"),
+    "지배구조": ("지배구조", "배당", "자사주", "총수", "승계", "주주"),
+    "신제품": ("출시", "신제품", "공개", "양산", "개발 성공"),
+}
+_PEST_KW = {
+    "정책 P": ("정책", "규제", "법안", "정부", "선거", "관세", "제재"),
+    "경제 E": ("금리", "물가", "환율", "GDP", "수출", "고용", "경기", "국채"),
+    "사회 S": ("인구", "고령화", "소비 트렌드", "노조", "파업", "안전"),
+    "기술 T": ("AI", "인공지능", "반도체 기술", "특허", "R&D", "신기술"),
+}
+
+
+def keyword_classify_news(name: str, sector: str, items: list[dict]) -> list[dict]:
+    """키워드 규칙만으로 분류(폴백·순수 함수). 각 항목에 category·tags를 붙여 반환."""
+    out = []
+    sec_words = [w for w in (sector or "").replace("·", " ").split() if len(w) >= 2]
+    for it in items:
+        title = it.get("title", "")
+        if name and name in title:
+            cat = "기업"
+        elif any(k in title for k in _MACRO_KW):
+            cat = "거시"
+        elif any(w in title for w in sec_words):
+            cat = "산업"
+        else:
+            cat = "기업"  # 종목명 검색 결과가 대부분이므로 기본값은 기업
+        tag_src = _PEST_KW if cat == "거시" else _EVENT_KW
+        tags = [t for t, kws in tag_src.items() if any(k in title for k in kws)][:2]
+        out.append({**it, "category": cat, "tags": tags})
+    return out
+
+
+def classify_news_categories(name: str, sector: str, items: list[dict]) -> list[dict]:
+    """Gemini로 헤드라인을 거시/산업/기업 + 태그로 일괄 분류. 실패 시 예외(호출부 폴백).
+
+    태그: 기업·산업 기사는 이벤트 태그, 거시 기사는 PEST 태그를 붙인다.
+    """
+    if not items:
+        return []
+    lines = "\n".join(f"{i}. {it.get('title', '')}" for i, it in enumerate(items))
+    prompt = f"""너는 투자분석가다. '{name}'(업종: {sector or '불명'}) 관련 뉴스 헤드라인을 분류하라.
+
+category는 셋 중 하나:
+- "기업": 이 회사 자체의 소식 (실적·수주·신제품·지배구조 등)
+- "산업": 업종·경쟁사·시장 전반의 소식
+- "거시": 금리·물가·환율·정책 등 경제 전반
+
+tags 규칙 (0~2개):
+- 기업/산업 기사: {", ".join(EVENT_TAGS)} 중에서
+- 거시 기사: {", ".join(PEST_TAGS)} 중에서 (PEST 분석 관점)
+
+[헤드라인]
+{lines}
+
+아래 JSON만 출력(설명 금지). 모든 번호를 포함:
+{{"items": [{{"i": 0, "category": "기업", "tags": ["실적"]}}]}}"""
+    raw = generate_text(prompt, temperature=0.1, max_tokens=1600, json_out=True)
+    data = json.loads(_strip_json(raw))
+    by_idx = {}
+    for r in data.get("items", []):
+        try:
+            i = int(r.get("i"))
+        except (TypeError, ValueError):
+            continue
+        cat = str(r.get("category", "")).strip()
+        tags = [str(t).strip() for t in (r.get("tags") or []) if str(t).strip()][:2]
+        if cat in NEWS_CATEGORIES:
+            by_idx[i] = (cat, tags)
+    out = []
+    for i, it in enumerate(items):
+        cat, tags = by_idx.get(i, ("기업", []))
+        out.append({**it, "category": cat, "tags": tags})
+    return out
+
+
 # ── ③ 종합 투자평가 ─────────────────────────────────────────────────
 def investment_opinion(context: str) -> str:
     prompt = f"""너는 신중한 주식 애널리스트다. 아래는 한 기업에 대해 대시보드가 계산한
