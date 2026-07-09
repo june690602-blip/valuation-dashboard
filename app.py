@@ -22,6 +22,17 @@ from src.ui.components import (fmt_money, fmt_pct, fmt_price, fmt_value, fmt_x,
 st.set_page_config(page_title="투자지표 — 가치평가 대시보드", page_icon="📊",
                    layout="wide", initial_sidebar_state="expanded")
 
+# 우상단 기본 "Running" 상태 위젯(스포츠 픽토그램 애니메이션)을 숨긴다.
+# 로딩 안내는 아래 st.spinner 메시지로만 깔끔하게 노출한다.
+st.markdown(
+    """
+    <style>
+    [data-testid="stStatusWidget"] { display: none !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 PLOTLY_CFG = {"displayModeBar": False}
 EXAMPLES = {
     "KR": [("삼성전자", "005930"), ("현대차", "005380"), ("NAVER", "035420"), ("KB금융", "105560")],
