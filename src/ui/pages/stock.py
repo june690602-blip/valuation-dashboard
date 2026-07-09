@@ -532,6 +532,24 @@ def render_ai_tab(d, ind, val, cc, scores):
         st.code(ctx, language="text")
 
 
+# ── 포트폴리오 담기 ─────────────────────────────────────────────────
+def _render_basket_button(d):
+    """분석 중인 종목을 포트폴리오 바스켓(session_state)에 담는다."""
+    basket = st.session_state.setdefault("basket", {})
+    if d.yahoo_ticker in basket:
+        st.caption("🧺 포트폴리오에 담겨 있어요 — 포트폴리오 페이지에서 비중을 정하세요.")
+        return
+    if st.button("🧺 포트폴리오에 담기", key=f"basket_{d.yahoo_ticker}",
+                 use_container_width=True):
+        basket[d.yahoo_ticker] = {
+            "name": d.name, "yahoo": d.yahoo_ticker, "ticker": d.ticker,
+            "type": "국내주식" if d.market == "KR" else "해외주식",
+            "currency": d.currency,
+        }
+        st.toast(f"'{d.name}'을(를) 담았습니다 — 🧺 포트폴리오 페이지에서 확인하세요.")
+        st.rerun()
+
+
 # ── 페이지 엔트리 ───────────────────────────────────────────────────
 def render():
     market, query, rf, mrp, peer_count, custom_r = _render_sidebar()
@@ -567,6 +585,7 @@ def render():
                     f"{fmt_price(d.price, d.currency)}</div>", unsafe_allow_html=True)
         st.markdown(f"<div style='text-align:right;'>{verdict_badge_html(val.verdict, val.gap, val.confidence)}</div>",
                     unsafe_allow_html=True)
+        _render_basket_button(d)
 
     m = st.columns(6)
     m[0].metric("시가총액", fmt_money(d.market_cap, d.currency))

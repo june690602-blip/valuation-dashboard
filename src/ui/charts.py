@@ -600,3 +600,94 @@ def price_yield_chart(ytm_grid, prices, cur_ytm: float, cur_price: float,
         text="가격-수익률 곡선 — 접선(듀레이션)과 곡선의 간격이 볼록성", x=0,
         font=dict(size=12.5, color=P["ink2"])))
     return _layout(fig, height=380)
+
+
+# ── 포트폴리오: σ-기대수익 평면 ─────────────────────────────────────
+def risk_return_plane(assets: pd.DataFrame, port: dict | None,
+                      cmls: dict | None = None, optimal: dict | None = None) -> go.Figure:
+    """자산·포트폴리오를 σ-E(r) 평면에 배치하고 CML 참고선을 겹쳐 그린다.
+
+    assets: index=자산명, columns=[sigma, er, weight] (소수)
+    port: {er, sigma} | cmls: {라벨: (rf, er_m, sigma_m)} | optimal: {sigma, er, label}
+    """
+    fig = go.Figure()
+    x_candidates = list(assets["sigma"]) if len(assets) else [0.2]
+    if port:
+        x_candidates.append(port["sigma"])
+    if optimal:
+        x_candidates.append(optimal["sigma"])
+    sig_max = max(max(x_candidates) * 1.25, 0.05)
+
+    # CML 참고선 (판정선이 아니라 참고선 — 점선)
+    cml_colors = {"KR": P["series2"], "US": P["series4"]}
+    for label, (rf, er_m, sigma_m) in (cmls or {}).items():
+        if sigma_m <= 0:
+            continue
+        sig = np.linspace(0, sig_max, 60)
+        line = rf + (er_m - rf) / sigma_m * sig
+        color = cml_colors.get("KR" if "KOSPI" in label or "한국" in label else "US", P["muted"])
+        fig.add_trace(go.Scatter(
+            x=sig * 100, y=line * 100, mode="lines", name=f"CML — {label} (참고)",
+            line=dict(color=color, width=1.6, dash="dot"),
+            hovertemplate="σ %{x:.1f}% → %{y:.2f}%<extra>" + label + "</extra>"))
+
+    # 개별 자산 (비중에 비례한 크기)
+    if len(assets):
+        w = assets["weight"].fillna(0.0)
+        size = 9 + 26 * (w / max(w.max(), 1e-9))
+        fig.add_trace(go.Scatter(
+            x=assets["sigma"] * 100, y=assets["er"] * 100, mode="markers+text",
+            name="개별 자산", text=assets.index, textposition="top center",
+            textfont=dict(size=10.5, color=P["ink2"]),
+            marker=dict(size=size, color=P["series1"], opacity=0.55,
+                        line=dict(color=P["blue_deep"], width=1)),
+            customdata=np.stack([w * 100], axis=-1),
+            hovertemplate="%{text}<br>σ %{x:.1f}% · E(r) %{y:.2f}% · 비중 %{customdata[0]:.0f}%<extra></extra>"))
+
+    # 내 포트폴리오
+    if port:
+        fig.add_trace(go.Scatter(
+            x=[port["sigma"] * 100], y=[port["er"] * 100], mode="markers+text",
+            name="내 포트폴리오", text=["내 포트폴리오"], textposition="bottom right",
+            textfont=dict(color=P["red"], size=12),
+            marker=dict(size=17, color=P["red"], symbol="star"),
+            hovertemplate=f"σ {port['sigma']*100:.1f}% · E(r) {port['er']*100:.2f}%<extra>내 포트폴리오</extra>"))
+
+    # 성향테스트 최적점
+    if optimal:
+        fig.add_trace(go.Scatter(
+            x=[optimal["sigma"] * 100], y=[optimal["er"] * 100], mode="markers+text",
+            name=optimal.get("label", "성향 최적점"), text=["성향 최적점"],
+            textposition="top left", textfont=dict(size=10.5, color=P["series3"]),
+            marker=dict(size=13, color=P["series3"], symbol="diamond"),
+            hovertemplate=(f"σ {optimal['sigma']*100:.1f}% · E(r) {optimal['er']*100:.2f}%"
+                           "<extra>성향테스트 최적점</extra>")))
+
+    fig.update_xaxes(title_text="연 변동성 σ (%)", title_font_size=11, rangemode="tozero")
+    fig.update_yaxes(title_text="연 기대수익률 (%)", title_font_size=11)
+    fig.update_layout(title=dict(
+        text="σ-기대수익 평면 — CML은 시장+무위험 단순 혼합의 참고선", x=0,
+        font=dict(size=12.5, color=P["ink2"])))
+    return _layout(fig, height=460)
+
+
+def corr_heatmap(mat: pd.DataFrame, is_corr: bool = True) -> go.Figure:
+    """상관(기본)·공분산 히트맵 — 상관은 -1~+1 발산 스케일."""
+    z = mat.values
+    if is_corr:
+        colorscale = [[0.0, P["blue_deep"]], [0.5, "#f5f4ef"], [1.0, P["red"]]]
+        zmin, zmax = -1, 1
+        texttemplate = "%{z:.2f}"
+    else:
+        colorscale = [[0.0, "#f5f4ef"], [1.0, P["series1"]]]
+        zmin, zmax = None, None
+        texttemplate = "%{z:.4f}"
+    fig = go.Figure(go.Heatmap(
+        z=z, x=list(mat.columns), y=list(mat.index), colorscale=colorscale,
+        zmin=zmin, zmax=zmax, texttemplate=texttemplate,
+        textfont=dict(size=10.5), colorbar=dict(thickness=12)))
+    fig.update_yaxes(autorange="reversed")
+    fig.update_layout(title=dict(
+        text="상관계수 — +1 같이 움직임 · 0 무관 · −1 반대로 움직임" if is_corr
+        else "공분산 (연율)", x=0, font=dict(size=12.5, color=P["ink2"])))
+    return _layout(fig, height=380, legend=False)
