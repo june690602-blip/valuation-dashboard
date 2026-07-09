@@ -55,6 +55,16 @@ class USProvider(DataProvider):
         warnings: list[str] = []
 
         tk = yf.Ticker(sym)
+        # 상장폐지·거래정지 종목은 재무·시세 수집이 모두 실패한다. 시세 조회로 먼저 감지해
+        # 명확히 안내한다(파산한 옛 전기차 SPAC 등). 여기서 받은 시세는 아래에서 재사용.
+        try:
+            prices = fetch_prices(sym)
+        except Exception:
+            raise ValueError(
+                f"'{sym}' 시세·재무 데이터를 찾을 수 없습니다 — 상장폐지·거래정지 상태이거나 "
+                "잘못된 티커일 수 있어요. (파산·폐지된 종목은 Yahoo Finance에 데이터가 남지 않아 "
+                "분석할 수 없습니다.)")
+
         financials, w = extract_financials(tk)
         warnings += w
 
@@ -63,12 +73,13 @@ class USProvider(DataProvider):
         sector = meta["sector"] or self_info.get("sector") or ""
         industry = self_info.get("industry") or meta.get("sub_industry") or ""
 
-        prices = fetch_prices(sym)
         price = float(prices.iloc[-1])
         shares = self_info.get("shares")
         mcap = self_info.get("market_cap") or (price * shares if shares else None)
         if not shares or not mcap:
-            raise ValueError(f"{name}({sym}) 주식수/시가총액을 확인하지 못했습니다.")
+            raise ValueError(
+                f"'{name}({sym})' 주식수·시가총액을 확인하지 못했습니다 — 상장폐지·거래정지 "
+                "종목이거나 데이터가 불완전할 수 있어요.")
 
         ttm, w = extract_ttm(tk, shares)
         warnings += w

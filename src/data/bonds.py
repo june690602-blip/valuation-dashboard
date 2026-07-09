@@ -120,6 +120,25 @@ def fetch_yield_history(market: str, tenor_years: int, days: int = 500) -> pd.Da
     return df.set_index("date").sort_index().tail(days)
 
 
+def current_riskfree(market: str) -> tuple[float | None, str]:
+    """무위험이자율 R_f 기본값용 — 10년물 국채 수익률(소수)과 출처 라벨.
+
+    수익률곡선에서 10년물(없으면 10에 최근접 만기)을 뽑는다. 여러 페이지(주식 WACC·
+    성향테스트 CML·포트폴리오 CML)가 이 한 값을 공유해 탭 간 가정을 일치시킨다.
+    실패 시 (None, "") — 호출부가 정적 기본값으로 폴백.
+    """
+    try:
+        curve = fetch_yield_curve(market)
+        if curve is None or curve.empty:
+            return None, ""
+        tenor = 10 if 10 in curve.index else min(curve.index, key=lambda t: abs(t - 10))
+        rate = float(curve.loc[tenor, "yield"]) / 100.0
+        nm = "한국 국고채" if market == "KR" else "미국 국채"
+        return rate, f"{nm} {tenor:g}년"
+    except Exception:
+        return None, ""
+
+
 @file_cache("policy_rates", ttl_hours=12)
 def fetch_policy_rates() -> dict:
     """중앙은행 기준금리 {'한국은행': %, '미국 연준': %} — 실패 시 빈 dict."""

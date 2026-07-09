@@ -15,6 +15,14 @@ from .components import PALETTE as P
 FONT = "system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif"
 CATEGORY_ORDER = ["밸류에이션", "수익성", "성장성", "재무 안정성", "현금흐름"]
 
+# Plotly 표시 설정 — st.plotly_chart(config=...)에 넘긴다.
+# 기본: 모드바를 hover 시 노출(드래그 박스줌·줌인/아웃·팬·리셋). displayModeBar를
+# False로 두지 않으므로 모든 차트가 확대 가능해진다. lasso/select는 이 대시보드에 불필요.
+PLOTLY_CFG = {"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
+# 시계열·평면 차트용: 휠·트랙패드/터치 핀치 줌까지 허용(작은 범주형 차트는 페이지 스크롤
+# 가로채기를 피하려 기본 설정을 쓴다).
+PLOTLY_CFG_ZOOM = {**PLOTLY_CFG, "scrollZoom": True}
+
 
 def _layout(fig: go.Figure, height: int = 340, legend: bool = True) -> go.Figure:
     fig.update_layout(

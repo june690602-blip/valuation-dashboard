@@ -16,6 +16,11 @@ st.markdown(
     """
     <style>
     [data-testid="stStatusWidget"] { display: none !important; }
+    /* 메트릭 숫자가 좁은 칸에서 줄바꿈/잘리지 않도록: 한 줄 유지 + 살짝 축소 */
+    [data-testid="stMetricValue"] {
+        white-space: nowrap;
+        font-size: 1.55rem;
+    }
     </style>
     """,
     unsafe_allow_html=True,

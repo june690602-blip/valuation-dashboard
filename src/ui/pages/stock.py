@@ -19,7 +19,8 @@ from src.ui import charts
 from src.ui.components import (fmt_money, fmt_pct, fmt_price, fmt_value, fmt_x,
                                label, score_bar_html, verdict_badge_html)
 
-PLOTLY_CFG = {"displayModeBar": False}
+PLOTLY_CFG = charts.PLOTLY_CFG            # 모드바 hover(박스줌·팬·리셋)
+PLOTLY_CFG_ZOOM = charts.PLOTLY_CFG_ZOOM  # 시계열 차트: 휠·핀치 줌까지
 EXAMPLES = {
     "KR": [("삼성전자", "005930"), ("현대차", "005380"), ("NAVER", "035420"), ("KB금융", "105560")],
     "US": [("Apple", "AAPL"), ("Microsoft", "MSFT"), ("Coca-Cola", "KO"), ("Rivian", "RIVN")],
@@ -62,9 +63,13 @@ def _render_sidebar():
         )
         st.caption("예시: " + " · ".join(f"{n}" for n, _ in EXAMPLES[market]))
 
-        with st.expander("가정 (자본비용·평가)", expanded=False):
-            rf = st.slider("무위험이자율 R_f (%)", 0.5, 8.0,
-                           3.5 if market == "KR" else 4.5, 0.1, key=f"rf_{market}") / 100
+        from src.ui.pages.home import _market_riskfree
+        rf_live, rf_src = _market_riskfree(market)
+        with st.expander(f"가정 (자본비용·평가) — R_f: {rf_src} {rf_live * 100:.2f}%",
+                         expanded=False):
+            rf = st.slider("무위험이자율 R_f (%)", 0.5, 8.0, round(rf_live * 100, 1), 0.1,
+                           key=f"rf_{market}",
+                           help="채권탭의 10년물 국채 금리를 기본값으로 씁니다(WACC 계산에 반영).") / 100
             mrp = st.slider("시장위험프리미엄 MRP (%)", 3.0, 10.0,
                             6.0 if market == "KR" else 5.0, 0.5, key=f"mrp_{market}") / 100
             peer_count = st.slider("업종 피어 수", 5, 15, 10)
@@ -213,7 +218,7 @@ def render_valuation_tab(d, ind, val):
         st.markdown(f"**5년 {kind} 밴드** — 현재 위치: 하위 {pct:.0f}% "
                     f"({'싼 구간' if pct < 35 else '비싼 구간' if pct > 65 else '중간 구간'})")
         st.plotly_chart(charts.band_chart(band, d.currency, kind),
-                        use_container_width=True, config=PLOTLY_CFG)
+                        use_container_width=True, config=PLOTLY_CFG_ZOOM)
         st.caption("분위선 = 지난 5년 배수 분포(10~90분위)를 현재 펀더멘털에 곱한 가격 수준. "
                    "주가가 짙은 선 위에 있을수록 역사적으로 비싼 영역입니다.")
     else:
@@ -457,12 +462,13 @@ def render_price_tab(d):
                     key="price_mode", label_visibility="collapsed")
     if mode == "절대 주가":
         st.plotly_chart(charts.price_chart(ohlcv, d.currency),
-                        use_container_width=True, config=PLOTLY_CFG)
-        st.caption("종가 + 이동평균(20/60/120일) + 거래량. 상단 버튼으로 기간을 바꿀 수 있습니다.")
+                        use_container_width=True, config=PLOTLY_CFG_ZOOM)
+        st.caption("종가 + 이동평균(20/60/120일) + 거래량. 휠/드래그로 확대(더블클릭 리셋), "
+                   "상단 버튼으로 기간을 바꿀 수 있습니다.")
     else:
         st.plotly_chart(
             charts.relative_perf_chart(d.prices, d.index_prices, d.name, d.benchmark_name),
-            use_container_width=True, config=PLOTLY_CFG)
+            use_container_width=True, config=PLOTLY_CFG_ZOOM)
         st.caption(f"시작일을 100으로 맞춰 {d.benchmark_name} 지수와 누적 성과를 비교합니다. "
                    "종목 선이 지수 위에 있으면 그만큼 시장을 초과한 것입니다.")
 

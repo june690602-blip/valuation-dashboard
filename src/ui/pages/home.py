@@ -11,13 +11,26 @@ import streamlit as st
 from src.analysis.risk_profile import QUESTIONS, grade, tangency_point
 from src.ui import charts
 
-PLOTLY_CFG = {"displayModeBar": False}
+PLOTLY_CFG = charts.PLOTLY_CFG_ZOOM  # CML 접점 차트: 휠·핀치 줌
 
 # 시장 파라미터 기본값 — E(Rm)=Rf+MRP(전방 시각, 주식 페이지 가정과 일관), σ는 지수 실측 폴백
 MARKET_DEFAULTS = {
     "KR": {"label": "KOSPI200", "symbol": "^KS200", "rf": 0.035, "mrp": 0.060, "sigma": 0.17},
     "US": {"label": "S&P 500", "symbol": "^GSPC", "rf": 0.045, "mrp": 0.050, "sigma": 0.15},
 }
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _market_riskfree(market: str) -> tuple[float, str]:
+    """무위험이자율 R_f 기본값 — 채권탭 10년물 국채 금리(라이브), 실패 시 정적 기본값.
+
+    주식 WACC·성향테스트 CML·포트폴리오 CML이 이 한 값을 공유한다(탭 유기적 연결).
+    """
+    from src.data.bonds import current_riskfree
+    rate, label = current_riskfree(market)
+    if rate is not None and 0.0 < rate < 0.15:
+        return rate, label
+    return MARKET_DEFAULTS[market]["rf"], "기본 가정치"
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -160,8 +173,11 @@ def _render_result(answer_indices: list[int]):
                     help="테스트 결과가 기본값입니다. A가 클수록(위험회피↑) 접점이 무위험자산 쪽으로 이동합니다.")
 
     md = MARKET_DEFAULTS[market]
-    with st.expander("가정 조정 (R_f · MRP · σm)", expanded=False):
-        rf = st.slider("무위험이자율 R_f (%)", 0.5, 8.0, md["rf"] * 100, 0.1, key=f"rt_rf_{market}") / 100
+    rf_live, rf_src = _market_riskfree(market)
+    with st.expander(f"가정 조정 (R_f · MRP · σm) — R_f 기본값: {rf_src} {rf_live * 100:.2f}%",
+                     expanded=False):
+        rf = st.slider("무위험이자율 R_f (%)", 0.5, 8.0, round(rf_live * 100, 1), 0.1,
+                       key=f"rt_rf_{market}", help="채권탭의 10년물 국채 금리를 기본값으로 씁니다.") / 100
         mrp = st.slider("시장위험프리미엄 MRP (%)", 3.0, 10.0, md["mrp"] * 100, 0.5, key=f"rt_mrp_{market}") / 100
         sigma_est, sigma_src = _market_sigma(md["symbol"], md["sigma"])
         sigma_m = st.slider(f"시장 변동성 σm (%) — {sigma_src}", 8.0, 35.0,

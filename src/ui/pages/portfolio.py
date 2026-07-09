@@ -16,9 +16,10 @@ import streamlit as st
 from src.analysis.portfolio import (after_tax_row, annualize, monthly_returns_krw,
                                     performance, portfolio_point, portfolio_series)
 from src.ui import charts
-from src.ui.pages.home import MARKET_DEFAULTS, _market_sigma
+from src.ui.pages.home import MARKET_DEFAULTS, _market_riskfree, _market_sigma
 
-PLOTLY_CFG = {"displayModeBar": False}
+PLOTLY_CFG = charts.PLOTLY_CFG            # 히트맵 등: 모드바 hover
+PLOTLY_CFG_ZOOM = charts.PLOTLY_CFG_ZOOM  # σ-E(r) 평면: 휠·핀치 줌
 
 # 프리셋 자산 (이름, 야후티커, 세금유형, 표시통화, 분류) — KRW=X는 이미 '1달러의 원화 가격'
 PRESETS = [
@@ -140,8 +141,9 @@ def _asset_prices(basket: dict) -> tuple[dict, dict]:
 
 def _cml_params(market: str) -> tuple[float, float, float]:
     md = MARKET_DEFAULTS[market]
+    rf = _market_riskfree(market)[0]  # 채권탭 라이브 국채 금리 공유
     sigma = _market_sigma(md["symbol"], md["sigma"])[0]
-    return md["rf"], md["rf"] + md["mrp"], sigma
+    return rf, rf + md["mrp"], sigma
 
 
 def render():
@@ -149,9 +151,12 @@ def render():
         st.markdown("### 🧺 포트폴리오")
         months = st.select_slider("통계 기간(개월)", [36, 48, 60], value=60,
                                   help="월간 수익률 표본 길이 — 길수록 안정적, 짧을수록 최근 반영")
-        rf = st.slider("무위험이자율 R_f (%)", 0.5, 8.0, 3.5, 0.1, key="pf_rf") / 100
         bench_market = st.radio("성과 벤치마크", ["KR", "US"], horizontal=True,
                                 format_func=lambda m: "🇰🇷 KOSPI200" if m == "KR" else "🇺🇸 S&P 500")
+        rf_live, rf_src = _market_riskfree(bench_market)
+        rf = st.slider("무위험이자율 R_f (%)", 0.5, 8.0, round(rf_live * 100, 1), 0.1,
+                       key=f"pf_rf_{bench_market}",
+                       help=f"기본값 = {rf_src} {rf_live * 100:.2f}% (채권탭 연동)") / 100
     _render_save_load()
 
     st.title("🧺 포트폴리오")
@@ -246,7 +251,7 @@ def render():
                    "label": f"성향 최적점 ({prof['label']})"}
 
     st.plotly_chart(charts.risk_return_plane(assets_df, port, cmls, optimal),
-                    use_container_width=True, config=PLOTLY_CFG)
+                    use_container_width=True, config=PLOTLY_CFG_ZOOM)
 
     p1, p2 = st.columns(2)
     p1.metric("내 포트폴리오 기대수익", f"{port['er'] * 100:+.1f}%(연)")

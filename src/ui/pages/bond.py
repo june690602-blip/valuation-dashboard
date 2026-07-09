@@ -14,8 +14,26 @@ from src.analysis.bond_math import (bond_metrics, price_yield_points,
                                     rate_scenarios)
 from src.ui import charts
 
-PLOTLY_CFG = {"displayModeBar": False}
+PLOTLY_CFG = charts.PLOTLY_CFG_ZOOM  # 채권 차트는 전부 시계열·곡선 → 휠·핀치 줌 허용
 FACE = 100.0  # 호가 관례에 맞춘 액면 100 기준
+
+
+def _bond_etf_proxy(market: str, tenor_years: float) -> dict:
+    """만기·국가 → 국채 ETF 프록시 (포트폴리오 basket dict 구조). portfolio.PRESETS와 동일 형식.
+
+    개별 국채는 일별 시세가 없어 포트폴리오 통계를 ETF로 대신 계산한다.
+    """
+    if market == "KR":
+        if tenor_years <= 5:
+            return {"name": "KODEX 국고채3년", "yahoo": "114260.KS", "ticker": "114260.KS",
+                    "type": "국내ETF", "currency": "KRW", "class": "채권"}
+        return {"name": "KOSEF 국고채10년", "yahoo": "148070.KS", "ticker": "148070.KS",
+                "type": "국내ETF", "currency": "KRW", "class": "채권"}
+    if tenor_years <= 7:
+        return {"name": "iShares 미국채 7-10년 (IEF)", "yahoo": "IEF", "ticker": "IEF",
+                "type": "해외ETF", "currency": "USD", "class": "채권"}
+    return {"name": "iShares 미국채 20년+ (TLT)", "yahoo": "TLT", "ticker": "TLT",
+            "type": "해외ETF", "currency": "USD", "class": "채권"}
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -135,6 +153,19 @@ def _render_scenario_section(kr: pd.DataFrame, us: pd.DataFrame):
                 help="듀레이션 근사의 오차를 보정하는 2차항. 클수록 금리 하락 이득 > 상승 손실.")
     r[4].metric("DV01", f"{m['dv01'] * 100:.2f}bp상당",
                 help="금리 1bp 변화당 가격 변화(액면 100 기준 통화단위).")
+
+    # 포트폴리오로 담기 — 개별 국채 시세가 없어 만기에 맞는 국채 ETF 프록시로 편입
+    proxy = _bond_etf_proxy(market, years)
+    basket = st.session_state.setdefault("basket", {})
+    bcol1, bcol2 = st.columns([2, 3], vertical_alignment="center")
+    if proxy["yahoo"] in basket:
+        bcol1.caption(f"🧺 담겨 있어요: {proxy['name']}")
+    elif bcol1.button("🧺 이 국채를 포트폴리오에 담기", use_container_width=True):
+        basket[proxy["yahoo"]] = proxy
+        st.toast(f"'{proxy['name']}'을(를) 포트폴리오에 담았습니다.")
+        st.rerun()
+    bcol2.caption(f"만기에 맞춰 **{proxy['name']}**로 편입합니다(개별 국채는 일별 시세가 없어 "
+                  "ETF 프록시로 포트폴리오 통계를 계산).")
 
     # 시나리오 표 — 근사 vs 정확
     rows = rate_scenarios(FACE, coupon, ytm, years, freq)

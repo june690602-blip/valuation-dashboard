@@ -69,17 +69,20 @@ def _is_na(v) -> bool:
 
 
 def fmt_money(v, currency: str = "KRW") -> str:
-    """1616496000000000 → '1,616조 4,960억' / 4.5e12 → '$4.50T'"""
+    """단일 단위 + 유효숫자로 짧게. 5.003e14 → '500.3조', 8.5e11 → '8,500억', 4.5e12 → '$4.50T'.
+
+    (좁은 메트릭 칸에서 줄바꿈/잘림을 막기 위해 '조 억' 2단 표기 대신 한 단위로 반올림)
+    """
     if _is_na(v):
         return "—"
     v = float(v)
     sign = "-" if v < 0 else ""
     a = abs(v)
     if currency == "KRW":
-        if a >= 1e12:
-            jo = int(a // 1e12)
-            eok = int(round((a % 1e12) / 1e8))
-            return f"{sign}{jo:,}조 {eok:,}억" if eok else f"{sign}{jo:,}조"
+        if a >= 1e14:            # 100조 이상은 소수 없이
+            return f"{sign}{a / 1e12:,.0f}조"
+        if a >= 1e12:            # 1조~100조는 소수 1자리
+            return f"{sign}{a / 1e12:,.1f}조"
         if a >= 1e8:
             return f"{sign}{a / 1e8:,.0f}억"
         return f"{sign}{a:,.0f}원"
