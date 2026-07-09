@@ -473,3 +473,130 @@ def relative_perf_chart(prices: pd.Series, index_prices: pd.Series,
     fig.update_xaxes(rangeselector=_RANGE_BUTTONS, showgrid=False)
     fig.update_yaxes(title_text="지수화 (시작=100)", title_font_size=11)
     return _layout(fig, height=440)
+
+
+# ── 성향테스트: CML + 무차별곡선 접점 ───────────────────────────────
+def cml_tangency_chart(rf: float, er_m: float, sigma_m: float, A: float,
+                       market_label: str = "시장") -> go.Figure:
+    """자본시장선(CML) 위 '나의 최적점' — 무차별곡선이 CML에 접하는 지점.
+
+    x=연 변동성 σ(%), y=연 기대수익률(%). 접점에서 MRS(=A·σ*)가 샤프비율과 같다.
+    """
+    from src.analysis.risk_profile import indifference_curve, tangency_point
+
+    t = tangency_point(er_m, rf, sigma_m, A)
+    sig_max = max(sigma_m * 1.6, t["sigma_p"] * 1.25, 0.01)
+    sig = np.linspace(0.0, sig_max, 160)
+
+    cml = rf + t["sharpe"] * sig
+    indiff = indifference_curve(A, t["utility"], sig)
+
+    fig = go.Figure()
+    # CML
+    fig.add_trace(go.Scatter(
+        x=sig * 100, y=cml * 100, mode="lines", name="자본시장선(CML)",
+        line=dict(color=P["series1"], width=2.4),
+        hovertemplate="σ %{x:.1f}% → 기대수익 %{y:.2f}%<extra>CML</extra>"))
+    # 무차별곡선 (y축 범위를 넘는 위쪽 꼬리는 잘라 시야 유지)
+    y_cap = max(cml.max(), t["er_p"]) * 100 * 1.35
+    ind_pct = np.where(indiff * 100 <= y_cap, indiff * 100, np.nan)
+    fig.add_trace(go.Scatter(
+        x=sig * 100, y=ind_pct, mode="lines", name=f"나의 무차별곡선 (A={A:.1f})",
+        line=dict(color=P["series3"], width=2, dash="dash"),
+        hovertemplate="σ %{x:.1f}% → %{y:.2f}%<extra>무차별곡선</extra>"))
+    # 무위험·시장 포트폴리오
+    fig.add_trace(go.Scatter(
+        x=[0], y=[rf * 100], mode="markers+text", name="무위험자산",
+        marker=dict(size=9, color=P["muted"]), text=["R_f"], textposition="middle right",
+        hovertemplate=f"무위험수익률 {rf*100:.2f}%<extra></extra>", showlegend=False))
+    fig.add_trace(go.Scatter(
+        x=[sigma_m * 100], y=[er_m * 100], mode="markers+text", name=market_label,
+        marker=dict(size=11, color=P["series4"]), text=["M"], textposition="top center",
+        hovertemplate=(f"{market_label}: σ {sigma_m*100:.1f}%, "
+                       f"E(R) {er_m*100:.2f}%<extra></extra>"), showlegend=False))
+    # 나의 접점
+    fig.add_trace(go.Scatter(
+        x=[t["sigma_p"] * 100], y=[t["er_p"] * 100], mode="markers+text", name="나의 최적점",
+        marker=dict(size=15, color=P["red"], symbol="star"),
+        text=["나의 접점"], textposition="bottom right", textfont=dict(color=P["red"]),
+        hovertemplate=(f"위험자산 {t['y_star']*100:.0f}% 편입<br>"
+                       f"σ {t['sigma_p']*100:.1f}%, 기대수익 {t['er_p']*100:.2f}%<extra></extra>")))
+    # 접점 보조선
+    fig.add_shape(type="line", x0=t["sigma_p"] * 100, x1=t["sigma_p"] * 100,
+                  y0=0, y1=t["er_p"] * 100, line=dict(color=P["baseline"], width=1, dash="dot"))
+    fig.add_shape(type="line", x0=0, x1=t["sigma_p"] * 100,
+                  y0=t["er_p"] * 100, y1=t["er_p"] * 100,
+                  line=dict(color=P["baseline"], width=1, dash="dot"))
+    if t["y_star"] > 1:
+        fig.add_annotation(x=t["sigma_p"] * 100, y=t["er_p"] * 100, ax=40, ay=30,
+                           text="M 오른쪽 = 차입(레버리지) 구간", font=dict(size=11, color=P["muted"]))
+
+    fig.update_xaxes(title_text="연 변동성 σ (%)", title_font_size=11, rangemode="tozero")
+    fig.update_yaxes(title_text="연 기대수익률 (%)", title_font_size=11, rangemode="tozero")
+    fig.update_layout(title=dict(
+        text=f"무차별곡선이 CML에 접하는 곳이 나의 최적 포트폴리오 — 기준: {market_label}",
+        x=0, font=dict(size=12.5, color=P["ink2"])))
+    return _layout(fig, height=430)
+
+
+# ── 채권: 수익률곡선 ────────────────────────────────────────────────
+def yield_curve_chart(curves: dict) -> go.Figure | None:
+    """수익률곡선 — {라벨: DataFrame(index=만기 년, col 'yield'(%))} 여러 개를 겹쳐 그림."""
+    colors = [P["series1"], P["series4"], P["series2"], P["series3"]]
+    fig = go.Figure()
+    drawn = 0
+    for i, (name, df) in enumerate(curves.items()):
+        if df is None or df.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=df.index.astype(float), y=df["yield"], mode="lines+markers", name=name,
+            line=dict(color=colors[i % len(colors)], width=2.2), marker=dict(size=7),
+            hovertemplate="만기 %{x}년 → %{y:.3f}%<extra>" + name + "</extra>"))
+        drawn += 1
+    if drawn == 0:
+        return None
+    fig.update_xaxes(title_text="만기 (년)", title_font_size=11,
+                     tickvals=[0.25, 1, 2, 3, 5, 7, 10, 20, 30])
+    fig.update_yaxes(title_text="수익률 (%)", title_font_size=11)
+    return _layout(fig, height=380)
+
+
+def yield_history_chart(df: pd.DataFrame, label: str) -> go.Figure | None:
+    """단일 테너 금리 추이(일별)."""
+    if df is None or df.empty:
+        return None
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df.index, y=df["yield"], mode="lines", name=label,
+                             line=dict(color=P["series1"], width=1.8),
+                             hovertemplate="%{x|%Y-%m-%d}: %{y:.3f}%<extra></extra>"))
+    fig.update_yaxes(title_text="수익률 (%)", title_font_size=11)
+    fig.update_layout(showlegend=False, title=dict(
+        text=f"{label} — 최근 추이", x=0, font=dict(size=12.5, color=P["ink2"])))
+    return _layout(fig, height=320, legend=False)
+
+
+def price_yield_chart(ytm_grid, prices, cur_ytm: float, cur_price: float,
+                      modified_dur: float) -> go.Figure:
+    """price-yield 곡선 + 현재점 + 듀레이션 접선 — 곡선과 접선의 벌어짐이 곧 볼록성.
+
+    ytm_grid·cur_ytm은 소수(0.04=4%), 가격은 액면 100 기준.
+    """
+    x_pct = np.asarray(ytm_grid) * 100
+    tangent = cur_price * (1.0 - modified_dur * (np.asarray(ytm_grid) - cur_ytm))
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x_pct, y=prices, mode="lines", name="실제 가격 곡선(볼록)",
+                             line=dict(color=P["series1"], width=2.4),
+                             hovertemplate="YTM %{x:.2f}% → 가격 %{y:.2f}<extra>정확 가격</extra>"))
+    fig.add_trace(go.Scatter(x=x_pct, y=tangent, mode="lines", name="듀레이션 근사(접선)",
+                             line=dict(color=P["series3"], width=1.8, dash="dash"),
+                             hovertemplate="YTM %{x:.2f}% → 근사 %{y:.2f}<extra>듀레이션 근사</extra>"))
+    fig.add_trace(go.Scatter(x=[cur_ytm * 100], y=[cur_price], mode="markers+text",
+                             name="현재", marker=dict(size=12, color=P["red"], symbol="circle"),
+                             text=["현재"], textposition="top center", showlegend=False,
+                             hovertemplate=f"YTM {cur_ytm*100:.2f}%, 가격 {cur_price:.2f}<extra></extra>"))
+    fig.update_xaxes(title_text="YTM (%)", title_font_size=11)
+    fig.update_yaxes(title_text="가격 (액면 100 기준)", title_font_size=11)
+    fig.update_layout(title=dict(
+        text="가격-수익률 곡선 — 접선(듀레이션)과 곡선의 간격이 볼록성", x=0,
+        font=dict(size=12.5, color=P["ink2"])))
+    return _layout(fig, height=380)

@@ -67,6 +67,22 @@ def _yf_news(yahoo_ticker: str, limit: int) -> list[dict]:
     return items
 
 
+@file_cache("topic_news", ttl_hours=6)
+def fetch_topic_news(query: str, market: str = "KR", limit: int = 10) -> list[dict]:
+    """토픽 헤드라인(예: '기준금리 OR 국고채') — 채권·거시 뉴스용. 실패 시 빈 리스트."""
+    try:
+        items = _google_news(requests.utils.quote(query), market, limit)
+    except Exception:
+        return []
+    seen, out = set(), []
+    for it in items:
+        k = it["title"][:40]
+        if k and k not in seen:
+            seen.add(k)
+            out.append(it)
+    return out
+
+
 @file_cache("news", ttl_hours=6)
 def fetch_news(name: str, market: str, yahoo_ticker: str, limit: int = 12) -> list[dict]:
     """헤드라인 목록. 실패해도 예외 대신 빈 리스트에 가깝게 동작."""
