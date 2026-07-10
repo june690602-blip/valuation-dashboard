@@ -134,6 +134,19 @@ def verdict_badge_html(verdict: str | None, gap: float | None,
     </div>"""
 
 
+def guide_link_html(label: str = "📖 사용설명서 열기 (새 탭)", block: bool = False) -> str:
+    """설명 페이지(/guide)를 새 탭으로 여는 버튼형 링크. block=True면 가로 꽉 채움.
+
+    href는 상대경로 'guide' — 현재 어느 페이지에서든 같은 앱의 guide 페이지 새 탭으로 열린다.
+    """
+    width = "display:block;width:100%;box-sizing:border-box;" if block else "display:inline-block;"
+    return (
+        f"<a href='guide' target='_blank' rel='noopener' style='{width}text-align:center;"
+        "text-decoration:none;padding:8px 16px;border:1px solid #c3c2b7;border-radius:8px;"
+        "background:#fcfcfb;color:#2a78d6;font-weight:600;font-size:0.92rem;'>"
+        f"{label} ↗</a>")
+
+
 # 뉴스 카테고리·태그 배지 색 (카테고리는 팔레트 시리즈, 태그는 중립)
 NEWS_CAT_COLORS = {"기업": "#2a78d6", "산업": "#1baf7a", "거시": "#4a3aa7"}
 

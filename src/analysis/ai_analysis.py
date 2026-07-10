@@ -170,44 +170,83 @@ tags 규칙 (0~2개):
 
 # ── ③ 종합 투자평가 ─────────────────────────────────────────────────
 def investment_opinion(context: str) -> str:
-    prompt = f"""너는 신중한 주식 애널리스트다. 아래는 한 기업에 대해 대시보드가 계산한
-기본적 분석 결과와 뉴스 요약이다. 이 사실들만 근거로, "지금 투자 매력도"를 한국어
-마크다운으로 평가하라. **주어지지 않은 수치를 지어내지 말 것.**
+    prompt = f"""너는 근거를 명확히 제시하는 주식 애널리스트다. 아래는 대시보드가 실제로 계산한
+사실이다. 이 사실에 **적극 근거해** "지금 투자 매력도"를 한국어 마크다운으로 평가하라.
+
+[중요 원칙]
+- 아래에 제공된 수치(적정주가 범위·상승여력·52주 범위·업종 백분위 등)는 **적극적으로 인용**하라.
+- **목표가는 제공된 '적정주가 범위'를 그대로 목표 구간으로 제시**하라. 이는 대시보드가 3가지
+  방법으로 산출한 값이므로 지어내는 것이 아니다. 현재가 대비 상승여력(%)을 반드시 계산해 밝혀라.
+- **손절 라인**은 제공된 52주 최저·역사적 지지 수준 등을 근거로 구체적 수준을 제시하라.
+  "수치가 없어 제시하기 어렵다"는 식으로 회피하지 말 것(참고 기준임을 밝히되 숫자를 내라).
+- 다만 **제공되지 않은 완전히 새로운 수치**(예: 존재하지 않는 미래 실적 추정)는 지어내지 말 것.
+- 3가지 방법의 편차가 크면(신뢰도 낮음) 그 불확실성도 함께 밝혀라.
 
 [분석 컨텍스트]
 {context}
 
-다음 형식으로:
-### 한 줄 결론
-스탠스를 [적극 매수 / 매수 / 중립 / 비중 축소 / 회피] 중 하나로 명시 + 핵심 이유 한 문장.
-### ✅ 강세 논거 (매수 근거)
-### ⚠️ 약세 논거·리스크 (밸류트랩·재무·뉴스 리스크 포함)
-### 밸류에이션 관점
-적정주가 판정과 자기역사/업종 대비를 어떻게 해석할지.
-### 👀 앞으로 지켜볼 것 (촉매·체크포인트)
-### 종합
-투자 성향별(안정형/공격형)로 한 줄씩 조언. 확신이 어려우면 솔직히 불확실성을 밝혀라."""
-    return generate_text(prompt, temperature=0.4, max_tokens=2048) + DISCLAIMER
+아래 형식(굵은 소제목 유지, 각 항목 2~4문장):
+### 📌 한 줄 결론
+스탠스 [적극 매수 / 매수 / 중립 / 비중 축소 / 회피] + 핵심 이유 한 문장.
+### ✅ 강세 논거
+### ⚠️ 약세 논거·리스크
+밸류트랩·재무·뉴스 리스크 포함.
+### 🎯 목표가와 상승여력
+제공된 적정주가 범위를 목표 구간으로 제시하고 현재가 대비 상승여력(%)을 명시. 신뢰도도 언급.
+### 🛡️ 손절·리스크 관리
+52주 최저·지지선 등 근거로 손절 고려 수준을 구체적으로 제시(참고 기준).
+### 🧭 투자성향별 맞춤
+컨텍스트에 '사용자 투자성향'이 있으면 그 성향(위험회피계수·권장 위험자산 비중)에 맞춰 이 종목의
+편입 적정성과 대략적 비중을 조언하라. 없으면 안정형/공격형으로 나눠 한 줄씩.
+### 👀 지켜볼 것
+촉매·체크포인트."""
+    return generate_text(prompt, temperature=0.35, max_tokens=2048) + DISCLAIMER
 
 
 # ── 투자평가용 컨텍스트 빌더 (순수 함수) ────────────────────────────
-def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "") -> str:
-    """CompanyData·분석결과 → Gemini에 넣을 사실 요약 텍스트."""
+def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "",
+                          risk_profile: dict | None = None) -> str:
+    """CompanyData·분석결과 → Gemini에 넣을 사실 요약 텍스트.
+
+    risk_profile: 투자성향 테스트 결과(session_state["risk_profile"]) — 있으면 성향 맞춤용으로 주입.
+    """
     def pct(v):
         return f"{v*100:.1f}%" if isinstance(v, (int, float)) else "N/A"
 
     def x(v):
         return f"{v:.1f}x" if isinstance(v, (int, float)) else "N/A"
 
+    cur = f"{d.currency}"
     v = ind.valuation
     p = ind.profitability
     g = ind.growth
     lines = [
         f"기업: {d.name} ({d.ticker}), 시장 {d.market}, 업종 {d.sector or d.industry}",
-        f"현재가 {d.price:,.0f} {d.currency}, 시가총액 {d.market_cap:,.0f}",
+        f"현재가 {d.price:,.0f} {cur}, 시가총액 {d.market_cap:,.0f}",
         f"종합 판정: {val.verdict} (적정가 대비 괴리율 {pct(val.gap)}, 신뢰도 {val.confidence})",
-        f"적정주가 범위(3방법 평균): {val.fair_low:,.0f} ~ {val.fair_high:,.0f}"
-        if val.fair_mid else "적정주가: 계산 불가",
+    ]
+    # 적정주가(목표가 근거) + 상승여력
+    if val.fair_mid:
+        upside = val.fair_mid / d.price - 1 if d.price else None
+        lines.append(
+            f"적정주가 범위(3방법 평균, =목표가 근거): {val.fair_low:,.0f} ~ {val.fair_high:,.0f} {cur}"
+            + (f", 중심 {val.fair_mid:,.0f} → 현재가 대비 상승여력 {pct(upside)}" if upside is not None else ""))
+        # 방법별 세부 (편차=신뢰도 판단 근거)
+        if getattr(val, "estimates", None):
+            per_method = "; ".join(f"{e.method} {e.mid:,.0f}" for e in val.estimates)
+            lines.append(f"방법별 적정가 중심: {per_method}")
+    else:
+        lines.append("적정주가: 계산 불가")
+    # 52주 범위 (손절선 근거)
+    try:
+        c = d.prices.tail(252)
+        hi52, lo52 = float(c.max()), float(c.min())
+        pos = (d.price - lo52) / (hi52 - lo52) * 100 if hi52 > lo52 else None
+        lines.append(f"52주 최고/최저: {hi52:,.0f} / {lo52:,.0f} {cur}"
+                     + (f", 현재 밴드 내 위치 {pos:.0f}%(0=최저,100=최고)" if pos is not None else ""))
+    except Exception:
+        pass
+    lines += [
         f"밸류에이션: PER {x(v.get('per'))}, PBR {x(v.get('pbr'))}, "
         f"EV/EBITDA {x(v.get('ev_ebitda'))}, 배당수익률 {pct(v.get('div_yield'))}",
         f"수익성: ROE {pct(p.get('roe'))}, 영업이익률 {pct(p.get('op_margin'))}, "
@@ -222,6 +261,12 @@ def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "") -> st
     if scores.overall is not None:
         cat = ", ".join(f"{k} {int(s)}" for k, s in scores.scores.items() if s is not None)
         lines.append(f"업종 상대 백분위(0~100): 종합 {int(scores.overall)} [{cat}]")
+    if risk_profile:
+        y = risk_profile.get("y_star")
+        lines.append(
+            f"\n[사용자 투자성향] {risk_profile.get('label','')}"
+            f"(위험회피계수 A≈{risk_profile.get('A', 0):.1f}"
+            + (f", 권장 위험자산 비중 {y*100:.0f}%" if isinstance(y, (int, float)) else "") + ")")
     if news_summary:
         lines.append(f"\n[최근 뉴스 요약]\n{news_summary[:1200]}")
     return "\n".join(lines)

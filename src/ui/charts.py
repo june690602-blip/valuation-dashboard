@@ -16,15 +16,15 @@ FONT = "system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif"
 CATEGORY_ORDER = ["밸류에이션", "수익성", "성장성", "재무 안정성", "현금흐름"]
 
 # Plotly 표시 설정 — st.plotly_chart(config=...)에 넘긴다.
-# 기본: 모드바를 hover 시 노출(드래그 박스줌·줌인/아웃·팬·리셋). displayModeBar를
-# False로 두지 않으므로 모든 차트가 확대 가능해진다. lasso/select는 이 대시보드에 불필요.
-PLOTLY_CFG = {"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
-# 시계열·평면 차트용: 휠·트랙패드/터치 핀치 줌까지 허용(작은 범주형 차트는 페이지 스크롤
-# 가로채기를 피하려 기본 설정을 쓴다).
-PLOTLY_CFG_ZOOM = {**PLOTLY_CFG, "scrollZoom": True}
+# 증권사 차트처럼: 우상단 플로팅 모드바를 숨기고(displayModeBar False), 드래그=이동(pan,
+# _layout에서 설정)·더블클릭=리셋만 남긴다. 작은 범주형 차트는 휠 줌 없이(페이지 스크롤 보존).
+PLOTLY_CFG = {"displayModeBar": False}
+# 시계열·평면 차트용: 휠·트랙패드/터치 핀치로 확대·축소.
+PLOTLY_CFG_ZOOM = {"displayModeBar": False, "scrollZoom": True}
 
 
-def _layout(fig: go.Figure, height: int = 340, legend: bool = True) -> go.Figure:
+def _layout(fig: go.Figure, height: int = 340, legend: bool = True,
+            crosshair: bool = False) -> go.Figure:
     fig.update_layout(
         height=height,
         font=dict(family=FONT, size=12.5, color=P["ink2"]),
@@ -34,11 +34,14 @@ def _layout(fig: go.Figure, height: int = 340, legend: bool = True) -> go.Figure
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0,
                     font=dict(size=12)) if legend else None,
         showlegend=legend,
+        dragmode="pan",  # 증권사식: 드래그=이동(박스줌 제거), 휠=확대(config), 더블클릭=리셋
     )
+    spike = dict(showspikes=True, spikemode="across", spikesnap="cursor",
+                 spikethickness=1, spikecolor=P["muted"], spikedash="dot") if crosshair else {}
     fig.update_xaxes(gridcolor=P["grid"], gridwidth=1, zerolinecolor=P["baseline"],
-                     linecolor=P["baseline"], tickfont=dict(color=P["muted"]))
+                     linecolor=P["baseline"], tickfont=dict(color=P["muted"]), **spike)
     fig.update_yaxes(gridcolor=P["grid"], gridwidth=1, zerolinecolor=P["baseline"],
-                     linecolor=P["baseline"], tickfont=dict(color=P["muted"]))
+                     linecolor=P["baseline"], tickfont=dict(color=P["muted"]), **spike)
     return fig
 
 
@@ -129,7 +132,7 @@ def band_chart(band: pd.DataFrame, currency: str, kind: str = "PER") -> go.Figur
         hovertemplate="주가: %{y:,.0f}<extra></extra>"))
     fig.update_layout(hovermode="x unified")
     fig.update_xaxes(showgrid=False)
-    return _layout(fig, height=380)
+    return _layout(fig, height=380, crosshair=True)
 
 
 # ── ③ 재무: 성장(매출·이익 + 마진) ──────────────────────────────────
@@ -361,40 +364,40 @@ def backtest_bucket_bar(bucket_returns: pd.DataFrame, bucket_hit: pd.DataFrame,
     return _layout(fig, height=340, legend=False)
 
 
-# ── ⑥ 백테스트: 백분위 vs 미래수익 산점도 ───────────────────────────
+# ── ⑥ 백테스트: 저평가율 vs 미래수익 산점도 ─────────────────────────
 def backtest_scatter(scatter: pd.DataFrame, spearman: float | None,
-                     cheap_th: float, rich_th: float) -> go.Figure | None:
+                     threshold: float) -> go.Figure | None:
     if scatter is None or len(scatter) < 30:
         return None
-    x, y = scatter["pct"].values, scatter["fwd_252"].values * 100
-    # 저평가(파랑)→고평가(빨강) 색으로 x를 인코딩
+    x, y = scatter["discount"].values * 100, scatter["fwd_252"].values * 100
+    # 저평가(파랑)일수록 오른쪽. 색으로 저평가율 인코딩
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=x, y=y, mode="markers",
-        marker=dict(size=5, color=x, colorscale=[[0, P["series1"]], [0.5, P["muted"]],
-                                                 [1, P["red"]]],
-                    cmin=0, cmax=100, opacity=0.55,
-                    colorbar=dict(title="밸류에이션<br>백분위", thickness=10, len=0.7)),
-        name="관측", hovertemplate="당시 백분위 %{x:.0f} → 이후 12M %{y:.1f}%<extra></extra>"))
-    # 추세선
+        marker=dict(size=5, color=x, colorscale=[[0, P["red"]], [0.5, P["muted"]],
+                                                 [1, P["series1"]]],
+                    opacity=0.55,
+                    colorbar=dict(title="저평가율<br>(%)", thickness=10, len=0.7)),
+        name="관측", hovertemplate="당시 저평가율 %{x:.0f}% → 이후 12M %{y:.1f}%<extra></extra>"))
     if len(x) >= 2 and np.ptp(x) > 0:
         a, b = np.polyfit(x, y, 1)
         xs = np.array([x.min(), x.max()])
         fig.add_trace(go.Scatter(x=xs, y=a * xs + b, mode="lines",
                                  line=dict(color=P["ink"], width=2, dash="dash"),
                                  name="추세", hoverinfo="skip"))
-    for th, txt in ((cheap_th, "저평가 기준"), (rich_th, "고평가 기준")):
-        fig.add_vline(x=th, line=dict(color=P["baseline"], width=1, dash="dot"))
+    fig.add_vline(x=threshold * 100, line=dict(color=P["series1"], width=1.4, dash="dot"),
+                  annotation_text=f"저평가 기준 +{threshold*100:.0f}%", annotation_font_size=10)
     fig.add_hline(y=0, line=dict(color=P["baseline"], width=1))
     if spearman is not None:
         fig.add_annotation(x=0.02, y=0.98, xref="paper", yref="paper", xanchor="left",
                            showarrow=False, bgcolor="rgba(252,252,251,0.85)",
                            text=f"<b>순위상관 {spearman:+.2f}</b> "
-                                f"({'쌀수록 이후 수익↑ = 평균회귀 성립' if spearman < -0.2 else '뚜렷한 관계 약함' if spearman > -0.2 else ''})",
+                                f"({'저평가일수록 이후 수익↑ = 툴 유효 신호' if spearman > 0.2 else '뚜렷한 관계 약함'})",
                            font=dict(size=12, color=P["ink"]))
-    fig.update_xaxes(title_text="매수 시점의 밸류에이션 백분위 (낮을수록 쌈)", title_font_size=12)
+    fig.update_xaxes(title_text="매수 시점의 저평가율 (오른쪽일수록 쌈)", title_font_size=12,
+                     ticksuffix="%")
     fig.update_yaxes(title_text="이후 12개월 수익률 (%)", title_font_size=12, ticksuffix="%")
-    return _layout(fig, height=400, legend=False)
+    return _layout(fig, height=400, legend=False, crosshair=True)
 
 
 # ── ⑥ 백테스트: 누적수익 곡선 ───────────────────────────────────────
@@ -416,7 +419,7 @@ def backtest_equity(equity: pd.DataFrame, never_traded: bool = False) -> go.Figu
         x=0, font=dict(size=12.5, color=P["ink2"])))
     fig.update_xaxes(showgrid=False)
     fig.update_yaxes(title_text="누적 배수", title_font_size=12)
-    return _layout(fig, height=360)
+    return _layout(fig, height=360, crosshair=True)
 
 
 # ── 주가차트: 가격 + 이동평균 + 거래량 ──────────────────────────────
@@ -458,7 +461,7 @@ def price_chart(ohlcv: pd.DataFrame, currency: str) -> go.Figure:
     fig.update_yaxes(title_text=f"주가({'원' if currency == 'KRW' else '$'})",
                      title_font_size=11, row=1, col=1)
     fig.update_yaxes(title_text="거래량", title_font_size=11, row=2, col=1)
-    return _layout(fig, height=520)
+    return _layout(fig, height=520, crosshair=True)
 
 
 def relative_perf_chart(prices: pd.Series, index_prices: pd.Series,
@@ -480,7 +483,7 @@ def relative_perf_chart(prices: pd.Series, index_prices: pd.Series,
         x=0, font=dict(size=12.5, color=P["ink2"])))
     fig.update_xaxes(rangeselector=_RANGE_BUTTONS, showgrid=False)
     fig.update_yaxes(title_text="지수화 (시작=100)", title_font_size=11)
-    return _layout(fig, height=440)
+    return _layout(fig, height=440, crosshair=True)
 
 
 # ── 성향테스트: CML + 무차별곡선 접점 ───────────────────────────────
@@ -580,7 +583,7 @@ def yield_history_chart(df: pd.DataFrame, label: str) -> go.Figure | None:
     fig.update_yaxes(title_text="수익률 (%)", title_font_size=11)
     fig.update_layout(showlegend=False, title=dict(
         text=f"{label} — 최근 추이", x=0, font=dict(size=12.5, color=P["ink2"])))
-    return _layout(fig, height=320, legend=False)
+    return _layout(fig, height=320, legend=False, crosshair=True)
 
 
 def price_yield_chart(ytm_grid, prices, cur_ytm: float, cur_price: float,
@@ -607,16 +610,18 @@ def price_yield_chart(ytm_grid, prices, cur_ytm: float, cur_price: float,
     fig.update_layout(title=dict(
         text="가격-수익률 곡선 — 접선(듀레이션)과 곡선의 간격이 볼록성", x=0,
         font=dict(size=12.5, color=P["ink2"])))
-    return _layout(fig, height=380)
+    return _layout(fig, height=380, crosshair=True)
 
 
 # ── 포트폴리오: σ-기대수익 평면 ─────────────────────────────────────
 def risk_return_plane(assets: pd.DataFrame, port: dict | None,
-                      cmls: dict | None = None, optimal: dict | None = None) -> go.Figure:
+                      cmls: dict | None = None, optimal: dict | None = None,
+                      strategies: pd.DataFrame | None = None) -> go.Figure:
     """자산·포트폴리오를 σ-E(r) 평면에 배치하고 CML 참고선을 겹쳐 그린다.
 
     assets: index=자산명, columns=[sigma, er, weight] (소수)
     port: {er, sigma} | cmls: {라벨: (rf, er_m, sigma_m)} | optimal: {sigma, er, label}
+    strategies: index=전략명, columns=[sigma, er] — 유명 투자자 전략 원형(세모 마커)
     """
     fig = go.Figure()
     x_candidates = list(assets["sigma"]) if len(assets) else [0.2]
@@ -624,6 +629,8 @@ def risk_return_plane(assets: pd.DataFrame, port: dict | None,
         x_candidates.append(port["sigma"])
     if optimal:
         x_candidates.append(optimal["sigma"])
+    if strategies is not None and len(strategies):
+        x_candidates += list(strategies["sigma"])
     sig_max = max(max(x_candidates) * 1.25, 0.05)
 
     # CML 참고선 (판정선이 아니라 참고선 — 점선)
@@ -660,6 +667,15 @@ def risk_return_plane(assets: pd.DataFrame, port: dict | None,
             textfont=dict(color=P["red"], size=12),
             marker=dict(size=17, color=P["red"], symbol="star"),
             hovertemplate=f"σ {port['sigma']*100:.1f}% · E(r) {port['er']*100:.2f}%<extra>내 포트폴리오</extra>"))
+
+    # 유명 투자자 전략 원형 (세모)
+    if strategies is not None and len(strategies):
+        fig.add_trace(go.Scatter(
+            x=strategies["sigma"] * 100, y=strategies["er"] * 100, mode="markers+text",
+            name="유명 투자자 전략", text=strategies.index, textposition="top center",
+            textfont=dict(size=10, color=P["series4"]),
+            marker=dict(size=13, color=P["series4"], symbol="triangle-up", opacity=0.85),
+            hovertemplate="%{text}<br>σ %{x:.1f}% · E(r) %{y:.2f}%<extra>전략 원형</extra>"))
 
     # 성향테스트 최적점
     if optimal:

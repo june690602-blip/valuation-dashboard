@@ -43,6 +43,25 @@ def _fetch_px(yahoo: str, period: str = "5y") -> pd.Series | None:
         return None
 
 
+# 유명 투자자 전략 σ·E(r) 계산용 자산군 대표 프록시
+ASSET_CLASS_PROXY = {"주식": "^KS200", "채권": "148070.KS", "금": "411060.KS", "리츠": "329200.KS"}
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _asset_class_stats(months: int, rf: float):
+    """자산군(주식/채권/금/리츠/현금) 연율화 μ·σ·공분산 — 전략 원형 점 계산용. 실패 시 None."""
+    prices, cur = {}, {}
+    for cls, yt in ASSET_CLASS_PROXY.items():
+        px = _fetch_px(yt)
+        if px is not None:
+            prices[cls], cur[cls] = px, "KRW"
+    if not prices:
+        return None
+    fx = _fetch_px("KRW=X")
+    m = monthly_returns_krw(prices, fx, cur, months=months, cash_rates={"현금": rf})
+    return annualize(m) if not m.empty else None
+
+
 def _basket() -> dict:
     return st.session_state.setdefault("basket", {})
 
@@ -250,7 +269,29 @@ def render():
         optimal = {"sigma": t["sigma_p"], "er": t["er_p"],
                    "label": f"성향 최적점 ({prof['label']})"}
 
-    st.plotly_chart(charts.risk_return_plane(assets_df, port, cmls, optimal),
+    # 유명 투자자 전략 원형 (선택 시 평면에 함께 표시)
+    from src.analysis.famous import STRATEGIES, strategy_weights
+    acs = _asset_class_stats(months, rf)
+    strat_df, strat_rows = None, []
+    with st.expander("🏛️ 유명 투자자 전략과 비교 (재미로 겹쳐보기)", expanded=False):
+        if acs is None:
+            st.caption("자산군 프록시 시세를 불러오지 못해 전략 비교를 건너뜁니다.")
+            picks = []
+        else:
+            picks = st.multiselect(
+                "평면에 겹쳐 볼 전략", list(STRATEGIES.keys()),
+                help="대표 전략을 우리 자산군(주식/채권/금/리츠/현금) 비중으로 근사한 예시입니다. "
+                     "실제 보유종목·수익률이 아닙니다.")
+            for name in picks:
+                w = pd.Series(strategy_weights(name)).reindex(acs["mu"].index).fillna(0.0)
+                pt = portfolio_point(w, acs["mu"], acs["cov"])
+                sharpe = (pt["er"] - rf) / pt["sigma"] if pt["sigma"] > 0 else None
+                strat_rows.append({"전략": name, "sigma": pt["sigma"], "er": pt["er"],
+                                   "sharpe": sharpe, "note": STRATEGIES[name][1]})
+            if strat_rows:
+                strat_df = pd.DataFrame(strat_rows).set_index("전략")[["sigma", "er"]]
+
+    st.plotly_chart(charts.risk_return_plane(assets_df, port, cmls, optimal, strat_df),
                     use_container_width=True, config=PLOTLY_CFG_ZOOM)
 
     p1, p2 = st.columns(2)
@@ -272,6 +313,37 @@ def render():
                         "있다는 뜻이기도 합니다.", icon="⚖️")
             else:
                 st.success("현재 포트폴리오 위험이 성향테스트 최적점과 비슷한 수준입니다.", icon="⚖️")
+
+    # 유명 투자자 전략 비교 표 (내 포트폴리오와 나란히)
+    if strat_rows:
+        me = {"전략": "★ 내 포트폴리오", "sigma": port["sigma"], "er": port["er"],
+              "sharpe": (port["er"] - rf) / port["sigma"] if port["sigma"] > 0 else None, "note": ""}
+        tv = pd.DataFrame([me] + strat_rows)
+        st.dataframe(pd.DataFrame({
+            "": tv["전략"],
+            "기대수익(연)": tv["er"].map(lambda v: f"{v * 100:+.1f}%"),
+            "변동성 σ(연)": tv["sigma"].map(lambda v: f"{v * 100:.1f}%"),
+            "샤프": tv["sharpe"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "—"),
+            "설명": tv["note"],
+        }), hide_index=True, use_container_width=True)
+        st.caption("전략 원형은 대표 자산배분을 우리 자산군 프록시로 근사한 **예시**입니다"
+                   "(실제 보유종목·수익률 아님). 세모(▲)가 각 전략, 별(★)이 내 포트폴리오입니다.")
+
+    # 성향테스트 기반 추천 배분 (내 성향이 있으면)
+    if prof:
+        from src.analysis.risk_profile import LEVELS
+        alloc = LEVELS[prof["level"] - 1][5]
+        y = prof.get("y_star")
+        with st.container(border=True):
+            st.markdown(f"##### 🧭 내 성향({prof['label']}) 기준 참고 배분")
+            ac = st.columns(len(alloc) + 1)
+            for i, (k, v) in enumerate(alloc.items()):
+                ac[i].metric(k, f"{v}%")
+            if isinstance(y, (int, float)):
+                ac[-1].metric("위험자산 상한 y*", f"{min(y, 1) * 100:.0f}%",
+                              help="성향테스트의 머튼 비율 — 위험자산 대 안전자산의 이론적 상한")
+            st.caption("교과서적 예시일 뿐 정답이 아닙니다. 위 σ-E(r) 평면의 '성향 최적점'과 함께 "
+                       "참고하세요.")
 
     # ── 성과지표 ──
     st.divider()

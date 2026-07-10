@@ -248,6 +248,13 @@ def render():
     _render_banner()
     _render_cards()
 
+    from src.ui.components import guide_link_html
+    gc1, gc2 = st.columns([1, 1])
+    with gc1:
+        st.markdown(guide_link_html("📖 처음이신가요? 사용설명서 (새 탭으로 열기)", block=True),
+                    unsafe_allow_html=True)
+    gc2.caption("설명서를 새 탭에 띄워 두고 앱을 함께 보면 편해요.")
+
     st.divider()
     st.caption("데이터: Yahoo Finance · 네이버금융 · KRX · OpenDART · FRED — 무료 공개 데이터 특성상 "
                "실제 공시·시세와 다를 수 있습니다.")

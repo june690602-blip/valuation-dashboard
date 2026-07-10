@@ -112,39 +112,10 @@ def _use_example(m: str, code: str):
     st.session_state[f"query_{m}"] = code
 
 
-HELP_MD = """
-**이 도구를 3분 만에 쓰는 법**
-
-1. 왼쪽에서 시장(🇰🇷/🇺🇸)을 고르고 **종목 코드나 이름**을 입력하세요. (예: `005930`, `AAPL`)
-2. 상단의 **판정 배지**(크게 저평가 ~ 크게 고평가)와 **신뢰도**를 먼저 봅니다.
-3. 탭을 순서대로 읽으면 됩니다.
-
-| 탭 | 무엇을 답해주나 | 핵심만 보면 |
-|---|---|---|
-| ① 요약·판정 | 지금 주가가 적정한가? 왜? | 불릿차트(현재가 vs 적정가)와 자동 해설 |
-| ② 주가차트 | 주가 흐름·이동평균·지수 대비 | 추세, 52주 위치, 시장 대비 성과 |
-| ③ 밸류에이션 | 업종·자기역사 대비 싼가 비싼가 | 🔵=업종보다 쌈 / 🔴=비쌈, PER/PBR 밴드 |
-| ④ 재무 분석 | 회사 체력(매출·이익·빚·현금) | 매출·이익 우상향? 마진 방향? |
-| ⑤ 업종 비교 | 경쟁사 중 어디쯤인가 | PER×ROE 지도, 저평가·우량 랭킹 |
-| ⑥ 자본비용 | 요구수익률·WACC, 가치 창출 여부 | ROIC > WACC 면 초과수익 창출 |
-| ⑦ 백테스트 | 이 신호가 과거에 통했나 | 쌀 때 이후 수익이 실제로 높았나 |
-| ⑧ 주요뉴스 | 최근 뉴스와 AI 해석 | 감성·촉매·리스크 (AI 키 필요) |
-| ⑨ 종합 투자평가 | 지금 투자 매력도(AI 종합) | 강세/약세 논거, 스탠스 (AI 키 필요) |
-
-> 업종분류가 부정확하면(예: 삼성전자=통신장비) **Gemini 키**를 넣어 AI가 업종·경쟁사를 다시 잡습니다.
-
-**판정은 세 방법(업종 상대가치·역사적 밴드·RIM)의 평균 괴리율**로 냅니다.
-`괴리율 = 적정가 ÷ 현재가 − 1`. +30%↑ 크게 저평가, ±10% 적정, −30%↓ 크게 고평가.
-세 방법이 서로 많이 다르면 **신뢰도 '낮음'** 으로 표시되니 그땐 단정하지 마세요.
-
-> ⚠️ 무료 데이터를 쓰는 **학습·분석 보조 도구**입니다. 매수·매도 추천이 아니고,
-> 값이 실제 공시와 다를 수 있습니다. 더 자세한 설명은 저장소의 `docs/사용설명서.md`를 보세요.
-"""
-
-
 def render_help(expanded: bool = False):
-    with st.expander("❓ 사용법 — 처음이신가요?", expanded=expanded):
-        st.markdown(HELP_MD)
+    """상세 도움말은 별도 '사용설명서' 페이지(새 탭)로 — 본문을 밀어내지 않게."""
+    from src.ui.components import guide_link_html
+    st.markdown(guide_link_html("📖 사용법 · 설명서 (새 탭)"), unsafe_allow_html=True)
 
 
 # ── 탭 렌더러 ───────────────────────────────────────────────────────
@@ -254,10 +225,20 @@ def render_financial_tab(d, ind):
                      use_container_width=True)
 
 
-def render_peers_tab(d, scores):
+def render_peers_tab(d, scores, all_peer_names=None):
     basis = next((w for w in d.warnings if w.startswith("피어 기준")), None)
     if basis:
         st.caption(basis)
+
+    # 피어 개별 제외 — 선택 시 적정주가·요약 점수·업종비교·랭킹 전체가 다시 계산됨(재실행)
+    if all_peer_names:
+        excluded = st.multiselect(
+            "🚫 이 업종비교에서 제외할 기업", all_peer_names, key=f"excl_{d.ticker}",
+            help="이상치·비교 부적절 기업을 빼면 업종 중앙값·적정주가·판정이 모두 다시 계산됩니다.")
+        if excluded:
+            st.caption(f"제외 반영 중: {', '.join(excluded)} — 판정 전체에 적용됨. "
+                       "위 목록에서 지우면 되돌아갑니다.")
+
     peers = d.peers.copy()
     if not peers.empty:
         view = pd.DataFrame({
@@ -381,58 +362,74 @@ def render_capital_tab(d, cc, ind):
 
 
 def render_backtest_tab(d):
-    st.markdown("**밸류에이션 신호가 실제로 통했는지 과거로 검증** — "
-                "이 종목의 PER/PBR이 자기 역사에서 쌀 때 샀다면 이후 수익이 좋았을까?")
-    st.info(
-        "여기서 검증하는 건 ③ **역사적 밴드** 신호 하나입니다. 종합 판정(피어 중앙값·RIM)은 "
-        "과거 시점의 업종 데이터를 되살리기 어려워 제외했습니다. **단일 종목·짧은 표본**이라 "
-        "과최적화·생존편향에 취약하니 '경향'만 참고하세요. 거래비용·세금은 반영하지 않았습니다.",
-        icon="🧪")
+    st.markdown("### 🎯 우리 툴이 과거에도 맞았나?")
+    st.markdown("이 종목이 **우리 기준으로 '크게 저평가'였던 과거 시점**에 샀다면 이후 수익이 "
+                "어땠는지 검증합니다. (적정가 = 그 시점까지의 정상 배수 × 펀더멘털)")
 
-    c1, c2 = st.columns([1, 1])
+    c1, c2 = st.columns(2)
     kind = c1.radio("기준 배수", ["PER", "PBR"], horizontal=True, key="bt_kind",
                     help="이익이 안정적이면 PER, 적자·자산주면 PBR을 권합니다.")
-    window_years = c2.slider("롤링 비교 기간(년)", 1.0, 3.0, 1.5, 0.5, key="bt_win",
-                             help="'쌀 때/비쌀 때'를 판단할 때 직전 몇 년의 분포와 비교할지")
+    th = c2.slider("저평가 기준 — 적정가 대비 +% 이상 쌀 때 '매수 신호'", 10, 60, 30, 5,
+                   key="bt_th",
+                   help="앱의 '크게 저평가' 기준은 +30%입니다. 신호가 없으면 낮춰 보세요.") / 100
 
-    bt = run_backtest(d, kind=kind, window_years=window_years)
+    bt = run_backtest(d, kind=kind, threshold=th)
     if not bt.ok:
         for w in bt.warnings:
             st.warning(w, icon="⚠️")
         st.info("이 종목은 과거 재무·시세 표본이 부족해 백테스트를 수행할 수 없습니다.")
         return
 
-    top = st.columns(3)
-    top[0].metric("유효 표본", f"{bt.n_obs:,}일")
-    if bt.spearman is not None:
-        top[1].metric("순위상관(쌈 ↔ 이후수익)", f"{bt.spearman:+.2f}",
-                      help="음수(-)면 '쌀수록 이후 수익이 높음' = 평균회귀가 작동. "
-                           "0 근처면 밸류에이션과 이후 수익의 관계가 약함.")
-    hz = top[2].radio("미래수익 구간", list(HORIZONS.keys()), index=2,
-                      horizontal=True, key="bt_hz")
+    ev12 = bt.event_stats.get("12개월", {})
+    base12 = bt.baseline_stats.get("12개월", {})
+    if bt.signal_days > 0 and ev12.get("mean") is not None:
+        m = st.columns(4)
+        m[0].metric("저평가 신호", f"{bt.signal_days:,}일")
+        m[1].metric("신호 후 12개월 평균수익", fmt_pct(ev12["mean"]))
+        m[2].metric("승률(플러스 확률)", fmt_pct(ev12.get("hit")))
+        m[3].metric("저평가율↔수익 상관", f"{bt.spearman:+.2f}" if bt.spearman is not None else "—",
+                    help="양수면 '쌀수록 이후 수익 높음' = 우리 저평가 신호가 과거에 유효했다는 뜻")
+        better = ("높았습니다 ✅" if base12.get("mean") is not None and ev12["mean"] > base12["mean"]
+                  else "특별히 높지는 않았습니다")
+        st.success(
+            f"이 종목이 우리 기준 **크게 저평가**(적정가 대비 +{th * 100:.0f}%↑)였던 "
+            f"**{bt.signal_days:,}일**, 이후 12개월 평균 수익률 **{fmt_pct(ev12['mean'])}** "
+            f"(승률 {fmt_pct(ev12.get('hit'))}) — 같은 기간 아무 때나 산 경우"
+            f"(**{fmt_pct(base12.get('mean'))}**)보다 {better}.", icon="🎯")
+    else:
+        st.info(f"확보된 기간에 '저평가(+{th * 100:.0f}%↑)' 신호가 없어 이벤트 통계를 낼 수 "
+                "없습니다. 위 슬라이더로 기준을 낮춰 보세요.")
+
+    st.caption("⚠️ 단일 종목·짧은 표본이라 과최적화·생존편향에 취약합니다. '경향'으로만 보세요. "
+               "거래비용·세금 미반영, 과거 성과가 미래를 보장하지 않습니다.")
+
+    rows = []
+    for hz in HORIZONS.keys():
+        ev, bs = bt.event_stats.get(hz, {}), bt.baseline_stats.get(hz, {})
+        rows.append({"미래 구간": hz,
+                     "저평가 매수 후 평균": fmt_pct(ev.get("mean")),
+                     "승률": fmt_pct(ev.get("hit")),
+                     "신호 표본(일)": ev.get("n", 0),
+                     "전체 평균(참고)": fmt_pct(bs.get("mean"))})
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
     b1, b2 = st.columns(2)
-    fig = charts.backtest_bucket_bar(bt.bucket_returns, bt.bucket_hit, hz)
-    if fig:
-        with b1:
-            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
-            cnt = " · ".join(f"{k} {v}일" for k, v in bt.bucket_counts.items())
-            st.caption(f"표본 수(12개월 기준): {cnt}")
-    sc = charts.backtest_scatter(bt.scatter, bt.spearman, bt.cheap_th, bt.rich_th)
+    sc = charts.backtest_scatter(bt.scatter, bt.spearman, bt.threshold)
     if sc:
-        with b2:
-            st.plotly_chart(sc, use_container_width=True, config=PLOTLY_CFG)
-
+        with b1:
+            st.plotly_chart(sc, use_container_width=True, config=PLOTLY_CFG_ZOOM)
+            st.caption("점 하나 = 과거의 하루. 오른쪽(저평가)일수록 이후 12개월 수익이 높으면 "
+                       "우리 신호가 유효했다는 뜻입니다.")
     eq = charts.backtest_equity(bt.equity, bt.strategy_never_traded)
     if eq is not None:
-        st.plotly_chart(eq, use_container_width=True, config=PLOTLY_CFG)
-        if bt.strategy_never_traded:
-            st.caption("이 기간엔 '저평가' 신호가 없어 타이밍 전략이 한 번도 투자하지 않았습니다 "
-                       "(곡선 생략). 단순 보유·지수만 비교하세요.")
-        else:
-            parts = [f"{k} {v * 100:.1f}%" for k, v in bt.cagr.items() if v is not None]
-            st.caption("연평균수익률(CAGR): " + " · ".join(parts) +
-                       " — 타이밍 전략은 '저평가일 때만 보유, 아니면 현금'인 예시입니다.")
+        with b2:
+            st.plotly_chart(eq, use_container_width=True, config=PLOTLY_CFG_ZOOM)
+            if bt.strategy_never_traded:
+                st.caption("'저평가' 신호가 없어 전략이 한 번도 투자하지 않았습니다 — 단순 보유·지수만 참고.")
+            else:
+                parts = [f"{k} {fmt_pct(v)}" for k, v in bt.cagr.items() if v is not None]
+                st.caption("연평균수익률(CAGR): " + " · ".join(parts) +
+                           " — 전략 = '저평가일 때만 보유, 아니면 현금' 예시.")
     for w in bt.warnings:
         st.warning(w, icon="⚠️")
 
@@ -588,9 +585,17 @@ def render_ai_tab(d, ind, val, cc, scores):
 
     from src.analysis.ai_analysis import build_opinion_context
     news_sum = st.session_state.get(f"news_ai_{d.ticker}", "")
-    ctx = build_opinion_context(d, ind, val, cc, scores, news_sum)
+    prof = st.session_state.get("risk_profile")
+    ctx = build_opinion_context(d, ind, val, cc, scores, news_sum, risk_profile=prof)
+    hints = []
     if not news_sum:
-        st.caption("ℹ️ 뉴스까지 반영하려면 먼저 ⑧ 주요뉴스 탭에서 'AI 뉴스 분석'을 실행하세요.")
+        hints.append("⑧ 주요뉴스 탭에서 'AI 뉴스 분석'을 실행하면 뉴스까지 반영됩니다")
+    if prof:
+        st.caption(f"🧭 투자성향({prof['label']}) 반영 — 성향별 맞춤 조언이 포함됩니다.")
+    else:
+        hints.append("홈에서 투자성향 테스트를 하면 성향 맞춤 조언까지 받을 수 있습니다")
+    if hints:
+        st.caption("ℹ️ " + " · ".join(hints) + ".")
 
     op_key = f"opinion_{d.ticker}"
     if st.button("🤖 종합 투자평가 생성", type="primary", key="btn_ai_op"):
@@ -637,6 +642,15 @@ def render():
     except Exception as e:
         st.error(f"데이터를 가져오지 못했습니다: {e}")
         st.stop()
+
+    # 업종비교 탭에서 제외한 피어를 판정 전체(적정주가·점수·랭킹)에서 뺀다. is_self는 항상 유지.
+    # multiselect 옵션이 사라지지 않도록 원본 피어명은 따로 보관해 탭으로 넘긴다.
+    all_peer_names = (sorted(d.peers.loc[~d.peers["is_self"], "name"].dropna().unique().tolist())
+                      if not d.peers.empty and "is_self" in d.peers.columns else [])
+    excluded = st.session_state.get(f"excl_{d.ticker}", [])
+    if excluded and not d.peers.empty:
+        keep = d.peers["is_self"] | ~d.peers["name"].isin(excluded)
+        d.peers = d.peers[keep].copy()
 
     ind = compute_indicators(d)
     scores = compute_scores(d.peers, d.yahoo_ticker, d.is_financial)
@@ -689,7 +703,7 @@ def render():
     with tabs[3]:
         render_financial_tab(d, ind)
     with tabs[4]:
-        render_peers_tab(d, scores)
+        render_peers_tab(d, scores, all_peer_names)
     with tabs[5]:
         render_capital_tab(d, cc, ind)
     with tabs[6]:

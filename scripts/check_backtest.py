@@ -15,16 +15,17 @@ def main(market, query, kind):
         from src.data.us_provider import USProvider
         p = USProvider()
     d = p.load(query, peer_count=8)
-    r = run_backtest(d, kind=kind)
+    r = run_backtest(d, kind=kind, threshold=0.30)
     print(f"=== {d.name} ({d.ticker}) | {kind} 백테스트 | 표본 {r.n_obs}일 ===")
-    print(f"ok={r.ok} | window={r.window_years}y | spearman(백분위 vs 12M수익)={r.spearman}")
-    print("\n[구간별 평균 미래수익률]")
-    if r.bucket_returns is not None:
-        print((r.bucket_returns * 100).round(1).to_string())
-    print("\n[구간별 플러스 확률]")
-    if r.bucket_hit is not None:
-        print((r.bucket_hit * 100).round(0).to_string())
-    print("\n[구간별 표본수(12M)]", r.bucket_counts)
+    print(f"ok={r.ok} | 저평가 임계 +{r.threshold*100:.0f}% | 신호 {r.signal_days}일 | "
+          f"spearman(저평가율 vs 12M수익, 양수=툴유효)={r.spearman}")
+    print("\n[이벤트 스터디: 저평가 매수 후 평균수익 / 승률 / 표본  vs  전체 평균]")
+    for hz in ("3개월", "6개월", "12개월"):
+        ev, bs = r.event_stats.get(hz, {}), r.baseline_stats.get(hz, {})
+        def pc(x):
+            return f"{x*100:+.1f}%" if isinstance(x, (int, float)) else "N/A"
+        print(f"  {hz}: 신호 {pc(ev.get('mean'))} (승률 {pc(ev.get('hit'))}, n={ev.get('n',0)})"
+              f"  vs 전체 {pc(bs.get('mean'))}")
     print("\n[누적수익 CAGR]")
     for k, v in r.cagr.items():
         print(f"  {k}: {v*100:.1f}%" if v is not None else f"  {k}: N/A")
