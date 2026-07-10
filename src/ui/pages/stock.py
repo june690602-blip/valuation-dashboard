@@ -417,7 +417,7 @@ def render_backtest_tab(d):
     sc = charts.backtest_scatter(bt.scatter, bt.spearman, bt.threshold)
     if sc:
         with b1:
-            st.plotly_chart(sc, use_container_width=True, config=PLOTLY_CFG_ZOOM)
+            st.plotly_chart(sc, use_container_width=True, config=PLOTLY_CFG)
             st.caption("점 하나 = 과거의 하루. 오른쪽(저평가)일수록 이후 12개월 수익이 높으면 "
                        "우리 신호가 유효했다는 뜻입니다.")
     eq = charts.backtest_equity(bt.equity, bt.strategy_never_traded)

@@ -292,7 +292,7 @@ def render():
                 strat_df = pd.DataFrame(strat_rows).set_index("전략")[["sigma", "er"]]
 
     st.plotly_chart(charts.risk_return_plane(assets_df, port, cmls, optimal, strat_df),
-                    use_container_width=True, config=PLOTLY_CFG_ZOOM)
+                    use_container_width=True, config=PLOTLY_CFG)
 
     p1, p2 = st.columns(2)
     p1.metric("내 포트폴리오 기대수익", f"{port['er'] * 100:+.1f}%(연)")

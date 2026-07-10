@@ -11,7 +11,7 @@ import streamlit as st
 from src.analysis.risk_profile import QUESTIONS, grade, tangency_point
 from src.ui import charts
 
-PLOTLY_CFG = charts.PLOTLY_CFG_ZOOM  # CML 접점 차트: 휠·핀치 줌
+PLOTLY_CFG = charts.PLOTLY_CFG  # CML 접점은 정적 평면(2D 떠다님 방지)
 
 # 시장 파라미터 기본값 — E(Rm)=Rf+MRP(전방 시각, 주식 페이지 가정과 일관), σ는 지수 실측 폴백
 MARKET_DEFAULTS = {

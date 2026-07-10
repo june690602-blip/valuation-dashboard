@@ -24,7 +24,13 @@ PLOTLY_CFG_ZOOM = {"displayModeBar": False, "scrollZoom": True}
 
 
 def _layout(fig: go.Figure, height: int = 340, legend: bool = True,
-            crosshair: bool = False) -> go.Figure:
+            nav: str = "static") -> go.Figure:
+    """nav:
+    - "static"  : 드래그·휠 없음(정적). 분석용 작은 차트·산점도·평면 — 절대 떠다니지 않음.
+    - "timex"   : 시간축(x)만 이동·확대, 가격축(y) 고정(fixedrange) + 크로스헤어 = 증권사식.
+                  가격축은 app.py의 auto-fit 스크립트가 보이는 구간에 맞춰 자동 재조정한다.
+    """
+    timex = nav == "timex"
     fig.update_layout(
         height=height,
         font=dict(family=FONT, size=12.5, color=P["ink2"]),
@@ -34,14 +40,18 @@ def _layout(fig: go.Figure, height: int = 340, legend: bool = True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0,
                     font=dict(size=12)) if legend else None,
         showlegend=legend,
-        dragmode="pan",  # 증권사식: 드래그=이동(박스줌 제거), 휠=확대(config), 더블클릭=리셋
+        dragmode="pan" if timex else False,  # 정적 차트는 드래그 비활성(2D 드리프트 방지)
     )
     spike = dict(showspikes=True, spikemode="across", spikesnap="cursor",
-                 spikethickness=1, spikecolor=P["muted"], spikedash="dot") if crosshair else {}
+                 spikethickness=1, spikecolor=P["muted"], spikedash="dot") if timex else {}
     fig.update_xaxes(gridcolor=P["grid"], gridwidth=1, zerolinecolor=P["baseline"],
                      linecolor=P["baseline"], tickfont=dict(color=P["muted"]), **spike)
     fig.update_yaxes(gridcolor=P["grid"], gridwidth=1, zerolinecolor=P["baseline"],
                      linecolor=P["baseline"], tickfont=dict(color=P["muted"]), **spike)
+    if timex:
+        # 가격축 고정 → 휠/드래그가 시간축만 움직여 데이터가 2D로 떠다니지 않는다.
+        # (auto-fit 스크립트가 y range를 프로그램적으로 재설정 — fixedrange여도 API relayout은 동작)
+        fig.update_yaxes(fixedrange=True)
     return fig
 
 
@@ -132,7 +142,7 @@ def band_chart(band: pd.DataFrame, currency: str, kind: str = "PER") -> go.Figur
         hovertemplate="주가: %{y:,.0f}<extra></extra>"))
     fig.update_layout(hovermode="x unified")
     fig.update_xaxes(showgrid=False)
-    return _layout(fig, height=380, crosshair=True)
+    return _layout(fig, height=380, nav="timex")
 
 
 # ── ③ 재무: 성장(매출·이익 + 마진) ──────────────────────────────────
@@ -397,7 +407,7 @@ def backtest_scatter(scatter: pd.DataFrame, spearman: float | None,
     fig.update_xaxes(title_text="매수 시점의 저평가율 (오른쪽일수록 쌈)", title_font_size=12,
                      ticksuffix="%")
     fig.update_yaxes(title_text="이후 12개월 수익률 (%)", title_font_size=12, ticksuffix="%")
-    return _layout(fig, height=400, legend=False, crosshair=True)
+    return _layout(fig, height=400, legend=False)
 
 
 # ── ⑥ 백테스트: 누적수익 곡선 ───────────────────────────────────────
@@ -419,7 +429,7 @@ def backtest_equity(equity: pd.DataFrame, never_traded: bool = False) -> go.Figu
         x=0, font=dict(size=12.5, color=P["ink2"])))
     fig.update_xaxes(showgrid=False)
     fig.update_yaxes(title_text="누적 배수", title_font_size=12)
-    return _layout(fig, height=360, crosshair=True)
+    return _layout(fig, height=360, nav="timex")
 
 
 # ── 주가차트: 가격 + 이동평균 + 거래량 ──────────────────────────────
@@ -461,7 +471,7 @@ def price_chart(ohlcv: pd.DataFrame, currency: str) -> go.Figure:
     fig.update_yaxes(title_text=f"주가({'원' if currency == 'KRW' else '$'})",
                      title_font_size=11, row=1, col=1)
     fig.update_yaxes(title_text="거래량", title_font_size=11, row=2, col=1)
-    return _layout(fig, height=520, crosshair=True)
+    return _layout(fig, height=520, nav="timex")
 
 
 def relative_perf_chart(prices: pd.Series, index_prices: pd.Series,
@@ -483,7 +493,7 @@ def relative_perf_chart(prices: pd.Series, index_prices: pd.Series,
         x=0, font=dict(size=12.5, color=P["ink2"])))
     fig.update_xaxes(rangeselector=_RANGE_BUTTONS, showgrid=False)
     fig.update_yaxes(title_text="지수화 (시작=100)", title_font_size=11)
-    return _layout(fig, height=440, crosshair=True)
+    return _layout(fig, height=440, nav="timex")
 
 
 # ── 성향테스트: CML + 무차별곡선 접점 ───────────────────────────────
@@ -569,7 +579,7 @@ def yield_curve_chart(curves: dict) -> go.Figure | None:
     fig.update_xaxes(title_text="만기 (년)", title_font_size=11,
                      tickvals=[0.25, 1, 2, 3, 5, 7, 10, 20, 30])
     fig.update_yaxes(title_text="수익률 (%)", title_font_size=11)
-    return _layout(fig, height=380)
+    return _layout(fig, height=380, nav="timex")
 
 
 def yield_history_chart(df: pd.DataFrame, label: str) -> go.Figure | None:
@@ -583,7 +593,7 @@ def yield_history_chart(df: pd.DataFrame, label: str) -> go.Figure | None:
     fig.update_yaxes(title_text="수익률 (%)", title_font_size=11)
     fig.update_layout(showlegend=False, title=dict(
         text=f"{label} — 최근 추이", x=0, font=dict(size=12.5, color=P["ink2"])))
-    return _layout(fig, height=320, legend=False, crosshair=True)
+    return _layout(fig, height=320, legend=False, nav="timex")
 
 
 def price_yield_chart(ytm_grid, prices, cur_ytm: float, cur_price: float,
@@ -610,7 +620,7 @@ def price_yield_chart(ytm_grid, prices, cur_ytm: float, cur_price: float,
     fig.update_layout(title=dict(
         text="가격-수익률 곡선 — 접선(듀레이션)과 곡선의 간격이 볼록성", x=0,
         font=dict(size=12.5, color=P["ink2"])))
-    return _layout(fig, height=380, crosshair=True)
+    return _layout(fig, height=380, nav="timex")
 
 
 # ── 포트폴리오: σ-기대수익 평면 ─────────────────────────────────────
