@@ -198,6 +198,20 @@ def _norm_div_yield(v):
     return v / 100.0 if v > 0.25 else v
 
 
+@file_cache("yf_profile", ttl_hours=168)
+def fetch_company_profile(yahoo_ticker: str) -> dict:
+    """기업 소개용 프로필 — 영문 사업 요약·홈페이지·직원수. 개요는 자주 안 바뀌므로 7일 캐시."""
+    info = yf.Ticker(yahoo_ticker).info or {}
+    g = info.get
+    return {
+        "summary": g("longBusinessSummary"),
+        "website": g("website"),
+        "employees": g("fullTimeEmployees"),
+        "city": g("city"),
+        "country": g("country"),
+    }
+
+
 @file_cache("peer_info", ttl_hours=24)
 def fetch_info_metrics(yahoo_ticker: str) -> dict:
     """한 종목의 info 기반 비교 지표 (json 캐시)."""

@@ -12,7 +12,7 @@ from plotly.subplots import make_subplots
 
 from .components import PALETTE as P
 
-FONT = "system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif"
+FONT = "'Pretendard Variable', Pretendard, system-ui, 'Segoe UI', 'Malgun Gothic', sans-serif"
 CATEGORY_ORDER = ["밸류에이션", "수익성", "성장성", "재무 안정성", "현금흐름"]
 
 # Plotly 표시 설정 — st.plotly_chart(config=...)에 넘긴다.
@@ -23,19 +23,49 @@ PLOTLY_CFG = {"displayModeBar": False}
 PLOTLY_CFG_ZOOM = {"displayModeBar": False, "scrollZoom": True}
 
 
+def _clamp_x_to_data(fig: go.Figure) -> None:
+    """증권사식: 시간축 이동·확대를 실제 데이터 범위 안으로 가둔다.
+
+    Plotly의 minallowed/maxallowed로 축 양끝을 데이터의 처음·끝에 못박아, 데이터가 없는
+    과거·미래 여백으로 스크롤되어 '끊긴 끝'이 화면 중앙으로 끌려오는 현상을 없앤다.
+    (마지막 점은 항상 오른쪽 끝, 첫 점은 항상 왼쪽 끝에 붙는다.)
+    """
+    lo = hi = None
+    for tr in fig.data:
+        xs = getattr(tr, "x", None)
+        if xs is None:
+            continue
+        s = pd.Series(list(xs)).dropna()
+        if s.empty:
+            continue
+        a, b = s.min(), s.max()
+        lo = a if lo is None else min(lo, a)
+        hi = b if hi is None else max(hi, b)
+    if lo is None or hi is None or lo == hi:
+        return
+    to_c = lambda v: v.isoformat() if hasattr(v, "isoformat") else v
+    fig.update_xaxes(minallowed=to_c(lo), maxallowed=to_c(hi))
+
+
 def _layout(fig: go.Figure, height: int = 340, legend: bool = True,
-            nav: str = "static") -> go.Figure:
+            nav: str = "static", top: int | None = None,
+            right: int | None = None) -> go.Figure:
     """nav:
     - "static"  : 드래그·휠 없음(정적). 분석용 작은 차트·산점도·평면 — 절대 떠다니지 않음.
     - "timex"   : 시간축(x)만 이동·확대, 가격축(y) 고정(fixedrange) + 크로스헤어 = 증권사식.
                   가격축은 app.py의 auto-fit 스크립트가 보이는 구간에 맞춰 자동 재조정한다.
+    top/right: 상단·우측 여백 오버라이드(px). 기본은 제목·범례 유무로 자동 배분해
+    제목(여백 밴드)과 범례(플롯 바로 위)가 같은 줄에서 겹치지 않게 한다.
     """
     timex = nav == "timex"
+    has_title = bool(getattr(fig.layout.title, "text", None))
+    if top is None:
+        top = 36 + (16 if legend else 0) + (28 if has_title else 0)
     fig.update_layout(
         height=height,
         font=dict(family=FONT, size=12.5, color=P["ink2"]),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=10, r=16, t=36, b=10),
+        margin=dict(l=10, r=16 if right is None else right, t=top, b=10),
         hoverlabel=dict(font_family=FONT, font_size=12.5),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0,
                     font=dict(size=12)) if legend else None,
@@ -52,6 +82,8 @@ def _layout(fig: go.Figure, height: int = 340, legend: bool = True,
         # 가격축 고정 → 휠/드래그가 시간축만 움직여 데이터가 2D로 떠다니지 않는다.
         # (auto-fit 스크립트가 y range를 프로그램적으로 재설정 — fixedrange여도 API relayout은 동작)
         fig.update_yaxes(fixedrange=True)
+        # 시간축 이동/확대를 데이터 범위 안으로 가둔다(빈 여백으로 못 넘어가게).
+        _clamp_x_to_data(fig)
     return fig
 
 
@@ -142,7 +174,8 @@ def band_chart(band: pd.DataFrame, currency: str, kind: str = "PER") -> go.Figur
         hovertemplate="주가: %{y:,.0f}<extra></extra>"))
     fig.update_layout(hovermode="x unified")
     fig.update_xaxes(showgrid=False)
-    return _layout(fig, height=380, nav="timex")
+    # 우측 분위 직접 라벨(' 25%' 등)이 잘리지 않도록 오른쪽 여백 확보
+    return _layout(fig, height=380, nav="timex", right=52)
 
 
 # ── ③ 재무: 성장(매출·이익 + 마진) ──────────────────────────────────
@@ -177,7 +210,10 @@ def growth_chart(series: dict, currency: str) -> go.Figure:
     for a in fig.layout.annotations:
         a.font = dict(size=12.5, color=P["ink2"])
         a.x, a.xanchor = 0, "left"
-    return _layout(fig, height=470)
+    fig = _layout(fig, height=470)
+    # 범례를 서브플롯 제목('매출·이익') 위 밴드로 올려 같은 줄에서 겹치지 않게 분리
+    fig.update_layout(legend=dict(y=1.07), margin=dict(t=76))
+    return fig
 
 
 # ── ③ 재무: 안정성 ─────────────────────────────────────────────────
@@ -471,7 +507,8 @@ def price_chart(ohlcv: pd.DataFrame, currency: str) -> go.Figure:
     fig.update_yaxes(title_text=f"주가({'원' if currency == 'KRW' else '$'})",
                      title_font_size=11, row=1, col=1)
     fig.update_yaxes(title_text="거래량", title_font_size=11, row=2, col=1)
-    return _layout(fig, height=520, nav="timex")
+    # 기간 버튼(y=1.12) 줄과 범례 줄이 위아래로 나뉘도록 상단 여백을 넉넉히
+    return _layout(fig, height=520, nav="timex", top=88)
 
 
 def relative_perf_chart(prices: pd.Series, index_prices: pd.Series,
@@ -488,12 +525,11 @@ def relative_perf_chart(prices: pd.Series, index_prices: pd.Series,
                              line=dict(color=P["muted"], width=1.6, dash="dot"),
                              hovertemplate="%{y:.0f}<extra>" + benchmark + "</extra>"))
     fig.add_hline(y=100, line=dict(color=P["baseline"], width=1))
-    fig.update_layout(hovermode="x unified", title=dict(
-        text=f"상대성과 (시작일=100) — {stock_name} vs {benchmark}",
-        x=0, font=dict(size=12.5, color=P["ink2"])))
+    # 제목은 생략(범례에 두 시리즈명, 하단 캡션에 설명) — 기간버튼·범례와 3줄 충돌 방지
+    fig.update_layout(hovermode="x unified")
     fig.update_xaxes(rangeselector=_RANGE_BUTTONS, showgrid=False)
     fig.update_yaxes(title_text="지수화 (시작=100)", title_font_size=11)
-    return _layout(fig, height=440, nav="timex")
+    return _layout(fig, height=440, nav="timex", top=84)
 
 
 # ── 성향테스트: CML + 무차별곡선 접점 ───────────────────────────────

@@ -10,21 +10,10 @@ import streamlit as st
 st.set_page_config(page_title="투자지표 — 가치평가 대시보드", page_icon="📊",
                    layout="wide", initial_sidebar_state="expanded")
 
-# 우상단 기본 "Running" 상태 위젯(스포츠 픽토그램 애니메이션)을 숨긴다.
-# 로딩 안내는 각 페이지의 st.spinner 메시지로만 깔끔하게 노출한다.
-st.markdown(
-    """
-    <style>
-    [data-testid="stStatusWidget"] { display: none !important; }
-    /* 메트릭 숫자가 좁은 칸에서 줄바꿈/잘리지 않도록: 한 줄 유지 + 살짝 축소 */
-    [data-testid="stMetricValue"] {
-        white-space: nowrap;
-        font-size: 1.55rem;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# 전역 테마(증권사 리서치 톤) — 한국어 keep-all 조판·서체·카드·탭 스타일을 한 곳에서 관리.
+from src.ui.theme import GLOBAL_CSS  # noqa: E402
+
+st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
 from src.ui.nav import PAGES  # noqa: E402  (set_page_config 이후에 임포트해야 함)
 
@@ -83,7 +72,10 @@ components.html(
           if (!ev) return;
           // 줌/팬(xaxis.range) 또는 더블클릭 리셋(xaxis.autorange) 뒤 y를 보이는 x구간에 맞춤.
           if (("xaxis.range[0]" in ev) || ("xaxis.range" in ev) || ev["xaxis.autorange"]) {
-            setTimeout(function () { fit(gd); }, 0);  // Plotly가 x range를 확정한 뒤 계산
+            // 휠 연속 이벤트를 프레임당 1회로 합쳐(rAF) y 재조정이 뚝뚝 끊기지 않게 한다.
+            if (gd._fitRAF) return;
+            gd._fitRAF = (window.parent.requestAnimationFrame || window.requestAnimationFrame ||
+              function (f) { return setTimeout(f, 16); })(function () { gd._fitRAF = 0; fit(gd); });
           }
         });
       }

@@ -2,9 +2,17 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "webapp",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server.py"],
+      "autoPort": true,
+      "port": 5178
+    },
+    {
       "name": "dashboard",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "streamlit", "run", "app.py", "--server.port", "8501", "--server.headless", "true"],
+      "runtimeArgs": ["-c", "import os,sys; from streamlit.web.cli import main; sys.argv=['streamlit','run','app.py','--server.port',os.environ.get('PORT','8501'),'--server.headless','true','--browser.gatherUsageStats','false']; main()"],
+      "autoPort": true,
       "port": 8501
     }
   ]

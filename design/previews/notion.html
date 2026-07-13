@@ -1,0 +1,154 @@
+<!-- @dsCard group="시안 비교 — 대시보드" -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>투자지표 — Notion 시안</title>
+<style>
+  /* DESIGN-notion.md: 웜 페이퍼 캔버스 + 단일 블루 + 헤어라인 + barely-there 그림자 */
+  * { margin:0; padding:0; box-sizing:border-box; word-break:keep-all; }
+  body { font-family:-apple-system,'Segoe UI','Malgun Gothic',sans-serif;
+         background:#f6f5f4; color:#31302e; font-size:16px; line-height:1.5; }
+
+  .nav { display:flex; align-items:center; justify-content:space-between;
+         padding:14px 40px; background:#fff; border-bottom:1px solid #e6e6e6; }
+  .brand { font-weight:700; letter-spacing:-0.03em; font-size:17px; color:#000; }
+  .nav nav { color:#615d59; font-size:14.5px; }
+  .nav a.cta-mini { background:#fff; border:1px solid #e6e6e6; border-radius:8px;
+                    padding:5px 14px; font-size:14px; color:#000; text-decoration:none; }
+
+  .wrap { max-width:920px; margin:0 auto; padding:0 40px; }
+
+  .stock-head { display:flex; justify-content:space-between; align-items:flex-end;
+                padding:40px 0 26px; }
+  .stock-head h1 { font-size:40px; font-weight:700; letter-spacing:-0.035em;
+                   line-height:1.05; color:#000; }
+  .stock-head h1 small { font-size:15px; color:#a39e98; font-weight:400; margin-left:10px; letter-spacing:0; }
+  .stock-head .sub { color:#615d59; font-size:14px; margin-top:10px; }
+  .price { text-align:right; }
+  .price .val { font-size:32px; font-weight:700; letter-spacing:-0.02em; color:#000;
+                font-variant-numeric:tabular-nums; }
+  .badge { display:inline-block; margin-top:10px; background:#2a78d6; color:#fff;
+           padding:5px 16px; border-radius:9999px; font-size:14px; font-weight:600; }
+  .badge small { font-weight:400; color:#dcebfb; }
+
+  .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .m { background:#fff; border:1px solid #e6e6e6; border-radius:12px; padding:16px 18px;
+       box-shadow:0 0.8px 2.9px rgba(0,0,0,.02), 0 2px 7.8px rgba(0,0,0,.027); }
+  .m .k { font-size:12px; font-weight:600; letter-spacing:0.01em; color:#a39e98; }
+  .m .v { font-size:22px; font-weight:700; margin-top:5px; color:#000;
+          font-variant-numeric:tabular-nums; }
+
+  .tabs { display:flex; gap:4px; margin-top:34px; border-bottom:1px solid #e6e6e6; }
+  .tabs span { padding:8px 12px 10px; font-size:14.5px; color:#615d59;
+               border-radius:8px 8px 0 0; white-space:nowrap; }
+  .tabs .on { color:#0075de; font-weight:600; box-shadow:inset 0 -2px 0 #0075de; }
+
+  .eyebrow { display:inline-block; background:#fff; border:1px solid #e6e6e6;
+             color:#0075de; font-size:12px; font-weight:600; letter-spacing:0.06em;
+             text-transform:uppercase; border-radius:9999px; padding:3px 10px;
+             margin:38px 0 8px; }
+  h2 { font-size:26px; font-weight:700; letter-spacing:-0.025em; color:#000; }
+
+  .intro { background:#fff; border:1px solid #e6e6e6; border-radius:12px;
+           padding:22px 26px; margin-top:14px; line-height:1.8; }
+  .intro .meta { margin-top:12px; font-size:12.5px; color:#a39e98; }
+
+  .news { list-style:none; margin-top:12px; }
+  .news li { display:flex; align-items:baseline; gap:10px; background:#fff;
+             border:1px solid #e6e6e6; border-radius:12px; padding:14px 18px; margin-bottom:10px; }
+  .dot { width:9px; height:9px; border-radius:3px; flex:none; position:relative; top:-1px; }
+  .news a { color:#31302e; text-decoration:none; flex:1; }
+  .news .src { color:#a39e98; font-size:12.5px; white-space:nowrap; }
+
+  .chartbox { background:#fff; border:1px solid #e6e6e6; border-radius:12px;
+              padding:18px 20px; margin-top:34px; }
+  .chartbox .lbl { font-size:13px; font-weight:600; color:#31302e; }
+  svg { width:100%; height:110px; margin-top:8px; }
+
+  .cta { margin:30px 0 8px; background:#0075de; color:#fff; border:0; cursor:pointer;
+         padding:12px 26px; border-radius:9999px; font-size:15px; font-weight:500; }
+
+  .swatches { display:flex; gap:8px; margin:34px 0 8px; }
+  .sw { width:52px; height:34px; border-radius:6px; border:1px solid #e6e6e6; position:relative; }
+  .sw i { position:absolute; top:38px; left:0; font-style:normal; font-size:9.5px; color:#a39e98; }
+
+  .foot { border-top:1px solid #e6e6e6; margin-top:42px; padding:20px 40px 30px;
+          color:#a39e98; font-size:12.5px; }
+</style>
+</head>
+<body>
+  <header class="nav">
+    <div class="brand">투자지표</div>
+    <nav>주식 가치평가 · 채권 · 포트폴리오</nav>
+    <a class="cta-mini">사용설명서</a>
+  </header>
+
+  <div class="wrap">
+    <section class="stock-head">
+      <div>
+        <h1>삼성전자 <small>005930 · KOSPI</small></h1>
+        <p class="sub">반도체 · 반도체 및 디스플레이 제조업 &nbsp;|&nbsp; 기준일 2026-07-10 &nbsp;|&nbsp; 재무 DART 연결(공시 원본)</p>
+      </div>
+      <div class="price">
+        <div class="val">285,000원</div>
+        <span class="badge">저평가 <small>· 적정가 대비 +18%</small></span>
+      </div>
+    </section>
+
+    <div class="metrics">
+      <div class="m"><div class="k">시가총액</div><div class="v">1,666조</div></div>
+      <div class="m"><div class="k">PER (TTM)</div><div class="v">19.99배</div></div>
+      <div class="m"><div class="k">ROE (TTM)</div><div class="v">18.6%</div></div>
+      <div class="m"><div class="k">WACC</div><div class="v">11.0%</div></div>
+    </div>
+
+    <nav class="tabs">
+      <span class="on">① 기업·뉴스</span><span>② 요약·판정</span><span>③ 주가차트</span>
+      <span>④ 밸류에이션</span><span>⑤ 재무 분석</span><span>⑥ 업종 비교</span>
+    </nav>
+
+    <span class="eyebrow">Company Overview</span>
+    <h2>기업 소개</h2>
+    <div class="intro">
+      동사는 1969년 설립된 글로벌 전자 기업으로, DX, DS, SDC, Harman 산하 308개 종속기업으로 구성됨.
+      DX 부문은 TV, 가전, 스마트폰, DS는 메모리 반도체와 Foundry 사업, SDC는 OLED 패널,
+      Harman은 전장부품·오디오 사업 운영함.
+      <div class="meta">출처: 에프앤가이드(네이버금융)</div>
+    </div>
+
+    <span class="eyebrow">News</span>
+    <h2>주요 뉴스</h2>
+    <ul class="news">
+      <li><span class="dot" style="background:#2a78d6"></span><a>삼성전자, 2분기 잠정실적 발표 — 영업이익 89조원 최대 실적</a><span class="src">연합인포맥스 · 07-07</span></li>
+      <li><span class="dot" style="background:#4a3aa7"></span><a>미 연준, 기준금리 동결 시사 — 국채금리 하락</a><span class="src">한국경제 · 07-09</span></li>
+    </ul>
+
+    <div class="chartbox">
+      <div class="lbl">주가 — 5Y</div>
+      <svg viewBox="0 0 800 110" preserveAspectRatio="none">
+        <line x1="0" y1="85" x2="800" y2="85" stroke="#e6e6e6" stroke-width="1"/>
+        <line x1="0" y1="42" x2="800" y2="42" stroke="#f0efed" stroke-width="1"/>
+        <path d="M0,90 C120,80 180,95 260,75 C340,55 400,70 480,50 C560,36 620,55 700,22 L800,13"
+              fill="none" stroke="#2a78d6" stroke-width="2.2"/>
+        <path d="M0,95 C120,90 200,100 300,85 C420,70 520,75 640,50 L800,37"
+              fill="none" stroke="#a39e98" stroke-width="1.2" stroke-dasharray="4 3"/>
+      </svg>
+    </div>
+
+    <button class="cta">AI 뉴스 분석</button>
+
+    <div class="swatches">
+      <span class="sw" style="background:#f6f5f4"><i>f6f5f4</i></span>
+      <span class="sw" style="background:#ffffff"><i>ffffff</i></span>
+      <span class="sw" style="background:#0075de"><i>0075de</i></span>
+      <span class="sw" style="background:#213183"><i>213183</i></span>
+      <span class="sw" style="background:#31302e"><i>31302e</i></span>
+      <span class="sw" style="background:#2a78d6"><i>판정 파랑</i></span>
+    </div>
+  </div>
+
+  <footer class="foot">ⓘ 본 도구는 학습·분석 보조용이며 특정 상품의 매수·매도 추천이 아닙니다.</footer>
+</body>
+</html>

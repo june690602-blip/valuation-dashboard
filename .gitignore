@@ -9,6 +9,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+# 디자인 핸드오프 원본(대용량 바이너리) — 저장소에 넣지 않음
+*.zip
+
 # OS
 Thumbs.db
 .DS_Store

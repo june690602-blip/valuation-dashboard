@@ -17,7 +17,8 @@ from src.analysis.scoring import (compute_scores, peer_median,
 from src.analysis.valuation import compute_valuation
 from src.ui import charts
 from src.ui.components import (fmt_money, fmt_pct, fmt_price, fmt_value, fmt_x,
-                               label, score_bar_html, verdict_badge_html)
+                               label, score_bar_html, section_header_html,
+                               verdict_badge_html)
 
 PLOTLY_CFG = charts.PLOTLY_CFG            # 모드바 hover(박스줌·팬·리셋)
 PLOTLY_CFG_ZOOM = charts.PLOTLY_CFG_ZOOM  # 시계열 차트: 휠·핀치 줌까지
@@ -122,7 +123,9 @@ def render_help(expanded: bool = False):
 def render_summary_tab(d, ind, scores, cc, val):
     c1, c2 = st.columns([3, 2])
     with c1:
-        st.markdown("**적정주가 범위 vs 현재가** — 방법별 삼각측량")
+        st.markdown(section_header_html("Fair Value", "적정주가 vs 현재가",
+                                        "업종 상대가치 · 역사적 밴드 · RIM 삼각측량"),
+                    unsafe_allow_html=True)
         if val.estimates:
             st.plotly_chart(charts.fair_value_bullet(val.estimates, val.fair_mid,
                                                      d.price, d.currency),
@@ -135,7 +138,9 @@ def render_summary_tab(d, ind, scores, cc, val):
         else:
             st.info("적정주가를 계산할 수 있는 방법이 없습니다 (데이터 부족).")
     with c2:
-        st.markdown("**업종 상대 점수** — 50이 업종 중앙값")
+        st.markdown(section_header_html("Score", "업종 상대 점수",
+                                        "백분위 기준 · 50 = 업종 중앙값"),
+                    unsafe_allow_html=True)
         valid = {k: v for k, v in scores.scores.items() if v is not None}
         if len(valid) >= 3:
             st.plotly_chart(charts.radar(scores.scores),
@@ -147,7 +152,8 @@ def render_summary_tab(d, ind, scores, cc, val):
                        "백분위 평균 (밸류에이션은 높을수록 '싸다'는 뜻)")
 
     st.divider()
-    st.subheader("왜 이런 판정이 나왔나 — 자동 해설")
+    st.markdown(section_header_html("Rationale", "판정 근거", "규칙 기반 자동 해설"),
+                unsafe_allow_html=True)
     comments = build_commentary(d, ind, scores, cc, val)
     icons = {"good": "✅", "bad": "🔻", "warn": "⚠️", "info": "ℹ️"}
     funcs = {"good": st.success, "bad": st.error, "warn": st.warning, "info": st.info}
@@ -157,7 +163,9 @@ def render_summary_tab(d, ind, scores, cc, val):
 
 def render_valuation_tab(d, ind, val):
     peers = sanitize_peer_frame(d.peers)
-    st.markdown("**멀티플 비교** — 업종 중앙값·자기 5년 밴드와 함께 보기")
+    st.markdown(section_header_html("Multiples", "멀티플 비교",
+                                    "업종 중앙값 · 자기 5년 밴드"),
+                unsafe_allow_html=True)
     rows = []
     band_q50 = {"per": (val.per_q or {}).get(50), "pbr": (val.pbr_q or {}).get(50)}
     for key in ("per", "pbr", "psr", "ev_ebitda", "p_fcf", "div_yield", "peg"):
@@ -241,13 +249,14 @@ def render_peers_tab(d, scores, all_peer_names=None):
 
     peers = d.peers.copy()
     if not peers.empty:
+        num = lambda col: pd.to_numeric(peers[col], errors="coerce")  # None/문자 섞임 → NaN(— 표기)
         view = pd.DataFrame({
             "종목": peers["name"],
             "시가총액": peers["market_cap"].map(lambda v: fmt_money(v, d.currency)),
-            "PER": peers["per"], "PBR": peers["pbr"],
-            "ROE": peers["roe"] * 100, "영업이익률": peers["op_margin"] * 100,
-            "매출성장": peers["rev_growth"] * 100,
-            "배당수익률": peers["div_yield"] * 100,
+            "PER": num("per"), "PBR": num("pbr"),
+            "ROE": num("roe") * 100, "영업이익률": num("op_margin") * 100,
+            "매출성장": num("rev_growth") * 100,
+            "배당수익률": num("div_yield") * 100,
         })
         self_mask = peers["is_self"].values
 
@@ -264,11 +273,15 @@ def render_peers_tab(d, scores, all_peer_names=None):
             hide_index=True, use_container_width=True, height=400)
     fig = charts.peer_scatter(sanitize_peer_frame(d.peers), d.currency)
     if fig:
-        st.markdown("**PER × ROE 지도** — 왼쪽 위(저PER·고ROE)일수록 매력적")
+        st.markdown(section_header_html("Peer Map", "PER × ROE 지도",
+                                        "왼쪽 위(저PER·고ROE)일수록 매력적"),
+                    unsafe_allow_html=True)
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
 
     st.divider()
-    st.markdown("**업종 내 저평가·우량 랭킹** — 가치 60% + 수익성 40% (피어 백분위 종합)")
+    st.markdown(section_header_html("Ranking", "업종 내 저평가·우량 랭킹",
+                                    "가치 60% + 수익성 40% · 피어 백분위 종합"),
+                unsafe_allow_html=True)
     rank = rank_peers_cheapness(d.peers, d.is_financial)
     if len(rank) >= 3:
         rview = pd.DataFrame({
@@ -293,7 +306,7 @@ def render_peers_tab(d, scores, all_peer_names=None):
             hide_index=True, use_container_width=True)
         st.caption("점수는 이 업종 피어 안에서의 상대 백분위입니다(100=업종 최고). "
                    "‘가치’는 PER·PBR·PSR·EV/EBITDA가 낮을수록, ‘수익성’은 ROE·영업이익률이 높을수록 높습니다. "
-                   "⚠️ 저PER이 밸류트랩일 수 있으니 ④ 재무·⑦ 백테스트로 교차 확인하세요.")
+                   "⚠️ 저PER이 밸류트랩일 수 있으니 ⑤ 재무·⑧ 백테스트로 교차 확인하세요.")
     else:
         st.info("피어 표본이 적어 랭킹을 만들 수 없습니다.")
     with st.expander("카테고리 점수 상세 (지표별 백분위)"):
@@ -311,7 +324,9 @@ def render_peers_tab(d, scores, all_peer_names=None):
 
 
 def render_capital_tab(d, cc, ind):
-    st.markdown("**과거 5년 시세로 추정한 자본비용** — 베타에서 WACC까지")
+    st.markdown(section_header_html("Cost of Capital", "자본비용 추정",
+                                    "과거 5년 시세 · 베타에서 WACC까지"),
+                unsafe_allow_html=True)
     if cc.period_label:
         st.caption(f"회귀 표본: {cc.period_label} (벤치마크 {d.benchmark_name})")
 
@@ -345,12 +360,16 @@ def render_capital_tab(d, cc, ind):
                               d.benchmark_name)
     if fig:
         with c1:
-            st.markdown("**베타 회귀** — 시장이 1% 움직일 때 이 종목은?")
+            st.markdown(section_header_html("Beta", "베타 회귀",
+                                            "시장 1% 변동 시 종목의 민감도"),
+                        unsafe_allow_html=True)
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG)
     wf = charts.wacc_waterfall(cc)
     if wf:
         with c2:
-            st.markdown("**WACC 구성** — 자기자본·타인자본 기여")
+            st.markdown(section_header_html("WACC", "WACC 구성",
+                                            "자기자본·타인자본 기여"),
+                        unsafe_allow_html=True)
             st.plotly_chart(wf, use_container_width=True, config=PLOTLY_CFG)
     rw = charts.roic_wacc_chart(ind.series.get("roic"), cc.roic, cc.wacc)
     if rw:
@@ -508,6 +527,67 @@ def _gather_news(d) -> list[dict]:
     return out
 
 
+@st.cache_data(ttl=604800, show_spinner=False)
+def cached_overview_translation(name: str, text: str) -> str:
+    """영문 개요 번역 캐시(7일) — 실패하면 호출부가 영문 원문 폴백."""
+    from src.analysis.ai_analysis import translate_overview
+    return translate_overview(name, text)
+
+
+def render_company_intro(d):
+    """기업 소개 — KR: 네이버(에프앤가이드) 요약문, US: yfinance 영문(가능하면 AI 번역)."""
+    summary, meta = None, []
+    if d.market == "KR":
+        try:
+            from src.data.naver import fetch_company_overview
+            ov = fetch_company_overview(d.ticker)
+            summary = ov.get("summary")
+            if summary and ov.get("source"):
+                meta.append(f"출처: {ov['source']}")
+        except Exception:
+            pass
+    else:
+        try:
+            from src.data.base import fetch_company_profile
+            from src.data.gemini import is_available
+            prof = fetch_company_profile(d.yahoo_ticker)
+            summary = prof.get("summary")
+            if summary:
+                if is_available():
+                    try:
+                        summary = cached_overview_translation(d.name, summary)
+                        meta.append("출처: Yahoo Finance · AI(Gemini) 번역")
+                    except Exception:
+                        meta.append("출처: Yahoo Finance (영문 원문)")
+                else:
+                    meta.append("출처: Yahoo Finance (영문 원문)")
+            if prof.get("website"):
+                meta.append(prof["website"])
+            if prof.get("employees"):
+                meta.append(f"직원 {prof['employees']:,}명")
+        except Exception:
+            pass
+
+    import html as _html
+
+    st.markdown(section_header_html("Company Overview", "기업 소개"),
+                unsafe_allow_html=True)
+    if summary:
+        meta_line = (f"<div class='intro-meta'>{_html.escape(' · '.join(meta))}</div>"
+                     if meta else "")
+        st.markdown(f"<div class='intro-card'><p>{_html.escape(summary)}</p>{meta_line}</div>",
+                    unsafe_allow_html=True)
+    else:
+        st.info("기업 소개를 불러오지 못했습니다. (무료 데이터 특성상 일부 종목은 개요가 없습니다)")
+
+
+def render_intro_news_tab(d):
+    """① 기업·뉴스 — 이 회사가 뭘 하는 회사인지(소개) + 지금 무슨 일이 있는지(뉴스)."""
+    render_company_intro(d)
+    st.divider()
+    render_news_tab(d)
+
+
 def render_news_tab(d):
     import json as _json
 
@@ -532,20 +612,22 @@ def render_news_tab(d):
     if classified is None:
         classified = keyword_classify_news(d.name, d.sector or "", items)
 
-    st.markdown(f"**{d.name} 관련 뉴스 — 기업 · 산업 · 거시로 구분** "
-                f"(출처: Google News, 분류: {how})")
-    st.caption("기본적 분석의 순서(경제 → 산업 → 기업)를 따라 배치했습니다. 거시 기사에는 "
-               "PEST(정책·경제·사회·기술) 관점 태그를 붙입니다.")
+    st.markdown(section_header_html("News", "주요 뉴스",
+                                    f"{d.name} · 기업 → 산업 → 거시"),
+                unsafe_allow_html=True)
+    st.caption(f"출처 Google News · 분류 {how} · 거시 기사에는 PEST(정책·경제·사회·기술) "
+               "관점 태그를 붙입니다.")
 
-    from src.ui.components import news_badge_html
-    sections = [("🏢 기업", "기업", "이 회사 자체의 소식 — 실적·수주·신제품·지배구조"),
-                ("🏭 산업", "산업", "업종·경쟁사·시장 전반 — 회사의 물길이 되는 흐름"),
-                ("🌐 거시", "거시", "금리·물가·환율·정책 — 모든 자산에 깔리는 바닥 흐름")]
-    for title, cat, desc in sections:
+    from src.ui.components import NEWS_CAT_COLORS, news_badge_html
+    sections = [("기업", "이 회사 자체의 소식 — 실적·수주·신제품·지배구조"),
+                ("산업", "업종·경쟁사·시장 전반 — 회사의 물길이 되는 흐름"),
+                ("거시", "금리·물가·환율·정책 — 모든 자산에 깔리는 바닥 흐름")]
+    for cat, desc in sections:
         group = [it for it in classified if it.get("category") == cat]
         if not group:
             continue
-        st.markdown(f"##### {title} <span style='color:#898781;font-size:0.8rem;'>{desc}</span>",
+        dot = f"<span class='cat-dot' style='background:{NEWS_CAT_COLORS[cat]}'></span>"
+        st.markdown(f"##### {dot}{cat} <span class='sec-desc'>{desc}</span>",
                     unsafe_allow_html=True)
         for it in group:
             meta = " · ".join(x for x in (it.get("source"), it.get("date")) if x)
@@ -558,7 +640,7 @@ def render_news_tab(d):
     st.divider()
     ai_key = f"news_ai_{d.ticker}"
     if is_available():
-        if st.button("🤖 AI 뉴스 분석 실행", type="primary", key="btn_news_ai"):
+        if st.button("AI 뉴스 분석", type="primary", key="btn_news_ai"):
             blob = tuple((it.get("date", ""), it.get("title", ""), it.get("source", ""))
                          for it in items)
             try:
@@ -576,8 +658,9 @@ def render_news_tab(d):
 
 def render_ai_tab(d, ind, val, cc, scores):
     from src.data.gemini import is_available
-    st.markdown("**기본적 분석 + 뉴스를 종합한 AI 투자평가** — "
-                "대시보드가 계산한 사실을 근거로 지금 투자 매력도를 평가합니다.")
+    st.markdown(section_header_html("AI Opinion", "AI 종합 투자평가",
+                                    "대시보드가 계산한 사실 근거 · 투자 매력도"),
+                unsafe_allow_html=True)
     if not is_available():
         st.info("💡 이 탭은 **Gemini API 키**가 필요합니다. `.streamlit/secrets.toml`에 "
                 "`GEMINI_API_KEY = \"...\"` 를 넣고 새로고침하세요. (무료 키: aistudio.google.com)")
@@ -589,7 +672,7 @@ def render_ai_tab(d, ind, val, cc, scores):
     ctx = build_opinion_context(d, ind, val, cc, scores, news_sum, risk_profile=prof)
     hints = []
     if not news_sum:
-        hints.append("⑧ 주요뉴스 탭에서 'AI 뉴스 분석'을 실행하면 뉴스까지 반영됩니다")
+        hints.append("① 기업·뉴스 탭에서 'AI 뉴스 분석'을 실행하면 뉴스까지 반영됩니다")
     if prof:
         st.caption(f"🧭 투자성향({prof['label']}) 반영 — 성향별 맞춤 조언이 포함됩니다.")
     else:
@@ -598,7 +681,7 @@ def render_ai_tab(d, ind, val, cc, scores):
         st.caption("ℹ️ " + " · ".join(hints) + ".")
 
     op_key = f"opinion_{d.ticker}"
-    if st.button("🤖 종합 투자평가 생성", type="primary", key="btn_ai_op"):
+    if st.button("종합 투자평가 생성", type="primary", key="btn_ai_op"):
         try:
             with st.spinner("AI가 밸류에이션·재무·자본비용·뉴스를 종합하는 중..."):
                 st.session_state[op_key] = cached_opinion(d.ticker, ctx)
@@ -615,9 +698,9 @@ def _render_basket_button(d):
     """분석 중인 종목을 포트폴리오 바스켓(session_state)에 담는다."""
     basket = st.session_state.setdefault("basket", {})
     if d.yahoo_ticker in basket:
-        st.caption("🧺 포트폴리오에 담겨 있어요 — 포트폴리오 페이지에서 비중을 정하세요.")
+        st.caption("포트폴리오에 담겨 있습니다 — 포트폴리오 페이지에서 비중을 정하세요.")
         return
-    if st.button("🧺 포트폴리오에 담기", key=f"basket_{d.yahoo_ticker}",
+    if st.button("+ 포트폴리오에 담기", key=f"basket_{d.yahoo_ticker}",
                  use_container_width=True):
         basket[d.yahoo_ticker] = {
             "name": d.name, "yahoo": d.yahoo_ticker, "ticker": d.ticker,
@@ -668,7 +751,9 @@ def render():
         badge = f"  |  📄 재무 {fin_src}" if fin_src else ""
         st.caption(f"{sub or '업종 정보 없음'}  |  기준일 {asof}{badge}")
     with h2:
-        st.markdown(f"<div style='text-align:right;font-size:1.7rem;font-weight:700;'>"
+        st.markdown(f"<div style='text-align:right;font-weight:700;"
+                    f"font-size:clamp(1.2rem, 0.9rem + 0.9vw, 1.7rem);"
+                    f"font-variant-numeric:tabular-nums;'>"
                     f"{fmt_price(d.price, d.currency)}</div>", unsafe_allow_html=True)
         st.markdown(f"<div style='text-align:right;'>{verdict_badge_html(val.verdict, val.gap, val.confidence)}</div>",
                     unsafe_allow_html=True)
@@ -692,24 +777,24 @@ def render():
     with hcol2:
         render_help(expanded=False)
 
-    tabs = st.tabs(["① 요약·판정", "② 주가차트", "③ 밸류에이션", "④ 재무 분석", "⑤ 업종 비교",
-                    "⑥ 자본비용(WACC)", "⑦ 백테스트", "⑧ 주요뉴스", "⑨ 종합 투자평가(AI)"])
+    tabs = st.tabs(["① 기업·뉴스", "② 요약·판정", "③ 주가차트", "④ 밸류에이션", "⑤ 재무 분석",
+                    "⑥ 업종 비교", "⑦ 자본비용(WACC)", "⑧ 백테스트", "⑨ 종합 투자평가(AI)"])
     with tabs[0]:
-        render_summary_tab(d, ind, scores, cc, val)
+        render_intro_news_tab(d)
     with tabs[1]:
-        render_price_tab(d)
+        render_summary_tab(d, ind, scores, cc, val)
     with tabs[2]:
-        render_valuation_tab(d, ind, val)
+        render_price_tab(d)
     with tabs[3]:
-        render_financial_tab(d, ind)
+        render_valuation_tab(d, ind, val)
     with tabs[4]:
-        render_peers_tab(d, scores, all_peer_names)
+        render_financial_tab(d, ind)
     with tabs[5]:
-        render_capital_tab(d, cc, ind)
+        render_peers_tab(d, scores, all_peer_names)
     with tabs[6]:
-        render_backtest_tab(d)
+        render_capital_tab(d, cc, ind)
     with tabs[7]:
-        render_news_tab(d)
+        render_backtest_tab(d)
     with tabs[8]:
         render_ai_tab(d, ind, val, cc, scores)
 

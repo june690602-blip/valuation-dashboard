@@ -40,6 +40,28 @@ def _parse_korean_amount(text: str | None) -> float | None:
     return total if found else _parse_number(text)
 
 
+@file_cache("naver_overview", ttl_hours=168)
+def fetch_company_overview(code: str) -> dict:
+    """종목 페이지의 기업개요 요약문(출처: 에프앤가이드). 실패 시 예외 → 호출부 폴백.
+
+    모바일 API(integration)의 description은 비어 있어, PC 종목 메인 페이지의
+    summary_info 블록에서 추출한다. 개요문은 자주 안 바뀌므로 7일 캐시.
+    """
+    import html as _html
+
+    url = f"https://finance.naver.com/item/main.naver?code={code}"
+    r = requests.get(url, headers=_HEADERS, timeout=15)
+    r.raise_for_status()
+    m = re.search(r'id="summary_info".*?</div>', r.text, re.S)
+    if not m:
+        return {"summary": None, "source": None}
+    paras = [_html.unescape(re.sub(r"<[^>]+>", " ", p)) for p in
+             re.findall(r"<p[^>]*>(.*?)</p>", m.group(0), re.S)]
+    paras = [re.sub(r"\s+", " ", p).strip() for p in paras]
+    body = [p for p in paras if p and not p.startswith("출처")]
+    return {"summary": " ".join(body) or None, "source": "에프앤가이드(네이버금융)"}
+
+
 @file_cache("naver_fund", ttl_hours=12)
 def fetch_naver_fundamental(code: str) -> dict:
     """종목 하나의 네이버 공시 지표. 실패 시 예외 → 호출부에서 폴백."""

@@ -1,0 +1,155 @@
+<!-- @dsCard group="시안 비교 — 대시보드" -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>투자지표 — SpaceX 시안</title>
+<style>
+  /* DESIGN-spacex.md: 퓨어 블랙 캔버스 + 대문자 디스플레이 + 고스트 필 버튼 (다크 모드 해석) */
+  * { margin:0; padding:0; box-sizing:border-box; word-break:keep-all; }
+  body { font-family:'Arial Narrow',-apple-system,'Segoe UI','Malgun Gothic',Arial,sans-serif;
+         background:#000; color:#f0f0fa; font-size:15.5px; line-height:1.6; }
+
+  .nav { display:flex; align-items:center; justify-content:space-between;
+         padding:18px 40px; border-bottom:1px solid #3a3a3f; }
+  .brand { font-weight:700; font-size:16px; letter-spacing:0.22em; text-transform:uppercase; color:#fff; }
+  .nav nav { color:#9a9aa2; font-size:12.5px; letter-spacing:0.12em; text-transform:uppercase; }
+  .nav a.cta-mini { color:#fff; font-size:12.5px; letter-spacing:0.12em; text-transform:uppercase;
+                    text-decoration:none; border-bottom:1px solid #fff; padding-bottom:2px; }
+
+  /* 포토 밴드 느낌의 헤더(이미지 대신 라디얼 그라디언트) */
+  .stock-head { background:radial-gradient(120% 160% at 85% 0%, #1a2233 0%, #05060a 55%, #000 100%);
+                padding:56px 40px 48px; display:flex; justify-content:space-between; align-items:flex-end; }
+  .stock-head h1 { font-size:46px; font-weight:700; letter-spacing:0.06em; line-height:0.98;
+                   text-transform:uppercase; color:#fff; }
+  .stock-head h1 small { font-size:13px; color:#9a9aa2; font-weight:400; margin-left:12px;
+                         letter-spacing:0.08em; }
+  .stock-head .sub { color:#9a9aa2; font-size:12.5px; letter-spacing:0.08em; margin-top:14px;
+                     text-transform:uppercase; }
+  .price { text-align:right; }
+  .price .val { font-size:34px; font-weight:700; color:#fff; font-variant-numeric:tabular-nums;
+                letter-spacing:0.02em; }
+  .badge { display:inline-block; margin-top:12px; background:#2a78d6; color:#fff;
+           padding:6px 18px; border-radius:32px; font-size:12.5px; font-weight:700;
+           letter-spacing:0.1em; text-transform:uppercase; }
+  .badge small { font-weight:400; color:#cfe1f7; letter-spacing:0.02em; text-transform:none; }
+
+  .wrap { max-width:920px; margin:0 auto; padding:0 40px; }
+
+  .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:32px; }
+  .m { background:#0a0a0a; border:1px solid #3a3a3f; border-radius:4px; padding:16px 18px; }
+  .m .k { font-size:10.5px; letter-spacing:0.2em; text-transform:uppercase; color:#9a9aa2; }
+  .m .v { font-size:22px; font-weight:700; margin-top:7px; color:#fff;
+          font-variant-numeric:tabular-nums; }
+
+  .tabs { display:flex; gap:24px; margin-top:40px; border-bottom:1px solid #3a3a3f; }
+  .tabs span { padding:10px 2px 12px; font-size:12px; letter-spacing:0.14em;
+               text-transform:uppercase; color:#9a9aa2; white-space:nowrap; }
+  .tabs .on { color:#fff; border-bottom:2px solid #fff; font-weight:700; }
+
+  .eyebrow { font-size:11px; letter-spacing:0.3em; text-transform:uppercase;
+             color:#9a9aa2; margin:42px 0 8px; }
+  h2 { font-size:24px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#fff; }
+
+  .intro { background:#0a0a0a; border:1px solid #3a3a3f; border-radius:4px;
+           padding:24px 28px; margin-top:14px; line-height:1.85; color:#f0f0fa; }
+  .intro .meta { margin-top:12px; font-size:11.5px; color:#9a9aa2; letter-spacing:0.06em; }
+
+  .news { list-style:none; margin-top:12px; }
+  .news li { display:flex; align-items:baseline; gap:12px; padding:16px 2px;
+             border-bottom:1px solid #3a3a3f; }
+  .dot { width:8px; height:8px; border-radius:2px; flex:none; }
+  .news a { color:#f0f0fa; text-decoration:none; flex:1; }
+  .news .src { color:#9a9aa2; font-size:12px; white-space:nowrap; }
+
+  .chartbox { margin-top:38px; border-top:1px solid #3a3a3f; padding-top:20px; }
+  .chartbox .lbl { font-size:11px; letter-spacing:0.3em; text-transform:uppercase; color:#9a9aa2; }
+  svg { width:100%; height:120px; margin-top:10px; }
+
+  .cta { margin:36px 0 8px; background:transparent; color:#fff; cursor:pointer;
+         border:2px solid #fff; padding:15px 30px; border-radius:32px;
+         font-size:13px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; }
+
+  .swatches { display:flex; gap:8px; margin:38px 0 8px; }
+  .sw { width:52px; height:34px; border-radius:4px; border:1px solid #3a3a3f; position:relative; }
+  .sw i { position:absolute; top:38px; left:0; font-style:normal; font-size:9.5px; color:#9a9aa2; }
+
+  .foot { border-top:1px solid #3a3a3f; margin-top:46px; padding:20px 40px 32px;
+          color:#9a9aa2; font-size:11.5px; letter-spacing:0.08em; }
+</style>
+</head>
+<body>
+  <header class="nav">
+    <div class="brand">투자지표</div>
+    <nav>주식 가치평가 · 채권 · 포트폴리오</nav>
+    <a class="cta-mini">사용설명서</a>
+  </header>
+
+  <section class="stock-head">
+    <div>
+      <h1>삼성전자 <small>005930 · KOSPI</small></h1>
+      <p class="sub">반도체 · 반도체 및 디스플레이 제조업 | 기준일 2026-07-10</p>
+    </div>
+    <div class="price">
+      <div class="val">285,000원</div>
+      <span class="badge">저평가 <small>· 적정가 대비 +18%</small></span>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="metrics">
+      <div class="m"><div class="k">Market Cap</div><div class="v">1,666조</div></div>
+      <div class="m"><div class="k">PER (TTM)</div><div class="v">19.99배</div></div>
+      <div class="m"><div class="k">ROE (TTM)</div><div class="v">18.6%</div></div>
+      <div class="m"><div class="k">WACC</div><div class="v">11.0%</div></div>
+    </div>
+
+    <nav class="tabs">
+      <span class="on">① 기업·뉴스</span><span>② 요약·판정</span><span>③ 주가차트</span>
+      <span>④ 밸류에이션</span><span>⑤ 재무</span><span>⑥ 업종</span>
+    </nav>
+
+    <p class="eyebrow">Company Overview</p>
+    <h2>기업 소개</h2>
+    <div class="intro">
+      동사는 1969년 설립된 글로벌 전자 기업으로, DX, DS, SDC, Harman 산하 308개 종속기업으로 구성됨.
+      DX 부문은 TV, 가전, 스마트폰, DS는 메모리 반도체와 Foundry 사업, SDC는 OLED 패널,
+      Harman은 전장부품·오디오 사업 운영함.
+      <div class="meta">출처: 에프앤가이드(네이버금융)</div>
+    </div>
+
+    <p class="eyebrow">News</p>
+    <h2>주요 뉴스</h2>
+    <ul class="news">
+      <li><span class="dot" style="background:#2a78d6"></span><a>삼성전자, 2분기 잠정실적 발표 — 영업이익 89조원 최대 실적</a><span class="src">연합인포맥스 · 07-07</span></li>
+      <li><span class="dot" style="background:#9a9aa2"></span><a>미 연준, 기준금리 동결 시사 — 국채금리 하락</a><span class="src">한국경제 · 07-09</span></li>
+    </ul>
+
+    <div class="chartbox">
+      <div class="lbl">Price — 5Y</div>
+      <svg viewBox="0 0 800 120" preserveAspectRatio="none">
+        <line x1="0" y1="90" x2="800" y2="90" stroke="#3a3a3f" stroke-width="1"/>
+        <line x1="0" y1="45" x2="800" y2="45" stroke="#1d1d22" stroke-width="1"/>
+        <path d="M0,95 C120,85 180,100 260,80 C340,60 400,75 480,55 C560,40 620,60 700,25 L800,15"
+              fill="none" stroke="#2a78d6" stroke-width="2.2"/>
+        <path d="M0,100 C120,95 200,105 300,90 C420,75 520,80 640,55 L800,40"
+              fill="none" stroke="#9a9aa2" stroke-width="1.2" stroke-dasharray="4 3"/>
+      </svg>
+    </div>
+
+    <button class="cta">AI 뉴스 분석</button>
+
+    <div class="swatches">
+      <span class="sw" style="background:#000000"><i>000000</i></span>
+      <span class="sw" style="background:#0a0a0a"><i>0a0a0a</i></span>
+      <span class="sw" style="background:#3a3a3f"><i>3a3a3f</i></span>
+      <span class="sw" style="background:#f0f0fa"><i>f0f0fa</i></span>
+      <span class="sw" style="background:#ffffff"><i>ffffff</i></span>
+      <span class="sw" style="background:#2a78d6"><i>판정 파랑</i></span>
+    </div>
+  </div>
+
+  <footer class="foot">ⓘ 본 도구는 학습·분석 보조용이며 특정 상품의 매수·매도 추천이 아닙니다.</footer>
+</body>
+</html>

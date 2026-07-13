@@ -57,6 +57,19 @@ peers는 입력 기업을 제외하고 {mkt} 상장사만 8~12개."""
             "peers": peers[:12]}
 
 
+# ── ①-b 기업 소개 번역 ──────────────────────────────────────────────
+def translate_overview(name: str, text: str) -> str:
+    """영문 기업 소개(yfinance longBusinessSummary)를 한국어로 번역. 실패 시 예외(호출부 영문 폴백).
+
+    번역만 하고 사실을 더하지 않는다(환각 방지) — AI 역할을 '생성'이 아닌 '변환'으로 제한.
+    """
+    prompt = f"""다음은 '{name}'의 영문 기업 소개다. **사실을 더하거나 빼지 말고** 한국어로 자연스럽게
+번역하라. 3~5문장으로 간결하게 정리하되 사업 부문·주요 제품명은 유지한다. 번역문만 출력.
+
+{text[:2000]}"""
+    return generate_text(prompt, temperature=0.1, max_tokens=800)
+
+
 # ── ② 뉴스 분석 ─────────────────────────────────────────────────────
 def analyze_news(name: str, items: list[dict]) -> str:
     if not items:

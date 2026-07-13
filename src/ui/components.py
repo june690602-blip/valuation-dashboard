@@ -119,6 +119,15 @@ def label(key: str) -> str:
     return LABELS.get(key, key)
 
 
+def section_header_html(eyebrow: str, title: str, desc: str = "") -> str:
+    """리서치 리포트식 섹션 헤더 — 영문 오버라인 + 제목(+ 우측 보조설명).
+
+    스타일은 theme.py의 .eyebrow / .sec-desc 클래스가 담당. st.markdown(unsafe_allow_html=True)로 출력.
+    """
+    d = f" <span class='sec-desc'>{desc}</span>" if desc else ""
+    return f"<p class='eyebrow'>{eyebrow}</p><h5>{title}{d}</h5>"
+
+
 def verdict_badge_html(verdict: str | None, gap: float | None,
                        confidence: str | None) -> str:
     if not verdict:
@@ -129,7 +138,7 @@ def verdict_badge_html(verdict: str | None, gap: float | None,
     return f"""
     <div style="display:inline-flex;align-items:center;gap:10px;">
       <span style="background:{color};color:#fff;padding:6px 16px;border-radius:20px;
-                   font-size:1.05rem;font-weight:700;">{verdict}</span>
+                   font-size:1.05rem;font-weight:700;white-space:nowrap;">{verdict}</span>
       <span style="color:#52514e;font-size:0.9rem;">{gap_txt.lstrip(" ·")}{conf_txt}</span>
     </div>"""
 
@@ -142,8 +151,8 @@ def guide_link_html(label: str = "📖 사용설명서 열기 (새 탭)", block:
     width = "display:block;width:100%;box-sizing:border-box;" if block else "display:inline-block;"
     return (
         f"<a href='guide' target='_blank' rel='noopener' style='{width}text-align:center;"
-        "text-decoration:none;padding:8px 16px;border:1px solid #c3c2b7;border-radius:8px;"
-        "background:#fcfcfb;color:#2a78d6;font-weight:600;font-size:0.92rem;'>"
+        "text-decoration:none;padding:8px 16px;border:1px solid #c3c2b7;border-radius:10px;"
+        "background:#fcfcfb;color:#1c5cab;font-weight:600;font-size:0.92rem;'>"
         f"{label} ↗</a>")
 
 
