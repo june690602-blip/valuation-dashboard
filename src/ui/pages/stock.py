@@ -4,7 +4,6 @@
 """
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -462,7 +461,6 @@ def render_price_tab(d):
         return
     close = ohlcv["Close"]
     hi52, lo52 = float(close.tail(252).max()), float(close.tail(252).min())
-    ret5y = close.iloc[-1] / close.iloc[0] - 1
     ret1y = close.iloc[-1] / close.tail(252).iloc[0] - 1 if len(close) >= 252 else None
     pos52 = (close.iloc[-1] - lo52) / (hi52 - lo52) * 100 if hi52 > lo52 else None
 

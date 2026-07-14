@@ -70,8 +70,6 @@ def _yoy(s: pd.Series):
 def compute_indicators(d: CompanyData) -> Indicators:
     ind = Indicators()
     fin, mcap, price = d.financials, d.market_cap, d.price
-    shares = d.shares_outstanding
-
     eps = _pos(d.latest("eps"))
     equity = _pos(d.latest("total_equity"))
     revenue = _pos(d.latest("revenue"))
@@ -82,8 +80,6 @@ def compute_indicators(d: CompanyData) -> Indicators:
     oi = d.latest("operating_income")
     debt = d.latest("total_debt") or 0.0
     cash = d.latest("cash") or 0.0
-    bps = _safe_div(equity, shares)
-
     # ── ① 밸류에이션 ──────────────────────────────────────────────
     per = _safe_div(price, eps)
     pbr = _safe_div(mcap, equity)

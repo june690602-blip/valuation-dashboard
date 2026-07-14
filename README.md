@@ -13,6 +13,20 @@ streamlit run app.py
 첫 조회는 피어 데이터 수집 때문에 수십 초 걸릴 수 있습니다 (이후는 캐시).
 API 키가 전혀 필요 없습니다.
 
+## 개발 검증
+
+외부 API 없이 실행되는 회귀 테스트와 정적 검사는 다음 명령으로 확인할 수 있습니다.
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pyflakes app.py server.py src scripts tests
+python -m unittest discover -s tests -v
+python scripts/check_bond.py
+python scripts/check_portfolio.py
+```
+
+같은 검증은 PR과 `main` 푸시 때 GitHub Actions의 `Quality` 워크플로에서도 자동 실행됩니다.
+
 ## 무엇을 보여주나
 
 | 탭 | 내용 |

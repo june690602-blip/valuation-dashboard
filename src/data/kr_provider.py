@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import yfinance as yf
 
@@ -50,16 +51,15 @@ def _ai_classify_kr(name: str, hint_industry: str, listing: pd.DataFrame):
 def merge_financials(dart: pd.DataFrame, yf_fin: pd.DataFrame) -> pd.DataFrame:
     """DART(우선) + yfinance(보완) 병합. DART에 없는 항목(EBITDA·차입금·CAPEX 등)은 yfinance로 채움."""
     merged = dart.combine_first(yf_fin)
-    # 파생 항목 재계산 (영업이익·감가상각·현금흐름 출처가 섞였으므로)
-    if {"ebitda", "operating_income", "da"} <= set(merged.columns):
-        need = merged["ebitda"].isna() & merged["operating_income"].notna() & merged["da"].notna()
-        merged.loc[need, "ebitda"] = merged["operating_income"] + merged["da"]
-    if {"ocf", "capex"} <= set(merged.columns):
-        need = merged["ocf"].notna() & merged["capex"].notna()
-        merged.loc[need, "fcf"] = merged["ocf"] - merged["capex"]
+    # 파생 컬럼이 양쪽 원본에 모두 없더라도 아래 재계산이 동작하도록 먼저 표준 스키마를 맞춘다.
     for c in FIN_COLUMNS:
         if c not in merged.columns:
             merged[c] = np.nan
+    # 파생 항목 재계산 (영업이익·감가상각·현금흐름 출처가 섞였으므로)
+    need = merged["ebitda"].isna() & merged["operating_income"].notna() & merged["da"].notna()
+    merged.loc[need, "ebitda"] = merged["operating_income"] + merged["da"]
+    need = merged["ocf"].notna() & merged["capex"].notna()
+    merged.loc[need, "fcf"] = merged["ocf"] - merged["capex"]
     return merged.sort_index()
 
 

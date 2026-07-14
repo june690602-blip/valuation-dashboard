@@ -6,8 +6,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
-
 from ..data.models import CompanyData
 from .capital_cost import CapitalCost
 from .indicators import Indicators
