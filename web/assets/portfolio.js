@@ -95,7 +95,10 @@
       var a = raw[Math.max(0, i - 1)], b = raw[Math.min(raw.length - 1, i + 1)];
       return { s: (a.s + p.s + b.s) / 3, e: p.e };
     });
-    return { cloud: cloud, edge: edge };
+    // 지배원리: 최소분산점(총알의 코) 위쪽만 효율적 프론티어
+    var mvpIdx = 0;
+    edge.forEach(function (p, i) { if (p.s < edge[mvpIdx].s) mvpIdx = i; });
+    return { cloud: cloud, edge: edge, mvpIdx: mvpIdx };
   }
 
   /* ── 차트: 두 자산 결합 곡선 — ρ에 따라 왼쪽으로 휘는 교과서 그림 ── */
@@ -198,10 +201,28 @@
         els.push(el('circle', { cx: X(Math.min(p.s, sigMax)), cy: Y(p.e), r: 1.6, fill: 'var(--dv-slate)', fillOpacity: 0.16 }));
       });
       if (frontier.edge.length >= 3) {
-        var path = frontier.edge.map(function (p, i) { return (i ? 'L' : 'M') + X(Math.min(p.s, sigMax)).toFixed(1) + ' ' + Y(p.e).toFixed(1); }).join('');
-        els.push(el('path', { d: path, fill: 'none', stroke: 'var(--dv-plum)', strokeWidth: 1.8, strokeLinejoin: 'round' }));
-        var lb = frontier.edge[Math.floor(frontier.edge.length * 0.72)];
-        els.push(el('text', { x: X(Math.min(lb.s, sigMax)) - 8, y: Y(lb.e) - 6, fontSize: 10.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '효율적 투자선(근사)'));
+        var toPath = function (pts) { return pts.map(function (p, i) { return (i ? 'L' : 'M') + X(Math.min(p.s, sigMax)).toFixed(1) + ' ' + Y(p.e).toFixed(1); }).join(''); };
+        var lower = frontier.edge.slice(0, frontier.mvpIdx + 1), upper = frontier.edge.slice(frontier.mvpIdx);
+        // 아래 가지 = 지배당하는 조합들의 경계 (흐린 점선)
+        if (lower.length >= 2) els.push(el('path', { d: toPath(lower), fill: 'none', stroke: 'var(--dv-plum)', strokeWidth: 1.2, strokeDasharray: '2 4', opacity: 0.45, strokeLinejoin: 'round' }));
+        // 위 가지 = 효율적 프론티어 (실선)
+        if (upper.length >= 2) {
+          els.push(el('path', { d: toPath(upper), fill: 'none', stroke: 'var(--dv-plum)', strokeWidth: 1.8, strokeLinejoin: 'round' }));
+          var lb = upper[Math.floor(upper.length * 0.6)];
+          els.push(el('text', { x: X(Math.min(lb.s, sigMax)) - 8, y: Y(lb.e) - 6, fontSize: 10.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '효율적 프론티어(근사)'));
+        }
+        // rf에서 이 자산 집합에 그은 접선과 접점(최대 샤프 조합) — 시장지수 CML과 구분
+        if (d.rf != null) {
+          var rfP = d.rf * 100, best = null;
+          frontier.cloud.forEach(function (p) { if (p.s > 0.1) { var sh = (p.e - rfP) / p.s; if (!best || sh > best.sh) best = { s: p.s, e: p.e, sh: sh }; } });
+          if (best && best.sh > 0) {
+            var sEnd = sigMax, eEnd = rfP + best.sh * sEnd;
+            if (eEnd > ymax) { sEnd = (ymax - rfP) / best.sh; eEnd = ymax; }
+            els.push(el('line', { x1: X(0), y1: Y(rfP), x2: X(sEnd), y2: Y(eEnd), stroke: 'var(--dv-plum)', strokeWidth: 1.2, strokeDasharray: '6 4' }));
+            els.push(el('circle', { cx: X(Math.min(best.s, sigMax)), cy: Y(best.e), r: 4.5, fill: 'var(--paper)', stroke: 'var(--dv-plum)', strokeWidth: 2 }));
+            els.push(el('text', { x: X(Math.min(best.s, sigMax)) + 8, y: Y(best.e) + 13, fontSize: 10.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '접점 — 최대 샤프 조합'));
+          }
+        }
       }
     }
     // 자산 점 (비중 비례 크기)
