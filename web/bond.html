@@ -43,6 +43,7 @@
       <a class="navlink" href="stock.html" style="font-size:13.5px;padding:6px 10px">주식 가치평가</a>
       <span style="font-size:13.5px;font-weight:600;color:var(--ink);padding:6px 10px;border-bottom:2px solid var(--ink)">채권</span>
       <a class="navlink" href="portfolio.html" style="font-size:13.5px;padding:6px 10px">포트폴리오</a>
+      <a class="navlink" href="test.html" style="font-size:13.5px;padding:6px 10px">위험 프로파일</a>
       <a class="navlink" href="guide.html" target="_blank" rel="noopener" style="font-size:13.5px;padding:6px 10px">사용설명서 ↗</a>
     </nav>
     <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
@@ -53,14 +54,14 @@
   <main style="flex:1;width:100%;max-width:var(--content-max);margin:0 auto;padding:0 30px">
 
     <section style="padding:44px 0 8px">
-      <div class="kick" style="color:var(--dv-navy)">채권 · Rates &amp; scenarios</div>
+      <div class="kick section-spine" style="color:var(--dv-navy)">채권 · Rates &amp; scenarios</div>
       <h1 style="font-family:var(--font-display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:-0.02em;margin:12px 0 0">국채 금리 · 시나리오</h1>
       <p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:12px 0 0;max-width:64ch">주식이 "적정가 vs 시장가"라면, 채권은 <b style="color:var(--ink)">금리가 움직이면 가격이 얼마나 변하나</b>를 듀레이션·볼록성·DV01로 봅니다. 국공채 현물 금리 기준(회사채·신용스프레드는 무료 신뢰 소스가 없어 제외).</p>
     </section>
 
     <!-- 1. 수익률곡선 -->
     <section class="sec">
-      <span class="kick">지금 금리 — 수익률곡선</span>
+      <span class="kick section-spine">지금 금리 — 수익률곡선</span>
       <div id="rateTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:14px"></div>
       <div id="curveChart" style="margin-top:18px;min-height:280px"></div>
       <div id="curveNote" style="font-size:12px;color:var(--ink-3);margin-top:8px"></div>
@@ -69,7 +70,7 @@
     <!-- 2. 금리 추이 -->
     <section class="sec">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
-        <span class="kick">금리 추이</span>
+        <span class="kick section-spine">금리 추이</span>
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
           <div class="seg" id="histMkt"><button class="on" data-val="KR">🇰🇷 한국</button><button data-val="US">🇺🇸 미국</button></div>
           <div class="seg" id="histTenor"></div>
@@ -81,7 +82,7 @@
 
     <!-- 3. 시나리오 분석기 -->
     <section class="sec">
-      <span class="kick">금리 시나리오 분석기 — 가상 국채로 감 잡기</span>
+      <span class="kick section-spine">금리 시나리오 분석기 — 가상 국채로 감 잡기</span>
       <p style="font-size:12.5px;color:var(--ink-3);line-height:1.6;margin:8px 0 18px;max-width:74ch">선택한 만기의 <b style="color:var(--ink-2)">현재 금리로 발행된 액면채</b>(쿠폰=YTM, 가격≈100)를 가정하고, 금리가 움직일 때 가격이 얼마나 변하는지 봅니다. 보유 채권이 있다면 쿠폰·만기·YTM을 직접 바꿔 넣으세요.</p>
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
         <div class="fld" style="flex:none"><label>국가</label><div class="seg" id="scMkt"><button class="on" data-val="KR">🇰🇷 한국</button><button data-val="US">🇺🇸 미국</button></div></div>
@@ -118,7 +119,7 @@
 
     <!-- 4. 뉴스 -->
     <section class="sec">
-      <span class="kick">금리 · 중앙은행 뉴스</span>
+      <span class="kick section-spine">금리 · 중앙은행 뉴스</span>
       <div id="bondNews" style="margin-top:14px"></div>
     </section>
   </main>

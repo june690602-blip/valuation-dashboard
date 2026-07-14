@@ -44,6 +44,7 @@
       <a class="navlink" href="stock.html" style="font-size:13.5px;padding:6px 10px">주식 가치평가</a>
       <a class="navlink" href="bond.html" style="font-size:13.5px;padding:6px 10px">채권</a>
       <span style="font-size:13.5px;font-weight:600;color:var(--ink);padding:6px 10px;border-bottom:2px solid var(--ink)">포트폴리오</span>
+      <a class="navlink" href="test.html" style="font-size:13.5px;padding:6px 10px">위험 프로파일</a>
       <a class="navlink" href="guide.html" target="_blank" rel="noopener" style="font-size:13.5px;padding:6px 10px">사용설명서 ↗</a>
     </nav>
   </header>
@@ -51,7 +52,7 @@
   <main style="flex:1;width:100%;max-width:var(--content-max);margin:0 auto;padding:0 30px">
 
     <section style="padding:40px 0 8px">
-      <div class="kick" style="color:var(--dv-navy)">포트폴리오 · Risk-return</div>
+      <div class="kick section-spine" style="color:var(--dv-navy)">포트폴리오 · Risk-return</div>
       <h1 style="font-family:var(--font-display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:-0.02em;margin:12px 0 0">내 포트폴리오는 어디에 있나</h1>
       <p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:12px 0 0;max-width:66ch">담은 주식·채권과 금·리츠·달러·예금을 <b style="color:var(--ink)">위험(σ)-기대수익 평면</b>에 놓고, 성과지표(샤프·트레이너)와 세후 어림까지 봅니다. 모든 통계는 원화 환산 월간 수익률 기준이며, 달러 자산은 환노출을 포함합니다.</p>
     </section>
@@ -59,7 +60,7 @@
     <!-- 자산 구성 -->
     <section class="sec">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
-        <span class="kick">자산 구성</span>
+        <span class="kick section-spine">자산 구성</span>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <select class="num" id="presetSel" style="width:auto;min-width:200px"></select>
           <button id="addPreset" class="btn btn-secondary btn-sm">＋ 프리셋 추가</button>
@@ -76,7 +77,7 @@
       <!-- 설정 + 통계 -->
       <section class="sec">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
-          <span class="kick">자산 통계 — 원화 환산 월간 수익률</span>
+          <span class="kick section-spine">자산 통계 — 원화 환산 월간 수익률</span>
           <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
             <span style="font-size:11.5px;color:var(--ink-3)">기간</span>
             <div class="seg" id="monthsSeg"><button data-val="36">36M</button><button data-val="48">48M</button><button class="on" data-val="60">60M</button></div>
@@ -91,14 +92,14 @@
 
       <!-- 상관 히트맵 -->
       <section class="sec">
-        <span class="kick">상관계수 — +1 같이 · 0 무관 · −1 반대로</span>
+        <span class="kick section-spine">상관계수 — +1 같이 · 0 무관 · −1 반대로</span>
         <div id="heatmap" style="margin-top:14px"></div>
         <div style="font-size:11.5px;color:var(--ink-3);margin-top:8px">상관이 낮은(0 근처·음수) 자산을 섞을수록 같은 기대수익에서 포트폴리오 σ가 줄어듭니다 — 분산투자의 수학적 근거입니다.</div>
       </section>
 
       <!-- σ-E(r) 평면 -->
       <section class="sec">
-        <span class="kick">σ-기대수익 평면 — CML은 시장+무위험 혼합의 참고선</span>
+        <span class="kick section-spine">σ-기대수익 평면 — CML은 시장+무위험 혼합의 참고선</span>
         <div id="planeChart" style="margin-top:14px"></div>
         <div id="portTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:16px"></div>
         <div style="font-size:11.5px;color:var(--ink-3);margin-top:8px;line-height:1.6">CML은 '지수+무위험 단순 혼합'이 만드는 참고선입니다. 통화·시장이 다른 자산이 섞이면 위/아래 자체가 우열 판정은 아니며, 같은 σ에서 기대수익이 어느 정도인지 가늠하는 눈금으로 쓰세요.</div>
@@ -106,14 +107,14 @@
 
       <!-- 성과지표 -->
       <section class="sec">
-        <span class="kick">성과지표 — 벤치마크 대비 (과거 실측)</span>
+        <span class="kick section-spine">성과지표 — 벤치마크 대비 (과거 실측)</span>
         <div id="perfTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:14px"></div>
         <div id="perfCaption" style="font-size:11.5px;color:var(--ink-3);margin-top:8px"></div>
       </section>
 
       <!-- 세금 -->
       <section class="sec">
-        <span class="kick">세금 참고 — 분석은 세전, 세후는 어림값</span>
+        <span class="kick section-spine">세금 참고 — 분석은 세전, 세후는 어림값</span>
         <div id="taxTable" class="tbl" style="margin-top:14px"></div>
         <div id="taxTiles" style="display:flex;flex-wrap:wrap;padding:16px 0;margin-top:6px"></div>
         <div style="font-size:11.5px;color:var(--ink-3);margin-top:4px;line-height:1.6">⚠️ 어림 규칙: 2026년 개인 기준(금투세 폐지 반영). 해외주식 연 250만원 공제·손익통산은 미반영. <b>금융소득(이자+배당) 연 2천만원 초과 시 종합과세</b> 대상이 될 수 있습니다 — 정확한 세액은 세무 전문가와 확인하세요.</div>

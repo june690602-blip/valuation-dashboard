@@ -21,7 +21,15 @@
   --line:         #E4E1DB;   /* 헤어라인 기본 구분선·카드 보더 */
   --line-strong:  #C9C5BD;   /* 강조 헤어라인 / 인풋 보더 */
 
-  /* ── Brand bands (풀블리드 전용, 라이트 UI엔 쓰지 않음) ── */
+  /* ── Section spine — 분석 영역 구분 전용 웜 그레이지 ──
+     섹션급 제목의 왼쪽 세로 룰과 섹션 번호에만 쓴다.
+     의미색(dv-positive/negative)·데이터 팔레트와 역할이 겹치지 않는 중성 톤. */
+  --spine:        #C7BCA8;   /* 2px 세로 룰 */
+  --spine-ink:    #9C8C72;   /* 섹션 번호·스파인 옆 라벨 */
+
+  /* ── Brand bands (풀블리드 전용, 라이트 UI엔 쓰지 않음) ──
+     용법: 딥 그린 밴드 = 홈의 위험 프로파일 안내처럼 '행동 유도' 블록,
+     네이비 밴드 = AI·자동 해설처럼 '기계 생성 관찰' 블록. 페이지당 1개 이하. */
   --green:        #12352A;   --green-2: #0D2820;
   --green-ink:    #E8EFE9;   --green-muted: #9FB8AC;  --green-line: #2C4C40;
   --navy:         #131E36;   --navy-2: #0D1526;
@@ -86,6 +94,13 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 .kick {
   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--ink-3); font-family: var(--font-sans); white-space: nowrap;
+}
+
+/* 섹션 스파인 — 섹션급 제목(kick)에만 붙이는 왼쪽 세로 룰.
+   KPI 라벨·카드 내부 라벨에는 쓰지 않는다(눈금 과잉 방지). */
+.kick.section-spine {
+  border-left: 2px solid var(--spine);
+  padding-left: 10px;
 }
 
 /* 표 헤더용 소캡스 라벨 */
