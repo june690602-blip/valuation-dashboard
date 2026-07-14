@@ -66,6 +66,114 @@
     return el('div', { style: { overflowX: 'auto' } }, el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: Math.min(W, 640) + 'px', maxWidth: '100%', height: 'auto', display: 'block' } }, els));
   }
 
+  /* ── 조합 구름·효율적 투자선(근사) — 공매도 없는 랜덤 비중을 뿌려
+     (σ, E(r)) 점을 만들고, E(r) 구간별 최소 σ를 이어 왼쪽 경계를 근사한다.
+     과거 실측 μ·Σ 기반의 교육용 참고선 (최적 비중 처방 아님). ── */
+  function feasibleSet(assets, cov) {
+    var N = assets.length;
+    if (N < 2 || !cov || cov.length !== N) return null;
+    for (var r = 0; r < N; r++) { if (!cov[r] || cov[r].length !== N) return null; for (var c = 0; c < N; c++) if (cov[r][c] == null) return null; if (assets[r].mu == null || assets[r].sigma == null) return null; }
+    var cloud = [], S = 5200, i, j, k;
+    for (k = 0; k < S; k++) {
+      // Exp(1) 표본 정규화 = 균등 Dirichlet. 1/3은 지수를 키워 모서리(집중 비중) 쪽도 채운다.
+      var pow = (k % 3 === 0) ? 3 : 1, w = [], sw = 0;
+      for (i = 0; i < N; i++) { var u = Math.pow(-Math.log(1 - Math.random()), pow); w.push(u); sw += u; }
+      var er = 0, vr = 0;
+      for (i = 0; i < N; i++) { w[i] /= sw; er += w[i] * assets[i].mu; }
+      for (i = 0; i < N; i++) for (j = 0; j < N; j++) vr += w[i] * w[j] * cov[i][j];
+      cloud.push({ s: Math.sqrt(Math.max(vr, 0)) * 100, e: er * 100 });
+    }
+    // E(r) 48개 구간별 최소 σ → 3점 이동평균으로 다듬은 경계
+    var emin = Infinity, emax = -Infinity;
+    cloud.forEach(function (p) { if (p.e < emin) emin = p.e; if (p.e > emax) emax = p.e; });
+    var B = 48, span = (emax - emin) || 1, bins = [];
+    cloud.forEach(function (p) {
+      var b = Math.min(B - 1, Math.floor((p.e - emin) / span * B));
+      if (!bins[b] || p.s < bins[b].s) bins[b] = { s: p.s, e: emin + (b + 0.5) * span / B };
+    });
+    var raw = bins.filter(Boolean), edge = raw.map(function (p, i) {
+      var a = raw[Math.max(0, i - 1)], b = raw[Math.min(raw.length - 1, i + 1)];
+      return { s: (a.s + p.s + b.s) / 3, e: p.e };
+    });
+    // 지배원리: 최소분산점(총알의 코) 위쪽만 효율적 프론티어
+    var mvpIdx = 0;
+    edge.forEach(function (p, i) { if (p.s < edge[mvpIdx].s) mvpIdx = i; });
+    return { cloud: cloud, edge: edge, mvpIdx: mvpIdx };
+  }
+
+  /* ── 차트: 두 자산 결합 곡선 — ρ에 따라 왼쪽으로 휘는 교과서 그림 ── */
+  function pairChart(d, ia, ib) {
+    var A = d.assets[ia], B = d.assets[ib];
+    var rho = (d.corr && d.corr[ia] && d.corr[ia][ib] != null) ? d.corr[ia][ib] : null;
+    var covAB = (d.cov && d.cov[ia] && d.cov[ia][ib] != null) ? d.cov[ia][ib] : (rho != null ? rho * A.sigma * B.sigma : 0);
+    var curve = [], mvp = null;
+    for (var t = 0; t <= 50; t++) {
+      var w = t / 50, er = w * A.mu + (1 - w) * B.mu;
+      var vr = w * w * A.sigma * A.sigma + (1 - w) * (1 - w) * B.sigma * B.sigma + 2 * w * (1 - w) * covAB;
+      var p = { w: w, s: Math.sqrt(Math.max(vr, 0)) * 100, e: er * 100 };
+      curve.push(p); if (!mvp || p.s < mvp.s) mvp = p;
+    }
+    var W = 900, padL = 48, padR = 20, top = 16, plotH = 260, xw = W - padL - padR;
+    var sigMax = Math.max(A.sigma, B.sigma) * 100 * 1.15 || 5;
+    var ys = curve.map(function (p) { return p.e; });
+    var ymin = Math.min.apply(null, ys), ymax = Math.max.apply(null, ys); var pd = (ymax - ymin) * 0.2 || 2; ymin -= pd; ymax += pd;
+    var X = function (s) { return padL + s / sigMax * xw; }, Y = function (v) { return top + (1 - (v - ymin) / (ymax - ymin)) * plotH; };
+    var els = [];
+    for (var g = 0; g <= 4; g++) { var yy = top + g / 4 * plotH, val = ymax - (ymax - ymin) * g / 4; els.push(el('line', { x1: padL, x2: padL + xw, y1: yy, y2: yy, stroke: 'var(--line)', strokeWidth: 1 })); els.push(el('text', { x: padL - 8, y: yy + 4, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, val.toFixed(0) + '%')); }
+    for (var tk = 0; tk <= 4; tk++) { var sv = sigMax * tk / 4; els.push(el('text', { x: X(sv), y: top + plotH + 18, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, sv.toFixed(0) + '%')); }
+    // ρ=1 가정의 직선 (분산효과 0의 기준선)
+    els.push(el('line', { x1: X(Math.min(B.sigma * 100, sigMax)), y1: Y(B.mu * 100), x2: X(Math.min(A.sigma * 100, sigMax)), y2: Y(A.mu * 100), stroke: 'var(--line-strong)', strokeWidth: 1.5, strokeDasharray: '5 4' }));
+    // 실제 ρ의 결합 곡선
+    var path = curve.map(function (p, i) { return (i ? 'L' : 'M') + X(Math.min(p.s, sigMax)).toFixed(1) + ' ' + Y(p.e).toFixed(1); }).join('');
+    els.push(el('path', { d: path, fill: 'none', stroke: 'var(--dv-navy)', strokeWidth: 2, strokeLinejoin: 'round' }));
+    // 끝점(100% 보유)·최소분산 조합
+    [[B, 'B'], [A, 'A']].forEach(function (pair) {
+      var a = pair[0], cx = X(Math.min(a.sigma * 100, sigMax)), cy = Y(a.mu * 100);
+      els.push(el('circle', { cx: cx, cy: cy, r: 5.5, fill: 'var(--dv-navy)', stroke: 'var(--paper)', strokeWidth: 1.5 }));
+      els.push(el('text', { x: cx, y: cy - 10, fontSize: 11, fill: 'var(--ink-2)', fontFamily: 'var(--font-sans)', textAnchor: 'middle' }, esc(a.name.length > 14 ? a.name.slice(0, 13) + '…' : a.name) + ' 100%'));
+    });
+    if (mvp && mvp.w > 0.01 && mvp.w < 0.99) {
+      var mx = X(Math.min(mvp.s, sigMax)), my = Y(mvp.e);
+      els.push(el('path', { d: diamond(mx, my, 6), fill: 'var(--dv-plum)', stroke: 'var(--paper)', strokeWidth: 1.5 }));
+      els.push(el('text', { x: mx + 10, y: my + 4, fontSize: 11, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '최소분산 ' + Math.round(mvp.w * 100) + ':' + Math.round((1 - mvp.w) * 100)));
+    }
+    els.push(el('text', { x: padL + xw, y: top + plotH + 30, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '연 변동성 σ →'));
+    els.push(el('text', { x: padL - 34, y: 9, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, 'E(r)'));
+    return { svg: el('svg', { viewBox: '0 0 ' + W + ' ' + (top + plotH + 34), style: { width: '100%', height: 'auto', display: 'block' } }, els), rho: rho, mvp: mvp, A: A, B: B };
+  }
+
+  function renderPair() {
+    var d = PA;
+    if (!d || d.error || !d.assets || d.assets.length < 2) { $('pairSec').style.display = 'none'; return; }
+    $('pairSec').style.display = 'block';
+    // 셀렉트 채우기 (선택 유지, 기본값 = 비중 상위 두 자산)
+    var byW = d.assets.map(function (a, i) { return i; }).sort(function (x, y) { return (d.assets[y].weight || 0) - (d.assets[x].weight || 0); });
+    ['pairA', 'pairB'].forEach(function (id, slot) {
+      var sel = $(id), had = sel.options.length > 0, prev = +sel.value;
+      sel.innerHTML = d.assets.map(function (a, i) { return '<option value="' + i + '">' + esc(a.name) + '</option>'; }).join('');
+      sel.value = (had && prev >= 0 && prev < d.assets.length) ? prev : byW[slot];
+    });
+    var ia = +$('pairA').value, ib = +$('pairB').value;
+    if (ia === ib) { ib = (ia + 1) % d.assets.length; $('pairB').value = ib; }
+    var r = pairChart(d, ia, ib);
+    $('pairChart').innerHTML = r.svg;
+    // 자동 해설: ρ · 50:50 결합의 분산효과 · 최소분산 조합
+    var half = 0.5 * r.A.sigma + 0.5 * r.B.sigma;
+    var covAB2 = (d.cov && d.cov[ia] && d.cov[ia][ib] != null) ? d.cov[ia][ib] : 0;
+    var halfReal = Math.sqrt(Math.max(0.25 * r.A.sigma * r.A.sigma + 0.25 * r.B.sigma * r.B.sigma + 0.5 * covAB2, 0));
+    var msg;
+    if (r.rho == null) {
+      msg = '두 자산 중 하나의 변동성이 0에 가까워(예금 등) 상관계수가 정의되지 않습니다 — 무위험 자산과의 결합은 직선으로 나타납니다.';
+    } else {
+      msg = '상관계수 ρ = <b class="mono" style="color:var(--ink-2)">' + r.rho.toFixed(2) + '</b> · 실선(실제 ρ)이 점선(ρ=1 가정)보다 왼쪽으로 휜 만큼이 분산효과입니다. '
+        + '50:50 결합 시 σ <b class="mono" style="color:var(--ink-2)">' + (halfReal * 100).toFixed(1) + '%</b>'
+        + ' (상관 1이면 ' + (half * 100).toFixed(1) + '% → <b style="color:var(--dv-positive)">' + ((half - halfReal) * 100).toFixed(1) + '%p 감소</b>)';
+      if (r.rho >= 0.85) msg += ' — 상관이 높아 이 조합의 분산효과는 제한적입니다.';
+      else if (r.rho <= 0.2) msg += ' — 상관이 낮아 분산효과가 큰 조합입니다.';
+    }
+    $('pairCaption').innerHTML = msg + ' 과거 ' + d.n_months + '개월 실측 기반 교육용 계산입니다.';
+  }
+
   /* ── 차트: σ-E(r) 평면 ── */
   function planeChart(d) {
     var assets = d.assets || [], port = d.port, cml = d.cml || {};
@@ -85,6 +193,38 @@
     // CML 참고선
     var cmlCol = { KR: 'var(--dv-teal)', US: 'var(--dv-gold)' };
     for (mk in cml) { var c = cml[mk]; if (c.sigma_m == null || c.sigma_m <= 0) continue; var slope = (c.er_m - c.rf) / c.sigma_m; var y2 = (c.rf + slope * (sigMax / 100)) * 100; els.push(el('line', { x1: X(0), y1: Y(c.rf * 100), x2: X(sigMax), y2: Y(y2), stroke: cmlCol[mk] || 'var(--ink-3)', strokeWidth: 1.5, strokeDasharray: '4 3' })); els.push(el('text', { x: X(sigMax) - 4, y: Y(y2) - 5, fontSize: 10.5, fill: cmlCol[mk] || 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, 'CML ' + esc(c.label))); }
+    // 조합 구름 + 효율적 투자선(근사) — 공매도 없는 랜덤 비중 조합의 (σ, E(r))
+    var frontier = feasibleSet(assets, d.cov);
+    if (frontier) {
+      frontier.cloud.forEach(function (p, i) {
+        if (i % 4 !== 0) return;                       // 렌더는 1/4만 (DOM 절약)
+        els.push(el('circle', { cx: X(Math.min(p.s, sigMax)), cy: Y(p.e), r: 1.6, fill: 'var(--dv-slate)', fillOpacity: 0.16 }));
+      });
+      if (frontier.edge.length >= 3) {
+        var toPath = function (pts) { return pts.map(function (p, i) { return (i ? 'L' : 'M') + X(Math.min(p.s, sigMax)).toFixed(1) + ' ' + Y(p.e).toFixed(1); }).join(''); };
+        var lower = frontier.edge.slice(0, frontier.mvpIdx + 1), upper = frontier.edge.slice(frontier.mvpIdx);
+        // 아래 가지 = 지배당하는 조합들의 경계 (흐린 점선)
+        if (lower.length >= 2) els.push(el('path', { d: toPath(lower), fill: 'none', stroke: 'var(--dv-plum)', strokeWidth: 1.2, strokeDasharray: '2 4', opacity: 0.45, strokeLinejoin: 'round' }));
+        // 위 가지 = 효율적 프론티어 (실선)
+        if (upper.length >= 2) {
+          els.push(el('path', { d: toPath(upper), fill: 'none', stroke: 'var(--dv-plum)', strokeWidth: 1.8, strokeLinejoin: 'round' }));
+          var lb = upper[Math.floor(upper.length * 0.6)];
+          els.push(el('text', { x: X(Math.min(lb.s, sigMax)) - 8, y: Y(lb.e) - 6, fontSize: 10.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '효율적 프론티어(근사)'));
+        }
+        // rf에서 이 자산 집합에 그은 접선과 접점(최대 샤프 조합) — 시장지수 CML과 구분
+        if (d.rf != null) {
+          var rfP = d.rf * 100, best = null;
+          frontier.cloud.forEach(function (p) { if (p.s > 0.1) { var sh = (p.e - rfP) / p.s; if (!best || sh > best.sh) best = { s: p.s, e: p.e, sh: sh }; } });
+          if (best && best.sh > 0) {
+            var sEnd = sigMax, eEnd = rfP + best.sh * sEnd;
+            if (eEnd > ymax) { sEnd = (ymax - rfP) / best.sh; eEnd = ymax; }
+            els.push(el('line', { x1: X(0), y1: Y(rfP), x2: X(sEnd), y2: Y(eEnd), stroke: 'var(--dv-plum)', strokeWidth: 1.2, strokeDasharray: '6 4' }));
+            els.push(el('circle', { cx: X(Math.min(best.s, sigMax)), cy: Y(best.e), r: 4.5, fill: 'var(--paper)', stroke: 'var(--dv-plum)', strokeWidth: 2 }));
+            els.push(el('text', { x: X(Math.min(best.s, sigMax)) + 8, y: Y(best.e) + 13, fontSize: 10.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '접점 — 최대 샤프 조합'));
+          }
+        }
+      }
+    }
     // 자산 점 (비중 비례 크기)
     var wmax = Math.max.apply(null, assets.map(function (a) { return a.weight || 0; })) || 1;
     assets.forEach(function (a) { var r = 6 + 16 * Math.sqrt((a.weight || 0) / wmax); var cx = X(Math.min(a.sigma * 100, sigMax)), cy = Y(a.mu * 100); els.push(el('circle', { cx: cx, cy: cy, r: r, fill: 'var(--dv-navy)', fillOpacity: 0.5, stroke: 'var(--dv-navy)', strokeWidth: 1 })); els.push(el('text', { x: cx, y: cy - r - 4, fontSize: 11, fill: 'var(--ink-2)', fontFamily: 'var(--font-sans)', textAnchor: 'middle' }, esc(a.name.length > 12 ? a.name.slice(0, 11) + '…' : a.name))); });
@@ -94,7 +234,7 @@
     els.push(el('text', { x: px + 12, y: py + 4, fontSize: 12, fill: 'var(--dv-clay)', fontFamily: 'var(--font-sans)', fontWeight: 700, textAnchor: 'start' }, '★ 내 포트폴리오'));
     if (d.optimal) { var ox = X(Math.min(d.optimal.sigma * 100, sigMax)), oy = Y(d.optimal.er * 100); els.push(el('path', { d: diamond(ox, oy, 7), fill: 'var(--dv-plum)', stroke: 'var(--paper)', strokeWidth: 1.5 })); els.push(el('text', { x: ox + 11, y: oy + 4, fontSize: 11.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', fontWeight: 600, textAnchor: 'start' }, '◆ ' + esc(d.optimal.label))); }
     els.push(el('text', { x: padL + xw, y: H2() - 2, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '연 변동성 σ →'));
-    els.push(el('text', { x: padL - 34, y: top + 6, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, 'E(r)'));
+    els.push(el('text', { x: padL - 34, y: 9, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, 'E(r)'));
     function H2() { return top + plotH + 30; }
     return el('svg', { viewBox: '0 0 ' + W + ' ' + (top + plotH + 34), style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
@@ -145,7 +285,7 @@
 
   function renderAnalysis() {
     var d = PA;
-    if (!d || d.error) { $('statsTable').innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">' + esc((d && d.error) || '통계를 계산할 수 없습니다.') + '</div>'; $('heatmap').innerHTML = ''; $('planeChart').innerHTML = ''; $('perfTiles').innerHTML = ''; $('taxTable').innerHTML = ''; $('portTiles').innerHTML = ''; $('taxTiles').innerHTML = ''; return; }
+    if (!d || d.error) { $('statsTable').innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">' + esc((d && d.error) || '통계를 계산할 수 없습니다.') + '</div>'; $('heatmap').innerHTML = ''; $('planeChart').innerHTML = ''; $('perfTiles').innerHTML = ''; $('taxTable').innerHTML = ''; $('portTiles').innerHTML = ''; $('taxTiles').innerHTML = ''; $('pairSec').style.display = 'none'; return; }
     // 위험 프로파일의 모형상 참고점 (schema v2 자가진단 결과가 있으면)
     d.optimal = null;
     var prof = null; try { prof = JSON.parse(localStorage.getItem('invriskprofile') || 'null'); } catch (e) {}
@@ -160,8 +300,20 @@
     $('statsCaption').innerHTML = '표본 ' + d.n_months + '개월 · 달러 자산은 환율 변화 포함(환노출) · 기대수익은 과거 실측 연율화라 <b>추정 오차가 큽니다</b>.';
     // 히트맵
     $('heatmap').innerHTML = heatmap(d.labels, d.corr);
+    // 두 자산 결합 곡선
+    renderPair();
     // 평면
     $('planeChart').innerHTML = planeChart(d);
+    // 분산효과 자동 해설: 실제 포트폴리오 σ vs 자산 σ의 가중평균(상관 1 가정의 상한)
+    var wavg = 0, wok = d.assets.every(function (a) { return a.sigma != null && a.weight != null; });
+    if (wok && d.port.sigma != null) {
+      d.assets.forEach(function (a) { wavg += a.weight * a.sigma; });
+      var saved = (wavg - d.port.sigma) * 100;
+      var dvMsg = saved >= 0.5
+        ? '분산효과: 자산 σ의 가중평균(상관 1 가정)은 <b class="mono">' + (wavg * 100).toFixed(1) + '%</b>지만 실제 포트폴리오 σ는 <b class="mono">' + (d.port.sigma * 100).toFixed(1) + '%</b> — 상관계수가 1보다 작아 <b style="color:var(--dv-positive)">' + saved.toFixed(1) + '%p 줄었습니다</b>.'
+        : '분산효과: 실제 σ(' + (d.port.sigma * 100).toFixed(1) + '%)가 가중평균 σ(' + (wavg * 100).toFixed(1) + '%)와 거의 같습니다 — 자산 간 상관이 높아 분산효과가 제한적입니다.';
+      $('planeChart').insertAdjacentHTML('beforeend', '<div style="font-size:12px;color:var(--ink-2);margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper-2)">' + dvMsg + '</div>');
+    }
     if (d.optimal) { var diff = d.port.sigma - d.optimal.sigma; var msg = Math.abs(diff) < 0.03 ? '현재 포트폴리오 변동성이 성향 모형 참고점과 비슷한 수준입니다.' : (diff > 0 ? '현재 σ(' + (d.port.sigma * 100).toFixed(1) + '%)가 성향 모형 참고점(' + (d.optimal.sigma * 100).toFixed(1) + '%)보다 <b>높습니다</b> — 자가진단과 모형 가정에 비해 변동성이 큰 편입니다.' : '현재 σ(' + (d.port.sigma * 100).toFixed(1) + '%)가 성향 모형 참고점(' + (d.optimal.sigma * 100).toFixed(1) + '%)보다 <b>낮습니다</b>. 이것만으로 위험을 더 늘려야 한다는 뜻은 아닙니다.'); $('planeChart').insertAdjacentHTML('beforeend', '<div style="font-size:12px;color:var(--ink-2);margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper-2)">' + msg + '</div>'); }
     tiles($('portTiles'), [['내 포트폴리오 기대수익', pctS(d.port.er) + ' (연)'], ['내 포트폴리오 변동성 σ', pct(d.port.sigma) + ' (연)']]);
     // 성과지표
@@ -208,6 +360,8 @@
     $('addCash').addEventListener('click', function () { var b = loadBasket(); b['CASH'] = { name: '예금(무위험)', yahoo: null, ticker: 'CASH', type: '예금', currency: 'KRW', 'class': '무위험', cash_rate: 0.03 }; saveBasket(b); renderComposition(); recalc(); });
     wireSeg('monthsSeg', function (v) { state.months = +v; recalc(); });
     wireSeg('benchSeg', function (v) { state.bench = v; recalc(); });
+    $('pairA').addEventListener('change', renderPair);
+    $('pairB').addEventListener('change', renderPair);
     renderComposition();
     if (Object.keys(loadBasket()).length) recalc();
   }
