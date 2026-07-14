@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as _dt
 import io
 import os
+import re
 import zipfile
 from pathlib import Path
 
@@ -124,9 +125,9 @@ def _find_row(rows: list[dict], sj_set: set, ids: list[str], keywords: list[str]
     return None
 
 
-def _fetch_report(key: str, corp: str, year: int) -> dict | None:
+def _fetch_report(key: str, corp: str, year: int, fs_div: str | None = None) -> dict | None:
     """단일 연간 보고서(전체 재무제표). 연결(CFS) 우선, 없으면 별도(OFS)."""
-    for fs in ("CFS", "OFS"):
+    for fs in ((fs_div,) if fs_div else ("CFS", "OFS")):
         try:
             r = requests.get(f"{BASE}/fnlttSinglAcntAll.json", params={
                 "crtfc_key": key, "corp_code": corp, "bsns_year": str(year),
@@ -144,6 +145,14 @@ def _parse_report(j: dict, base: int) -> dict[int, dict]:
     """보고서 하나 → {연도: {표준컬럼: 값}} (당기·전기·전전기 3년)."""
     rows = j.get("list", [])
     out = {base: {}, base - 1: {}, base - 2: {}}
+    period_fields = ((base, "thstrm_dt"), (base - 1, "frmtrm_dt"),
+                     (base - 2, "bfefrmtrm_dt"))
+    for year, field in period_fields:
+        for row in rows:
+            dates = re.findall(r"\d{4}[.-]\d{2}[.-]\d{2}", str(row.get(field) or ""))
+            if dates:
+                out[year]["fiscal_end"] = pd.to_datetime(dates[-1].replace(".", "-"))
+                break
     for col, (sj, ids, kws) in DART_MAP.items():
         row = _find_row(rows, set(sj), ids, [k.replace(" ", "") for k in kws])
         if not row:
@@ -176,7 +185,8 @@ def _dart_financials_df(stock_code: str) -> pd.DataFrame:
             break
     if base is None:
         raise ValueError("no annual report")
-    older = _fetch_report(key, corp, base - 3)  # 3년 앞 보고서로 이력 연장
+    fs_div = reports[base].get("_fs", "CFS")
+    older = _fetch_report(key, corp, base - 3, fs_div=fs_div)  # 동일 연결/별도 기준으로 이력 연장
     if older:
         reports[base - 3] = older
 
@@ -196,8 +206,14 @@ def _dart_financials_df(stock_code: str) -> pd.DataFrame:
             mask = mask | df[c].notna()
     df = df[mask] if mask.any() else df
     df = df.tail(6)
-    df["fiscal_end"] = [pd.Timestamp(int(y), 12, 31) for y in df.index]
-    df.attrs["fs_div"] = reports[base].get("_fs", "CFS")
+    fallback_dates = pd.Series(
+        [pd.Timestamp(int(y), 12, 31) for y in df.index], index=df.index
+    )
+    if "fiscal_end" not in df.columns:
+        df["fiscal_end"] = fallback_dates
+    else:
+        df["fiscal_end"] = pd.to_datetime(df["fiscal_end"], errors="coerce").fillna(fallback_dates)
+    df.attrs["fs_div"] = fs_div
     return df
 
 

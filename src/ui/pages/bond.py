@@ -26,9 +26,9 @@ def _bond_etf_proxy(market: str, tenor_years: float) -> dict:
     if market == "KR":
         if tenor_years <= 5:
             return {"name": "KODEX 국고채3년", "yahoo": "114260.KS", "ticker": "114260.KS",
-                    "type": "국내ETF", "currency": "KRW", "class": "채권"}
+                    "type": "국내기타ETF", "currency": "KRW", "class": "채권"}
         return {"name": "KOSEF 국고채10년", "yahoo": "148070.KS", "ticker": "148070.KS",
-                "type": "국내ETF", "currency": "KRW", "class": "채권"}
+                "type": "국내기타ETF", "currency": "KRW", "class": "채권"}
     if tenor_years <= 7:
         return {"name": "iShares 미국채 7-10년 (IEF)", "yahoo": "IEF", "ticker": "IEF",
                 "type": "해외ETF", "currency": "USD", "class": "채권"}

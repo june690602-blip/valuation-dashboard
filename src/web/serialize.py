@@ -274,7 +274,8 @@ def _backtest(d) -> dict | None:
     ev12 = bt.event_stats.get("12개월", {})
     return {
         "ok": True, "kind": bt.kind, "threshold": num(bt.threshold),
-        "signal_days": int(bt.signal_days), "spearman": num(bt.spearman),
+        "signal_days": int(bt.signal_days), "event_count": int(bt.event_count),
+        "spearman": num(bt.spearman),
         "ret12": num(ev12.get("mean")), "hit12": num(ev12.get("hit")),
         "horizons": horizons, "scatter": scatter, "equity": equity,
         "never_traded": bool(bt.strategy_never_traded), "warnings": list(bt.warnings),
@@ -358,6 +359,7 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "price": num(d.price), "market_cap": num(d.market_cap),
             "asof": asof, "is_financial": d.is_financial,
             "fin_source": d.official.get("재무출처", ""),
+            "sources": d.official.get("데이터출처", {}),
             "ai_available": _ai_available(),
         },
         "warnings": quality,
@@ -596,7 +598,7 @@ def portfolio_analyze(req: dict) -> dict:
     tax_rows, taxed_mu = [], 0.0
     for k in cols:
         a = meta.get(k, {})
-        tr = after_tax_row(a.get("type", "국내ETF"), float(stats["mu"][k]))
+        tr = after_tax_row(a.get("type", "국내기타ETF"), float(stats["mu"][k]))
         taxed_mu += weights[k] * tr["mu_after"]
         tax_rows.append({"name": name_of[k], "rule": tr["rule"], "mu": num(stats["mu"][k]),
                          "eff_rate": num(tr["eff_rate"]), "mu_after": num(tr["mu_after"])})

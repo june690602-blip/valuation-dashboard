@@ -32,6 +32,7 @@ FIN_COLUMNS = [
     "fcf",                  # 잉여현금흐름 (ocf - capex)
     "da",                   # 감가상각비
     "eps",                  # 주당순이익 (기본)
+    "shares_outstanding",   # 기간 평균 유통주식수 (역사적 주당가치 계산용)
     "dividends_paid",       # 배당금 지급 (양수로 정규화)
 ]
 

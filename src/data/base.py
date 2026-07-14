@@ -25,6 +25,7 @@ _ITEM_CANDIDATES: dict[str, list[str]] = {
     "tax_expense": ["Tax Provision"],
     "interest_expense": ["Interest Expense", "Interest Expense Non Operating"],
     "eps": ["Basic EPS", "Diluted EPS"],
+    "shares_outstanding": ["Basic Average Shares", "Diluted Average Shares"],
     "total_assets": ["Total Assets"],
     "total_equity": ["Stockholders Equity", "Common Stock Equity",
                      "Total Equity Gross Minority Interest"],
@@ -75,7 +76,7 @@ def extract_financials(tk: yf.Ticker) -> tuple[pd.DataFrame, list[str]]:
     for col in FIN_COLUMNS:
         src = inc if col in ("revenue", "gross_profit", "operating_income", "net_income",
                              "ebitda", "pretax_income", "tax_expense",
-                             "interest_expense", "eps") else \
+                             "interest_expense", "eps", "shares_outstanding") else \
               bs if col in _STOCK_COLS else cf
         s = _pick(src, _ITEM_CANDIDATES.get(col, []))
         rows[col] = s

@@ -22,12 +22,12 @@ PLOTLY_CFG_ZOOM = charts.PLOTLY_CFG_ZOOM  # σ-E(r) 평면: 휠·핀치 줌
 
 # 프리셋 자산 (이름, 야후티커, 세금유형, 표시통화, 분류) — KRW=X는 이미 '1달러의 원화 가격'
 PRESETS = [
-    ("KODEX 국고채3년", "114260.KS", "국내ETF", "KRW", "채권"),
-    ("KOSEF 국고채10년", "148070.KS", "국내ETF", "KRW", "채권"),
+    ("KODEX 국고채3년", "114260.KS", "국내기타ETF", "KRW", "채권"),
+    ("KOSEF 국고채10년", "148070.KS", "국내기타ETF", "KRW", "채권"),
     ("iShares 미국채 7-10년 (IEF)", "IEF", "해외ETF", "USD", "채권"),
     ("iShares 미국채 20년+ (TLT)", "TLT", "해외ETF", "USD", "채권"),
-    ("ACE KRX금현물", "411060.KS", "국내ETF", "KRW", "금"),
-    ("TIGER 리츠부동산인프라", "329200.KS", "국내ETF", "KRW", "리츠(부동산 대용)"),
+    ("ACE KRX금현물", "411060.KS", "국내기타ETF", "KRW", "금"),
+    ("TIGER 리츠부동산인프라", "329200.KS", "국내기타ETF", "KRW", "리츠(부동산 대용)"),
     ("달러 현금 (USD/KRW)", "KRW=X", "달러현금", "KRW", "외화"),
 ]
 DEFAULT_AMOUNT = 500  # 새 자산 기본 금액(만원)
@@ -380,7 +380,7 @@ def render():
     st.markdown("### 🧾 세금 참고 — 분석은 세전, 세후는 어림값")
     rows, taxed_mu = [], 0.0
     for k in monthly.columns:
-        a = basket.get(k, {"type": "국내ETF", "name": name_of[k]})
+        a = basket.get(k, {"type": "국내기타ETF", "name": name_of[k]})
         tr = after_tax_row(a["type"], float(mu_used[k]))
         taxed_mu += weights[k] * tr["mu_after"]
         rows.append({"자산": name_of[k], "과세 방식": tr["rule"],

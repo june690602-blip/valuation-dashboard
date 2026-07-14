@@ -145,3 +145,21 @@ input[type=range]::-moz-range-thumb {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+@media (max-width: 900px) {
+  body > div > header {
+    height: auto !important;
+    min-height: 58px;
+    padding: 10px 16px !important;
+    flex-wrap: wrap;
+    gap: 8px 14px !important;
+  }
+  body > div > header nav {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  body > div > header form { min-width: 0 !important; }
+  svg { max-width: 100%; }
+}

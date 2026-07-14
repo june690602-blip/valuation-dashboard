@@ -1,17 +1,49 @@
 # 투자지표 — 기업 가치평가 대시보드
 
-기본적 분석으로 "이 기업의 주가가 지금 적정한가, 아니라면 왜인가"를 보여주는 Streamlit 대시보드.
-종목 하나만 입력하면 재무제표·주가·업종 데이터를 자동 수집해 분석합니다. (한국 + 미국 지원)
+공개 데이터의 출처와 계산 가정을 함께 보여주는 **학습·분석 보조용 투자 대시보드**입니다.
+한국·미국 종목의 가치평가뿐 아니라 채권 금리위험과 포트폴리오 분산·세후수익까지 한 흐름에서
+살펴볼 수 있습니다. 특정 종목의 매수·매도를 추천하는 서비스가 아닙니다.
 
-## 실행
+이 프로젝트가 우선하는 기준은 세 가지입니다.
+
+1. **검증 가능성**: 지표 산식과 원천 데이터 출처를 사용자가 추적할 수 있어야 합니다.
+2. **정직한 불확실성**: 결측·추정·표본 부족을 숨기지 않고 계산을 생략하거나 경고합니다.
+3. **비교 가능한 설명**: 숫자를 단독으로 제시하지 않고 과거·피어·자본비용과 함께 해석합니다.
+
+## 빠른 실행 (웹 앱)
 
 ```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run app.py
+python server.py
 ```
 
-첫 조회는 피어 데이터 수집 때문에 수십 초 걸릴 수 있습니다 (이후는 캐시).
-API 키가 전혀 필요 없습니다.
+브라우저에서 `http://localhost:5178`을 엽니다. 첫 종목 조회는 피어 데이터 수집 때문에
+수십 초 걸릴 수 있으며 이후에는 캐시를 사용합니다. 기본 기능은 API 키 없이 동작하고,
+OpenDART 공시 원본과 Gemini 설명 기능은 선택 키를 설정했을 때 활성화됩니다.
+
+기존 Streamlit 화면은 `streamlit run app.py`로도 실행할 수 있습니다.
+
+## 검증
+
+```bash
+pip install -r requirements-dev.txt
+python -m unittest discover -v
+python -m pyflakes src tests server.py app.py
+python scripts/check_bond.py
+python scripts/check_portfolio.py
+```
+
+## 제품 구성
+
+| 화면 | 목적 |
+|---|---|
+| 주식 가치평가 | 적정가 삼각측량, 재무·피어·자본비용·백테스트를 근거와 함께 비교 |
+| 채권 | 가격·듀레이션·볼록성·DV01로 금리 변화에 따른 위험 확인 |
+| 포트폴리오 | 원화 환산 수익률, 상관·분산, 성과지표와 자산 유형별 세후 어림값 비교 |
+| 사용설명서 | 산식, 해석 순서, 데이터 한계 확인 |
 
 ## 개발 검증
 
@@ -57,7 +89,7 @@ python scripts/check_portfolio.py
 - **예외 처리**: 적자기업(PER/PEG/RIM 스킵), 금융업(EV/EBITDA·부채비율·WACC 마스킹),
   자사주 매입으로 장부자본 왜곡(RIM 스킵), 상장기간 부족(베타 β=1 가정)
 
-## 데이터 소스 (전부 무료, 키 불필요)
+## 데이터 소스
 
 | 데이터 | 한국 | 미국 |
 |---|---|---|
@@ -65,6 +97,10 @@ python scripts/check_portfolio.py
 | 재무제표(보완)·주가 | yfinance (`005930.KS`) | yfinance |
 | 시총·주식수·상장목록·업종분류 | FinanceDataReader (KRX) | 위키피디아 S&P500 (GICS) |
 | 공식 PER/PBR/EPS/BPS/배당 | 네이버 금융 API | Yahoo Finance |
+
+각 종목 분석 응답은 실제 조회에 사용한 **주가·주식수·재무제표·멀티플·피어 선정·피어 지표의
+출처를 항목별로 반환**합니다. 한국 피어 지표는 Yahoo Finance를 기본으로 하고 결측값만
+KRX·네이버 금융으로 보완하므로, 서로 다른 기준일과 산식이 섞일 수 있음을 화면에 표시합니다.
 
 | 뉴스 | Google News RSS (무키) + yfinance.news 폴백 | 좌동 |
 | AI 분석·업종분류 | **Gemini** (무료 키) | 좌동 |
@@ -82,7 +118,9 @@ python scripts/check_portfolio.py
 ## 폴더 구조
 
 ```
-app.py                     Streamlit 엔트리 (사이드바·헤더·6개 탭·인앱 도움말)
+server.py                  정적 웹과 JSON API를 함께 제공하는 기본 엔트리
+web/                       홈·주식·채권·포트폴리오·설명서 화면과 JS/CSS
+app.py                     기존 Streamlit 엔트리
 src/data/    models.py     시장 무관 표준 데이터 모델 (CompanyData)
              base.py       yfinance 재무제표·OHLCV 추출·TTM 합산·피어 테이블
              opendart.py   OpenDART 공시 원본 재무 (한국, 연간 ~6개년)
@@ -98,6 +136,7 @@ src/analysis/indicators.py 5개 카테고리 지표 (순수 함수)
              commentary.py 규칙 기반 한국어 해설
 src/ui/      charts.py     Plotly 차트 / components.py 포맷터·배지
 scripts/     check_data.py · check_analysis.py · check_backtest.py  (헤드리스 검증용)
+tests/       계산 정확성·데이터 신뢰성·캐시 회귀 테스트
 docs/        사용설명서.md  (CPA 1차 눈높이)
 ```
 
@@ -108,6 +147,12 @@ docs/        사용설명서.md  (CPA 1차 눈높이)
   ②탭에 공식 참고치를 함께 표시합니다. (완전 정렬하려면 DART 분기까지 쓰면 됨 — 다음 단계)
 - 무료 소스라 항목 결측·오차가 있습니다.
 - KRX 업종분류가 실제 사업 구성과 다를 수 있습니다 (예: 삼성전자 = '통신 및 방송 장비 제조업').
+- 과거 PBR 밴드는 기간별 평균 주식수를 확보한 경우에만 계산합니다. 현재 주식수를 과거 전체에
+  소급 적용하지 않습니다.
+- 백테스트 이벤트 통계는 보유기간이 겹치지 않는 표본만 사용하지만, 단일 종목·짧은 기간의
+  표본 수가 작을 수 있어 미래 성과의 증거로 볼 수 없습니다.
+- 국내 기타 ETF 세금은 과표기준가 이력이 없어 실제 차익 전부에 15.4%를 적용한 상한 추정입니다.
+  국내주식형 ETF의 매매차익 비과세와는 구분합니다.
 - 학습·분석 보조 도구이며 투자 조언이 아닙니다.
 
 ## 다음 단계 아이디어

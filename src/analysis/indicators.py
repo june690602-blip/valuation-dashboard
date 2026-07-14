@@ -67,6 +67,29 @@ def _yoy(s: pd.Series):
     return s.iloc[-1] / s.iloc[-2] - 1
 
 
+def _average_balance(d: CompanyData, col: str) -> float | None:
+    """Average the current balance with the immediately preceding balance.
+
+    When TTM is unavailable, ``latest`` already equals the latest annual value.
+    In that case the previous annual value must be used instead of duplicating
+    the latest value.
+    """
+    annual = d.annual(col)
+    current = _pos(d.latest(col))
+    if current is None:
+        return None
+    has_ttm_balance = (
+        d.ttm is not None and col in d.ttm.index and pd.notna(d.ttm[col])
+    )
+    if has_ttm_balance and len(annual):
+        previous = _pos(float(annual.iloc[-1]))
+    elif len(annual) >= 2:
+        previous = _pos(float(annual.iloc[-2]))
+    else:
+        previous = None
+    return float(np.mean([current, previous])) if previous is not None else current
+
+
 def compute_indicators(d: CompanyData) -> Indicators:
     ind = Indicators()
     fin, mcap, price = d.financials, d.market_cap, d.price
@@ -100,11 +123,8 @@ def compute_indicators(d: CompanyData) -> Indicators:
                      "p_fcf": p_fcf, "div_yield": div_yield, "peg": peg}
 
     # ── ② 수익성 ──────────────────────────────────────────────────
-    eq_series = fin["total_equity"].dropna()
-    avg_equity = float(np.mean([equity, eq_series.iloc[-1]])) if equity and len(eq_series) else equity
-    assets = _pos(d.latest("total_assets"))
-    as_series = fin["total_assets"].dropna()
-    avg_assets = float(np.mean([assets, as_series.iloc[-1]])) if assets and len(as_series) else assets
+    avg_equity = _average_balance(d, "total_equity")
+    avg_assets = _average_balance(d, "total_assets")
     gp = d.latest("gross_profit")
 
     ind.profitability = {

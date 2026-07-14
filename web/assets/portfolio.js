@@ -24,12 +24,12 @@
 
   /* ── 상태 · localStorage ── */
   var PRESETS = [
-    ['KODEX 국고채3년', '114260.KS', '국내ETF', 'KRW', '채권'],
-    ['KOSEF 국고채10년', '148070.KS', '국내ETF', 'KRW', '채권'],
+    ['KODEX 국고채3년', '114260.KS', '국내기타ETF', 'KRW', '채권'],
+    ['KOSEF 국고채10년', '148070.KS', '국내기타ETF', 'KRW', '채권'],
     ['iShares 미국채 7-10년 (IEF)', 'IEF', '해외ETF', 'USD', '채권'],
     ['iShares 미국채 20년+ (TLT)', 'TLT', '해외ETF', 'USD', '채권'],
-    ['ACE KRX금현물', '411060.KS', '국내ETF', 'KRW', '금'],
-    ['TIGER 리츠부동산인프라', '329200.KS', '국내ETF', 'KRW', '리츠(부동산 대용)'],
+    ['ACE KRX금현물', '411060.KS', '국내기타ETF', 'KRW', '금'],
+    ['TIGER 리츠부동산인프라', '329200.KS', '국내기타ETF', 'KRW', '리츠(부동산 대용)'],
     ['달러 현금 (USD/KRW)', 'KRW=X', '달러현금', 'KRW', '외화']
   ];
   var DEFAULT_AMOUNT = 500;
