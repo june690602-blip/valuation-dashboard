@@ -208,8 +208,9 @@ def investment_opinion(context: str) -> str:
 ### 🛡️ 관찰을 재검토할 기준
 52주 최저·지지선 등 현재 해석이 약해질 수 있는 조건을 구체적으로 제시.
 ### 🧭 투자성향별 맞춤
-컨텍스트에 '사용자 투자성향'이 있으면 그 성향(위험회피계수·권장 위험자산 비중)에 맞춰 이 종목의
-어떤 변동성·집중위험을 더 확인해야 하는지 설명하라. 없으면 안정형/공격형 관점에서 한 줄씩.
+컨텍스트에 '사용자 위험 프로파일'이 있으면 손실 감당 여력과 주의 행동을 중심으로 이 종목을 검토할 때의
+위험 요인을 설명하라. 교육용 y*를 권장 비중·상한·적합성 판정으로 바꾸지 말고 정확한 편입 비중도 지시하지 마라.
+프로파일이 없으면 일반적인 보수적 운용과 적극적 운용에서 각각 확인할 위험을 한 줄씩 제시하라.
 ### 👀 지켜볼 것
 촉매·체크포인트."""
     return generate_text(prompt, temperature=0.35, max_tokens=2048) + DISCLAIMER
@@ -276,9 +277,10 @@ def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "",
     if risk_profile:
         y = risk_profile.get("y_star")
         lines.append(
-            f"\n[사용자 투자성향] {risk_profile.get('label','')}"
-            f"(위험회피계수 A≈{risk_profile.get('A', 0):.1f}"
-            + (f", 권장 위험자산 비중 {y*100:.0f}%" if isinstance(y, (int, float)) else "") + ")")
+            f"\n[사용자 위험 프로파일 — 비공식 자가진단] {risk_profile.get('label','')}"
+            f"(교육용 위험회피계수 A≈{risk_profile.get('assessed_A', risk_profile.get('A', 0)):.1f}"
+            + (f", 비제약 평균-분산 모형 참고치 y* {y*100:.0f}%" if isinstance(y, (int, float)) else "")
+            + "). y*는 권장 비중이나 상한이 아니며 상품 적합성을 판정하지 않는다.")
     if news_summary:
         lines.append(f"\n[최근 뉴스 요약]\n{news_summary[:1200]}")
     return "\n".join(lines)

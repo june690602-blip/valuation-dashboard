@@ -133,6 +133,13 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
                 return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
+        if u.path == "/api/risk-profile":
+            try:
+                from src.analysis.risk_profile import risk_profile_config
+                return self._send_json(risk_profile_config())
+            except Exception as e:  # noqa: BLE001
+                traceback.print_exc()
+                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
         if u.path == "/api/market":
             try:
                 from src.web.serialize import market_params
@@ -167,6 +174,23 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):  # noqa: N802
         u = urlparse(self.path)
+        if u.path == "/api/risk-profile":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = self.rfile.read(length).decode("utf-8") if length else "{}"
+                req = json.loads(body or "{}")
+                if not isinstance(req, dict):
+                    return self._send_json({"error": "JSON 객체가 필요합니다."}, 400)
+                answers = req.get("answers")
+                if not isinstance(answers, list):
+                    return self._send_json({"error": "answers 배열이 필요합니다."}, 400)
+                from src.analysis.risk_profile import grade, profile_to_dict
+                return self._send_json(profile_to_dict(grade(answers)))
+            except (ValueError, TypeError) as e:
+                return self._send_json({"error": str(e)}, 400)
+            except Exception as e:  # noqa: BLE001
+                traceback.print_exc()
+                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
         if u.path == "/api/portfolio":
             try:
                 length = int(self.headers.get("Content-Length", "0"))

@@ -504,12 +504,12 @@ def market_params() -> dict:
     return out
 
 
-def _cml_all(rf: float) -> dict:
-    out = {}
-    for mkt, md in _PF_MARKET.items():
-        sig = _market_sigma_est(md["symbol"], md["sigma"])
-        out[mkt] = {"label": md["label"], "rf": num(rf), "er_m": num(rf + md["mrp"]),
-                    "sigma_m": num(sig)}
+def _cml_all(bench: str, bench_rf: float) -> dict:
+    """시장별 CML 가정. 사용자가 조정한 R_f는 선택한 벤치마크에만 적용한다."""
+    out = market_params()
+    if bench in out:
+        out[bench]["rf"] = num(bench_rf)
+        out[bench]["er_m"] = num(bench_rf + _PF_MARKET[bench]["mrp"])
     return out
 
 
@@ -607,7 +607,7 @@ def portfolio_analyze(req: dict) -> dict:
         "assets": asset_rows, "labels": [name_of[k] for k in cols],
         "cov": cov, "corr": corr, "n_months": stats["n_months"],
         "port": {"er": num(port["er"]), "sigma": num(port["sigma"])},
-        "cml": _cml_all(rf), "bench": bench, "bench_label": md["label"], "rf": num(rf),
+        "cml": _cml_all(bench, rf), "bench": bench, "bench_label": md["label"], "rf": num(rf),
         "performance": perf, "excluded": excluded,
         "tax": {"rows": tax_rows, "port_pretax": num(port["er"]), "port_aftertax": num(taxed_mu)},
     }
