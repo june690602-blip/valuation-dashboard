@@ -25,6 +25,51 @@
   .ma-btn { appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: transparent; border-radius: var(--radius-sm); padding: 4px 9px; font-family: var(--font-sans); font-size: 12px; color: var(--ink-3); }
   .ma-btn .dash { width: 9px; height: 2px; background: var(--line-strong); display: inline-block; }
   .ma-btn.on { background: var(--paper); color: var(--ink); }
+  .price-toolbar { display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-top:20px; }
+  .price-toolbar-main, .price-period-wrap { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .price-period-wrap { gap:8px; }
+  .chart-reset { appearance:none; border:1px solid var(--line-strong); background:var(--paper); color:var(--ink-2); border-radius:var(--radius-sm); min-height:32px; padding:4px 10px; font-family:var(--font-sans); font-size:12px; font-weight:500; cursor:pointer; }
+  .chart-reset:hover { background:var(--paper-2); color:var(--ink); }
+  .chart-status { display:flex; align-items:center; gap:18px; min-height:66px; margin-top:14px; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--paper-2); }
+  .chart-status-context { min-width:190px; }
+  .chart-status-name { font-size:12.5px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chart-status-meta { margin-top:3px; font-family:var(--font-mono); font-size:10.5px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chart-status-quote { min-width:142px; padding-left:17px; border-left:1px solid var(--line); }
+  .chart-status-price { font-family:var(--font-mono); font-size:19px; font-weight:600; line-height:1.15; font-variant-numeric:tabular-nums; }
+  .chart-status-change { margin-top:4px; font-family:var(--font-mono); font-size:11px; font-weight:600; }
+  .chart-status-metrics { display:grid; grid-template-columns:repeat(5,minmax(64px,1fr)); gap:7px 14px; flex:1; min-width:390px; }
+  .chart-status-metric { min-width:0; }
+  .chart-status-metric dt { margin:0; font-size:9.5px; letter-spacing:.08em; color:var(--ink-3); text-transform:uppercase; }
+  .chart-status-metric dd { margin:3px 0 0; font-family:var(--font-mono); font-size:12px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #priceChart { width:100%;min-width:0;overflow:hidden; }
+  #priceChart canvas { max-width:100%; }
+  @media (max-width: 760px) {
+    header { height:auto !important;min-height:58px;padding:9px 14px !important;gap:8px 12px !important;flex-wrap:wrap; }
+    header nav { order:3;width:100%;max-width:100%;overflow-x:auto; }
+    #navSearch { display:none !important; }
+    .aside-wrap { display:none;width:0 !important;border-right:0 !important; }
+    #sidebarToggle { display:none !important; }
+    main > div:first-child { padding:18px 14px 8px !important; }
+    #tiles { grid-template-columns:repeat(6,minmax(132px,1fr)) !important;max-width:100%;overflow-x:auto;padding-bottom:8px; }
+    #priceTiles { flex-wrap:nowrap !important;overflow-x:auto; }
+    #priceTiles > div { min-width:145px !important;padding-bottom:4px !important; }
+    .price-toolbar { align-items:flex-start; }
+    .price-toolbar-main { width:100%; }
+    .price-period-wrap { width:100%; flex-wrap:nowrap; overflow-x:auto; padding:2px 0 4px; }
+    .price-period-wrap .seg { flex:none; }
+    .chart-status { flex-wrap:wrap; gap:10px 14px; }
+    .chart-status-context { flex:1; min-width:180px; }
+    .chart-status-quote { min-width:130px; }
+    .chart-status-metrics { width:100%; min-width:0; grid-template-columns:repeat(5,1fr); padding-top:9px; border-top:1px solid var(--line); }
+  }
+  @media (max-width: 520px) {
+    .price-toolbar-main { gap:9px; }
+    #maToggles { max-width:100%; overflow-x:auto; padding-bottom:2px; }
+    .chart-status-context { width:100%; }
+    .chart-status-quote { padding-left:0; border-left:0; }
+    .chart-status-metrics { grid-template-columns:repeat(3,1fr); }
+    .price-toolbar .seg button, .ma-btn, .chart-reset { min-height:38px; }
+  }
   .chev { transition: transform var(--dur-med) var(--ease-out); }
   .chev.open { transform: rotate(180deg); }
   .aside-wrap { flex: none; overflow: hidden; border-right: 1px solid var(--line); transition: width .28s var(--ease-out); width: 279px; }
@@ -198,8 +243,8 @@
         <!-- 03 주가차트 -->
         <section class="panel" data-tab="price" id="panel-price">
           <div id="priceTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0"></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-top:20px">
-            <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <div class="price-toolbar">
+            <div class="price-toolbar-main">
               <div class="seg" id="priceModeSeg"><button class="on" data-val="abs">절대 주가</button><button data-val="rel">지수 대비</button></div>
               <div id="maToggles" style="display:inline-flex;gap:8px;align-items:center">
                 <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-3)">이동평균</span>
@@ -208,10 +253,18 @@
                 <button class="ma-btn" data-ma="m120"><span class="dash"></span>120일</button>
               </div>
             </div>
-            <div class="seg" id="periodSeg"><button data-val="3M">3M</button><button data-val="6M">6M</button><button class="on" data-val="1Y">1Y</button></div>
+            <div class="price-period-wrap">
+              <div class="seg" id="periodSeg" aria-label="차트 조회 기간"><button data-val="1M">1M</button><button data-val="3M">3M</button><button data-val="6M">6M</button><button data-val="YTD">YTD</button><button class="on" data-val="1Y">1Y</button><button data-val="3Y">3Y</button><button data-val="5Y">5Y</button></div>
+              <button class="chart-reset" id="priceReset" type="button" title="확대·이동한 차트를 선택 기간 전체로 되돌립니다">전체 보기</button>
+            </div>
           </div>
-          <div style="margin-top:16px;min-height:260px" id="priceChart"></div>
-          <div style="font-size:11.5px;color:var(--ink-3);margin-top:8px" id="priceCaption">종가 · 이동평균(20/60/120일) · 거래량. <b style="color:var(--ink-2)">휠·트랙패드로 확대·축소, 드래그로 이동, 더블클릭으로 리셋</b>. 마우스를 올리면 상세값이 표시됩니다. 지수 대비 모드는 기간 시작일=100 기준 벤치마크와 누적 비교.</div>
+          <div class="chart-status" id="priceStatus" aria-label="선택한 날짜의 시세 정보">
+            <div class="chart-status-context"><div class="chart-status-name" id="priceStatusName">—</div><div class="chart-status-meta" id="priceStatusMeta">일봉 · —</div></div>
+            <div class="chart-status-quote"><div class="chart-status-price" id="priceStatusPrice">—</div><div class="chart-status-change" id="priceStatusChange">—</div></div>
+            <dl class="chart-status-metrics" id="priceStatusMetrics"></dl>
+          </div>
+          <div style="margin-top:10px;min-height:260px" id="priceChart"></div>
+          <div style="font-size:11.5px;color:var(--ink-3);margin-top:8px" id="priceCaption">일봉 종가 · 이동평균(20/60/120일) · 방향성 거래량. <b style="color:var(--ink-2)">휠·트랙패드로 시간축 확대, 좌우 드래그로 이동, 더블클릭·전체 보기로 리셋</b>. 마우스를 올리면 해당 거래일의 OHLCV가 상단에 표시됩니다. 지수 대비 모드는 선택 기간 시작일=100 기준 누적 비교.</div>
         </section>
 
         <!-- 04 밸류에이션 -->
