@@ -644,14 +644,14 @@
 
   function renderCompany() {
     var c = D.company;
-    var info = '<span class="kick">기업 소개</span>';
+    var info = '';
     if (c && c.summary && !c.error) {
-      info += '<p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:14px 0 0">' + esc(c.summary) + '</p><div style="display:flex;gap:26px;margin-top:18px;border-top:1px solid var(--line);padding-top:16px">';
+      info += '<p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:0">' + esc(c.summary) + '</p><div style="display:flex;gap:26px;margin-top:18px;border-top:1px solid var(--line);padding-top:16px">';
       info += '<div><div class="kick">출처</div><div style="font-size:13px;margin-top:5px">' + esc(c.source || '—') + '</div></div>';
       if (c.website) info += '<div><div class="kick">웹사이트</div><div style="font-size:13px;margin-top:5px">' + esc(c.website) + '</div></div>';
       if (c.employees) info += '<div><div class="kick">직원 수</div><div class="mono" style="font-size:13px;margin-top:5px">' + Number(c.employees).toLocaleString('en-US') + '명</div></div>';
       info += '</div>';
-    } else info += '<p style="font-size:13px;color:var(--ink-3);margin-top:14px">기업 소개를 불러오지 못했습니다. (무료 데이터 특성상 일부 종목은 개요가 없습니다)</p>';
+    } else info += '<p style="font-size:13px;color:var(--ink-3);margin:0">기업 소개를 불러오지 못했습니다. (무료 데이터 특성상 일부 종목은 개요가 없습니다)</p>';
     $('companyInfo').innerHTML = info;
     // AI 뉴스 분석 버튼(키 있고 뉴스 있을 때) — 서술형 Gemini 분석
     var naw = $('newsAiWrap');
@@ -688,11 +688,16 @@
     var f = D.financials;
     if (!f || f.error) { $('finGrowth').innerHTML = '<div style="color:var(--ink-3);font-size:13px">재무 데이터를 불러오지 못했습니다.</div>'; return; }
     var unit = f.unit;
-    $('finGrowthLabel').textContent = '성장성 — 매출·영업이익·순이익 (' + unit + '원)'.replace('B원', 'B');
-    $('finCashLabel').textContent = '현금흐름 — 영업현금흐름·잉여현금흐름 (' + unit + '원)'.replace('B원', 'B');
+    $('finGrowthUnit').textContent = ('단위 · ' + unit + '원').replace('B원', 'B');
+    $('finCashUnit').textContent = ('단위 · ' + unit + '원').replace('B원', 'B');
     $('finGrowth').innerHTML = barGroups(f.years, [
       { name: '매출액', color: 'var(--dv-navy)', data: f.revenue }, { name: '영업이익', color: 'var(--dv-teal)', data: f.operating_income }, { name: '순이익', color: 'var(--dv-gold)', data: f.net_income }
     ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 230 });
+    var om = f.op_margin, nm = f.net_margin;
+    $('finProfitability').innerHTML = lineMulti((om && om.x) || (nm && nm.x) || f.years, [
+      { name: '영업이익률 %', color: 'var(--dv-teal)', data: (om ? om.y : []).map(function (v) { return v == null ? null : v * 100; }) },
+      { name: '순이익률 %', color: 'var(--dv-gold)', data: (nm ? nm.y : []).map(function (v) { return v == null ? null : v * 100; }) }
+    ], { fmt: function (v) { return v.toFixed(1) + '%'; }, H: 190 });
     // 안정성 (금융업 숨김)
     if (f.is_financial) { $('finStability').innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:20px 0">금융업 — 생략</div>'; }
     else {
