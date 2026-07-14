@@ -37,6 +37,7 @@ class BacktestResult:
     discount: pd.Series | None = None          # 일별 저평가율(적정가/주가 − 1)
     fair_price: pd.Series | None = None        # 추정 적정가(롤링 중앙값 배수 × 펀더멘털)
     signal_days: int = 0
+    event_count: int = 0                       # 12개월 기준 비중복 신호 표본 수
     event_stats: dict = field(default_factory=dict)     # {구간: {mean, median, hit, n}}
     baseline_stats: dict = field(default_factory=dict)  # {구간: {mean, hit, n}} 전체 평균
     scatter: pd.DataFrame | None = None        # discount, fwd_252
@@ -57,6 +58,18 @@ def _cagr(equity: pd.Series) -> float | None:
     if years <= 0:
         return None
     return float((e.iloc[-1] / e.iloc[0]) ** (1 / years) - 1)
+
+
+def _non_overlapping_values(values: pd.Series, eligible: pd.Series, horizon: int) -> pd.Series:
+    """Select forward-return observations whose holding windows do not overlap."""
+    mask = eligible.reindex(values.index).fillna(False) & values.notna()
+    chosen: list[float] = []
+    next_allowed = 0
+    for pos, ok in enumerate(mask.to_numpy(dtype=bool)):
+        if ok and pos >= next_allowed:
+            chosen.append(float(values.iloc[pos]))
+            next_allowed = pos + horizon
+    return pd.Series(chosen, dtype=float)
 
 
 def run_backtest(d: CompanyData, kind: str = "PER",
@@ -100,8 +113,8 @@ def run_backtest(d: CompanyData, kind: str = "PER",
     res.signal_days = int(sig.sum())
     for label_kr, h in HORIZONS.items():
         c = f"fwd_{h}"
-        allv = df[c].dropna()
-        sigv = df.loc[sig, c].dropna()
+        allv = _non_overlapping_values(df[c], pd.Series(True, index=df.index), h)
+        sigv = _non_overlapping_values(df[c], sig, h)
         res.baseline_stats[label_kr] = {
             "mean": float(allv.mean()) if len(allv) else None,
             "hit": float((allv > 0).mean()) if len(allv) else None, "n": int(len(allv))}
@@ -109,10 +122,14 @@ def run_backtest(d: CompanyData, kind: str = "PER",
             "mean": float(sigv.mean()) if len(sigv) else None,
             "median": float(sigv.median()) if len(sigv) else None,
             "hit": float((sigv > 0).mean()) if len(sigv) else None, "n": int(len(sigv))}
+    res.event_count = int(res.event_stats.get("12개월", {}).get("n", 0))
     if res.signal_days == 0:
         res.warnings.append(
             f"확보된 기간 동안 이 종목이 우리 기준 '저평가(적정가 대비 +{threshold*100:.0f}% 이상)'"
             "였던 적이 없습니다 — 이벤트 통계·전략을 평가할 수 없습니다. 임계값을 낮춰 보세요.")
+    elif res.event_count < 5:
+        res.warnings.append(
+            f"12개월 비중복 신호 표본이 {res.event_count}개뿐이라 평균수익·승률의 신뢰도가 낮습니다.")
 
     # ── 저평가율 vs 12개월 미래수익 순위상관 (양수 = 저평가일수록 이후 수익↑ = 툴 유효) ──
     sc = df.dropna(subset=["fwd_252"])[["discount", "fwd_252"]]

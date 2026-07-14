@@ -113,9 +113,11 @@ class KRProvider(DataProvider):
         price = float(prices.iloc[-1])
 
         shares = meta["shares"]
+        shares_source = "KRX 상장목록"
         if not shares:
             info = tk.info or {}
             shares = info.get("sharesOutstanding")
+            shares_source = "Yahoo Finance"
         if not shares:
             raise ValueError(f"{meta['name']}({code}) 상장주식수를 확인하지 못했습니다.")
         # 내부 일관성을 위해 시총 = 공식 주식수 × 최근 종가 (공식 시총은 참고치로 보관)
@@ -167,6 +169,15 @@ class KRProvider(DataProvider):
         warnings.append(f"피어 기준: {peer_basis}, {len(peers)}개 종목")
         if len(peers) < 4:
             warnings.append("같은 업종 피어가 적어 업종 비교의 신뢰도가 낮습니다.")
+        official["데이터출처"] = {
+            "주가": "Yahoo Finance 수정종가",
+            "주식수": shares_source,
+            "시가총액": "최근 주가 × 상장주식수",
+            "재무제표": fin_source,
+            "공식 멀티플": official.get("source") or "재무제표 기반 계산",
+            "피어 선정": peer_basis,
+            "피어 지표": "Yahoo Finance, 결측 시 KRX·네이버 금융 보완",
+        }
 
         return CompanyData(
             ticker=code, yahoo_ticker=yt, name=meta["name"], market="KR",

@@ -402,7 +402,8 @@ def render_backtest_tab(d):
     base12 = bt.baseline_stats.get("12개월", {})
     if bt.signal_days > 0 and ev12.get("mean") is not None:
         m = st.columns(4)
-        m[0].metric("저평가 신호", f"{bt.signal_days:,}일")
+        m[0].metric("비중복 12개월 표본", f"{bt.event_count:,}개",
+                    help=f"저평가 신호 자체는 총 {bt.signal_days:,}거래일 관찰됐습니다.")
         m[1].metric("신호 후 12개월 평균수익", fmt_pct(ev12["mean"]))
         m[2].metric("승률(플러스 확률)", fmt_pct(ev12.get("hit")))
         m[3].metric("저평가율↔수익 상관", f"{bt.spearman:+.2f}" if bt.spearman is not None else "—",
@@ -410,9 +411,9 @@ def render_backtest_tab(d):
         better = ("높았습니다 ✅" if base12.get("mean") is not None and ev12["mean"] > base12["mean"]
                   else "특별히 높지는 않았습니다")
         st.success(
-            f"이 종목이 우리 기준 **크게 저평가**(적정가 대비 +{th * 100:.0f}%↑)였던 "
-            f"**{bt.signal_days:,}일**, 이후 12개월 평균 수익률 **{fmt_pct(ev12['mean'])}** "
-            f"(승률 {fmt_pct(ev12.get('hit'))}) — 같은 기간 아무 때나 산 경우"
+            f"저평가 신호는 총 **{bt.signal_days:,}거래일** 관찰됐고, 겹치는 보유기간을 제거한 "
+            f"**{bt.event_count:,}개 표본**의 12개월 평균 수익률은 **{fmt_pct(ev12['mean'])}** "
+            f"(승률 {fmt_pct(ev12.get('hit'))}) — 비중복 전체 표본 평균"
             f"(**{fmt_pct(base12.get('mean'))}**)보다 {better}.", icon="🎯")
     else:
         st.info(f"확보된 기간에 '저평가(+{th * 100:.0f}%↑)' 신호가 없어 이벤트 통계를 낼 수 "

@@ -110,6 +110,14 @@ class USProvider(DataProvider):
             "PER": self_info.get("per"), "PBR": self_info.get("pbr"),
             "DIV": self_info.get("div_yield"), "beta": self_info.get("beta"),
             "source": "Yahoo Finance",
+            "데이터출처": {
+                "주가": "Yahoo Finance 수정종가",
+                "주식수·시가총액": "Yahoo Finance",
+                "재무제표": "Yahoo Finance",
+                "공식 멀티플": "Yahoo Finance",
+                "피어 선정": basis or "업종 분류 불명",
+                "피어 지표": "Yahoo Finance",
+            },
         }
 
         return CompanyData(

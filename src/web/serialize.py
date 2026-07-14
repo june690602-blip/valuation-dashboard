@@ -85,31 +85,118 @@ def _ai_available() -> bool:
 
 
 # ── 섹션별 직렬화 ───────────────────────────────────────────────────
-def _price(d) -> dict | None:
+def _price(d) -> dict:
+    """5년 수정 OHLCV와 차트 요약치를 JSON 안전 형태로 직렬화한다.
+
+    ``dates``와 모든 시계열 배열은 같은 길이·순서를 유지한다. 무료 데이터에서는
+    일부 OHLCV 컬럼이나 벤치마크 날짜가 빠질 수 있으므로, 행을 제거해 정렬을 깨는
+    대신 해당 위치를 ``None``으로 남긴다. 종가는 차트와 등락 계산의 기준이라 마지막
+    유효 수정종가를 사용하고, 종가가 전혀 없을 때만 기존 ``CompanyData.price``를
+    현재가 폴백으로 사용한다.
+    """
     from src.data.base import fetch_ohlcv
-    ohlcv = fetch_ohlcv(d.yahoo_ticker)
-    close = ohlcv["Close"].dropna()
-    vol = ohlcv["Volume"].reindex(close.index) if "Volume" in ohlcv else pd.Series(index=close.index, dtype=float)
+
+    raw = fetch_ohlcv(d.yahoo_ticker, period="5y")
+    frame = raw.copy() if isinstance(raw, pd.DataFrame) else pd.DataFrame()
+
+    # fetch_ohlcv가 보장하는 DatetimeIndex를 다시 한 번 방어적으로 정규화한다.
+    # 잘못된 날짜 행과 중복 날짜만 제거하며, 개별 값의 결측은 그대로 보존한다.
+    if len(frame):
+        try:
+            idx = pd.DatetimeIndex(pd.to_datetime(frame.index, errors="coerce"))
+            valid_dates = ~idx.isna()
+            frame = frame.iloc[np.flatnonzero(valid_dates)].copy()
+            idx = idx[valid_dates]
+            if idx.tz is not None:
+                idx = idx.tz_localize(None)
+            frame.index = idx
+            frame = frame[~frame.index.duplicated(keep="last")].sort_index()
+        except (TypeError, ValueError):
+            frame = pd.DataFrame()
+
+    idx = pd.DatetimeIndex(frame.index)
+
+    def column(name: str) -> pd.Series:
+        """대소문자 차이를 허용하고 누락·비수치 값을 NaN 시리즈로 만든다."""
+        key = next((col for col in frame.columns
+                    if str(col).casefold() == name.casefold()), None)
+        if key is None:
+            return pd.Series(np.nan, index=idx, dtype=float)
+        values = frame[key]
+        if isinstance(values, pd.DataFrame):  # 중복 컬럼명 방어
+            values = values.iloc[:, -1]
+        values = pd.to_numeric(values, errors="coerce").replace([np.inf, -np.inf], np.nan)
+        return pd.Series(values.to_numpy(), index=idx, dtype=float)
+
+    open_ = column("Open")
+    high = column("High")
+    low = column("Low")
+    close = column("Close")
+    vol = column("Volume")
     ma20 = close.rolling(20).mean()
     ma60 = close.rolling(60).mean()
     ma120 = close.rolling(120).mean()
-    bench = d.index_prices.reindex(close.index).ffill()
-    hi52, lo52 = float(close.tail(252).max()), float(close.tail(252).min())
-    ret1y = close.iloc[-1] / close.tail(252).iloc[0] - 1 if len(close) >= 252 else None
-    pos52 = (close.iloc[-1] - lo52) / (hi52 - lo52) * 100 if hi52 > lo52 else None
 
-    tail = lambda s: s.tail(252)
-    idx = tail(close).index
-    fmtd = [t.strftime("%m.%d") for t in idx]
+    # 벤치마크는 휴장일 차이 때문에 종목 거래일과 정확히 일치하지 않을 수 있다.
+    # 합집합에서 먼저 전방 채운 뒤 종목 거래일로 되돌려 첫 행 누락도 최소화한다.
+    raw_bench = getattr(d, "index_prices", None)
+    if isinstance(raw_bench, pd.DataFrame):
+        bench_key = next((key for key in ("close", "Close") if key in raw_bench), None)
+        raw_bench = raw_bench[bench_key] if bench_key else None
+    if isinstance(raw_bench, pd.Series) and len(raw_bench):
+        try:
+            bench_idx = pd.DatetimeIndex(pd.to_datetime(raw_bench.index, errors="coerce"))
+            valid_dates = ~bench_idx.isna()
+            bench = pd.to_numeric(raw_bench.iloc[np.flatnonzero(valid_dates)], errors="coerce")
+            bench_idx = bench_idx[valid_dates]
+            if bench_idx.tz is not None:
+                bench_idx = bench_idx.tz_localize(None)
+            bench.index = bench_idx
+            bench = bench[~bench.index.duplicated(keep="last")].sort_index()
+            bench = bench.replace([np.inf, -np.inf], np.nan)
+            union_idx = bench.index.union(idx)
+            bench = bench.reindex(union_idx).sort_index().ffill().reindex(idx)
+        except (TypeError, ValueError):
+            bench = pd.Series(np.nan, index=idx, dtype=float)
+    else:
+        bench = pd.Series(np.nan, index=idx, dtype=float)
 
-    def arr(s):
-        return [num(v) for v in tail(s).reindex(idx).values]
+    valid_close = close.dropna()
+    latest_close = num(valid_close.iloc[-1]) if len(valid_close) else None
+    previous_close = num(valid_close.iloc[-2]) if len(valid_close) >= 2 else None
+    current = latest_close if latest_close is not None else num(getattr(d, "price", None))
+    change = (latest_close - previous_close
+              if latest_close is not None and previous_close is not None else None)
+    change_pct = (change / previous_close
+                  if change is not None and previous_close not in (None, 0) else None)
+
+    trailing_52 = valid_close.tail(252)
+    hi52 = num(trailing_52.max()) if len(trailing_52) else None
+    lo52 = num(trailing_52.min()) if len(trailing_52) else None
+    ret1y = (latest_close / num(trailing_52.iloc[0]) - 1
+             if len(valid_close) >= 252 and latest_close is not None
+             and num(trailing_52.iloc[0]) not in (None, 0) else None)
+    pos52 = ((latest_close - lo52) / (hi52 - lo52) * 100
+             if latest_close is not None and hi52 is not None and lo52 is not None
+             and hi52 > lo52 else None)
+    asof = valid_close.index[-1].strftime("%Y-%m-%d") if len(valid_close) else None
+
+    def arr(series: pd.Series) -> list[float | None]:
+        return [num(value) for value in series.reindex(idx).values]
 
     return {
-        "dates": fmtd, "close": arr(close), "ma20": arr(ma20), "ma60": arr(ma60),
-        "ma120": arr(ma120), "vol": arr(vol), "bench": arr(bench),
-        "cur": num(d.price), "hi52": num(hi52), "lo52": num(lo52),
-        "ret1y": num(ret1y), "pos52": num(pos52),
+        # 기존 키(dates/close/vol/MA/bench/요약치)를 유지하면서 5년 전체를 제공한다.
+        "dates": [date.strftime("%Y-%m-%d") for date in idx],
+        "open": arr(open_), "high": arr(high), "low": arr(low),
+        "close": arr(close), "vol": arr(vol),
+        "ma20": arr(ma20), "ma60": arr(ma60), "ma120": arr(ma120),
+        "bench": arr(bench),
+        "cur": num(current), "prev_close": num(previous_close),
+        "change": num(change), "change_pct": num(change_pct),
+        "hi52": hi52, "lo52": lo52, "ret1y": num(ret1y), "pos52": num(pos52),
+        "asof": asof,
+        "source": "Yahoo Finance · 수정주가",
+        "delay_note": "무료 공개 시세로 실시간이 아니며 거래소·제공처 사정에 따라 지연될 수 있습니다.",
     }
 
 
@@ -274,7 +361,8 @@ def _backtest(d) -> dict | None:
     ev12 = bt.event_stats.get("12개월", {})
     return {
         "ok": True, "kind": bt.kind, "threshold": num(bt.threshold),
-        "signal_days": int(bt.signal_days), "spearman": num(bt.spearman),
+        "signal_days": int(bt.signal_days), "event_count": int(bt.event_count),
+        "spearman": num(bt.spearman),
         "ret12": num(ev12.get("mean")), "hit12": num(ev12.get("hit")),
         "horizons": horizons, "scatter": scatter, "equity": equity,
         "never_traded": bool(bt.strategy_never_traded), "warnings": list(bt.warnings),
@@ -358,6 +446,7 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "price": num(d.price), "market_cap": num(d.market_cap),
             "asof": asof, "is_financial": d.is_financial,
             "fin_source": d.official.get("재무출처", ""),
+            "sources": d.official.get("데이터출처", {}),
             "ai_available": _ai_available(),
         },
         "warnings": quality,
@@ -502,12 +591,12 @@ def market_params() -> dict:
     return out
 
 
-def _cml_all(rf: float) -> dict:
-    out = {}
-    for mkt, md in _PF_MARKET.items():
-        sig = _market_sigma_est(md["symbol"], md["sigma"])
-        out[mkt] = {"label": md["label"], "rf": num(rf), "er_m": num(rf + md["mrp"]),
-                    "sigma_m": num(sig)}
+def _cml_all(bench: str, bench_rf: float) -> dict:
+    """시장별 CML 가정. 사용자가 조정한 R_f는 선택한 벤치마크에만 적용한다."""
+    out = market_params()
+    if bench in out:
+        out[bench]["rf"] = num(bench_rf)
+        out[bench]["er_m"] = num(bench_rf + _PF_MARKET[bench]["mrp"])
     return out
 
 
@@ -596,7 +685,7 @@ def portfolio_analyze(req: dict) -> dict:
     tax_rows, taxed_mu = [], 0.0
     for k in cols:
         a = meta.get(k, {})
-        tr = after_tax_row(a.get("type", "국내ETF"), float(stats["mu"][k]))
+        tr = after_tax_row(a.get("type", "국내기타ETF"), float(stats["mu"][k]))
         taxed_mu += weights[k] * tr["mu_after"]
         tax_rows.append({"name": name_of[k], "rule": tr["rule"], "mu": num(stats["mu"][k]),
                          "eff_rate": num(tr["eff_rate"]), "mu_after": num(tr["mu_after"])})
@@ -605,7 +694,7 @@ def portfolio_analyze(req: dict) -> dict:
         "assets": asset_rows, "labels": [name_of[k] for k in cols],
         "cov": cov, "corr": corr, "n_months": stats["n_months"],
         "port": {"er": num(port["er"]), "sigma": num(port["sigma"])},
-        "cml": _cml_all(rf), "bench": bench, "bench_label": md["label"], "rf": num(rf),
+        "cml": _cml_all(bench, rf), "bench": bench, "bench_label": md["label"], "rf": num(rf),
         "performance": perf, "excluded": excluded,
         "tax": {"rows": tax_rows, "port_pretax": num(port["er"]), "port_aftertax": num(taxed_mu)},
     }

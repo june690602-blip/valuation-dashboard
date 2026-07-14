@@ -84,15 +84,24 @@ def _fundamental_daily(d: CompanyData, col: str, per_share: bool = True) -> pd.S
     fin = d.financials
     if col not in fin.columns or "fiscal_end" not in fin.columns:
         return None
-    vals = fin[[col, "fiscal_end"]].dropna()
+    required = [col, "fiscal_end"]
+    if per_share:
+        if "shares_outstanding" not in fin.columns:
+            return None
+        required.append("shares_outstanding")
+    vals = fin[required].dropna()
     if len(vals) < 2:
         return None
+    values = vals[col]
+    if per_share:
+        shares = vals["shares_outstanding"].where(vals["shares_outstanding"] > 0)
+        values = values / shares
     steps = pd.Series(
-        vals[col].values,
+        values.values,
         index=pd.to_datetime(vals["fiscal_end"]) + pd.Timedelta(days=90),
     ).sort_index()
     daily = steps.reindex(d.prices.index, method="ffill")
-    return daily / d.shares_outstanding if per_share else daily
+    return daily
 
 
 def _band(d: CompanyData, current_fund: float | None, kind: str):

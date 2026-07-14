@@ -9,103 +9,281 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/meridian.css">
 <style>
-  .navlink { color: var(--ink-3); cursor: pointer; }
+  html { scroll-behavior: smooth; }
+  body { overflow-x: hidden; }
+  .skip-link { position: fixed; top: 8px; left: 8px; z-index: 100; transform: translateY(-150%); background: var(--ink); color: var(--paper); padding: 10px 14px; border-radius: var(--radius-sm); }
+  .skip-link:focus { transform: translateY(0); }
+  .site-header { min-height: 58px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 26px; padding: 0 26px; background: rgba(255,255,255,.94); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 30; }
+  .brand { display: flex; align-items: baseline; gap: 8px; flex: none; white-space: nowrap; }
+  .brand-name { font-family: var(--font-display); font-weight: 700; font-size: 21px; letter-spacing: -.01em; }
+  .beta { font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-3); letter-spacing: .1em; border: 1px solid var(--line); padding: 1px 5px; border-radius: 2px; }
+  .top-nav { display: flex; gap: 4px; align-items: center; white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .top-nav::-webkit-scrollbar { display: none; }
+  .navlink { color: var(--ink-3); padding: 8px 10px; font-size: 13.5px; min-height: 40px; display: inline-flex; align-items: center; }
   .navlink:hover { color: var(--ink); text-decoration: none; }
-  .gtbl { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
-  .gtbl th { text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; padding: 9px 12px; border-bottom: 1px solid var(--line-strong); }
-  .gtbl td { padding: 11px 12px; border-bottom: 1px solid var(--line); color: var(--ink-2); line-height: 1.6; vertical-align: top; }
-  .gtbl td:first-child { white-space: nowrap; font-weight: 600; color: var(--ink); }
-  .gtbl tr:hover td { background: var(--paper-2); }
-  .step { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-  .step .num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: var(--paper); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 12px; }
-  .step p { margin: 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.65; }
-  .sec { padding: 40px 0; border-bottom: 1px solid var(--line); }
-  .soon-note { border-left: 2px solid var(--line-strong); padding: 4px 0 4px 14px; color: var(--ink-3); font-size: 13px; line-height: 1.7; }
-  code { font-family: var(--font-mono); font-size: 0.9em; background: var(--paper-3); padding: 1px 5px; border-radius: 3px; color: var(--ink); }
+  .navlink[aria-current="page"] { color: var(--ink); font-weight: 600; border-bottom: 2px solid var(--ink); }
+  .header-action { margin-left: auto; flex: none; }
+  .guide-wrap { width: 100%; max-width: 1060px; margin: 0 auto; padding: 0 30px; }
+  .hero { padding: 58px 0 34px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 34px; align-items: end; }
+  .hero h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(31px,4vw,48px); letter-spacing: -.025em; line-height: 1.12; margin: 12px 0 0; max-width: 720px; }
+  .hero p { font-size: 15px; color: var(--ink-2); line-height: 1.8; margin: 17px 0 0; max-width: 68ch; }
+  .hero-note { font-size: 11.5px; color: var(--ink-3); margin-top: 12px; }
+  .hero-actions { display: flex; flex-direction: column; gap: 9px; min-width: 220px; }
+  .hero-actions .btn { min-height: 44px; text-decoration: none; }
+  .toc { position: sticky; top: 58px; z-index: 20; margin: 0 -30px; padding: 10px 30px; display: flex; gap: 7px; overflow-x: auto; background: rgba(255,255,255,.95); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  .toc::-webkit-scrollbar { display: none; }
+  .toc a { flex: none; min-height: 36px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--ink-2); font-size: 12.5px; background: var(--paper); }
+  .toc a:hover { color: var(--ink); border-color: var(--line-strong); text-decoration: none; background: var(--paper-2); }
+  .section { padding: 48px 0; border-bottom: 1px solid var(--line); scroll-margin-top: 118px; }
+  .section-head { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 22px; }
+  .section h2 { font-family: var(--font-display); font-size: clamp(23px,3vw,30px); letter-spacing: -.018em; margin: 7px 0 0; }
+  .section-desc { margin: 0; max-width: 54ch; color: var(--ink-2); line-height: 1.7; font-size: 13.5px; }
+  .quick-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+  .step-card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 18px; background: var(--paper); min-height: 172px; }
+  .step-num { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb,var(--dv-navy) 10%,var(--paper)); color: var(--dv-navy); font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
+  .step-card h3 { font-size: 14px; margin: 16px 0 7px; }
+  .step-card p { margin: 0; color: var(--ink-2); line-height: 1.7; font-size: 13px; }
+  .callout { border: 1px solid var(--line); border-left: 3px solid var(--dv-navy); border-radius: var(--radius-md); padding: 15px 17px; color: var(--ink-2); line-height: 1.7; font-size: 13px; background: var(--paper-2); }
+  .callout strong { color: var(--ink); }
+  .flow { border-top: 1px solid var(--line-strong); }
+  .flow-row { display: grid; grid-template-columns: 38px 190px minmax(0,1fr); gap: 14px; padding: 15px 0; align-items: start; border-bottom: 1px solid var(--line); }
+  .flow-row:last-child { border-bottom: 0; }
+  .flow-row .num { color: var(--ink-4); font-family: var(--font-mono); font-size: 11px; padding-top: 2px; }
+  .flow-row h3 { font-size: 13.5px; margin: 0; }
+  .flow-row p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.7; }
+  details { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); }
+  details + details { margin-top: 9px; }
+  summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 16px; cursor: pointer; color: var(--ink); font-size: 13.5px; font-weight: 600; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; font-family: var(--font-mono); color: var(--ink-3); font-size: 16px; }
+  details[open] summary::after { content: '−'; }
+  .detail-body { border-top: 1px solid var(--line); padding: 15px 16px 17px; color: var(--ink-2); font-size: 13px; line-height: 1.75; }
+  .detail-body p { margin: 0 0 8px; }
+  .detail-body p:last-child, .detail-body ul:last-child { margin-bottom: 0; }
+  .detail-body ul { margin: 0; padding-left: 19px; }
+  .detail-body li + li { margin-top: 6px; }
+  .table-wrap { overflow-x: auto; margin-top: 4px; outline-offset: 3px; }
+  .guide-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 12.5px; }
+  .guide-table caption { text-align: left; color: var(--ink-3); padding: 0 0 10px; }
+  .guide-table th { text-align: left; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; padding: 9px 11px; border-bottom: 1px solid var(--line-strong); }
+  .guide-table td { padding: 11px; border-bottom: 1px solid var(--line); color: var(--ink-2); line-height: 1.55; vertical-align: top; }
+  .guide-table td:nth-child(2) { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .tool-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
+  .tool-card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 20px; display: flex; flex-direction: column; min-height: 250px; }
+  .tool-card .label { font-family: var(--font-mono); color: var(--ink-4); font-size: 10px; letter-spacing: .09em; }
+  .tool-card h3 { font-size: 17px; margin: 12px 0 8px; }
+  .tool-card p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.7; }
+  .tool-card ul { margin: 13px 0 18px; padding-left: 18px; color: var(--ink-2); font-size: 12.5px; line-height: 1.65; }
+  .tool-card .btn { margin-top: auto; min-height: 42px; text-decoration: none; }
+  .details-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .details-grid details + details { margin-top: 0; }
+  code { font-family: var(--font-mono); font-size: .9em; background: var(--paper-3); padding: 1px 5px; border-radius: 3px; color: var(--ink); }
+  .checklist { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px 22px; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 20px; background: var(--paper-2); }
+  .check-item { display: flex; gap: 10px; align-items: start; color: var(--ink-2); font-size: 13px; line-height: 1.65; }
+  .check-box { flex: none; width: 16px; height: 16px; margin-top: 2px; border: 1px solid var(--line-strong); background: var(--paper); }
+  .bottom-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+  .bottom-actions .btn { min-height: 44px; text-decoration: none; }
+  footer { border-top: 1px solid var(--line); background: var(--paper-2); padding: 22px 30px; }
+  .footer-inner { max-width: 1060px; margin: 0 auto; font-size: 11.5px; color: var(--ink-3); line-height: 1.7; }
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero-actions { flex-direction: row; flex-wrap: wrap; }
+    .quick-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .tool-grid { grid-template-columns: 1fr; }
+    .tool-card { min-height: auto; }
+  }
+  @media (max-width: 940px) {
+    .site-header { padding: 9px 14px 0; gap: 12px; flex-wrap: wrap; }
+    .brand { flex: 1; }
+    .header-action { display: none; }
+    .top-nav { order: 3; width: calc(100% + 28px); margin: 0 -14px; padding: 0 8px; border-top: 1px solid var(--line); }
+    .navlink { min-height: 44px; }
+  }
+  @media (max-width: 720px) {
+    .guide-wrap { padding: 0 18px; }
+    .hero { padding: 38px 0 26px; gap: 22px; }
+    .hero-actions { flex-direction: column; min-width: 0; }
+    .hero-actions .btn { width: 100%; }
+    .toc { position: static; margin: 0 -18px; padding: 9px 18px; }
+    .section { padding: 38px 0; scroll-margin-top: 12px; }
+    .section-head { display: block; }
+    .section-desc { margin-top: 10px; }
+    .quick-grid, .details-grid, .checklist { grid-template-columns: 1fr; }
+    .step-card { min-height: auto; }
+    .flow-row { grid-template-columns: 30px minmax(0,1fr); gap: 8px 10px; }
+    .flow-row p { grid-column: 2; }
+    footer { padding: 20px 18px; }
+  }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content">본문 바로가기</a>
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
-
-  <!-- ══ TOP NAV (공통) ══ -->
-  <header style="height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:26px;padding:0 26px;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
-    <div style="display:flex;align-items:baseline;gap:8px;flex:none;white-space:nowrap">
-      <span style="font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-0.01em">투자지표</span>
-      <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--ink-3);letter-spacing:0.1em;border:1px solid var(--line);padding:1px 5px;border-radius:2px">BETA</span>
-    </div>
-    <nav style="display:flex;gap:4px;align-items:center;white-space:nowrap">
-      <a class="navlink" href="home.html" style="font-size:13.5px;padding:6px 10px">홈</a>
-      <a class="navlink" href="stock.html" style="font-size:13.5px;padding:6px 10px">주식 가치평가</a>
-      <a class="navlink" href="bond.html" style="font-size:13.5px;padding:6px 10px">채권</a>
-      <a class="navlink" href="portfolio.html" style="font-size:13.5px;padding:6px 10px">포트폴리오</a>
-      <span style="font-size:13.5px;font-weight:600;color:var(--ink);padding:6px 10px;border-bottom:2px solid var(--ink)">사용설명서</span>
+  <header class="site-header">
+    <a class="brand" href="home.html" aria-label="투자지표 홈">
+      <span class="brand-name">투자지표</span>
+      <span class="beta">BETA</span>
+    </a>
+    <nav class="top-nav" aria-label="주요 메뉴">
+      <a class="navlink" href="home.html">홈</a>
+      <a class="navlink" href="stock.html">주식 가치평가</a>
+      <a class="navlink" href="bond.html">채권</a>
+      <a class="navlink" href="portfolio.html">포트폴리오</a>
+      <a class="navlink" href="guide.html" aria-current="page">사용설명서</a>
     </nav>
-    <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
-      <a class="btn btn-primary btn-sm" href="stock.html" style="text-decoration:none">분석 시작 →</a>
-    </div>
+    <a class="btn btn-primary btn-sm header-action" href="stock.html" target="_blank" rel="noopener">분석 화면 열기 ↗</a>
   </header>
 
-  <main style="flex:1;width:100%;max-width:920px;margin:0 auto;padding:0 30px">
-
-    <section style="padding:52px 0 28px;border-bottom:1px solid var(--line)">
-      <div class="kick" style="color:var(--dv-navy)">사용설명서 · How to use</div>
-      <h1 style="font-family:var(--font-display);font-weight:700;font-size:clamp(30px,4vw,44px);letter-spacing:-0.02em;line-height:1.08;margin:14px 0 0">투자지표, 어떻게 쓰나</h1>
-      <p style="font-size:15px;color:var(--ink-2);line-height:1.7;margin:16px 0 0;max-width:64ch">이 페이지를 <b style="color:var(--ink)">새 탭에 띄워 두고</b> 앱을 함께 보면 편합니다. 종목 하나를 넣으면 9개 탭이 "지금 주가가 적정한가, 아니라면 왜인가"를 순서대로 답합니다.</p>
-    </section>
-
-    <!-- 1. 빠른 시작 -->
-    <section class="sec">
-      <span class="kick">1 · 빠른 시작</span>
-      <div style="margin-top:14px">
-        <div class="step"><span class="num">1</span><p>상단(또는 홈)의 검색창에서 시장(🇰🇷/🇺🇸)에 맞는 <b>종목 코드나 이름</b>을 입력합니다. 예: <code>005930</code>, <code>삼성전자</code>, <code>AAPL</code>.</p></div>
-        <div class="step"><span class="num">2</span><p>헤더의 <b>판정 배지</b>(크게 저평가 ~ 크게 고평가)와 <b>신뢰도</b>, 괴리율을 먼저 봅니다. 신뢰도가 낮으면 방법 간 편차가 크다는 뜻이니 보수적으로 해석하세요.</p></div>
-        <div class="step"><span class="num">3</span><p>탭을 순서대로 읽으면 됩니다. 아래 표가 각 탭이 답해주는 질문입니다.</p></div>
+  <main id="main-content" class="guide-wrap">
+    <section class="hero" aria-labelledby="guide-title">
+      <div>
+        <div class="kick" style="color:var(--dv-navy)">Quick guide · 처음 5분</div>
+        <h1 id="guide-title">숫자를 많이 보는 법보다,<br>올바른 순서로 읽는 법</h1>
+        <p>투자지표는 결론을 대신 내려주는 서비스가 아니라, 가격·기업 체력·위험을 같은 기준으로 점검하는 분석 도구입니다. 이 설명서를 옆에 두고 실제 종목 하나로 따라 해보세요.</p>
+        <div class="hero-note">첫 조회는 여러 공개 데이터 원천을 모으기 때문에 시간이 걸릴 수 있습니다.</div>
       </div>
-
-      <div style="overflow-x:auto">
-      <table class="gtbl">
-        <thead><tr><th>탭</th><th>무엇을 답해주나</th><th>핵심만 보면</th></tr></thead>
-        <tbody>
-          <tr><td>① 기업·뉴스</td><td>뭘 하는 회사고 지금 무슨 일이 있나</td><td>기업개요(에프앤가이드/Yahoo) + 거시·산업·기업 뉴스</td></tr>
-          <tr><td>② 요약·판정</td><td>지금 주가가 적정한가? 왜?</td><td>불릿차트(현재가 vs 적정가)와 규칙 기반 자동 해설</td></tr>
-          <tr><td>③ 주가차트</td><td>주가 흐름·이동평균·지수 대비</td><td>추세, 52주 위치, 시장 대비 성과 (휠·드래그로 확대)</td></tr>
-          <tr><td>④ 밸류에이션</td><td>업종·자기역사 대비 싼가 비싼가</td><td>🔵=업종보다 쌈 / 🔴=비쌈, PER/PBR 역사적 밴드</td></tr>
-          <tr><td>⑤ 재무 분석</td><td>회사 체력(매출·이익·빚·현금)</td><td>매출·이익 우상향? 마진 방향? 부채·현금흐름</td></tr>
-          <tr><td>⑥ 업종 비교</td><td>경쟁사 중 어디쯤인가</td><td>PER×ROE 지도(점·행 클릭→검색), 저평가·우량 랭킹</td></tr>
-          <tr><td>⑦ 자본비용</td><td>요구수익률·WACC, 가치 창출 여부</td><td>ROIC &gt; WACC 면 초과수익 창출</td></tr>
-          <tr><td>⑧ 백테스트</td><td>과거에 쌌을 때 그 뒤 수익은?</td><td>저평가였던 시점 이후 수익을 관찰(참고용 통계)</td></tr>
-          <tr><td>⑨ 종합 투자평가</td><td>지금 투자 매력도(AI 종합)</td><td>목표가·손절·성향 맞춤 (Gemini 키 필요)</td></tr>
-        </tbody>
-      </table>
-      </div>
-
-      <div style="margin-top:20px;font-size:13.5px;color:var(--ink-2);line-height:1.9">
-        <div>🏦 <b>채권</b> — 국고채·미 국채 수익률곡선을 보고 금리 시나리오(듀레이션·볼록성)를 확인 <span style="color:var(--ink-3)">(웹 버전 준비 중)</span></div>
-        <div>🧺 <b>포트폴리오</b> — 분석한 종목·채권·금·리츠를 담아 위험-수익 평면에서 내 위치를 확인 <span style="color:var(--ink-3)">(웹 버전 준비 중)</span></div>
-        <div>🧭 <b>투자성향 테스트</b> — 위험회피계수를 재고 CML 위 최적점을 찾음 <span style="color:var(--ink-3)">(웹 버전 준비 중)</span></div>
+      <div class="hero-actions" aria-label="예시 분석 열기">
+        <a class="btn btn-primary" href="stock.html?market=KR&amp;q=005930" target="_blank" rel="noopener">삼성전자로 따라 하기 ↗</a>
+        <a class="btn btn-secondary" href="stock.html?market=US&amp;q=AAPL" target="_blank" rel="noopener">Apple로 따라 하기 ↗</a>
       </div>
     </section>
 
-    <!-- 2. AI 기능 -->
-    <section class="sec">
-      <span class="kick">2 · AI(Gemini) 기능 켜기</span>
-      <p style="font-size:13.5px;color:var(--ink-2);line-height:1.75;margin-top:14px;max-width:70ch">① 기업·뉴스 탭의 <b>‘AI 뉴스 분석’</b>과 ⑨ 종합 투자평가 탭의 <b>‘종합 투자평가 생성’</b>은 Google Gemini로 서술형 분석을 만듭니다. 키가 없어도 규칙 기반 요약은 항상 표시됩니다.</p>
-      <p style="font-size:13.5px;color:var(--ink-2);line-height:1.75;margin-top:8px;max-width:70ch">키는 <code>.streamlit/secrets.toml</code>에 <code>GEMINI_API_KEY = "..."</code> 로 넣거나 환경변수로 설정합니다(코드·저장소에는 절대 넣지 마세요). 무료 키는 <b>aistudio.google.com</b>에서 발급할 수 있습니다.</p>
+    <nav class="toc" aria-label="사용설명서 목차">
+      <a href="#quick-start">5분 빠른 시작</a>
+      <a href="#stock">주식 읽는 순서</a>
+      <a href="#other-tools">다른 도구</a>
+      <a href="#terms">핵심 용어</a>
+      <a href="#troubleshooting">문제 해결</a>
+      <a href="#final-check">최종 점검</a>
+    </nav>
+
+    <section class="section" id="quick-start">
+      <div class="section-head">
+        <div><div class="kick">01 · Start here</div><h2>5분 빠른 시작</h2></div>
+        <p class="section-desc">처음에는 모든 숫자를 읽지 않아도 됩니다. 네 단계만 익히면 나머지 화면은 필요할 때 찾아볼 수 있습니다.</p>
+      </div>
+      <div class="quick-grid">
+        <article class="step-card"><span class="step-num">1</span><h3>분석 대상을 고릅니다</h3><p>주식·채권·포트폴리오 중 지금 답을 얻고 싶은 화면을 새 탭으로 엽니다.</p></article>
+        <article class="step-card"><span class="step-num">2</span><h3>입력값을 확인합니다</h3><p>주식은 시장과 종목, 채권은 국가·만기, 포트폴리오는 자산과 비중을 먼저 맞춥니다.</p></article>
+        <article class="step-card"><span class="step-num">3</span><h3>결론부터 읽습니다</h3><p>판정이나 핵심 지표를 먼저 본 뒤, 그 결론을 만든 근거 화면으로 내려갑니다.</p></article>
+        <article class="step-card"><span class="step-num">4</span><h3>반대 근거를 찾습니다</h3><p>신뢰도·표본 수·현금흐름·공시와 뉴스가 결론을 흔들지 않는지 확인합니다.</p></article>
+      </div>
     </section>
 
-    <!-- 3. 지표 · 판단 (작성 예정) -->
-    <section class="sec">
-      <span class="kick">3 · 지표 설명 · 판단에 쓰는 법</span>
-      <div class="soon-note" style="margin-top:14px">작성 예정 — PER·PBR·EV/EBITDA·ROE·WACC·ROIC·베타·듀레이션·볼록성·샤프·트레이너를 직관적 비유와 함께 설명하고, 저평가/고평가를 읽는 법과 세 방법의 삼각측량, 백테스트·성향 결과를 실제 의사결정에 연결하는 법을 담을 예정입니다.</div>
+    <section class="section" id="stock">
+      <div class="section-head">
+        <div><div class="kick">02 · Stock workflow</div><h2>주식은 결론 → 근거 → 반대 근거</h2></div>
+        <p class="section-desc">적정가 하나로 끝내지 않고, 왜 싸거나 비싼지와 그 판단이 틀릴 가능성을 순서대로 확인합니다.</p>
+      </div>
+      <div class="flow">
+        <div class="flow-row"><span class="num">01</span><h3>종목 불러오기</h3><p>한국 주식은 6자리 코드 또는 종목명, 미국 주식은 티커를 입력합니다. 종목명·현재가·판정이 보이면 준비 완료입니다.</p></div>
+        <div class="flow-row"><span class="num">02</span><h3>요약·판정</h3><p>적정가 범위, 괴리율, 신뢰도를 먼저 봅니다. 괴리율의 <strong>+</strong>는 모형 적정가가 현재가보다 높고, <strong>−</strong>는 낮다는 뜻입니다.</p></div>
+        <div class="flow-row"><span class="num">03</span><h3>밸류·재무·업종</h3><p>업종·자기 역사·RIM의 방향이 같은지, 이익과 현금흐름이 받쳐주는지, 경쟁사 대비 싼 이유가 있는지 확인합니다.</p></div>
+        <div class="flow-row"><span class="num">04</span><h3>주가차트</h3><p>기간별 추세와 지수 대비 성과를 봅니다. 상대성과는 과거 결과이며 향후 수익을 예측하지 않습니다.</p></div>
+        <div class="flow-row"><span class="num">05</span><h3>반대 근거 점검</h3><p>ROIC−WACC, 백테스트 표본, 최근 공시·뉴스를 확인합니다. 백테스트는 역사적 밴드 신호 하나만 점검하며 종합 판정 전체를 검증하지 않습니다.</p></div>
+      </div>
+      <div class="callout" style="margin-top:18px"><strong>신뢰도는 ‘평가 방법 간 합의 정도’입니다.</strong> 데이터 정확도나 수익 가능성을 보증하는 점수가 아닙니다. 신뢰도가 낮다면 세 방법 중 어떤 값이 유독 다른지 먼저 확인하세요.</div>
+
+      <details style="margin-top:14px">
+        <summary>9개 분석 화면 지도</summary>
+        <div class="detail-body">
+          <div class="table-wrap" tabindex="0" role="region" aria-label="9개 주식 분석 화면 표, 가로로 스크롤할 수 있습니다">
+            <table class="guide-table">
+              <caption>알고 싶은 질문에 맞는 화면과 먼저 확인할 항목</caption>
+              <thead><tr><th scope="col">알고 싶은 것</th><th scope="col">화면</th><th scope="col">먼저 볼 것</th></tr></thead>
+              <tbody>
+                <tr><td>이 회사는 무엇을 하나?</td><td>기업·뉴스</td><td>사업 개요와 최근 이슈</td></tr>
+                <tr><td>결론은 무엇인가?</td><td>요약·판정</td><td>적정가 범위·괴리율·신뢰도</td></tr>
+                <tr><td>가격 흐름은 어떤가?</td><td>주가차트</td><td>기간별 추세·지수 대비 성과</td></tr>
+                <tr><td>업종·과거 대비 싼가?</td><td>밸류에이션</td><td>업종·자기 역사·RIM의 방향</td></tr>
+                <tr><td>회사 체력은 괜찮은가?</td><td>재무 분석</td><td>매출·마진·현금흐름</td></tr>
+                <tr><td>경쟁사 중 어디쯤인가?</td><td>업종 비교</td><td>가치와 수익성의 상대 위치</td></tr>
+                <tr><td>자본비용보다 더 버는가?</td><td>자본비용</td><td>ROIC와 WACC의 차이</td></tr>
+                <tr><td>역사적 밴드 신호가 과거에 통했나?</td><td>백테스트</td><td>표본 수와 이후 수익 분포</td></tr>
+                <tr><td>AI가 계산 결과를 어떻게 해석하나?</td><td>종합 평가</td><td>스탠스·가격선·편입비중과 그 근거</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </details>
     </section>
 
-    <section style="padding:34px 0">
-      <a class="btn btn-primary" href="stock.html" style="text-decoration:none">이제 분석을 시작해 볼까요 →</a>
+    <section class="section" id="other-tools">
+      <div class="section-head">
+        <div><div class="kick">03 · Other tools</div><h2>다른 도구는 이렇게 읽습니다</h2></div>
+        <p class="section-desc">필요한 카드 하나만 읽고 실제 화면을 새 탭에 여세요. 설명서 탭은 그대로 남습니다.</p>
+      </div>
+      <div class="tool-grid">
+        <article class="tool-card">
+          <span class="label">FIXED INCOME</span><h3>채권</h3>
+          <p>금리 수준보다 금리 변화에 가격이 얼마나 민감한지를 봅니다.</p>
+          <ul><li>국가와 만기별 수익률곡선 확인</li><li>현재 금리와 과거 범위 비교</li><li>듀레이션·볼록성 시나리오 점검</li></ul>
+          <a class="btn btn-secondary" href="bond.html" target="_blank" rel="noopener">채권 화면 열기 ↗</a>
+        </article>
+        <article class="tool-card">
+          <span class="label">ASSET ALLOCATION</span><h3>포트폴리오</h3>
+          <p>수익률 하나가 아니라 비중·위험·상관관계를 함께 봅니다.</p>
+          <ul><li>자산 비중 합계 100% 확인</li><li>변동성·상관관계 점검</li><li>같은 기간·통화의 성과지표 비교</li></ul>
+          <a class="btn btn-secondary" href="portfolio.html" target="_blank" rel="noopener">포트폴리오 열기 ↗</a>
+        </article>
+        <article class="tool-card">
+          <span class="label">RISK PROFILE</span><h3>위험 프로파일</h3>
+          <p>8문항으로 손실 감당 여력과 변동성 수용도를 점검합니다.</p>
+          <ul><li>현재 상황을 기준으로 응답</li><li>배분 범위·CML 접점은 가정 기반 참고치</li><li>공식 투자자정보확인서는 아님</li></ul>
+          <a class="btn btn-secondary" href="test.html" target="_blank" rel="noopener">위험 프로파일 자가진단 열기 ↗</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="terms">
+      <div class="section-head">
+        <div><div class="kick">04 · Read the numbers</div><h2>핵심 용어, 1분만에 보기</h2></div>
+        <p class="section-desc">공식보다 해석을 먼저 익히세요. 자세한 계산식은 각 화면의 도움말에서 필요할 때 확인하면 됩니다.</p>
+      </div>
+      <div class="details-grid">
+        <details><summary>적정가 · 괴리율 · 신뢰도</summary><div class="detail-body"><ul><li><strong>적정가</strong>: 여러 모형의 참고값이며 보장된 가격이 아닙니다.</li><li><strong>괴리율</strong>: 모형 적정가와 현재가의 차이 비율입니다.</li><li><strong>신뢰도</strong>: 평가 방법끼리 비슷한 값을 낸 정도입니다.</li></ul></div></details>
+        <details><summary>PER · PBR · ROE · 업종 백분위</summary><div class="detail-body"><ul><li><strong>PER</strong>: 주가가 이익의 몇 배인지 보여줍니다.</li><li><strong>PBR</strong>: 주가가 장부가치의 몇 배인지 보여줍니다.</li><li><strong>ROE</strong>: 주주자본으로 낸 수익률입니다.</li><li><strong>업종 백분위</strong>: 50이 업종 중앙값입니다.</li></ul></div></details>
+        <details><summary>ROIC · WACC · 베타</summary><div class="detail-body"><ul><li><strong>ROIC</strong>: 영업에 투입한 자본으로 낸 수익률입니다.</li><li><strong>WACC</strong>: 주주와 채권자가 요구하는 평균 자본비용입니다.</li><li><strong>ROIC−WACC</strong>: 양수면 자본비용보다 더 벌었다는 뜻입니다.</li><li><strong>베타</strong>: 시장 움직임에 대한 민감도입니다.</li></ul></div></details>
+        <details><summary>변동성 · 샤프비율 · 백테스트</summary><div class="detail-body"><ul><li><strong>변동성</strong>: 수익률이 흔들린 정도입니다.</li><li><strong>샤프비율</strong>: 변동성 한 단위당 무위험수익 초과 성과입니다.</li><li><strong>백테스트</strong>: 이 앱에서는 역사적 밴드 신호 하나를 점검합니다. 종합 판정 검증이나 미래 보장이 아닙니다.</li></ul></div></details>
+      </div>
+    </section>
+
+    <section class="section" id="troubleshooting">
+      <div class="section-head">
+        <div><div class="kick">05 · Help</div><h2>AI는 선택 기능입니다</h2></div>
+        <p class="section-desc">핵심 분석에는 API 키가 필요하지 않습니다. AI는 뉴스와 계산 결과를 문장으로 정리하는 선택 기능입니다.</p>
+      </div>
+      <div class="callout" style="margin-bottom:14px"><strong>Gemini 없이도 핵심 분석을 사용할 수 있습니다.</strong> 키를 연결하면 Gemini가 업종·비교기업 선정, 기업 소개 번역, 뉴스 분류·요약, 종합 평가에 참여할 수 있습니다. 키는 코드나 GitHub 저장소에 올리지 마세요.</div>
+      <div class="callout" style="margin-bottom:14px;border-left-color:var(--dv-clay)"><strong>종합 평가는 매수·회피 같은 스탠스, 목표가·손절선, 성향별 편입비중까지 생성할 수 있습니다.</strong> 검증된 투자 조언이 아닌 언어모델 출력이므로 실제 주문 기준으로 사용하지 말고, 수치와 출처를 공시·뉴스 원문으로 확인하세요.</div>
+      <details><summary>Gemini 기능을 연결하려면</summary><div class="detail-body"><p>Google AI Studio에서 키를 발급한 뒤 <code>.streamlit/secrets.toml</code>에 <code>GEMINI_API_KEY = "..."</code> 형식으로 넣거나 환경변수로 설정하고 앱을 다시 실행합니다.</p></div></details>
+      <details><summary>첫 조회가 오래 걸려요</summary><div class="detail-body"><p>처음에는 종목·재무·비교기업 데이터를 여러 공개 원천에서 모읍니다. 같은 분석은 캐시되어 이후 조회가 빨라집니다.</p></div></details>
+      <details><summary>종목을 찾지 못해요</summary><div class="detail-body"><p>시장(KR/US)을 먼저 확인하세요. 한국은 6자리 코드, 미국은 티커가 가장 정확합니다.</p></div></details>
+      <details><summary>화면에 ‘—’가 많아요</summary><div class="detail-body"><p>공개 데이터에 값이 없거나 비교가 부적절할 때 임의로 추정하지 않고 ‘—’로 표시합니다. 최근 공시 원문과 다른 출처를 함께 확인하세요.</p></div></details>
+      <details><summary>포털이나 증권사 숫자와 달라요</summary><div class="detail-body"><p>기준일, 연결·별도 재무제표, 최근 12개월(TTM), 수정주가, 환율과 주식 수 처리 방식이 다르면 값도 달라집니다. 화면의 기준일과 출처부터 맞춰 보세요.</p></div></details>
+      <details><summary>AI 분석이 안 돼요</summary><div class="detail-body"><p>Gemini 키가 없거나 호출 한도·네트워크 문제일 수 있습니다. AI는 선택 기능이므로 요약·밸류에이션·재무·차트 등 핵심 화면부터 사용하면 됩니다.</p></div></details>
+    </section>
+
+    <section class="section" id="final-check" style="border-bottom:0">
+      <div class="section-head">
+        <div><div class="kick">06 · Before a decision</div><h2>결론을 내리기 전, 다섯 가지</h2></div>
+        <p class="section-desc">아래 항목을 모두 확인했다면, 숫자를 단순히 본 것이 아니라 투자 가설을 검토한 것입니다.</p>
+      </div>
+      <div class="checklist">
+        <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>적정가 방법들의 방향과 신뢰도를 함께 확인했다.</span></div>
+        <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>이익과 현금흐름이 함께 좋아지는지 봤다.</span></div>
+        <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>업종 대비 싸거나 비싼 이유를 확인했다.</span></div>
+        <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>백테스트 표본과 데이터 기준일의 한계를 봤다.</span></div>
+        <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>최근 공시·뉴스 원문으로 핵심 가정을 교차 확인했다.</span></div>
+      </div>
+      <div class="bottom-actions">
+        <a class="btn btn-primary" href="stock.html" target="_blank" rel="noopener">주식 분석 시작 ↗</a>
+        <a class="btn btn-secondary" href="home.html">홈에서 다른 도구 선택 →</a>
+      </div>
     </section>
   </main>
 
-  <footer style="border-top:1px solid var(--line);background:var(--paper-2);padding:20px 30px">
-    <div style="max-width:920px;margin:0 auto;font-size:11.5px;color:var(--ink-3);line-height:1.7">ⓘ 본 도구는 학습·분석 보조용이며 특정 상품의 매수·매도 추천이 아닙니다. 데이터: Yahoo Finance · 네이버금융 · KRX · OpenDART · FRED — 무료 공개 데이터 특성상 실제 공시·시세와 다를 수 있습니다.</div>
+  <footer>
+    <div class="footer-inner">ⓘ 본 도구는 공개 데이터를 이용한 학습·분석 보조 도구이며 특정 상품의 매수·매도 추천이 아닙니다. 무료 데이터 특성상 결측·지연·정의 차이가 있을 수 있으므로 실제 판단 전 공시 원문과 거래 기관의 정보를 확인하세요.</div>
   </footer>
 </div>
 </body>

@@ -185,7 +185,7 @@
   function loadBasket() { try { return JSON.parse(localStorage.getItem('invportfolio') || '{}'); } catch (e) { return {}; } }
   function saveBasket(b) { localStorage.setItem('invportfolio', JSON.stringify(b)); }
   function bondEtfProxy(market, years) {
-    if (market === 'KR') return years <= 5 ? { name: 'KODEX 국고채3년', yahoo: '114260.KS', ticker: '114260.KS', type: '국내ETF', currency: 'KRW', class: '채권' } : { name: 'KOSEF 국고채10년', yahoo: '148070.KS', ticker: '148070.KS', type: '국내ETF', currency: 'KRW', class: '채권' };
+    if (market === 'KR') return years <= 5 ? { name: 'KODEX 국고채3년', yahoo: '114260.KS', ticker: '114260.KS', type: '국내기타ETF', currency: 'KRW', class: '채권' } : { name: 'KOSEF 국고채10년', yahoo: '148070.KS', ticker: '148070.KS', type: '국내기타ETF', currency: 'KRW', class: '채권' };
     return years <= 7 ? { name: 'iShares 미국채 7-10년 (IEF)', yahoo: 'IEF', ticker: 'IEF', type: '해외ETF', currency: 'USD', class: '채권' } : { name: 'iShares 미국채 20년+ (TLT)', yahoo: 'TLT', ticker: 'TLT', type: '해외ETF', currency: 'USD', class: '채권' };
   }
   function updateAddBondNote() {

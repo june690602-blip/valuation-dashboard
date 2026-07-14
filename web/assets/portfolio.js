@@ -24,12 +24,12 @@
 
   /* ── 상태 · localStorage ── */
   var PRESETS = [
-    ['KODEX 국고채3년', '114260.KS', '국내ETF', 'KRW', '채권'],
-    ['KOSEF 국고채10년', '148070.KS', '국내ETF', 'KRW', '채권'],
+    ['KODEX 국고채3년', '114260.KS', '국내기타ETF', 'KRW', '채권'],
+    ['KOSEF 국고채10년', '148070.KS', '국내기타ETF', 'KRW', '채권'],
     ['iShares 미국채 7-10년 (IEF)', 'IEF', '해외ETF', 'USD', '채권'],
     ['iShares 미국채 20년+ (TLT)', 'TLT', '해외ETF', 'USD', '채권'],
-    ['ACE KRX금현물', '411060.KS', '국내ETF', 'KRW', '금'],
-    ['TIGER 리츠부동산인프라', '329200.KS', '국내ETF', 'KRW', '리츠(부동산 대용)'],
+    ['ACE KRX금현물', '411060.KS', '국내기타ETF', 'KRW', '금'],
+    ['TIGER 리츠부동산인프라', '329200.KS', '국내기타ETF', 'KRW', '리츠(부동산 대용)'],
     ['달러 현금 (USD/KRW)', 'KRW=X', '달러현금', 'KRW', '외화']
   ];
   var DEFAULT_AMOUNT = 500;
@@ -146,10 +146,10 @@
   function renderAnalysis() {
     var d = PA;
     if (!d || d.error) { $('statsTable').innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">' + esc((d && d.error) || '통계를 계산할 수 없습니다.') + '</div>'; $('heatmap').innerHTML = ''; $('planeChart').innerHTML = ''; $('perfTiles').innerHTML = ''; $('taxTable').innerHTML = ''; $('portTiles').innerHTML = ''; $('taxTiles').innerHTML = ''; return; }
-    // 성향 최적점 (테스트 결과가 localStorage에 있으면)
+    // 위험 프로파일의 모형상 참고점 (schema v2 자가진단 결과가 있으면)
     d.optimal = null;
     var prof = null; try { prof = JSON.parse(localStorage.getItem('invriskprofile') || 'null'); } catch (e) {}
-    if (prof && d.cml) { var c = d.cml[prof.market] || d.cml[d.bench]; if (c && c.sigma_m) { var tp = tangency(c.er_m, c.rf, c.sigma_m, prof.A); d.optimal = { sigma: tp.sigma_p, er: tp.er_p, label: '성향 최적점 (' + prof.label + ')' }; } }
+    if (prof && prof.schema_version === 2 && Number.isFinite(prof.assessed_A) && d.cml) { var c = d.cml[prof.market] || d.cml[d.bench]; if (c && c.sigma_m) { var tp = tangency(c.er_m, c.rf, c.sigma_m, prof.assessed_A); d.optimal = { sigma: tp.sigma_p, er: tp.er_p, label: '성향 모형 참고점 (' + prof.label + ')' }; } }
     // 제외
     $('excludedNote').innerHTML = (d.excluded && d.excluded.length) ? '⚠️ 시세 이력이 부족해 통계에서 제외: ' + d.excluded.map(esc).join(', ') : '';
     // 통계 표
@@ -162,7 +162,7 @@
     $('heatmap').innerHTML = heatmap(d.labels, d.corr);
     // 평면
     $('planeChart').innerHTML = planeChart(d);
-    if (d.optimal) { var diff = d.port.sigma - d.optimal.sigma; var msg = Math.abs(diff) < 0.03 ? '현재 포트폴리오 위험이 성향 최적점과 비슷한 수준입니다.' : (diff > 0 ? '현재 σ(' + (d.port.sigma * 100).toFixed(1) + '%)가 성향 최적점(' + (d.optimal.sigma * 100).toFixed(1) + '%)보다 <b>높습니다</b> — 성향 기준으론 위험을 더 지고 있는 셈.' : '현재 σ(' + (d.port.sigma * 100).toFixed(1) + '%)가 성향 최적점(' + (d.optimal.sigma * 100).toFixed(1) + '%)보다 <b>낮습니다</b> — 더 감수할 여지가 있다는 뜻이기도.'); $('planeChart').insertAdjacentHTML('beforeend', '<div style="font-size:12px;color:var(--ink-2);margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper-2)">🧭 ' + msg + '</div>'); }
+    if (d.optimal) { var diff = d.port.sigma - d.optimal.sigma; var msg = Math.abs(diff) < 0.03 ? '현재 포트폴리오 변동성이 성향 모형 참고점과 비슷한 수준입니다.' : (diff > 0 ? '현재 σ(' + (d.port.sigma * 100).toFixed(1) + '%)가 성향 모형 참고점(' + (d.optimal.sigma * 100).toFixed(1) + '%)보다 <b>높습니다</b> — 자가진단과 모형 가정에 비해 변동성이 큰 편입니다.' : '현재 σ(' + (d.port.sigma * 100).toFixed(1) + '%)가 성향 모형 참고점(' + (d.optimal.sigma * 100).toFixed(1) + '%)보다 <b>낮습니다</b>. 이것만으로 위험을 더 늘려야 한다는 뜻은 아닙니다.'); $('planeChart').insertAdjacentHTML('beforeend', '<div style="font-size:12px;color:var(--ink-2);margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--paper-2)">' + msg + '</div>'); }
     tiles($('portTiles'), [['내 포트폴리오 기대수익', pctS(d.port.er) + ' (연)'], ['내 포트폴리오 변동성 σ', pct(d.port.sigma) + ' (연)']]);
     // 성과지표
     var p = d.performance;

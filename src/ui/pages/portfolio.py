@@ -22,12 +22,12 @@ PLOTLY_CFG_ZOOM = charts.PLOTLY_CFG_ZOOM  # σ-E(r) 평면: 휠·핀치 줌
 
 # 프리셋 자산 (이름, 야후티커, 세금유형, 표시통화, 분류) — KRW=X는 이미 '1달러의 원화 가격'
 PRESETS = [
-    ("KODEX 국고채3년", "114260.KS", "국내ETF", "KRW", "채권"),
-    ("KOSEF 국고채10년", "148070.KS", "국내ETF", "KRW", "채권"),
+    ("KODEX 국고채3년", "114260.KS", "국내기타ETF", "KRW", "채권"),
+    ("KOSEF 국고채10년", "148070.KS", "국내기타ETF", "KRW", "채권"),
     ("iShares 미국채 7-10년 (IEF)", "IEF", "해외ETF", "USD", "채권"),
     ("iShares 미국채 20년+ (TLT)", "TLT", "해외ETF", "USD", "채권"),
-    ("ACE KRX금현물", "411060.KS", "국내ETF", "KRW", "금"),
-    ("TIGER 리츠부동산인프라", "329200.KS", "국내ETF", "KRW", "리츠(부동산 대용)"),
+    ("ACE KRX금현물", "411060.KS", "국내기타ETF", "KRW", "금"),
+    ("TIGER 리츠부동산인프라", "329200.KS", "국내기타ETF", "KRW", "리츠(부동산 대용)"),
     ("달러 현금 (USD/KRW)", "KRW=X", "달러현금", "KRW", "외화"),
 ]
 DEFAULT_AMOUNT = 500  # 새 자산 기본 금액(만원)
@@ -266,7 +266,7 @@ def render():
         rf_m, er_m, sig_m = _cml_params(prof.get("market", "KR"))
         t = tangency_point(er_m, rf_m, sig_m, float(prof["A"]))
         optimal = {"sigma": t["sigma_p"], "er": t["er_p"],
-                   "label": f"성향 최적점 ({prof['label']})"}
+                   "label": f"성향 모형 참고점 ({prof['label']})"}
 
     # 유명 투자자 전략 원형 (선택 시 평면에 함께 표시)
     from src.analysis.famous import STRATEGIES, strategy_weights
@@ -303,15 +303,15 @@ def render():
         diff = port["sigma"] - (optimal["sigma"] if optimal else 0)
         if optimal:
             if diff > 0.03:
-                st.warning(f"현재 포트폴리오 σ({port['sigma']*100:.1f}%)가 성향 최적점"
+                st.warning(f"현재 포트폴리오 σ({port['sigma']*100:.1f}%)가 성향 모형 참고점"
                            f"({optimal['sigma']*100:.1f}%)보다 **높습니다** — {prof['label']} "
-                           "기준으론 위험을 더 지고 있는 셈입니다.", icon="⚖️")
+                           "자가진단과 모형 가정에 비해 변동성이 큰 편입니다.", icon="⚖️")
             elif diff < -0.03:
-                st.info(f"현재 포트폴리오 σ({port['sigma']*100:.1f}%)가 성향 최적점"
-                        f"({optimal['sigma']*100:.1f}%)보다 **낮습니다** — 더 감수할 여지가 "
-                        "있다는 뜻이기도 합니다.", icon="⚖️")
+                st.info(f"현재 포트폴리오 σ({port['sigma']*100:.1f}%)가 성향 모형 참고점"
+                        f"({optimal['sigma']*100:.1f}%)보다 **낮습니다**. 이것만으로 위험을 더 "
+                        "늘려야 한다는 뜻은 아닙니다.", icon="⚖️")
             else:
-                st.success("현재 포트폴리오 위험이 성향테스트 최적점과 비슷한 수준입니다.", icon="⚖️")
+                st.success("현재 포트폴리오 변동성이 성향 모형 참고점과 비슷한 수준입니다.", icon="⚖️")
 
     # 유명 투자자 전략 비교 표 (내 포트폴리오와 나란히)
     if strat_rows:
@@ -331,18 +331,18 @@ def render():
     # 성향테스트 기반 추천 배분 (내 성향이 있으면)
     if prof:
         from src.analysis.risk_profile import LEVELS
-        alloc = LEVELS[prof["level"] - 1][5]
+        level = LEVELS[prof["level"] - 1]
+        alloc_range = dict(level.allocation_range)
         y = prof.get("y_star")
         with st.container(border=True):
-            st.markdown(f"##### 🧭 내 성향({prof['label']}) 기준 참고 배분")
-            ac = st.columns(len(alloc) + 1)
-            for i, (k, v) in enumerate(alloc.items()):
-                ac[i].metric(k, f"{v}%")
+            st.markdown(f"##### 내 위험 프로파일({prof['label']})의 교육용 배분 범위")
+            ac = st.columns(len(alloc_range) + 1)
+            for i, (k, bounds) in enumerate(alloc_range.items()):
+                ac[i].metric(k, f"{bounds[0]}–{bounds[1]}%")
             if isinstance(y, (int, float)):
-                ac[-1].metric("위험자산 상한 y*", f"{min(y, 1) * 100:.0f}%",
-                              help="성향테스트의 머튼 비율 — 위험자산 대 안전자산의 이론적 상한")
-            st.caption("교과서적 예시일 뿐 정답이 아닙니다. 위 σ-E(r) 평면의 '성향 최적점'과 함께 "
-                       "참고하세요.")
+                ac[-1].metric("모형상 y*", f"{y * 100:.0f}%",
+                              help="비제약 평균-분산 모형의 가정 기반 참고치이며 권장 비중이나 상한이 아닙니다.")
+            st.caption("범위와 y*는 교육용 참고 자료입니다. 현금흐름·세금·집중위험을 반영한 권장안이 아닙니다.")
 
     # ── 성과지표 ──
     st.divider()
@@ -380,7 +380,7 @@ def render():
     st.markdown("### 🧾 세금 참고 — 분석은 세전, 세후는 어림값")
     rows, taxed_mu = [], 0.0
     for k in monthly.columns:
-        a = basket.get(k, {"type": "국내ETF", "name": name_of[k]})
+        a = basket.get(k, {"type": "국내기타ETF", "name": name_of[k]})
         tr = after_tax_row(a["type"], float(mu_used[k]))
         taxed_mu += weights[k] * tr["mu_after"]
         rows.append({"자산": name_of[k], "과세 방식": tr["rule"],

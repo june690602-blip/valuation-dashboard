@@ -176,10 +176,9 @@
     }).join('');
   }
 
-  /* ── 주가차트 (Canvas · openPDF식 단일 매트릭스 확대) ──────────────
-     doc→screen 변환을 postScale(focal)/postTranslate로 다루고 매 프레임 다시 그림.
-     휠·핀치=커서 기준 자유 2D 확대, 드래그=이동+플링(관성), 더블클릭=리셋.
-     선폭·축라벨·툴팁은 화면 좌표(고정 크기), 마크만 변환 — 확대해도 글씨는 안 커진다. */
+  /* ── 주가차트 (Canvas · 리서치 차트형 시간축 탐색) ────────────────
+     선 차트의 직관성은 유지하되, 시간축만 확대·이동하고 보이는 구간에 맞춰
+     가격축을 자동 조정한다. 교차선의 상세값은 상단 시세 스트립과 축 태그에 표시. */
   var CVAR_CACHE = {};
   function cvar(name) { if (CVAR_CACHE[name] == null) { CVAR_CACHE[name] = (getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim() || '#000'; } return CVAR_CACHE[name]; }
   var CH_FONT_SANS = '"IBM Plex Sans KR", system-ui, sans-serif';
@@ -188,153 +187,255 @@
   function makePriceChart(container, D, state) {
     var d = D.price;
     var rel = state.priceMode === 'rel';
-    var N = d.close.length;
-    var n = Math.min({ '3M': 63, '6M': 126, '1Y': 252 }[state.pricePeriod], N);
-    var sl = function (a) { return a.slice(a.length - n); };
-    var close = sl(d.close), dates = sl(d.dates), vol = sl(d.vol), ma20 = sl(d.ma20), ma60 = sl(d.ma60), ma120 = sl(d.ma120), bench = sl(d.bench);
-    var nn = function (v) { return v != null; };
+    var fullClose = Array.isArray(d.close) ? d.close : [];
+    var N = fullClose.length;
+    function emptyChart(message) {
+      container.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:28px 0;border-top:1px solid var(--line)">' + esc(message) + '</div>';
+      return { destroy: function () {}, reset: function () {} };
+    }
+    var hasFiniteClose = fullClose.some(function (v) { return v != null && isFinite(v); });
+    if (!N || !hasFiniteClose) return emptyChart('표시할 유효 주가 데이터가 없습니다.');
+    function parsedDate(s) {
+      var m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+      return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+    }
+    function calendarCutoff(last, months, years) {
+      var first = new Date(last.getFullYear() - (years || 0), last.getMonth() - (months || 0), 1);
+      var lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+      return new Date(first.getFullYear(), first.getMonth(), Math.min(last.getDate(), lastDay));
+    }
+    function periodStart() {
+      if (!N) return 0;
+      var datesAll = d.dates || [], last = parsedDate(datesAll[N - 1]), cutoff = null;
+      if (last) {
+        if (state.pricePeriod === 'YTD') cutoff = new Date(last.getFullYear(), 0, 1);
+        else if (state.pricePeriod === '1M') cutoff = calendarCutoff(last, 1, 0);
+        else if (state.pricePeriod === '3M') cutoff = calendarCutoff(last, 3, 0);
+        else if (state.pricePeriod === '6M') cutoff = calendarCutoff(last, 6, 0);
+        else if (state.pricePeriod === '1Y') cutoff = calendarCutoff(last, 0, 1);
+        else if (state.pricePeriod === '3Y') cutoff = calendarCutoff(last, 0, 3);
+        else if (state.pricePeriod === '5Y') cutoff = calendarCutoff(last, 0, 5);
+        if (cutoff) {
+          for (var di = 0; di < N; di++) { var dt = parsedDate(datesAll[di]); if (dt && dt >= cutoff) return di; }
+        }
+      }
+      var sessions = { '1M': 21, '3M': 63, '6M': 126, 'YTD': 252, '1Y': 252, '3Y': 756, '5Y': 1260 }[state.pricePeriod] || 252;
+      return Math.max(0, N - sessions);
+    }
+    var offset = periodStart();
+    function selected(a, fallback) {
+      a = Array.isArray(a) ? a : null;
+      var out = [];
+      for (var ai = offset; ai < N; ai++) out.push(a && a[ai] != null ? a[ai] : (fallback ? fallback[ai] : null));
+      return out;
+    }
+    var close = selected(fullClose), dates = selected(d.dates || []), vol = selected(d.vol || []);
+    /* 결측 OHLC는 종가로 추정하지 않는다. 데이터가 없으면 상태줄에 정직하게 —로 표시한다. */
+    var open = selected(d.open || []), high = selected(d.high || []), low = selected(d.low || []);
+    var ma20 = selected(d.ma20 || []), ma60 = selected(d.ma60 || []), ma120 = selected(d.ma120 || []), bench = selected(d.bench || []);
+    var n = close.length;
+    if (!n) return emptyChart('표시할 주가 데이터가 없습니다.');
+    var latestIndex = n - 1; while (latestIndex > 0 && close[latestIndex] == null) latestIndex--;
+
+    /* 비교 모드는 선택 기간의 첫 공통 거래일을 100으로 맞춘다. */
+    var stockY = null, benchY = null, compareBase = 0;
+    if (rel) {
+      while (compareBase < n && (close[compareBase] == null || bench[compareBase] == null)) compareBase++;
+      if (compareBase >= n) {
+        $('priceStatusName').textContent = (D.meta.name || D.meta.ticker || '종목') + ' · 상대성과';
+        $('priceStatusMeta').textContent = '벤치마크와 공통으로 유효한 거래일이 없습니다.';
+        $('priceStatusPrice').textContent = '—'; $('priceStatusChange').textContent = '비교 불가';
+        $('priceStatusChange').style.color = 'var(--ink-3)'; $('priceStatusMetrics').innerHTML = '';
+        return emptyChart('벤치마크 데이터가 부족해 상대성과를 계산할 수 없습니다.');
+      }
+      var c0 = close[compareBase], b0 = bench[compareBase];
+      stockY = close.map(function (v, i) { return i < compareBase || v == null ? null : v / c0 * 100; });
+      benchY = bench.map(function (v, i) { return i < compareBase || v == null ? null : v / b0 * 100; });
+    }
 
     /* 레이아웃(CSS px) */
-    var cssW = Math.max(320, Math.round(container.clientWidth || 700));
-    var padL = 6, padR = cssW < 560 ? 44 : 58, plotT = 12;
+    var cssW = Math.max(260, Math.round(container.clientWidth || 700));
+    var padL = 8, padR = cssW < 560 ? 58 : 72, plotT = 14;
     var cssH, plotH, volTop, volH;
-    if (rel) { cssH = Math.max(260, Math.round(cssW * 0.42)); plotH = cssH - plotT - 28; }
-    else { cssH = Math.max(300, Math.round(cssW * 0.52)); volH = Math.round(cssH * 0.16); var volGap = 16; plotH = cssH - plotT - 28 - volH - volGap; volTop = plotT + plotH + volGap; }
+    if (rel) { cssH = Math.max(280, Math.round(cssW * 0.42)); plotH = cssH - plotT - 34; }
+    else { cssH = Math.max(330, Math.round(cssW * 0.50)); volH = Math.round(cssH * 0.17); var volGap = 18; plotH = cssH - plotT - 34 - volH - volGap; volTop = plotT + plotH + volGap; }
     var xw = cssW - padL - padR;
 
-    /* y범위 · 시리즈 */
-    var stockY, benchY, ymin, ymax, vmax;
-    if (rel) {
-      var c0 = close[0], b0 = bench[0] || 1;
-      stockY = close.map(function (v) { return v / c0 * 100; });
-      benchY = bench.map(function (v) { return v == null ? null : v / b0 * 100; });
-      var all = stockY.concat(benchY.filter(nn)); ymin = Math.min.apply(null, all); ymax = Math.max.apply(null, all);
-    } else {
-      var vals = close.slice();
-      if (state.ma.m20) vals = vals.concat(ma20.filter(nn));
-      if (state.ma.m60) vals = vals.concat(ma60.filter(nn));
-      if (state.ma.m120) vals = vals.concat(ma120.filter(nn));
+    /* x축만 탐색하고, y축은 현재 보이는 데이터에 자동 맞춤. */
+    var viewStart = 0, viewEnd = Math.max(0, n - 1), hover = null, ymin = 0, ymax = 1, vmax = 1;
+    var minSpan = Math.min(Math.max(1, n - 1), 14);
+    function clampView() {
+      var maxSpan = Math.max(1, n - 1), span = viewEnd - viewStart;
+      if (span < minSpan) { var mid = (viewStart + viewEnd) / 2; viewStart = mid - minSpan / 2; viewEnd = mid + minSpan / 2; }
+      if (span > maxSpan) { viewStart = 0; viewEnd = n - 1; }
+      if (viewStart < 0) { viewEnd -= viewStart; viewStart = 0; }
+      if (viewEnd > n - 1) { viewStart -= viewEnd - (n - 1); viewEnd = n - 1; }
+      viewStart = Math.max(0, viewStart); viewEnd = Math.min(n - 1, viewEnd);
+    }
+    function visibleBounds() { return [Math.max(0, Math.floor(viewStart)), Math.min(n - 1, Math.ceil(viewEnd))]; }
+    function scaleVisible() {
+      var b = visibleBounds(), vals = [], series = rel ? [stockY, benchY] : [close];
+      if (!rel && state.ma.m20) series.push(ma20);
+      if (!rel && state.ma.m60) series.push(ma60);
+      if (!rel && state.ma.m120) series.push(ma120);
+      for (var si = 0; si < series.length; si++) for (var vi = b[0]; vi <= b[1]; vi++) if (series[si][vi] != null && isFinite(series[si][vi])) vals.push(+series[si][vi]);
+      if (!vals.length) vals = [0, 1];
       ymin = Math.min.apply(null, vals); ymax = Math.max.apply(null, vals);
-      vmax = Math.max.apply(null, vol.filter(nn)) || 1;
+      var padv = (ymax - ymin) * 0.08 || Math.max(Math.abs(ymax) * 0.02, 1); ymin -= padv; ymax += padv;
+      vmax = 1;
+      if (!rel) for (var vv = b[0]; vv <= b[1]; vv++) if (vol[vv] != null && isFinite(vol[vv])) vmax = Math.max(vmax, +vol[vv]);
     }
-    var padv = (ymax - ymin) * 0.08 || 1; ymin -= padv; ymax += padv;
-
-    /* doc(=fit) 좌표 */
-    var xDoc = function (i) { return padL + (n <= 1 ? 0 : i / (n - 1) * xw); };
-    var yDoc = function (v) { return plotT + (1 - (v - ymin) / (ymax - ymin)) * plotH; };
-    var rx0 = padL, rx1 = padL + xw, ry0 = plotT, ry1 = rel ? plotT + plotH : volTop + volH;
-
-    /* 상호작용 매트릭스: screen = k·doc + t */
-    var k = 1, tx = 0, ty = 0, hover = null;
-    var AX = function (x) { return k * x + tx; }, AY = function (y) { return k * y + ty; };
-    var IX = function (s) { return (s - tx) / k; }, IY = function (s) { return (s - ty) / k; };
-    function clampT() {
-      if (k < 1) k = 1; if (k > 8) k = 8;
-      var txMin = rx1 * (1 - k), txMax = rx0 * (1 - k); if (tx < txMin) tx = txMin; if (tx > txMax) tx = txMax;
-      var tyMin = ry1 * (1 - k), tyMax = ry0 * (1 - k); if (ty < tyMin) ty = tyMin; if (ty > tyMax) ty = tyMax;
+    function xDoc(i) { var span = Math.max(1, viewEnd - viewStart); return padL + (i - viewStart) / span * xw; }
+    function yDoc(v) { return plotT + (1 - (v - ymin) / (ymax - ymin)) * plotH; }
+    function valAtY(sy) { return ymin + (1 - (sy - plotT) / plotH) * (ymax - ymin); }
+    function idxAtX(sx) { var i = Math.round(viewStart + (sx - padL) / xw * (viewEnd - viewStart)); return Math.max(0, Math.min(n - 1, i)); }
+    function zoomAt(sx, factor) {
+      var span = Math.max(1, viewEnd - viewStart), next = Math.max(minSpan, Math.min(n - 1, span * factor));
+      var ratio = Math.max(0, Math.min(1, (sx - padL) / xw)), anchor = viewStart + ratio * span;
+      viewStart = anchor - ratio * next; viewEnd = viewStart + next; clampView();
     }
-    function zoomAt(fx, fy, factor) { var nk = Math.max(1, Math.min(8, k * factor)); factor = nk / k; tx = fx - factor * (fx - tx); ty = fy - factor * (fy - ty); k = nk; clampT(); }
-    function valAtY(sy) { var dy = IY(sy); return ymin + (1 - (dy - plotT) / plotH) * (ymax - ymin); }
-    function idxAtX(sx) { var dx = IX(sx); var i = Math.round((dx - padL) / xw * (n - 1)); if (i < 0) i = 0; if (i > n - 1) i = n - 1; return i; }
+    function panPixels(dx) { var shift = -dx / xw * (viewEnd - viewStart); viewStart += shift; viewEnd += shift; clampView(); }
 
     /* 캔버스(HiDPI) */
     var dpr = window.devicePixelRatio || 1;
     var cv = document.createElement('canvas');
-    cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px'; cv.style.display = 'block'; cv.style.touchAction = 'none'; cv.style.cursor = 'crosshair';
+    cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px'; cv.style.display = 'block'; cv.style.touchAction = 'pan-y'; cv.style.cursor = 'crosshair';
+    cv.tabIndex = 0; cv.setAttribute('role', 'img'); cv.setAttribute('aria-describedby', 'priceCaption');
+    cv.setAttribute('aria-label', D.meta.name + ' 일봉 주가 차트. 좌우 화살표로 이동하고 더하기와 빼기로 확대·축소하며 Home 또는 Escape로 전체 보기를 할 수 있습니다.');
     cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
     container.innerHTML = ''; container.appendChild(cv);
     var ctx = cv.getContext('2d');
-    var COL = { ink: cvar('--ink'), ink3: cvar('--ink-3'), line: cvar('--line'), lineStrong: cvar('--line-strong'), paper: cvar('--paper'), fill: cvar('--paper-3'), gold: cvar('--dv-gold'), slate: cvar('--dv-slate'), plum: cvar('--dv-plum'), clay: cvar('--dv-clay') };
+    var COL = { ink: cvar('--ink'), ink2: cvar('--ink-2'), ink3: cvar('--ink-3'), line: cvar('--line'), lineStrong: cvar('--line-strong'), paper: cvar('--paper'), fill: cvar('--paper-3'), gold: cvar('--dv-gold'), slate: cvar('--dv-slate'), plum: cvar('--dv-plum'), clay: cvar('--dv-clay'), positive: cvar('--dv-positive'), negative: cvar('--dv-negative') };
 
-    function strokeArr(arr, color, w) {
-      ctx.beginPath(); var started = false;
-      for (var i = 0; i < arr.length; i++) { var v = arr[i]; if (v == null) continue; var sx = AX(xDoc(i)), sy = AY(yDoc(v)); if (!started) { ctx.moveTo(sx, sy); started = true; } else ctx.lineTo(sx, sy); }
-      ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.stroke();
-    }
-    function drawTooltip() {
-      var hx = AX(xDoc(hover));
-      var rows = rel ? [['날짜', dates[hover]], [D.meta.name, stockY[hover].toFixed(1)], [D.meta.benchmark, benchY[hover] == null ? '—' : benchY[hover].toFixed(1)]] : [['날짜', dates[hover]], ['종가', close[hover].toLocaleString('en-US')]];
-      if (!rel && state.ma.m20 && ma20[hover] != null) rows.push(['MA20', ma20[hover].toLocaleString('en-US')]);
-      if (!rel && state.ma.m60 && ma60[hover] != null) rows.push(['MA60', ma60[hover].toLocaleString('en-US')]);
-      var tw = 130, th = 12 + rows.length * 15, bx = hx > padL + xw - tw - 6 ? hx - tw - 8 : hx + 8, by = plotT + 4;
-      ctx.fillStyle = COL.paper; ctx.strokeStyle = COL.lineStrong; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.rect(bx, by, tw, th); ctx.fill(); ctx.stroke();
-      for (var r = 0; r < rows.length; r++) {
-        var yy = by + 16 + r * 15;
-        ctx.fillStyle = COL.ink3; ctx.font = '10.5px ' + CH_FONT_SANS; ctx.textAlign = 'left'; ctx.fillText(rows[r][0], bx + 9, yy);
-        ctx.fillStyle = COL.ink; ctx.font = '10.5px ' + CH_FONT_MONO; ctx.textAlign = 'right'; ctx.fillText(rows[r][1], bx + tw - 9, yy);
+    function fmtChartPrice(v) { if (v == null || !isFinite(v)) return '—'; return CUR === 'KRW' ? Math.round(v).toLocaleString('en-US') : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function fmtCompactVolume(v) { if (v == null || !isFinite(v)) return '—'; var a = Math.abs(v); return a >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : a >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : Math.round(v).toLocaleString('en-US'); }
+    function displayDate(v) { return String(v || '—').replace(/-/g, '.'); }
+    function signedPctPoint(v) { return v == null || !isFinite(v) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
+    function metric(label, value) { return '<div class="chart-status-metric"><dt>' + esc(label) + '</dt><dd>' + esc(value) + '</dd></div>'; }
+    function updateStatus(i) {
+      i = Math.max(0, Math.min(n - 1, i == null ? latestIndex : i));
+      var name = D.meta.name || D.meta.ticker || '종목', source = d.source || '', delay = d.delay_note || '';
+      $('priceStatusName').textContent = name + (rel ? ' · 상대성과' : '');
+      var metaText = ['일봉', D.meta.currency || CUR, '기준일 ' + displayDate(dates[i]), source, delay].filter(Boolean).join(' · ');
+      $('priceStatusMeta').textContent = metaText; $('priceStatusMeta').title = metaText;
+      if (rel) {
+        var sv = stockY[i] == null ? null : stockY[i] - 100, bv = benchY[i] == null ? null : benchY[i] - 100;
+        var excess = sv == null || bv == null ? null : sv - bv, benchName = D.meta.benchmark_name || D.meta.benchmark || '벤치마크';
+        $('priceStatusPrice').textContent = signedPctPoint(sv);
+        $('priceStatusChange').textContent = excess == null ? '초과수익률 —' : '초과 ' + (excess >= 0 ? '+' : '') + excess.toFixed(2) + '%p';
+        $('priceStatusChange').style.color = excess == null ? 'var(--ink-3)' : excess >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)';
+        $('priceStatusMetrics').innerHTML = metric(name, signedPctPoint(sv)) + metric(benchName, signedPctPoint(bv)) + metric('초과수익률', excess == null ? '—' : (excess >= 0 ? '+' : '') + excess.toFixed(2) + '%p');
+      } else {
+        var gi = offset + i, prev = i === latestIndex && d.prev_close != null ? d.prev_close : (gi > 0 ? fullClose[gi - 1] : null);
+        var delta = i === latestIndex && d.change != null ? d.change : (prev == null ? null : close[i] - prev);
+        var pct = i === latestIndex && d.change_pct != null ? d.change_pct : (prev ? delta / prev : null);
+        $('priceStatusPrice').textContent = fmtPrice(close[i]);
+        $('priceStatusChange').textContent = delta == null ? '전일 대비 —' : (delta >= 0 ? '+' : '') + (CUR === 'KRW' ? fmtChartPrice(delta) + '원' : '$' + fmtChartPrice(delta)) + '  ' + fmtSigned(pct);
+        $('priceStatusChange').style.color = delta == null ? 'var(--ink-3)' : delta >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)';
+        $('priceStatusMetrics').innerHTML = metric('시가', fmtChartPrice(open[i])) + metric('고가', fmtChartPrice(high[i])) + metric('저가', fmtChartPrice(low[i])) + metric('종가', fmtChartPrice(close[i])) + metric('거래량', vol[i] == null ? '—' : Math.round(vol[i]).toLocaleString('en-US'));
       }
     }
+
+    function strokeArr(arr, color, w) {
+      var b = visibleBounds(); ctx.beginPath(); var started = false;
+      for (var i = Math.max(0, b[0] - 1); i <= Math.min(n - 1, b[1] + 1); i++) { var v = arr[i]; if (v == null) { started = false; continue; } var sx = xDoc(i), sy = yDoc(v); if (!started) { ctx.moveTo(sx, sy); started = true; } else ctx.lineTo(sx, sy); }
+      ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.stroke();
+    }
+    function axisTag(text, x, y, align, bg, fg) {
+      ctx.font = '10.5px ' + CH_FONT_MONO; var tw = Math.ceil(ctx.measureText(text).width) + 12, th = 19;
+      var bx = align === 'right' ? x : x - tw / 2, by = y - th / 2;
+      if (align !== 'right') bx = Math.max(padL, Math.min(padL + xw - tw, bx));
+      ctx.fillStyle = bg; ctx.fillRect(Math.round(bx), Math.round(by), tw, th);
+      ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, bx + tw / 2, by + th / 2 + 0.5); ctx.textBaseline = 'alphabetic';
+    }
     function draw() {
+      scaleVisible();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cssW, cssH);
-      /* 가로 그리드 + y라벨(줌 반영, 화면 고정) */
+      /* 가로 그리드 + 자동 가격축 */
       ctx.strokeStyle = COL.line; ctx.lineWidth = 1; ctx.font = '10.5px ' + CH_FONT_MONO; ctx.textAlign = 'left';
-      for (var g = 0; g <= 3; g++) { var gy = plotT + g / 3 * plotH; ctx.beginPath(); ctx.moveTo(padL, gy + 0.5); ctx.lineTo(padL + xw, gy + 0.5); ctx.stroke(); ctx.fillStyle = COL.ink3; ctx.fillText(rel ? valAtY(gy).toFixed(0) : Math.round(valAtY(gy)).toLocaleString('en-US'), padL + xw + 6, gy + 3.5); }
-      /* 마크(변환) — 플롯 영역 클립 */
+      for (var g = 0; g <= 4; g++) { var gy = plotT + g / 4 * plotH; ctx.beginPath(); ctx.moveTo(padL, gy + 0.5); ctx.lineTo(padL + xw, gy + 0.5); ctx.stroke(); ctx.fillStyle = COL.ink3; ctx.fillText(rel ? valAtY(gy).toFixed(1) : fmtChartPrice(valAtY(gy)), padL + xw + 6, gy + 3.5); }
+      /* 시리즈 — 플롯 영역 클립 */
       ctx.save(); ctx.beginPath(); ctx.rect(padL, plotT, xw, (rel ? plotH : volTop + volH - plotT)); ctx.clip();
       if (!rel) {
-        ctx.fillStyle = COL.fill; var step = n > 130 ? 2 : 1, bw = Math.max(1.2, xw / n * 0.62 * step) * k;
-        for (var i = 0; i < n; i += step) { if (vol[i] == null) continue; var h = vol[i] / vmax * volH; var sTop = AY(volTop + volH - h), sBot = AY(volTop + volH); ctx.fillRect(AX(xDoc(i)) - bw / 2, sTop, bw, Math.max(0.5, sBot - sTop)); }
+        var vb = visibleBounds(), visibleN = Math.max(1, viewEnd - viewStart), step = visibleN > 520 ? 3 : visibleN > 260 ? 2 : 1, bw = Math.max(1, xw / visibleN * 0.62 * step);
+        for (var i = vb[0]; i <= vb[1]; i += step) {
+          if (vol[i] == null) continue;
+          var h = vol[i] / vmax * volH, volumeColor = COL.slate;
+          if (i > 0 && close[i] != null && close[i - 1] != null) volumeColor = close[i] < close[i - 1] ? COL.negative : COL.positive;
+          ctx.globalAlpha = 0.34; ctx.fillStyle = volumeColor;
+          ctx.fillRect(xDoc(i) - bw / 2, volTop + volH - h, bw, Math.max(0.5, h));
+        }
+        ctx.globalAlpha = 1;
         if (state.ma.m120) strokeArr(ma120, COL.plum, 1.3);
         if (state.ma.m60) strokeArr(ma60, COL.slate, 1.3);
         if (state.ma.m20) strokeArr(ma20, COL.gold, 1.3);
         strokeArr(close, COL.ink, 1.9);
       } else { strokeArr(benchY, COL.clay, 1.4); strokeArr(stockY, COL.ink, 1.9); }
+      /* 현재가 점선과 최신 데이터 포인트 */
+      var latest = d.cur != null ? d.cur : close[latestIndex], lastVisible = latestIndex >= viewStart && latestIndex <= viewEnd;
+      if (!rel && latest != null && latest >= ymin && latest <= ymax) {
+        var lastY = yDoc(latest); ctx.strokeStyle = COL.ink2; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(padL, lastY); ctx.lineTo(padL + xw, lastY); ctx.stroke(); ctx.setLineDash([]);
+        if (lastVisible) { ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(xDoc(latestIndex), lastY, 3.4, 0, Math.PI * 2); ctx.fill(); }
+      }
       if (hover != null && hover >= 0 && hover < n) {
-        var yv = rel ? stockY[hover] : close[hover]; var hx = AX(xDoc(hover)), hy = AY(yDoc(yv));
-        ctx.strokeStyle = COL.ink3; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(hx, plotT); ctx.lineTo(hx, plotT + plotH); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(hx, hy, 3.2, 0, Math.PI * 2); ctx.fill();
+        var yv = rel ? stockY[hover] : close[hover], hx = xDoc(hover), hy = yv == null ? null : yDoc(yv);
+        ctx.strokeStyle = COL.ink3; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(hx, plotT); ctx.lineTo(hx, rel ? plotT + plotH : volTop + volH); if (hy != null) { ctx.moveTo(padL, hy); ctx.lineTo(padL + xw, hy); } ctx.stroke(); ctx.setLineDash([]);
+        if (hy != null) { ctx.fillStyle = COL.ink; ctx.beginPath(); ctx.arc(hx, hy, 3.2, 0, Math.PI * 2); ctx.fill(); }
       }
       ctx.restore();
-      /* x축 날짜 라벨(줌 반영) */
+      /* x축 날짜 라벨 */
       ctx.fillStyle = COL.ink3; ctx.font = '10px ' + CH_FONT_MONO; ctx.textAlign = 'center';
       var ly = (rel ? plotT + plotH : volTop + volH) + 15;
-      for (var t = 0; t <= 4; t++) { var lx = padL + t / 4 * xw; ctx.fillText(dates[idxAtX(lx)], lx, ly); }
+      for (var t = 0; t <= 4; t++) { var lx = padL + t / 4 * xw, labelDate = displayDate(dates[idxAtX(lx)]); ctx.fillText(viewEnd - viewStart > 300 ? labelDate.slice(2, 7) : labelDate.slice(5), lx, ly); }
       if (!rel) { ctx.fillStyle = COL.ink3; ctx.font = '10px ' + CH_FONT_SANS; ctx.textAlign = 'left'; ctx.fillText('거래량', padL, volTop - 4); }
-      if (rel) { ctx.textAlign = 'left'; ctx.font = '11px ' + CH_FONT_SANS; ctx.fillStyle = COL.ink; ctx.fillText(D.meta.name, padL + 2, plotT + 12); ctx.fillStyle = COL.clay; ctx.fillText(D.meta.benchmark, padL + 2 + ctx.measureText(D.meta.name).width + 10, plotT + 12); }
-      if (hover != null && hover >= 0 && hover < n) drawTooltip();
+      if (rel) { var benchName = D.meta.benchmark_name || D.meta.benchmark || '벤치마크'; ctx.textAlign = 'left'; ctx.font = '11px ' + CH_FONT_SANS; ctx.fillStyle = COL.ink; ctx.fillText(D.meta.name, padL + 2, plotT + 12); ctx.fillStyle = COL.clay; ctx.fillText(benchName, padL + 2 + ctx.measureText(D.meta.name).width + 10, plotT + 12); }
+      /* 축 태그는 마크 위, 축 여백에 고정 */
+      if (!rel && latest != null && latest >= ymin && latest <= ymax) axisTag(fmtChartPrice(latest), padL + xw + 3, yDoc(latest), 'right', COL.ink, COL.paper);
+      if (hover != null && hover >= 0 && hover < n) {
+        var hoverValue = rel ? stockY[hover] : close[hover], hoverX = xDoc(hover);
+        if (hoverValue != null) axisTag(rel ? hoverValue.toFixed(2) : fmtChartPrice(hoverValue), padL + xw + 3, yDoc(hoverValue), 'right', COL.ink3, COL.paper);
+        axisTag(displayDate(dates[hover]), hoverX, (rel ? plotT + plotH : volTop + volH) + 23, 'center', COL.ink3, COL.paper);
+      }
     }
 
-    /* 입력 응답은 즉시 그린다(탭 가시성·rAF 스로틀과 무관하게 견고). draw는 수백 점이라 저렴.
-       플링·더블클릭 애니메이션만 시간 기반이라 rAF 사용(숨은 탭에선 자연히 정지). */
+    /* 입력 응답은 즉시 그린다. 플링만 시간 기반으로 처리한다. */
     var raf = (window.requestAnimationFrame || function (f) { return setTimeout(f, 16); });
     var caf = (window.cancelAnimationFrame || clearTimeout);
     function dirty() { draw(); }
 
-    /* 플링(관성) */
+    /* 좌우 플링(관성) */
     var flingId = 0;
     function stopFling() { if (flingId) { caf(flingId); flingId = 0; } }
-    function startFling(vx, vy) {
-      if (Math.abs(vx) < 0.6 && Math.abs(vy) < 0.6) return; stopFling();
-      function stepF() { vx *= 0.92; vy *= 0.92; var bx = tx, by = ty; tx += vx; ty += vy; clampT(); if (tx === bx) vx = 0; if (ty === by) vy = 0; draw(); if (Math.abs(vx) > 0.25 || Math.abs(vy) > 0.25) flingId = raf(stepF); else flingId = 0; }
+    function startFling(vx) {
+      if (Math.abs(vx) < 0.6) return; stopFling();
+      function stepF() { vx *= 0.92; var before = viewStart; panPixels(vx); if (viewStart === before) vx = 0; draw(); if (Math.abs(vx) > 0.25) flingId = raf(stepF); else flingId = 0; }
       flingId = raf(stepF);
     }
-    /* 더블클릭 줌 애니메이션 */
-    var animId = 0;
-    function stopAnim() { if (animId) { caf(animId); animId = 0; } }
-    function animateZoom(target, fx, fy) {
-      stopFling(); stopAnim();
-      var k0 = k, tx0 = tx, ty0 = ty, k1, tx1, ty1;
-      if (target <= 1) { k1 = 1; tx1 = 0; ty1 = 0; }
-      else { var dfx = (fx - tx) / k, dfy = (fy - ty) / k; k1 = target; tx1 = fx - k1 * dfx; ty1 = fy - k1 * dfy; }
-      var t0 = performance.now(), dur = 200;
-      function stepA(now) { var p = Math.min(1, (now - t0) / dur); var e = 1 - Math.pow(1 - p, 3); k = k0 + (k1 - k0) * e; tx = tx0 + (tx1 - tx0) * e; ty = ty0 + (ty1 - ty0) * e; clampT(); draw(); if (p < 1) animId = raf(stepA); else animId = 0; }
-      animId = raf(stepA);
-    }
+    function resetView() { stopFling(); viewStart = 0; viewEnd = n - 1; hover = null; updateStatus(latestIndex); draw(); }
 
     /* 이벤트 */
     function pos(e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
-    function onWheel(e) { e.preventDefault(); stopFling(); var p = pos(e); var factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022)); factor = Math.max(0.55, Math.min(1.8, factor)); zoomAt(p[0], p[1], factor); dirty(); }
-    var dragging = false, moved = false, lx = 0, ly2 = 0, vX = 0, vY = 0;
-    function onDown(e) { cv.setPointerCapture && cv.setPointerCapture(e.pointerId); dragging = true; moved = false; lx = e.clientX; ly2 = e.clientY; vX = 0; vY = 0; stopFling(); stopAnim(); }
+    function onWheel(e) { e.preventDefault(); stopFling(); var p = pos(e); var factor = Math.exp(e.deltaY * (e.ctrlKey ? 0.009 : 0.0018)); factor = Math.max(0.58, Math.min(1.72, factor)); zoomAt(p[0], factor); dirty(); }
+    var dragging = false, moved = false, lx = 0, vX = 0;
+    function onDown(e) { cv.focus({ preventScroll: true }); cv.setPointerCapture && cv.setPointerCapture(e.pointerId); dragging = true; moved = false; lx = e.clientX; vX = 0; hover = null; updateStatus(latestIndex); stopFling(); }
     function onMove(e) {
       var p = pos(e);
-      if (dragging) { var dx = e.clientX - lx, dy = e.clientY - ly2; if (Math.abs(dx) > 1 || Math.abs(dy) > 1) moved = true; tx += dx; ty += dy; vX = dx; vY = dy; lx = e.clientX; ly2 = e.clientY; clampT(); dirty(); }
-      else { if (p[0] < padL || p[0] > padL + xw || p[1] < plotT || p[1] > (rel ? plotT + plotH : volTop + volH)) { if (hover != null) { hover = null; dirty(); } } else { var i = idxAtX(p[0]); if (i !== hover) { hover = i; dirty(); } } }
+      if (dragging) { var dx = e.clientX - lx; if (Math.abs(dx) > 1) moved = true; panPixels(dx); vX = dx; lx = e.clientX; dirty(); }
+      else { if (p[0] < padL || p[0] > padL + xw || p[1] < plotT || p[1] > (rel ? plotT + plotH : volTop + volH)) { if (hover != null) { hover = null; updateStatus(latestIndex); dirty(); } } else { var i = idxAtX(p[0]); if (i !== hover) { hover = i; updateStatus(i); dirty(); } } }
     }
-    function onUp() { if (dragging) { dragging = false; if (moved) startFling(vX, vY); } }
-    function onLeave() { if (!dragging && hover != null) { hover = null; dirty(); } }
-    function onDbl(e) { e.preventDefault(); var p = pos(e); animateZoom(k > 1.5 ? 1 : 2.5, p[0], p[1]); }
+    function onUp() { if (dragging) { dragging = false; if (moved) startFling(vX); } }
+    function onLeave() { if (!dragging && hover != null) { hover = null; updateStatus(latestIndex); dirty(); } }
+    function onDbl(e) { e.preventDefault(); resetView(); }
+    function onKey(e) {
+      var handled = true, reset = false;
+      if (e.key === 'ArrowLeft') panPixels(xw * 0.10);
+      else if (e.key === 'ArrowRight') panPixels(-xw * 0.10);
+      else if (e.key === '+' || e.key === '=') zoomAt(padL + xw / 2, 0.72);
+      else if (e.key === '-' || e.key === '_') zoomAt(padL + xw / 2, 1.38);
+      else if (e.key === 'Home' || e.key === 'Escape') { resetView(); reset = true; }
+      else handled = false;
+      if (handled) { e.preventDefault(); if (!reset) draw(); }
+    }
     cv.addEventListener('wheel', onWheel, { passive: false });
     cv.addEventListener('pointerdown', onDown);
     cv.addEventListener('pointermove', onMove);
@@ -342,9 +443,10 @@
     cv.addEventListener('pointercancel', onUp);
     cv.addEventListener('pointerleave', onLeave);
     cv.addEventListener('dblclick', onDbl);
+    cv.addEventListener('keydown', onKey);
 
-    draw();
-    return { destroy: function () { stopFling(); stopAnim(); cv.removeEventListener('wheel', onWheel); } };
+    updateStatus(latestIndex); draw();
+    return { reset: resetView, destroy: function () { stopFling(); cv.removeEventListener('wheel', onWheel); cv.removeEventListener('pointerdown', onDown); cv.removeEventListener('pointermove', onMove); cv.removeEventListener('pointerup', onUp); cv.removeEventListener('pointercancel', onUp); cv.removeEventListener('pointerleave', onLeave); cv.removeEventListener('dblclick', onDbl); cv.removeEventListener('keydown', onKey); } };
   }
 
   var priceChartInst = null;
@@ -644,14 +746,14 @@
 
   function renderCompany() {
     var c = D.company;
-    var info = '<span class="kick">기업 소개</span>';
+    var info = '';
     if (c && c.summary && !c.error) {
-      info += '<p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:14px 0 0">' + esc(c.summary) + '</p><div style="display:flex;gap:26px;margin-top:18px;border-top:1px solid var(--line);padding-top:16px">';
+      info += '<p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:0">' + esc(c.summary) + '</p><div style="display:flex;gap:26px;margin-top:18px;border-top:1px solid var(--line);padding-top:16px">';
       info += '<div><div class="kick">출처</div><div style="font-size:13px;margin-top:5px">' + esc(c.source || '—') + '</div></div>';
       if (c.website) info += '<div><div class="kick">웹사이트</div><div style="font-size:13px;margin-top:5px">' + esc(c.website) + '</div></div>';
       if (c.employees) info += '<div><div class="kick">직원 수</div><div class="mono" style="font-size:13px;margin-top:5px">' + Number(c.employees).toLocaleString('en-US') + '명</div></div>';
       info += '</div>';
-    } else info += '<p style="font-size:13px;color:var(--ink-3);margin-top:14px">기업 소개를 불러오지 못했습니다. (무료 데이터 특성상 일부 종목은 개요가 없습니다)</p>';
+    } else info += '<p style="font-size:13px;color:var(--ink-3);margin:0">기업 소개를 불러오지 못했습니다. (무료 데이터 특성상 일부 종목은 개요가 없습니다)</p>';
     $('companyInfo').innerHTML = info;
     // AI 뉴스 분석 버튼(키 있고 뉴스 있을 때) — 서술형 Gemini 분석
     var naw = $('newsAiWrap');
@@ -688,11 +790,16 @@
     var f = D.financials;
     if (!f || f.error) { $('finGrowth').innerHTML = '<div style="color:var(--ink-3);font-size:13px">재무 데이터를 불러오지 못했습니다.</div>'; return; }
     var unit = f.unit;
-    $('finGrowthLabel').textContent = '성장성 — 매출·영업이익·순이익 (' + unit + '원)'.replace('B원', 'B');
-    $('finCashLabel').textContent = '현금흐름 — 영업현금흐름·잉여현금흐름 (' + unit + '원)'.replace('B원', 'B');
+    $('finGrowthUnit').textContent = ('단위 · ' + unit + '원').replace('B원', 'B');
+    $('finCashUnit').textContent = ('단위 · ' + unit + '원').replace('B원', 'B');
     $('finGrowth').innerHTML = barGroups(f.years, [
       { name: '매출액', color: 'var(--dv-navy)', data: f.revenue }, { name: '영업이익', color: 'var(--dv-teal)', data: f.operating_income }, { name: '순이익', color: 'var(--dv-gold)', data: f.net_income }
     ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 230 });
+    var om = f.op_margin, nm = f.net_margin;
+    $('finProfitability').innerHTML = lineMulti((om && om.x) || (nm && nm.x) || f.years, [
+      { name: '영업이익률 %', color: 'var(--dv-teal)', data: (om ? om.y : []).map(function (v) { return v == null ? null : v * 100; }) },
+      { name: '순이익률 %', color: 'var(--dv-gold)', data: (nm ? nm.y : []).map(function (v) { return v == null ? null : v * 100; }) }
+    ], { fmt: function (v) { return v.toFixed(1) + '%'; }, H: 190 });
     // 안정성 (금융업 숨김)
     if (f.is_financial) { $('finStability').innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:20px 0">금융업 — 생략</div>'; }
     else {
@@ -760,7 +867,7 @@
   function renderBacktest() {
     var bt = D.backtest;
     if (!bt || bt.error || !bt.ok) { $('btTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">' + esc((bt && (bt.warnings || [])[0]) || '백테스트를 수행할 수 없습니다 (표본 부족).') + '</div>'; $('btTable').innerHTML = ''; $('backtestScatter').innerHTML = ''; $('equityCurve').innerHTML = ''; return; }
-    var tiles = [['저평가였던 일수', bt.signal_days.toLocaleString('en-US') + '일'], ['신호 후 12M 평균', '<span style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</span>'], ['그때 플러스 확률', bt.hit12 != null ? (bt.hit12 * 100).toFixed(0) + '%' : '—'], ['저평가↔수익 상관', '<span style="color:' + (bt.spearman >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + (bt.spearman != null ? (bt.spearman >= 0 ? '+' : '') + bt.spearman.toFixed(2) : '—') + '</span>']];
+    var tiles = [['비중복 12M 표본', (bt.event_count || 0).toLocaleString('en-US') + '개'], ['신호 후 12M 평균', '<span style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</span>'], ['그때 플러스 확률', bt.hit12 != null ? (bt.hit12 * 100).toFixed(0) + '%' : '—'], ['저평가↔수익 상관', '<span style="color:' + (bt.spearman >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + (bt.spearman != null ? (bt.spearman >= 0 ? '+' : '') + bt.spearman.toFixed(2) : '—') + '</span>']];
     $('btTiles').innerHTML = tiles.map(function (t, i) { return '<div style="flex:1;min-width:130px;padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:20px;font-weight:500;margin-top:6px">' + t[1] + '</div></div>'; }).join('');
     // 정직한 한 줄 관찰 (저평가 신호 후 vs 아무 때나)
     var h12 = (bt.horizons || []).filter(function (h) { return h.h === '12개월'; })[0] || {};
@@ -768,13 +875,13 @@
     if (bt.signal_days > 0 && bt.ret12 != null) {
       var base12 = h12.base_mean;
       var cmp = (base12 != null && bt.ret12 > base12) ? '<b style="color:var(--dv-positive)">더 높았</b>' : '<b>특별히 높지는 않았</b>';
-      lede = '이 종목이 우리 기준 <b>저평가(+30%↑)</b>였던 <b class="mono">' + bt.signal_days.toLocaleString('en-US') + '일</b>, 그 뒤 12개월 평균 수익은 <b class="mono" style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</b>' + (bt.hit12 != null ? ' (플러스 확률 ' + (bt.hit12 * 100).toFixed(0) + '%)' : '') + ' — 같은 기간 <b>아무 때나</b> 샀을 때(' + fmtSigned(base12) + ')보다 ' + cmp + '습니다.';
+      lede = '저평가 신호는 총 <b class="mono">' + bt.signal_days.toLocaleString('en-US') + '거래일</b> 관찰됐습니다. 겹치는 보유기간을 제거한 <b class="mono">' + (bt.event_count || 0) + '개 표본</b>의 12개월 평균 수익은 <b class="mono" style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</b>' + (bt.hit12 != null ? ' (플러스 확률 ' + (bt.hit12 * 100).toFixed(0) + '%)' : '') + ' — 비중복 전체 표본 평균(' + fmtSigned(base12) + ')보다 ' + cmp + '습니다.';
     } else {
       lede = '확보된 기간에 이 종목이 우리 기준 <b>저평가(+30%↑)</b>였던 적은 없었습니다 — 아래 관찰 통계가 비어 있는 이유예요. (다른 종목·기간에서는 신호가 잡히기도 합니다.)';
     }
     if ($('btLede')) $('btLede').innerHTML = lede;
-    var head = '<div class="row head" style="grid-template-columns:1fr 1fr 1fr 1fr"><span class="col-label">보유기간</span><span class="col-label r">평균수익</span><span class="col-label r">승률</span><span class="col-label r">전체평균</span></div>';
-    var rows = (bt.horizons || []).map(function (h, i) { var last = i === bt.horizons.length - 1; return '<div class="row" style="grid-template-columns:1fr 1fr 1fr 1fr;font-family:var(--font-mono);font-size:12.5px' + (last ? ';border-bottom:none' : '') + '"><span style="font-family:var(--font-sans)">' + h.h + '</span><span class="r" style="color:' + (h.ev_mean >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(h.ev_mean) + '</span><span class="r">' + (h.ev_hit != null ? (h.ev_hit * 100).toFixed(0) + '%' : '—') + '</span><span class="r" style="color:var(--ink-3)">' + fmtSigned(h.base_mean) + '</span></div>'; }).join('');
+    var head = '<div class="row head" style="grid-template-columns:1fr .7fr 1fr 1fr 1fr"><span class="col-label">보유기간</span><span class="col-label r">표본</span><span class="col-label r">평균수익</span><span class="col-label r">승률</span><span class="col-label r">전체평균</span></div>';
+    var rows = (bt.horizons || []).map(function (h, i) { var last = i === bt.horizons.length - 1; return '<div class="row" style="grid-template-columns:1fr .7fr 1fr 1fr 1fr;font-family:var(--font-mono);font-size:12.5px' + (last ? ';border-bottom:none' : '') + '"><span style="font-family:var(--font-sans)">' + h.h + '</span><span class="r">' + (h.ev_n || 0) + '</span><span class="r" style="color:' + (h.ev_mean >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(h.ev_mean) + '</span><span class="r">' + (h.ev_hit != null ? (h.ev_hit * 100).toFixed(0) + '%' : '—') + '</span><span class="r" style="color:var(--ink-3)">' + fmtSigned(h.base_mean) + '</span></div>'; }).join('');
     $('btTable').innerHTML = head + rows;
     $('backtestScatter').innerHTML = backtestScatter();
     $('equityCurve').innerHTML = equityCurve();
@@ -784,7 +891,7 @@
     var v = D.verdict, m = D.meta, p = D.price;
     var bulls = (D.commentary || []).filter(function (c) { return c.kind === 'good'; }).slice(0, 4);
     var bears = (D.commentary || []).filter(function (c) { return c.kind === 'bad' || c.kind === 'warn'; }).slice(0, 4);
-    var stance = vIdx(v.verdict) <= 0 ? '적극 매수' : vIdx(v.verdict) === 1 ? '매수' : vIdx(v.verdict) === 2 ? '중립' : vIdx(v.verdict) === 3 ? '비중 축소' : '회피';
+    var stance = vIdx(v.verdict) <= 0 ? '큰 저평가 관찰' : vIdx(v.verdict) === 1 ? '저평가 관찰' : vIdx(v.verdict) === 2 ? '적정 범위 관찰' : vIdx(v.verdict) === 3 ? '고평가 관찰' : '큰 고평가 관찰';
     var up = v.gap != null && v.gap >= 0;
     var target = (v.fair_low != null && v.fair_high != null) ? won(v.fair_low) + '~' + won(v.fair_high) : '—';
     var upside = (v.fair_low != null && v.fair_high != null && m.price) ? fmtSigned(v.fair_low / m.price - 1) + '~' + fmtSigned(v.fair_high / m.price - 1) : '';
@@ -792,7 +899,7 @@
     function li(arr) { return arr.length ? arr.map(function (c) { return '<li>' + esc(c.text) + '</li>'; }).join('') : '<li>—</li>'; }
     $('aiContent').innerHTML =
       '<div style="background:var(--navy);color:#E9EDF5;border-radius:var(--radius-md);padding:26px 28px">' +
-        '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#9BA8C4">한 줄 결론 · 규칙 기반</div>' +
+        '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#9BA8C4">한 줄 관찰 · 규칙 기반</div>' +
         '<div style="font-family:var(--font-display);font-weight:700;font-size:28px;letter-spacing:-0.01em;margin-top:8px">' + stance + ' — ' + esc(v.verdict) + ' · 괴리율 ' + fmtSigned(v.gap) + '</div>' +
         '<div style="font-size:13px;color:#C4CDE0;margin-top:10px;line-height:1.6">대시보드 산출 사실(적정가 범위·상승여력·업종 백분위·자본비용)을 근거로 한 스탠스입니다.' + (m.ai_available ? ' 아래 버튼으로 Gemini 서술형 종합 평가를 생성할 수 있어요.' : ' 서술형 AI 평가는 Gemini 키를 설정하면 생성됩니다.') + '</div>' +
         (m.ai_available ? '<button id="opBtn" class="btn btn-sm" style="margin-top:16px;background:var(--paper);color:var(--ink)">✦ 종합 투자평가 생성 (Gemini)</button>' : '') + '</div>' +
@@ -801,8 +908,8 @@
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600;color:var(--dv-positive)">강세 논거</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.8">' + li(bulls) + '</ul></div>' +
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600;color:var(--dv-negative)">약세 논거·리스크</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.8">' + li(bears) + '</ul></div></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">' +
-        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">목표가 · 상승여력</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="mono" style="font-size:20px;font-weight:600">' + target + '</span><span style="font-size:13px;color:' + (up ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + upside + '</span></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">3개 방법 적정가 범위를 목표 구간으로 사용</div></div>' +
-        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">손절·리스크 관리</div><div style="font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-top:10px">52주 최저 <b class="mono">' + stop + '</b> 이탈 시 추세 훼손. 신뢰도 <b>' + esc(v.confidence || '—') + '</b> — 방법 간 편차가 크면 보수적으로 해석하세요.</div></div></div>' +
+        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">적정가 추정 범위 · 괴리율</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="mono" style="font-size:20px;font-weight:600">' + target + '</span><span style="font-size:13px;color:' + (up ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + upside + '</span></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">3개 모형의 추정 범위이며 추천 목표가가 아닙니다</div></div>' +
+        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">관찰을 재검토할 기준</div><div style="font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-top:10px">52주 최저 <b class="mono">' + stop + '</b> 이탈 시 현재 추세 해석을 다시 확인하세요. 신뢰도 <b>' + esc(v.confidence || '—') + '</b> — 방법 간 편차가 크면 보수적으로 해석하세요.</div></div></div>' +
       '<div style="font-size:10.5px;color:var(--ink-3);margin-top:14px;line-height:1.6">본 스탠스는 대시보드 산출 데이터에 기반한 규칙적 요약이며, 서술형 AI 평가·최종 판단은 이용자 책임입니다. 특정 종목의 매수·매도 추천이 아닙니다.</div>';
     var ob = $('opBtn'); if (ob) ob.addEventListener('click', function () { aiFetch('opinion', $('opOut'), ob); });
   }
@@ -811,7 +918,11 @@
   function renderAll() {
     CUR = D.meta.currency;
     document.title = D.meta.name + ' — 투자지표';
-    $('finSource').innerHTML = D.meta.market === 'KR' ? '한국 공시 원본 · OpenDART<br/>시세 · KRX / 네이버금융' : 'Yahoo Finance<br/>시세 · NYSE / NASDAQ';
+    var sources = D.meta.sources || {};
+    var sourceLines = Object.keys(sources).map(function (k) {
+      return '<b style="color:var(--ink-2)">' + esc(k) + '</b> · ' + esc(sources[k]);
+    });
+    $('finSource').innerHTML = sourceLines.length ? sourceLines.join('<br/>') : esc(D.meta.fin_source || '출처 정보 없음');
     renderHeader(); renderTiles(); renderWarnings();
     renderSummary(); renderPriceTab(); renderValuation(); renderCompany();
     renderFinancials(); renderPeers(); renderWacc(); renderBacktest(); renderAi();
@@ -839,7 +950,15 @@
   }
 
   /* ══════════ 인터랙션 ══════════ */
-  function wireSeg(id, onChange) { var seg = $(id); if (!seg) return; seg.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on'); onChange(b.getAttribute('data-val')); }); }
+  function wireSeg(id, onChange) {
+    var seg = $(id); if (!seg) return;
+    seg.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x.classList.contains('on') ? 'true' : 'false'); });
+    seg.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
+      b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); onChange(b.getAttribute('data-val'));
+    });
+  }
   function wireCollapse(btnId, bodyId, disp) { var btn = $(btnId), body = $(bodyId); if (!btn || !body) return; btn.addEventListener('click', function () { var open = body.style.display !== 'none' && body.style.display !== ''; body.style.display = open ? 'none' : (disp || 'block'); var ch = btn.querySelector('.chev'); if (ch) ch.classList.toggle('open', !open); }); }
   function renderExamples() {
     $('examples').innerHTML = EXAMPLES[state.market].map(function (e) { var on = e[1] === state.query; return '<span data-code="' + e[1] + '" style="font-size:12px;cursor:pointer;border-radius:var(--radius-sm);padding:4px 9px;' + (on ? 'color:var(--ink);font-weight:600;border:1px solid var(--ink)' : 'color:var(--ink-2);border:1px solid var(--line)') + '">' + esc(e[0]) + '</span>'; }).join('');
@@ -857,7 +976,8 @@
     // 주가 컨트롤
     wireSeg('priceModeSeg', function (v) { state.priceMode = v; state.hover = null; $('maToggles').style.display = v === 'abs' ? 'inline-flex' : 'none'; if (D) renderPrice(); });
     wireSeg('periodSeg', function (v) { state.pricePeriod = v; state.hover = null; if (D) renderPrice(); });
-    document.querySelectorAll('#maToggles .ma-btn').forEach(function (btn) { btn.addEventListener('click', function () { var k = btn.getAttribute('data-ma'); state.ma[k] = !state.ma[k]; btn.classList.toggle('on', state.ma[k]); var col = { m20: 'var(--dv-gold)', m60: 'var(--dv-slate)', m120: 'var(--dv-plum)' }[k]; btn.style.borderColor = state.ma[k] ? col : 'var(--line-strong)'; btn.style.color = state.ma[k] ? 'var(--ink)' : 'var(--ink-3)'; btn.querySelector('.dash').style.background = state.ma[k] ? col : 'var(--line-strong)'; if (D) renderPrice(); }); });
+    $('priceReset').addEventListener('click', function () { if (priceChartInst && priceChartInst.reset) priceChartInst.reset(); });
+    document.querySelectorAll('#maToggles .ma-btn').forEach(function (btn) { btn.setAttribute('aria-pressed', btn.classList.contains('on') ? 'true' : 'false'); btn.addEventListener('click', function () { var k = btn.getAttribute('data-ma'); state.ma[k] = !state.ma[k]; btn.classList.toggle('on', state.ma[k]); btn.setAttribute('aria-pressed', state.ma[k] ? 'true' : 'false'); var col = { m20: 'var(--dv-gold)', m60: 'var(--dv-slate)', m120: 'var(--dv-plum)' }[k]; btn.style.borderColor = state.ma[k] ? col : 'var(--line-strong)'; btn.style.color = state.ma[k] ? 'var(--ink)' : 'var(--ink-3)'; btn.querySelector('.dash').style.background = state.ma[k] ? col : 'var(--line-strong)'; if (D) renderPrice(); }); });
     wireSeg('bandSeg', function (v) { state.bandMetric = v; if (D) renderBand(); });
     // 접이식·사이드바
     wireCollapse('assumeToggle', 'assumeBody', 'flex');

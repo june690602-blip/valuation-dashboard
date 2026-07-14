@@ -535,7 +535,7 @@ def relative_perf_chart(prices: pd.Series, index_prices: pd.Series,
 # ── 성향테스트: CML + 무차별곡선 접점 ───────────────────────────────
 def cml_tangency_chart(rf: float, er_m: float, sigma_m: float, A: float,
                        market_label: str = "시장") -> go.Figure:
-    """자본시장선(CML) 위 '나의 최적점' — 무차별곡선이 CML에 접하는 지점.
+    """자본시장선(CML) 위 가정 기반 참고점 — 무차별곡선이 CML에 접하는 지점.
 
     x=연 변동성 σ(%), y=연 기대수익률(%). 접점에서 MRS(=A·σ*)가 샤프비율과 같다.
     """
@@ -558,7 +558,7 @@ def cml_tangency_chart(rf: float, er_m: float, sigma_m: float, A: float,
     y_cap = max(cml.max(), t["er_p"]) * 100 * 1.35
     ind_pct = np.where(indiff * 100 <= y_cap, indiff * 100, np.nan)
     fig.add_trace(go.Scatter(
-        x=sig * 100, y=ind_pct, mode="lines", name=f"나의 무차별곡선 (A={A:.1f})",
+        x=sig * 100, y=ind_pct, mode="lines", name=f"시나리오 무차별곡선 (A={A:.1f})",
         line=dict(color=P["series3"], width=2, dash="dash"),
         hovertemplate="σ %{x:.1f}% → %{y:.2f}%<extra>무차별곡선</extra>"))
     # 무위험·시장 포트폴리오
@@ -571,11 +571,11 @@ def cml_tangency_chart(rf: float, er_m: float, sigma_m: float, A: float,
         marker=dict(size=11, color=P["series4"]), text=["M"], textposition="top center",
         hovertemplate=(f"{market_label}: σ {sigma_m*100:.1f}%, "
                        f"E(R) {er_m*100:.2f}%<extra></extra>"), showlegend=False))
-    # 나의 접점
+    # 가정 기반 모형상 참고점
     fig.add_trace(go.Scatter(
-        x=[t["sigma_p"] * 100], y=[t["er_p"] * 100], mode="markers+text", name="나의 최적점",
+        x=[t["sigma_p"] * 100], y=[t["er_p"] * 100], mode="markers+text", name="모형상 참고점",
         marker=dict(size=15, color=P["red"], symbol="star"),
-        text=["나의 접점"], textposition="bottom right", textfont=dict(color=P["red"]),
+        text=["모형상 참고점"], textposition="bottom right", textfont=dict(color=P["red"]),
         hovertemplate=(f"위험자산 {t['y_star']*100:.0f}% 편입<br>"
                        f"σ {t['sigma_p']*100:.1f}%, 기대수익 {t['er_p']*100:.2f}%<extra></extra>")))
     # 접점 보조선
@@ -591,7 +591,7 @@ def cml_tangency_chart(rf: float, er_m: float, sigma_m: float, A: float,
     fig.update_xaxes(title_text="연 변동성 σ (%)", title_font_size=11, rangemode="tozero")
     fig.update_yaxes(title_text="연 기대수익률 (%)", title_font_size=11, rangemode="tozero")
     fig.update_layout(title=dict(
-        text=f"무차별곡선이 CML에 접하는 곳이 나의 최적 포트폴리오 — 기준: {market_label}",
+        text=f"CML과 가정 기반 모형상 참고점 — 기준: {market_label}",
         x=0, font=dict(size=12.5, color=P["ink2"])))
     return _layout(fig, height=430)
 
