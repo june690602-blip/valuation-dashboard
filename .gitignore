@@ -4,9 +4,13 @@
 
 # 캐시·파생물
 data/cache/
+gemini_context.md
 __pycache__/
 *.pyc
 *.pyo
+
+# 디자인 핸드오프 원본(대용량 바이너리) — 저장소에 넣지 않음
+*.zip
 
 # OS
 Thumbs.db

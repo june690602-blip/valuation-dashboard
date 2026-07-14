@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>투자지표 — 지금 이 가격이 적정한가?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/meridian.css">
+<style>
+  .navlink { color: var(--ink-3); cursor: pointer; }
+  .navlink:hover { color: var(--ink); text-decoration: none; }
+  .card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 22px 22px 20px; display: flex; flex-direction: column; background: var(--paper); transition: box-shadow var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out); }
+  .card.live:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 7px 12px; font-size: 13px; color: var(--ink-2); cursor: pointer; background: var(--paper); }
+  .chip:hover { border-color: var(--ink); color: var(--ink); text-decoration: none; }
+  .chip .mono { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
+  .soon { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em; color: var(--ink-3); border: 1px solid var(--line-strong); border-radius: 2px; padding: 1px 5px; }
+</style>
+</head>
+<body>
+<div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
+
+  <!-- ══ TOP NAV (공통) ══ -->
+  <header style="height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:26px;padding:0 26px;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
+    <div style="display:flex;align-items:baseline;gap:8px;flex:none;white-space:nowrap">
+      <span style="font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-0.01em">투자지표</span>
+      <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--ink-3);letter-spacing:0.1em;border:1px solid var(--line);padding:1px 5px;border-radius:2px">BETA</span>
+    </div>
+    <nav style="display:flex;gap:4px;align-items:center;white-space:nowrap">
+      <span style="font-size:13.5px;font-weight:600;color:var(--ink);padding:6px 10px;border-bottom:2px solid var(--ink)">홈</span>
+      <a class="navlink" href="stock.html" style="font-size:13.5px;padding:6px 10px">주식 가치평가</a>
+      <a class="navlink" href="bond.html" style="font-size:13.5px;padding:6px 10px">채권</a>
+      <a class="navlink" href="portfolio.html" style="font-size:13.5px;padding:6px 10px">포트폴리오</a>
+      <a class="navlink" href="guide.html" style="font-size:13.5px;padding:6px 10px">사용설명서</a>
+    </nav>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+      <form id="navSearch" style="display:flex;align-items:center;gap:7px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:5px 10px;min-width:230px;color:var(--ink-3)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="navSearchInput" placeholder="종목 코드 또는 이름 검색…" style="border:none;outline:none;background:transparent;font-family:var(--font-sans);font-size:13px;color:var(--ink);width:100%" />
+      </form>
+      <span style="width:27px;height:27px;border-radius:50%;background:var(--green);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-family:var(--font-mono)">투</span>
+    </div>
+  </header>
+
+  <main style="flex:1;width:100%;max-width:var(--content-max);margin:0 auto;padding:0 30px">
+
+    <!-- ══ HERO ══ -->
+    <section style="padding:64px 0 40px;border-bottom:1px solid var(--line)">
+      <div class="kick" style="color:var(--dv-navy)">기본적 분석 · Fundamental valuation</div>
+      <h1 style="font-family:var(--font-display);font-weight:700;font-size:clamp(34px,5vw,56px);letter-spacing:-0.02em;line-height:1.04;margin:16px 0 0;max-width:20ch">지금 이 가격이<br>적정한가?</h1>
+      <p style="font-size:16px;color:var(--ink-2);line-height:1.7;margin:20px 0 0;max-width:60ch">종목 하나를 넣으면 재무·주가·업종 데이터를 자동 수집해 <b style="color:var(--ink)">적정주가를 3가지 방법으로 삼각측량</b>하고, 왜 그렇게 판정했는지 근거를 시각화합니다. 주식·채권·포트폴리오를 데이터로 검증하는 학습·분석 보조 도구예요.</p>
+      <div style="display:flex;gap:10px;margin-top:26px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="stock.html" style="text-decoration:none">주식 가치평가 시작 →</a>
+        <a class="btn btn-secondary" href="guide.html" style="text-decoration:none">처음이신가요? 사용설명서</a>
+      </div>
+    </section>
+
+    <!-- ══ 투자성향 테스트 배너 ══ -->
+    <section style="padding:26px 0;border-bottom:1px solid var(--line)">
+      <a href="test.html" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;border:1px solid var(--line-strong);border-radius:var(--radius-md);padding:20px 24px;text-decoration:none;background:var(--paper-2)">
+        <div style="display:flex;align-items:center;gap:16px">
+          <span style="font-size:30px">🧭</span>
+          <div>
+            <div style="font-family:var(--font-display);font-weight:700;font-size:19px;color:var(--ink)">나는 어떤 투자자일까? — 투자성향 테스트</div>
+            <div style="font-size:13px;color:var(--ink-2);margin-top:4px">8개 질문(심리 문항 포함)으로 위험회피계수를 재고, 자본시장선(CML) 위 나의 최적 지점을 찾습니다. 약 2분.</div>
+          </div>
+        </div>
+        <span class="btn btn-primary" style="pointer-events:none;flex:none">테스트 시작 →</span>
+      </a>
+    </section>
+
+    <!-- ══ 예시로 바로 시작 ══ -->
+    <section style="padding:34px 0;border-bottom:1px solid var(--line)">
+      <span class="kick">예시로 바로 시작</span>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:34px;margin-top:16px">
+        <div>
+          <div style="font-size:12px;color:var(--ink-3);margin-bottom:10px">🇰🇷 한국</div>
+          <div id="krEx" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--ink-3);margin-bottom:10px">🇺🇸 미국</div>
+          <div id="usEx" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 세 가지 도구 ══ -->
+    <section style="padding:40px 0 24px">
+      <span class="kick">세 가지 도구</span>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:18px">
+        <a class="card live" href="stock.html" style="text-decoration:none">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:18px">📈</span></div>
+          <div style="font-family:var(--font-display);font-weight:700;font-size:19px;margin-top:12px;color:var(--ink)">주식 가치평가</div>
+          <p style="font-size:13px;color:var(--ink-2);line-height:1.65;margin:9px 0 16px">재무·주가·업종 데이터로 적정주가를 3가지 방법으로 삼각측량하고, 업종 비교·자본비용(WACC)·백테스트·AI 평가까지 9개 탭으로 분석합니다.</p>
+          <span style="margin-top:auto;font-size:12.5px;font-weight:600;color:var(--dv-navy)">바로 이동 →</span>
+        </a>
+        <a class="card live" href="bond.html" style="text-decoration:none">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:18px">🏦</span></div>
+          <div style="font-family:var(--font-display);font-weight:700;font-size:19px;margin-top:12px;color:var(--ink)">채권</div>
+          <p style="font-size:13px;color:var(--ink-2);line-height:1.65;margin:9px 0 16px">한국 국고채·미국 국채 수익률곡선을 보고, 금리가 움직일 때 채권 가격이 얼마나 변하는지 듀레이션·볼록성으로 시나리오 분석합니다.</p>
+          <span style="margin-top:auto;font-size:12.5px;font-weight:600;color:var(--dv-navy)">바로 이동 →</span>
+        </a>
+        <a class="card live" href="portfolio.html" style="text-decoration:none">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:18px">🧺</span></div>
+          <div style="font-family:var(--font-display);font-weight:700;font-size:19px;margin-top:12px;color:var(--ink)">포트폴리오</div>
+          <p style="font-size:13px;color:var(--ink-2);line-height:1.65;margin:9px 0 16px">분석한 주식·채권과 예금·금·리츠를 담아 위험(σ)-기대수익 평면에서 내 포트폴리오의 위치와 성과지표(샤프·트레이너)를 확인합니다.</p>
+          <span style="margin-top:auto;font-size:12.5px;font-weight:600;color:var(--dv-navy)">바로 이동 →</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer style="border-top:1px solid var(--line);background:var(--paper-2);padding:20px 30px;margin-top:28px">
+    <div style="max-width:var(--content-max);margin:0 auto;display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap">
+      <div style="font-size:11.5px;color:var(--ink-3);line-height:1.7"><span style="letter-spacing:0.1em;text-transform:uppercase;font-weight:600;color:var(--ink-2)">데이터 출처</span><br/>Yahoo Finance · 네이버금융 · KRX · OpenDART(공시 원본) · FRED</div>
+      <div style="font-size:11.5px;color:var(--ink-3);line-height:1.7;max-width:62ch">본 도구는 <b style="color:var(--ink-2)">학습·분석 보조용</b>이며 특정 상품의 매수·매도 추천이 아닙니다. 무료 공개 데이터 특성상 실제 공시·시세와 다를 수 있으며, 최종 판단과 책임은 이용자 본인에게 있습니다.</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var EX = { KR: [['삼성전자', '005930'], ['현대차', '005380'], ['NAVER', '035420'], ['KB금융', '105560']], US: [['Apple', 'AAPL'], ['Microsoft', 'MSFT'], ['Coca-Cola', 'KO'], ['Rivian', 'RIVN']] };
+    function chips(mk) {
+      return EX[mk].map(function (e) { return '<a class="chip" href="stock.html?market=' + mk + '&q=' + encodeURIComponent(e[1]) + '">' + e[0] + ' <span class="mono">' + e[1] + '</span></a>'; }).join('');
+    }
+    document.getElementById('krEx').innerHTML = chips('KR');
+    document.getElementById('usEx').innerHTML = chips('US');
+    document.getElementById('navSearch').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var q = document.getElementById('navSearchInput').value.trim().split(/\s+/)[0];
+      if (q) location.href = 'stock.html?q=' + encodeURIComponent(q);
+    });
+  })();
+</script>
+</body>
+</html>

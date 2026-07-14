@@ -1,0 +1,147 @@
+/* ══════════════════════════════════════════════════════════════════════
+   Meridian Design System — 투자지표 웹(홈페이지) 공통 스타일
+   기관·리서치 톤: 근-단색 잉크/페이퍼 + 데이터 시각화에만 채도.
+   출처: Claude Design 핸드오프(_ds/meridian-design-system) 토큰을 이식.
+   폰트는 페이지 핸드오프 최종본 기준 — Noto Sans KR(디스플레이·숫자) +
+   IBM Plex Sans KR(본문). 숫자는 tabular(tnum).
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Base ink & paper ── 색은 데이터·이미지에만, UI 크롬은 근-단색 ── */
+  --paper:        #FFFFFF;
+  --paper-2:      #F7F6F3;   /* warm off-white, 교차 섹션 */
+  --paper-3:      #EFEDE8;   /* subtle fill, hover */
+
+  --ink:          #16130F;   /* warm near-black — 본문·CTA */
+  --ink-2:        #514C45;   /* 2차 텍스트 */
+  --ink-3:        #8A847B;   /* muted / caption / meta */
+  --ink-4:        #B3ADA3;   /* 최약 — 탭 번호 등 */
+  --ink-inverse:  #FFFFFF;
+
+  --line:         #E4E1DB;   /* 헤어라인 기본 구분선·카드 보더 */
+  --line-strong:  #C9C5BD;   /* 강조 헤어라인 / 인풋 보더 */
+
+  /* ── Brand bands (풀블리드 전용, 라이트 UI엔 쓰지 않음) ── */
+  --green:        #12352A;   --green-2: #0D2820;
+  --green-ink:    #E8EFE9;   --green-muted: #9FB8AC;  --green-line: #2C4C40;
+  --navy:         #131E36;   --navy-2: #0D1526;
+  --navy-ink:     #E6EAF2;   --navy-muted: #93A0BC;   --navy-line: #29344F;
+
+  /* ── CTA ── */
+  --cta: #16130F;  --cta-hover: #302A22;  --cta-ink: #FFFFFF;
+
+  /* ── Data-visualization palette (색이 실제로 사는 곳) ── */
+  --dv-green:  #2F7D5B;  --dv-navy: #2B4A82;  --dv-clay: #B5643C;
+  --dv-gold:   #C08A2E;  --dv-slate:#6E7B85;  --dv-plum: #6E4A6B;  --dv-teal: #2E7C82;
+  --dv-positive: #2F7D5B;  /* 상승 */
+  --dv-negative: #B5643C;  /* 하락 — 알람레드 아님 */
+
+  /* ── Feedback ── */
+  --success: #2F7D5B;  --warning: #C08A2E;  --danger: #A23A2A;  --info: #2B4A82;
+
+  /* ── Radii — 에디토리얼·랩: 거의 직각. CTA만 pill ── */
+  --radius-sm: 2px;  --radius-md: 4px;  --radius-lg: 8px;  --radius-pill: 999px;
+
+  /* ── Shadows — 절제. 신뢰는 여백으로 말한다 ── */
+  --shadow-sm: 0 1px 2px rgba(20,19,15,0.04);
+  --shadow-md: 0 6px 20px rgba(20,19,15,0.07);
+  --shadow-lg: 0 18px 48px rgba(20,19,15,0.10);
+
+  /* ── Motion ── */
+  --ease-out: cubic-bezier(0.22,0.61,0.36,1);
+  --dur-fast: 120ms;  --dur-med: 200ms;
+
+  /* ── Layout ── */
+  --container-wide: 1440px;
+  --content-max: 1180px;
+
+  /* ── Type ── */
+  --font-display: 'Noto Sans KR','IBM Plex Sans KR',system-ui,sans-serif;
+  --font-sans:    'IBM Plex Sans KR','IBM Plex Sans',system-ui,sans-serif;
+  --font-mono:    'Noto Sans KR',ui-monospace,monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum' 1;   /* 숫자 tabular */
+}
+
+a { color: var(--ink); text-decoration: none; }
+a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+/* 이바로우(kicker) — 대문자·와이드 트래킹 라벨 */
+.kick {
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-3); font-family: var(--font-sans); white-space: nowrap;
+}
+
+/* 표 헤더용 소캡스 라벨 */
+.col-label {
+  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
+}
+
+/* 세그먼트 컨트롤 (KR/US, A/B/C, 3M/6M/1Y, PER/PBR …) */
+.seg {
+  display: inline-flex; border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill); padding: 2px; background: var(--paper);
+}
+.seg button {
+  appearance: none; border: none; cursor: pointer; font-family: var(--font-sans);
+  font-size: 12.5px; white-space: nowrap; font-weight: 500; padding: 5px 13px;
+  border-radius: var(--radius-pill); line-height: 1.3; background: transparent; color: var(--ink-2);
+}
+.seg button.on { font-weight: 600; background: var(--ink); color: #fff; }
+
+/* Meridian 버튼 */
+.btn {
+  appearance: none; cursor: pointer; font-family: var(--font-sans); font-weight: 600;
+  font-size: 13px; border-radius: var(--radius-pill); padding: 0 16px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
+  border: 1px solid transparent; transition: background var(--dur-fast) var(--ease-out);
+}
+.btn-primary { background: var(--cta); color: var(--cta-ink); }
+.btn-primary:hover { background: var(--cta-hover); }
+.btn-secondary { background: var(--paper); color: var(--ink); border-color: var(--line-strong); }
+.btn-secondary:hover { background: var(--paper-3); }
+.btn-sm { height: 32px; font-size: 12.5px; padding: 0 13px; }
+
+/* Meridian 배지 */
+.badge {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
+  font-size: 11px; font-weight: 600; border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong); color: var(--ink-2); background: var(--paper);
+}
+.badge-info { color: var(--dv-navy); border-color: color-mix(in srgb, var(--dv-navy) 35%, var(--line)); }
+.badge-positive { color: var(--dv-positive); border-color: color-mix(in srgb, var(--dv-positive) 35%, var(--line)); }
+
+/* range 슬라이더 */
+input[type=range] {
+  -webkit-appearance: none; appearance: none; height: 3px;
+  background: var(--line-strong); border-radius: 2px; outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--ink); cursor: pointer;
+}
+input[type=range]::-moz-range-thumb {
+  width: 14px; height: 14px; border: none; border-radius: 50%; background: var(--ink); cursor: pointer;
+}
+
+:focus-visible { outline: 2px solid var(--focus-ring, var(--dv-navy)); outline-offset: 2px; }
+
+::-webkit-scrollbar { height: 8px; width: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 4px; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>투자지표 — 주식 가치평가 상세</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/meridian.css">
+<style>
+  .navlink { color: var(--ink-3); cursor: pointer; }
+  .navlink:hover { color: var(--ink); }
+  .tabbar { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tabbtn { appearance: none; background: none; border: none; cursor: pointer; padding: 8px 15px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+  .tabbtn .tn { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.1em; color: var(--ink-4); }
+  .tabbtn .tl { font-family: var(--font-sans); font-size: 13.5px; font-weight: 500; color: var(--ink-2); }
+  .tabbtn.on { border-bottom-color: var(--ink); }
+  .tabbtn.on .tn { color: var(--ink-3); }
+  .tabbtn.on .tl { font-weight: 600; color: var(--ink); }
+  .panel { display: none; }
+  .panel.on { display: block; animation: fadeIn .25s ease; padding-top: 26px; }
+  .hv { display: none; }
+  .hv.on { display: block; animation: fadeIn .25s ease; }
+  .ma-btn { appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: transparent; border-radius: var(--radius-sm); padding: 4px 9px; font-family: var(--font-sans); font-size: 12px; color: var(--ink-3); }
+  .ma-btn .dash { width: 9px; height: 2px; background: var(--line-strong); display: inline-block; }
+  .ma-btn.on { background: var(--paper); color: var(--ink); }
+  .chev { transition: transform var(--dur-med) var(--ease-out); }
+  .chev.open { transform: rotate(180deg); }
+  .aside-wrap { flex: none; overflow: hidden; border-right: 1px solid var(--line); transition: width .28s var(--ease-out); width: 279px; }
+  .aside-wrap.collapsed { width: 0; }
+  /* 테이블 공통(데이터 렌더) */
+  .tbl { border-top: 1px solid var(--line-strong); }
+  .tbl .row { display: grid; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: center; }
+  .tbl .row.head { padding: 9px 0; }
+  .tbl .row.self { background: var(--paper-2); }
+  .tbl .row.total { background: var(--paper-2); padding: 13px 0; }
+  .tbl .mono { font-family: var(--font-mono); }
+  .tbl .r { text-align: right; }
+  .tbl .c { text-align: center; }
+  .tbl .col-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .cmt { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 15px 17px; display: flex; gap: 12px; }
+  .cmt.key { border-color: var(--dv-navy); background: var(--paper-2); }
+  /* 업종비교: 클릭-검색 행 hover + 점↔행 상호 하이라이트(절제) */
+  .tbl .row[data-q]:hover { background: var(--paper-3); }
+  .tbl .row.self[data-q]:hover { background: var(--paper-2); }
+  .tbl .row.linked { background: var(--paper-2); box-shadow: inset 2px 0 0 var(--dv-navy); }
+  #peerScatter .pt:hover .dot, #peerScatter .pt.linked .dot { stroke: var(--dv-navy); stroke-width: 2.6; }
+  #peerScatter .pt:hover .lbl, #peerScatter .pt.linked .lbl { fill: var(--ink); font-weight: 700; }
+  /* AI 마크다운 렌더 */
+  .aimd h3 { font-size: 15px; font-weight: 700; margin: 18px 0 6px; color: var(--ink); }
+  .aimd p { font-size: 13px; color: var(--ink-2); line-height: 1.75; margin: 6px 0; }
+  .aimd ul { margin: 6px 0; padding-left: 20px; }
+  .aimd li { font-size: 13px; color: var(--ink-2); line-height: 1.7; margin: 3px 0; }
+  .aimd blockquote { border-left: 2px solid var(--line-strong); margin: 12px 0; padding: 4px 0 4px 13px; color: var(--ink-3); font-size: 11.5px; line-height: 1.6; }
+  .aimd strong { color: var(--ink); font-weight: 600; }
+  /* 로딩/에러 오버레이 */
+  #status { position: fixed; inset: 58px 0 0 0; background: rgba(255,255,255,.82); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 40; }
+  #status.on { display: flex; }
+  #status .box { text-align: center; color: var(--ink-2); }
+  .spin { width: 26px; height: 26px; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite; margin: 0 auto 14px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
+
+  <!-- ══ TOP NAV ══ -->
+  <header style="height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:26px;padding:0 26px;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
+    <div style="display:flex;align-items:baseline;gap:8px;flex:none;white-space:nowrap">
+      <span style="font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-0.01em">투자지표</span>
+      <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--ink-3);letter-spacing:0.1em;border:1px solid var(--line);padding:1px 5px;border-radius:2px">BETA</span>
+    </div>
+    <nav style="display:flex;gap:4px;align-items:center;white-space:nowrap">
+      <a class="navlink" href="home.html" style="font-size:13.5px;padding:6px 10px">홈</a>
+      <span style="font-size:13.5px;font-weight:600;color:var(--ink);padding:6px 10px;border-bottom:2px solid var(--ink)">주식 가치평가</span>
+      <a class="navlink" href="bond.html" style="font-size:13.5px;padding:6px 10px">채권</a>
+      <a class="navlink" href="portfolio.html" style="font-size:13.5px;padding:6px 10px">포트폴리오</a>
+      <a class="navlink" href="guide.html" style="font-size:13.5px;padding:6px 10px">사용설명서</a>
+    </nav>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
+      <form id="navSearch" style="display:flex;align-items:center;gap:7px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:5px 10px;min-width:230px;color:var(--ink-3)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="navSearchInput" placeholder="종목 코드 또는 이름 검색…" style="border:none;outline:none;background:transparent;font-family:var(--font-sans);font-size:13px;color:var(--ink);width:100%" />
+      </form>
+      <span style="font-family:var(--font-mono);font-size:12px;color:var(--ink-3)">09:41 KST</span>
+      <span style="width:27px;height:27px;border-radius:50%;background:var(--green);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-family:var(--font-mono)">투</span>
+    </div>
+  </header>
+
+  <div style="flex:1;display:flex;min-height:0;position:relative">
+
+    <!-- ══ LEFT SIDEBAR ══ -->
+    <div class="aside-wrap" id="sidebarWrap">
+    <aside style="width:278px;flex:none;padding:22px 20px;display:flex;flex-direction:column;gap:24px;overflow-y:auto;height:100%">
+      <div>
+        <div class="kick" style="margin-bottom:9px">시장 · Market</div>
+        <div class="seg" id="marketSeg">
+          <button class="on" data-val="KR">KR 한국</button>
+          <button data-val="US">US 미국</button>
+        </div>
+      </div>
+      <div>
+        <div class="kick" style="margin-bottom:9px">종목 · Ticker</div>
+        <form id="tickerForm" style="display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:8px 11px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="tickerInput" value="035420" style="border:none;outline:none;font-family:var(--font-sans);font-size:14px;color:var(--ink);width:100%;background:transparent" />
+        </form>
+        <div id="examples" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:18px">
+        <button id="assumeToggle" style="appearance:none;background:none;border:none;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:space-between;width:100%;color:var(--ink)">
+          <span style="display:flex;align-items:baseline;gap:8px"><span style="font-size:13.5px;font-weight:600">가정</span><span style="font-size:11px;color:var(--ink-3)">Assumptions</span></span>
+          <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="assumeBody" style="display:none;margin-top:14px;flex-direction:column;gap:14px">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12.5px;color:var(--ink-2)">무위험이자율 R<sub style="font-size:9px">f</sub></span><span class="mono" style="font-size:12.5px" id="asmRf">3.50%</span></div>
+            <div style="font-size:11px;color:var(--ink-3);margin-top:2px">채권 탭 10Y 국채 금리 기본값</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12.5px;color:var(--ink-2)">시장위험프리미엄 MRP</span><span class="mono" style="font-size:12.5px" id="asmMrp">6.00%</span></div>
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12.5px;color:var(--ink-2)">업종 피어 수</span><span class="mono" style="font-size:12.5px"><span id="peerCountVal">9</span>개</span></div>
+            <input type="range" min="5" max="15" value="9" id="peerSlider" style="width:100%;margin-top:8px" />
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:auto;border-top:1px solid var(--line);padding-top:14px">
+        <div class="kick" style="margin-bottom:6px">재무 출처</div>
+        <div id="finSource" style="font-size:11.5px;color:var(--ink-3);line-height:1.7">한국 공시 원본 · OpenDART<br/>시세 · KRX / 네이버금융</div>
+      </div>
+    </aside>
+    </div>
+    <button id="sidebarToggle" title="사이드바 접기" style="position:absolute;top:16px;left:266px;z-index:20;width:26px;height:26px;border-radius:50%;border:1px solid var(--line-strong);background:var(--paper);cursor:pointer;box-shadow:var(--shadow-sm);display:inline-flex;align-items:center;justify-content:center;padding:0;transition:left .28s var(--ease-out);color:var(--ink-2)">
+      <svg id="sidebarChev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+
+    <!-- ══ MAIN ══ -->
+    <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <div style="flex:1;padding:24px 30px 8px 34px;max-width:var(--content-max);width:100%">
+
+        <div class="hv on" id="hv-B"></div>
+
+        <div id="tiles" style="display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--line);margin-top:22px;padding-top:18px"></div>
+
+        <div id="warnWrap" style="margin-top:14px"></div>
+
+        <div style="margin-top:26px">
+          <div class="tabbar" id="tabBar">
+            <button class="tabbtn" data-tab="company"><span class="tn">01</span><span class="tl">기업·뉴스</span></button>
+            <button class="tabbtn on" data-tab="summary"><span class="tn">02</span><span class="tl">요약·판정</span></button>
+            <button class="tabbtn" data-tab="price"><span class="tn">03</span><span class="tl">주가차트</span></button>
+            <button class="tabbtn" data-tab="valuation"><span class="tn">04</span><span class="tl">밸류에이션</span></button>
+            <button class="tabbtn" data-tab="financials"><span class="tn">05</span><span class="tl">재무 분석</span></button>
+            <button class="tabbtn" data-tab="peers"><span class="tn">06</span><span class="tl">업종 비교</span></button>
+            <button class="tabbtn" data-tab="wacc"><span class="tn">07</span><span class="tl">자본비용</span></button>
+            <button class="tabbtn" data-tab="backtest"><span class="tn">08</span><span class="tl">백테스트</span></button>
+            <button class="tabbtn" data-tab="ai"><span class="tn">09</span><span class="tl">종합 평가</span></button>
+          </div>
+        </div>
+
+        <!-- 02 요약·판정 -->
+        <section class="panel on" data-tab="summary" id="panel-summary">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <span class="kick">Fair value — 적정주가 vs 현재가</span>
+            <span style="font-size:12px;color:var(--ink-3)">3가지 방법을 삼각측량 → 판정</span>
+          </div>
+          <div style="margin-top:18px" id="bulletChart"></div>
+          <div style="margin-top:20px" id="methodsTable" class="tbl"></div>
+
+          <div style="margin-top:38px;border-top:1px solid var(--line);padding-top:26px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between">
+              <span class="kick">Score — 업종 피어 대비 백분위</span>
+              <span style="font-size:12px;color:var(--ink-3)">50 = 업종 중앙값 · 높을수록 업종 내 우위</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:40px;margin-top:18px;align-items:center">
+              <div style="width:320px;flex:none">
+                <div id="radarChart"></div>
+                <div style="display:flex;align-items:baseline;gap:10px;border-top:1px solid var(--line);padding-top:14px;margin-top:6px">
+                  <span class="mono" id="scoreOverall" style="font-size:36px;font-weight:600">—</span>
+                  <span style="font-size:14px;color:var(--ink-3)">/ 100 종합 점수</span>
+                </div>
+              </div>
+              <div style="flex:1;min-width:340px;display:flex;flex-direction:column;gap:16px" id="scoreBars"></div>
+            </div>
+          </div>
+
+          <div style="margin-top:34px">
+            <span class="kick">판정 근거 — 규칙 기반 자동 해설</span>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px" id="commentary"></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--ink-3)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+              <span style="font-size:11.5px">규칙 기반 자동 해설이며 투자 자문이 아닙니다. 판정·점수는 무료 공개 데이터에 기반하며 결측·추정을 포함할 수 있습니다.</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 03 주가차트 -->
+        <section class="panel" data-tab="price" id="panel-price">
+          <div id="priceTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-top:20px">
+            <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+              <div class="seg" id="priceModeSeg"><button class="on" data-val="abs">절대 주가</button><button data-val="rel">지수 대비</button></div>
+              <div id="maToggles" style="display:inline-flex;gap:8px;align-items:center">
+                <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-3)">이동평균</span>
+                <button class="ma-btn on" data-ma="m20" style="border-color:var(--dv-gold);color:var(--ink)"><span class="dash" style="background:var(--dv-gold)"></span>20일</button>
+                <button class="ma-btn on" data-ma="m60" style="border-color:var(--dv-slate);color:var(--ink)"><span class="dash" style="background:var(--dv-slate)"></span>60일</button>
+                <button class="ma-btn" data-ma="m120"><span class="dash"></span>120일</button>
+              </div>
+            </div>
+            <div class="seg" id="periodSeg"><button data-val="3M">3M</button><button data-val="6M">6M</button><button class="on" data-val="1Y">1Y</button></div>
+          </div>
+          <div style="margin-top:16px;min-height:260px" id="priceChart"></div>
+          <div style="font-size:11.5px;color:var(--ink-3);margin-top:8px" id="priceCaption">종가 · 이동평균(20/60/120일) · 거래량. <b style="color:var(--ink-2)">휠·트랙패드로 확대·축소, 드래그로 이동, 더블클릭으로 리셋</b>. 마우스를 올리면 상세값이 표시됩니다. 지수 대비 모드는 기간 시작일=100 기준 벤치마크와 누적 비교.</div>
+        </section>
+
+        <!-- 04 밸류에이션 -->
+        <section class="panel" data-tab="valuation" id="panel-valuation">
+          <span class="kick">멀티플 비교 — Multiples</span>
+          <div style="margin-top:14px" id="multiplesTable" class="tbl"></div>
+          <div style="font-size:11.5px;color:var(--ink-3);margin-top:8px">공식 참고치(네이버금융 · pykrx PER·PBR·배당) 기준. 값이 없으면 — (N/A)로 표기. 파란 점은 업종 대비 저평가.</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:34px">
+            <span class="kick">역사적 밴드 — Historical band</span>
+            <div class="seg" id="bandSeg"><button class="on" data-val="PER">PER</button><button data-val="PBR">PBR</button></div>
+          </div>
+          <div style="margin-top:14px;min-height:250px" id="bandChart"></div>
+          <div style="font-size:11.5px;color:var(--ink-3);margin-top:8px" id="bandCaption"></div>
+        </section>
+
+        <!-- 01 기업·뉴스 -->
+        <section class="panel" data-tab="company" id="panel-company">
+          <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:44px">
+            <div id="companyInfo"></div>
+            <div><span class="kick">뉴스 — 기업 → 산업 → 거시</span><div id="newsList" style="margin-top:14px"></div><div id="newsAiWrap" style="margin-top:16px"></div></div>
+          </div>
+        </section>
+
+        <!-- 05 재무 분석 -->
+        <section class="panel" data-tab="financials" id="panel-financials">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
+            <div><span class="kick" id="finGrowthLabel">성장성 — 매출·영업이익·순이익</span><div style="margin-top:14px" id="finGrowth"></div></div>
+            <div><span class="kick">안정성 — 부채비율·유동비율</span><div style="margin-top:14px" id="finStability"></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:4px">금융업 종목에서는 이 지표가 의미 없어 자동 숨김됩니다.</div></div>
+          </div>
+          <div style="margin-top:34px;max-width:620px"><span class="kick" id="finCashLabel">현금흐름 — 영업현금흐름·잉여현금흐름</span><div style="margin-top:14px" id="finCash"></div></div>
+          <div style="margin-top:32px;border:1px solid var(--line);border-radius:var(--radius-md)">
+            <button id="finTableToggle" style="appearance:none;background:none;border:none;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:space-between;padding:13px 16px;color:var(--ink)">
+              <span style="font-size:13.5px;font-weight:600">연간 재무제표 요약</span>
+              <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div id="finTableBody" style="display:none;padding:0 16px 16px"></div>
+          </div>
+        </section>
+
+        <!-- 06 업종 비교 -->
+        <section class="panel" data-tab="peers" id="panel-peers">
+          <div style="display:grid;grid-template-columns:1.05fr 1fr;gap:40px">
+            <div>
+              <span class="kick" id="peerLabel">피어 비교</span>
+              <div style="margin-top:14px" id="peerTable" class="tbl"></div>
+              <div style="font-size:11.5px;color:var(--ink-3);margin-top:8px" id="peerBasis">제외할 기업을 선택하면 적정주가·점수·랭킹이 재계산됩니다(프로토타입에서는 표시만).</div>
+            </div>
+            <div><span class="kick">PER × ROE 지도 — 왼쪽 위일수록 매력적</span><div style="margin-top:12px" id="peerScatter"></div></div>
+          </div>
+          <div style="margin-top:32px">
+            <span class="kick">업종 내 저평가·우량 랭킹 — 가치 60% + 수익성 40%</span>
+            <div style="margin-top:14px" id="rankTable" class="tbl"></div>
+          </div>
+        </section>
+
+        <!-- 07 자본비용 -->
+        <section class="panel" data-tab="wacc" id="panel-wacc">
+          <div style="font-size:11.5px;color:var(--ink-3);margin-bottom:16px" id="waccPeriod"></div>
+          <div id="waccTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px">
+            <div><span class="kick">베타 회귀 — 주간수익률 산점도</span><div style="margin-top:12px" id="betaScatter"></div></div>
+            <div><span class="kick">WACC 구성 — 워터폴</span><div style="margin-top:12px" id="waccWaterfall"></div></div>
+          </div>
+          <div id="waccSummary" style="display:flex;flex-wrap:wrap;gap:0;margin-top:28px;border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden"></div>
+          <div style="margin-top:28px;max-width:620px">
+            <span class="kick">ROIC vs WACC — 시계열</span>
+            <div style="margin-top:12px" id="roicSeries"></div>
+            <div style="font-size:11.5px;color:var(--ink-3);margin-top:4px" id="roicCaption">ROIC가 WACC 위에 있어야 성장이 곧 가치 창출.</div>
+          </div>
+        </section>
+
+        <!-- 08 백테스트 -->
+        <section class="panel" data-tab="backtest" id="panel-backtest">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+            <div style="max-width:66ch">
+              <span class="kick">과거에 이 종목이 쌌을 때, 그 뒤 수익은?</span>
+              <div style="font-size:12.5px;color:var(--ink-3);margin-top:7px;line-height:1.65">이 종목이 <b style="color:var(--ink-2)">자기 역사적 정상 배수보다 크게 쌌던(저평가) 과거 시점</b>들을 골라, 그 뒤 3·6·12개월 수익이 실제로 어땠는지 <b style="color:var(--ink-2)">그저 관찰</b>합니다. 툴이 맞았다는 증명이 아니라, 판단에 참고할 통계일 뿐입니다.</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex:none"><span style="font-size:12px;color:var(--ink-2)">저평가 기준</span><span class="mono" style="font-size:13px">적정가 대비 +30%↑</span></div>
+          </div>
+          <div id="btTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:16px"></div>
+          <div id="btLede" style="font-size:13px;color:var(--ink-2);margin-top:14px;line-height:1.65"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:26px">
+            <div><span class="kick">기간별 — 저평가에 샀을 때 vs 아무 때나</span><div style="margin-top:14px" id="btTable" class="tbl"></div></div>
+            <div><span class="kick">저평가율이 클수록 이후 수익이 높았나</span><div style="margin-top:12px" id="backtestScatter"></div></div>
+          </div>
+          <details style="margin-top:26px;border:1px solid var(--line);border-radius:var(--radius-md)">
+            <summary style="cursor:pointer;padding:12px 15px;font-size:13px;color:var(--ink-2);font-weight:600">예시 매매전략 자산곡선 — 참고용 (펼치기)</summary>
+            <div style="padding:2px 15px 16px">
+              <div style="font-size:11.5px;color:var(--warning);line-height:1.6;margin-bottom:10px">‘저평가일 때만 보유’ 같은 사후 규칙은 <b>과최적화</b>에 특히 취약합니다 — 곡선의 절대 높이보다 방향성만 참고하세요.</div>
+              <div id="equityCurve"></div>
+            </div>
+          </details>
+          <div style="display:flex;align-items:flex-start;gap:8px;margin-top:16px;color:var(--warning)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <span style="font-size:11.5px;color:var(--ink-2);line-height:1.6">단일 종목·짧은 표본이라 과최적화·생존편향에 취약하며, 거래비용·세금이 반영되지 않았습니다. <b>과거의 평균회귀가 미래를 보장하지 않습니다.</b> 이 화면은 판단 보조용 관찰이며 매매 신호가 아닙니다.</span>
+          </div>
+        </section>
+
+        <!-- 09 AI -->
+        <section class="panel" data-tab="ai" id="panel-ai"><div style="max-width:820px" id="aiContent"></div></section>
+
+      </div>
+
+      <footer style="border-top:1px solid var(--line);background:var(--paper-2);padding:18px 30px;margin-top:20px">
+        <div style="max-width:var(--content-max);display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap">
+          <div style="font-size:11.5px;color:var(--ink-3);line-height:1.7"><span style="letter-spacing:0.1em;text-transform:uppercase;font-weight:600;color:var(--ink-2)">데이터 출처</span><br/>Yahoo Finance · 네이버금융 · KRX · OpenDART(공시 원본) · FRED</div>
+          <div style="font-size:11.5px;color:var(--ink-3);line-height:1.7;max-width:62ch">본 대시보드는 <b style="color:var(--ink-2)">학습·분석 보조 도구</b>이며 특정 종목의 매수·매도를 추천하지 않습니다. 적정주가·판정·점수는 무료 공개 데이터에 기반한 추정치로 결측·오차를 포함할 수 있으며, 최종 투자 판단과 책임은 이용자 본인에게 있습니다.</div>
+        </div>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<div id="status"><div class="box"><div class="spin"></div><div id="statusMsg" style="font-size:13.5px">데이터 수집 중…</div></div></div>
+
+<script src="assets/stock.js"></script>
+</body>
+</html>

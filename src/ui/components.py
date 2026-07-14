@@ -69,17 +69,20 @@ def _is_na(v) -> bool:
 
 
 def fmt_money(v, currency: str = "KRW") -> str:
-    """1616496000000000 → '1,616조 4,960억' / 4.5e12 → '$4.50T'"""
+    """단일 단위 + 유효숫자로 짧게. 5.003e14 → '500.3조', 8.5e11 → '8,500억', 4.5e12 → '$4.50T'.
+
+    (좁은 메트릭 칸에서 줄바꿈/잘림을 막기 위해 '조 억' 2단 표기 대신 한 단위로 반올림)
+    """
     if _is_na(v):
         return "—"
     v = float(v)
     sign = "-" if v < 0 else ""
     a = abs(v)
     if currency == "KRW":
-        if a >= 1e12:
-            jo = int(a // 1e12)
-            eok = int(round((a % 1e12) / 1e8))
-            return f"{sign}{jo:,}조 {eok:,}억" if eok else f"{sign}{jo:,}조"
+        if a >= 1e14:            # 100조 이상은 소수 없이
+            return f"{sign}{a / 1e12:,.0f}조"
+        if a >= 1e12:            # 1조~100조는 소수 1자리
+            return f"{sign}{a / 1e12:,.1f}조"
         if a >= 1e8:
             return f"{sign}{a / 1e8:,.0f}억"
         return f"{sign}{a:,.0f}원"
@@ -116,6 +119,15 @@ def label(key: str) -> str:
     return LABELS.get(key, key)
 
 
+def section_header_html(eyebrow: str, title: str, desc: str = "") -> str:
+    """리서치 리포트식 섹션 헤더 — 영문 오버라인 + 제목(+ 우측 보조설명).
+
+    스타일은 theme.py의 .eyebrow / .sec-desc 클래스가 담당. st.markdown(unsafe_allow_html=True)로 출력.
+    """
+    d = f" <span class='sec-desc'>{desc}</span>" if desc else ""
+    return f"<p class='eyebrow'>{eyebrow}</p><h5>{title}{d}</h5>"
+
+
 def verdict_badge_html(verdict: str | None, gap: float | None,
                        confidence: str | None) -> str:
     if not verdict:
@@ -126,9 +138,36 @@ def verdict_badge_html(verdict: str | None, gap: float | None,
     return f"""
     <div style="display:inline-flex;align-items:center;gap:10px;">
       <span style="background:{color};color:#fff;padding:6px 16px;border-radius:20px;
-                   font-size:1.05rem;font-weight:700;">{verdict}</span>
+                   font-size:1.05rem;font-weight:700;white-space:nowrap;">{verdict}</span>
       <span style="color:#52514e;font-size:0.9rem;">{gap_txt.lstrip(" ·")}{conf_txt}</span>
     </div>"""
+
+
+def guide_link_html(label: str = "📖 사용설명서 열기 (새 탭)", block: bool = False) -> str:
+    """설명 페이지(/guide)를 새 탭으로 여는 버튼형 링크. block=True면 가로 꽉 채움.
+
+    href는 상대경로 'guide' — 현재 어느 페이지에서든 같은 앱의 guide 페이지 새 탭으로 열린다.
+    """
+    width = "display:block;width:100%;box-sizing:border-box;" if block else "display:inline-block;"
+    return (
+        f"<a href='guide' target='_blank' rel='noopener' style='{width}text-align:center;"
+        "text-decoration:none;padding:8px 16px;border:1px solid #c3c2b7;border-radius:10px;"
+        "background:#fcfcfb;color:#1c5cab;font-weight:600;font-size:0.92rem;'>"
+        f"{label} ↗</a>")
+
+
+# 뉴스 카테고리·태그 배지 색 (카테고리는 팔레트 시리즈, 태그는 중립)
+NEWS_CAT_COLORS = {"기업": "#2a78d6", "산업": "#1baf7a", "거시": "#4a3aa7"}
+
+
+def news_badge_html(text: str, kind: str = "tag") -> str:
+    """뉴스 카테고리('기업'·'산업'·'거시')/태그 미니 배지."""
+    if kind == "category":
+        bg, fg = NEWS_CAT_COLORS.get(text, "#898781"), "#fff"
+    else:
+        bg, fg = "#f0efec", "#52514e"
+    return (f"<span style='background:{bg};color:{fg};padding:1px 8px;border-radius:10px;"
+            f"font-size:0.78rem;white-space:nowrap;'>{text}</span>")
 
 
 def score_bar_html(score: float | None, width: int = 90) -> str:

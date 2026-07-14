@@ -125,10 +125,16 @@ def generate_text(prompt: str, temperature: float = 0.4, max_tokens: int = 2048,
     cfg = {"temperature": temperature, "maxOutputTokens": max_tokens}
     if json_out:
         cfg["responseMimeType"] = "application/json"
-    body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": cfg}
 
     denied, exhausted, last = [], False, ""
     for model in resolve_candidates():
+        # Gemini 2.5 계열은 기본적으로 추론(thinking) 토큰을 소모하는데, 그게
+        # maxOutputTokens 예산을 다 먹어 본문(특히 JSON)이 잘려 나온다(finishReason=MAX_TOKENS).
+        # 분석용 짧은 응답에는 추론이 불필요하므로 2.5 계열에서만 thinking을 끈다.
+        model_cfg = dict(cfg)
+        if "2.5" in model:
+            model_cfg["thinkingConfig"] = {"thinkingBudget": 0}
+        body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": model_cfg}
         r = requests.post(f"{BASE}/models/{model}:generateContent",
                           params={"key": key}, json=body, timeout=60)
         if r.status_code == 200:
