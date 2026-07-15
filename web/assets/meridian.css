@@ -7,10 +7,11 @@
    ══════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Base ink & paper ── 색은 데이터·이미지에만, UI 크롬은 근-단색 ── */
-  --paper:        #FFFFFF;
-  --paper-2:      #F7F6F3;   /* warm off-white, 교차 섹션 */
-  --paper-3:      #EFEDE8;   /* subtle fill, hover */
+  /* ── Base ink & paper ── 색은 데이터·이미지에만, UI 크롬은 근-단색 ──
+     지면은 순백이 아니라 미색 종이 — 화면 전체가 한 장의 리서치 문서로 읽히게. */
+  --paper:        #FBF9F5;   /* 미색 종이 지면 */
+  --paper-2:      #F4F0E9;   /* warm off-white, 교차 섹션 */
+  --paper-3:      #EDE8DE;   /* subtle fill, hover */
 
   --ink:          #16130F;   /* warm near-black — 본문·CTA */
   --ink-2:        #514C45;   /* 2차 텍스트 */
@@ -18,14 +19,16 @@
   --ink-4:        #B3ADA3;   /* 최약 — 탭 번호 등 */
   --ink-inverse:  #FFFFFF;
 
-  --line:         #E4E1DB;   /* 헤어라인 기본 구분선·카드 보더 */
-  --line-strong:  #C9C5BD;   /* 강조 헤어라인 / 인풋 보더 */
+  --line:         #E2DDD2;   /* 헤어라인 기본 구분선·카드 보더 */
+  --line-strong:  #C8C2B4;   /* 강조 헤어라인 / 인풋 보더 */
 
   /* ── Section spine — 분석 영역 구분 전용 웜 그레이지 ──
      섹션급 제목의 왼쪽 세로 룰과 섹션 번호에만 쓴다.
      의미색(dv-positive/negative)·데이터 팔레트와 역할이 겹치지 않는 중성 톤. */
   --spine:        #C7BCA8;   /* 2px 세로 룰 */
   --spine-ink:    #9C8C72;   /* 섹션 번호·스파인 옆 라벨 */
+  --spine-ink-strong: #8B7C60;  /* 틴트 밴드 위 섹션 번호 — 밴드 대비용 한 단계 진한 톤 */
+  --spine-band:   color-mix(in srgb, var(--spine) 16%, #FFFFFF);  /* 섹션 제목 틴트 밴드 */
 
   /* ── Brand bands (풀블리드 전용, 라이트 UI엔 쓰지 않음) ──
      용법: 딥 그린 밴드 = 홈의 위험 프로파일 안내처럼 '행동 유도' 블록,
@@ -70,6 +73,14 @@
 }
 
 * { box-sizing: border-box; }
+
+/* 종이 그레인 — 지면 전체에 얹는 초미세 질감. multiply 4.5%는 차트·본문 판독성에
+   영향이 없는 상한으로 스크린샷 검증을 거친 값 — 이 이상 올리지 않는다. */
+html::after {
+  content: ''; position: fixed; inset: 0; z-index: 2147483647; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27240%27%20height%3D%27240%27%3E%3Cfilter%20id%3D%27n%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.85%27%20numOctaves%3D%272%27%20stitchTiles%3D%27stitch%27%2F%3E%3CfeColorMatrix%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27240%27%20height%3D%27240%27%20filter%3D%27url%28%23n%29%27%2F%3E%3C%2Fsvg%3E");
+  background-size: 240px 240px; opacity: .045; mix-blend-mode: multiply;
+}
 
 .sr-only {
   position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
