@@ -51,8 +51,8 @@
     function color(v) {
       if (v == null) return 'var(--paper-3)';
       var t = Math.max(-1, Math.min(1, v));
-      if (t >= 0) { var a = t; return 'rgba(181,100,60,' + (0.12 + a * 0.7).toFixed(2) + ')'; }   // + → clay
-      return 'rgba(43,74,130,' + (0.12 + (-t) * 0.7).toFixed(2) + ')';                              // − → navy
+      if (t >= 0) { var a = t; return 'rgba(156,140,114,' + (0.12 + a * 0.7).toFixed(2) + ')'; }   // + → 스파인 그레이지(강도만 표현 — clay는 '하락·부정' 의미색이라 상관 강도에 쓰지 않는다)
+      return 'rgba(43,74,130,' + (0.12 + (-t) * 0.7).toFixed(2) + ')';                              // − → navy(역상관은 분산효과 신호라 의미색 유지)
     }
     var els = [];
     labels.forEach(function (lb, j) { els.push(el('text', { x: lblW + j * cell + cell / 2, y: top - 8, fontSize: 10.5, fill: 'var(--ink-2)', fontFamily: 'var(--font-sans)', textAnchor: 'start', transform: 'rotate(-40 ' + (lblW + j * cell + cell / 2) + ' ' + (top - 8) + ')' }, esc(lb.length > 10 ? lb.slice(0, 9) + '…' : lb))); });

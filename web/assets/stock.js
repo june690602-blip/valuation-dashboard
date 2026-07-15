@@ -165,10 +165,11 @@
         el('span', { style: { fontSize: '14px', fontWeight: 600 } }, k === '재무 안정성' ? '재무안정성' : k),
         el('div', {},
           el('div', { style: { position: 'relative', height: '30px', background: 'var(--paper-3)', border: '1px solid var(--line-strong)', borderRadius: '5px', overflow: 'hidden' } },
-            el('div', { style: { position: 'absolute', top: 0, bottom: 0, left: 0, width: w + '%', background: good ? 'var(--dv-green)' : 'var(--dv-clay)' } }),
+            // 의미색(강점=green·약점=clay)은 유지하되 종이 쪽으로 68% 톤다운 — 판정 막대보다 조용하게.
+            el('div', { style: { position: 'absolute', top: 0, bottom: 0, left: 0, width: w + '%', background: good ? 'color-mix(in srgb, var(--dv-green) 68%, var(--paper))' : 'color-mix(in srgb, var(--dv-clay) 68%, var(--paper))' } }),
             el('div', { style: { position: 'absolute', left: '50%', top: 0, bottom: 0, width: '2px', background: 'var(--ink)', opacity: 0.5 } }),
             el('span', { style: { position: 'absolute', left: '50%', top: '2px', transform: 'translateX(-50%)', fontSize: '8px', color: 'var(--ink-3)', fontFamily: 'var(--font-sans)' } }, '50'),
-            v == null ? '' : el('span', { style: { position: 'absolute', left: 'calc(' + w + '% - 8px)', top: '50%', transform: 'translate(-100%,-50%)', fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 700, color: 'var(--paper)' } }, Math.round(v))
+            v == null ? '' : el('span', { style: { position: 'absolute', left: 'calc(' + w + '% - 8px)', top: '50%', transform: 'translate(-100%,-50%)', fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 700, color: 'var(--ink)' } }, Math.round(v))
           ),
           el('div', { style: { fontSize: '12px', color: 'var(--ink-2)', marginTop: '5px', lineHeight: 1.4 } }, scoreDesc(k, v))
         )

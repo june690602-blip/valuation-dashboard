@@ -103,12 +103,14 @@
   .analysis-sections { border-bottom: 1px solid var(--line); }
   .analysis-section { border-top: 1px solid var(--line); padding: 28px 0 32px; }
   .analysis-section:first-child { border-top-color: var(--line-strong); }
-  .analysis-section-head { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: start; position: relative; }
-  .analysis-section-head::before { content: ''; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; background: var(--spine); border-radius: 1px; }
-  .analysis-section-index { font-family: var(--font-mono); font-size: 11px; color: var(--spine-ink); padding-top: 4px; padding-left: 12px; }
+  /* 섹션 제목 틴트 밴드 — 콘텐츠 폭에 맞춰 아주 연한 웜 틴트를 깔아 영역 전환을 알린다.
+     수평 패딩 없이 세로 패딩만 주어 본문(46px 들여쓰기)과 정렬이 유지된다. */
+  .analysis-section-head { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: start; position: relative; background: var(--spine-band); border-radius: var(--radius-sm); padding: 10px 0 12px; }
+  .analysis-section-head::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--spine); border-radius: 1px; }
+  .analysis-section-index { font-family: var(--font-mono); font-size: 11px; color: var(--spine-ink-strong); padding-top: 4px; padding-left: 12px; }
   .analysis-section-title { margin: 0; font-family: var(--font-display); font-size: 17px; line-height: 1.35; font-weight: 700; color: var(--ink); }
   .analysis-section-desc { margin: 5px 0 0; max-width: 62ch; font-size: 12.5px; line-height: 1.65; color: var(--ink-3); }
-  .analysis-section-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); white-space: nowrap; padding-top: 4px; }
+  .analysis-section-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); white-space: nowrap; padding-top: 4px; padding-right: 12px; }
   .analysis-section-body { margin: 20px 0 0 46px; }
   .analysis-section-chart { max-width: 760px; margin: 20px 0 0 46px; }
   .analysis-details { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius-md); }
