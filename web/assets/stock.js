@@ -709,7 +709,15 @@
     // 방법별 표
     var est = D.verdict.estimates || [], v = D.verdict;
     var head = '<div class="row head" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr"><span class="col-label">방법</span><span class="col-label r">적정가 범위</span><span class="col-label r">중심</span><span class="col-label">근거</span></div>';
-    var rows = est.map(function (e) { return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr"><span style="font-size:13.5px;font-weight:600">' + esc(e.method) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + '</span></div>'; }).join('');
+    // 방법 → 적정가 재료 번호·재료 탭 (요약 표에서 근거가 되는 탭으로 바로 이동)
+    var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'] };
+    var rows = est.map(function (e) {
+      var mt = METHOD_TAB[e.method];
+      var nameCell = mt
+        ? '<span style="font-size:13.5px;font-weight:600"><span class="methods-mno">' + mt[0] + '</span><button type="button" class="methods-goto" data-goto="' + mt[1] + '">' + esc(e.method) + ' ↗</button></span>'
+        : '<span style="font-size:13.5px;font-weight:600">' + esc(e.method) + '</span>';
+      return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + '</span></div>';
+    }).join('');
     var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">평균 적정가</span><span></span><span class="mono r" style="font-size:15px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
     $('methodsTable').innerHTML = est.length ? head + rows + total : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
     // 점수
@@ -965,11 +973,21 @@
     $('examples').innerHTML = EXAMPLES[state.market].map(function (e) { var on = e[1] === state.query; return '<span data-code="' + e[1] + '" style="font-size:12px;cursor:pointer;border-radius:var(--radius-sm);padding:4px 9px;' + (on ? 'color:var(--ink);font-weight:600;border:1px solid var(--ink)' : 'color:var(--ink-2);border:1px solid var(--line)') + '">' + esc(e[0]) + '</span>'; }).join('');
   }
 
+  function switchTab(tab) {
+    var bar = $('tabBar');
+    bar.querySelectorAll('.tabbtn').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-tab') === tab); });
+    document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-tab') === tab); });
+    state.hover = null;
+    if (tab === 'price' && D) renderPrice();
+  }
+
   function init() {
     wireSeg('marketSeg', function (v) { state.market = v; renderExamples(); });
     // 탭
     var bar = $('tabBar');
-    bar.addEventListener('click', function (e) { var b = e.target.closest('.tabbtn'); if (!b) return; var tab = b.getAttribute('data-tab'); bar.querySelectorAll('.tabbtn').forEach(function (x) { x.classList.toggle('on', x === b); }); document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-tab') === tab); }); state.hover = null; if (tab === 'price' && D) renderPrice(); });
+    bar.addEventListener('click', function (e) { var b = e.target.closest('.tabbtn'); if (!b) return; switchTab(b.getAttribute('data-tab')); });
+    // 방법별 표의 ①②③ 방법명 → 해당 재료 탭으로 이동
+    $('methodsTable').addEventListener('click', function (e) { var g = e.target.closest('.methods-goto'); if (!g) return; switchTab(g.getAttribute('data-goto')); $('tabBar').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     // 종목 입력
     $('tickerForm').addEventListener('submit', function (e) { e.preventDefault(); var q = $('tickerInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; load(); } });
     $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; $('tickerInput').value = q; load(); } });
