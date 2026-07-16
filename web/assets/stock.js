@@ -78,6 +78,9 @@
   function fmtX(v) { if (v == null) return '—'; return (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : v.toFixed(0)) + '×'; }
   function fmtSigned(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'; }
   function fmtMult(key, v) { if (v == null) return '—'; if (key === 'div_yield') return (v * 100).toFixed(1) + '%'; if (key === 'peg') return v.toFixed(2); return fmtX(v); }
+  /* 값이 빈 칸 — 왜 없는지 말풍선으로. 무료 데이터라 결측이 흔해 빈칸을 설명 없이 두지 않는다.
+     HTML 렌더 지점 전용(차트 SVG 안에서는 쓰지 않는다). */
+  function na(reason) { return '<span class="na" tabindex="0" data-tip="' + esc(reason) + '">—</span>'; }
   function compactWon(v) { if (v == null) return '—'; return CUR === 'KRW' ? Math.round(v / 1000).toLocaleString('en-US') + '천' : '$' + Math.round(v).toLocaleString('en-US'); }
 
   var VERDICTS = ['크게 저평가', '저평가', '적정 수준', '고평가', '크게 고평가'];
@@ -516,34 +519,95 @@
     return el('div', {}, el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els), lg);
   }
 
+  /* 축 눈금 간격 — 1·2·5·10 계열의 읽기 좋은 값으로 */
+  function niceStep(range, target) {
+    var raw = Math.max(range, 1e-9) / target;
+    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), n = raw / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+  }
+
+  /* 가격과 수익성 지도 — 주가차트와 같은 문법(헤어라인 그리드·모노 축라벨·절제된 팔레트).
+     업종 중앙값 십자선이 사분면을 정의하고, 라벨은 겹치면 숨겼다가 hover 때 드러낸다. */
   function peerScatter() {
     var pts = (D.peers && D.peers.scatter) || [];
     if (pts.length < 2) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px' } }, '피어 표본이 부족합니다.');
-    var perMax = Math.max.apply(null, pts.map(function (p) { return p.per; })) * 1.10;
-    var roeMax = Math.max(1, Math.max.apply(null, pts.map(function (p) { return p.roe; }))) * 1.14;
-    var roeMin = Math.min(0, Math.min.apply(null, pts.map(function (p) { return p.roe; })));
-    var W = 580, H = 372, padL = 52, padR = 18, top = 18, plotH = H - 54, xw = W - padL - padR;
-    var X = function (v) { return padL + v / perMax * xw; }, Y = function (v) { return top + (1 - (v - roeMin) / (roeMax - roeMin)) * plotH; };
-    var medPer = pts.map(function (p) { return p.per; }).sort(function (a, b) { return a - b; })[Math.floor(pts.length / 2)];
-    var medRoe = pts.map(function (p) { return p.roe; }).sort(function (a, b) { return a - b; })[Math.floor(pts.length / 2)];
+    var W = 760, H = 438, padL = 58, padR = 26, padT = 26, padB = 56;
+    var xw = W - padL - padR, plotH = H - padT - padB;
+    var perArr = pts.map(function (p) { return p.per; }), roeArr = pts.map(function (p) { return p.roe; });
+    var xStep = niceStep(Math.max.apply(null, perArr) * 1.08, 5);
+    var perMax = Math.max(xStep, Math.ceil(Math.max.apply(null, perArr) * 1.08 / xStep) * xStep);
+    var rHi = Math.max.apply(null, roeArr), rLo = Math.min(0, Math.min.apply(null, roeArr));
+    var span = (rHi - rLo) || 1, yStep = niceStep(span * 1.2, 5);
+    var yTop = Math.ceil((rHi + span * 0.1) / yStep) * yStep;
+    var yBot = Math.floor((rLo - (rLo < 0 ? span * 0.1 : 0)) / yStep) * yStep;
+    if (yTop <= yBot) yTop = yBot + yStep;
+    var X = function (v) { return padL + Math.max(0, Math.min(perMax, v)) / perMax * xw; };
+    var Y = function (v) { return padT + (1 - (Math.max(yBot, Math.min(yTop, v)) - yBot) / (yTop - yBot)) * plotH; };
+    var med = function (a) { var s = a.slice().sort(function (x, y) { return x - y; }), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+    var medPer = med(perArr), medRoe = med(roeArr);
     var els = [];
-    els.push(el('rect', { x: padL, y: top, width: X(medPer) - padL, height: Y(medRoe) - top, fill: 'var(--dv-green)', fillOpacity: 0.06 }));
-    els.push(el('text', { x: padL + 9, y: top + 18, fontSize: 12.5, fill: 'var(--dv-green)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '저PER · 고ROE (매력)'));
-    for (var g = 0; g <= 3; g++) { var yy = top + g / 3 * plotH; els.push(el('line', { x1: padL, x2: padL + xw, y1: yy, y2: yy, stroke: 'var(--line)', strokeWidth: 1 })); els.push(el('text', { x: padL - 8, y: yy + 4, fontSize: 12, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, (roeMax - (roeMax - roeMin) * g / 3).toFixed(0))); }
-    for (var t = 0; t <= 4; t++) { var pv = perMax * t / 4; els.push(el('text', { x: X(pv), y: top + plotH + 20, fontSize: 12, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, pv.toFixed(0) + '×')); }
+    // 저PER·고ROE 사분면 — 의미색은 아주 옅게만
+    els.push(el('rect', { x: padL, y: padT, width: X(medPer) - padL, height: Y(medRoe) - padT, fill: 'var(--dv-green)', fillOpacity: 0.05 }));
+    // 그리드 — 주가차트와 같은 헤어라인
+    for (var gv = yBot; gv <= yTop + 1e-9; gv += yStep) {
+      els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(gv), y2: Y(gv), stroke: 'var(--line)', strokeWidth: 1 }));
+      els.push(el('text', { x: padL - 9, y: Y(gv) + 3.5, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, Math.round(gv) + '%'));
+    }
+    for (var gx = xStep; gx <= perMax + 1e-9; gx += xStep) {
+      els.push(el('line', { x1: X(gx), x2: X(gx), y1: padT, y2: padT + plotH, stroke: 'var(--line)', strokeWidth: 1, opacity: 0.6 }));
+    }
+    for (var tx = 0; tx <= perMax + 1e-9; tx += xStep) {
+      els.push(el('text', { x: X(tx), y: padT + plotH + 19, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, Math.round(tx) + '×'));
+    }
+    // 적자 경계(0%) — 아래로 내려간 피어가 있을 때만
+    if (yBot < 0) els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(0), y2: Y(0), stroke: 'var(--line-strong)', strokeWidth: 1 }));
+    els.push(el('line', { x1: padL, x2: padL + xw, y1: padT + plotH, y2: padT + plotH, stroke: 'var(--line-strong)', strokeWidth: 1 }));
+    els.push(el('line', { x1: padL, x2: padL, y1: padT, y2: padT + plotH, stroke: 'var(--line-strong)', strokeWidth: 1 }));
+    // 업종 중앙값 십자선 — 사분면의 실제 기준
+    els.push(el('line', { x1: X(medPer), x2: X(medPer), y1: padT, y2: padT + plotH, stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
+    els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(medRoe), y2: Y(medRoe), stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
+    els.push(el('text', { x: X(medPer) + 5, y: padT + plotH - 6, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)' }, '업종 중앙 ' + medPer.toFixed(1) + '×'));
+    els.push(el('text', { x: padL + xw - 3, y: Y(medRoe) - 5, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, '업종 중앙 ' + medRoe.toFixed(1) + '%'));
+    els.push(el('text', { x: padL + 8, y: padT + 15, fontSize: 11, fill: 'var(--dv-green)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '저PER · 고ROE'));
     // 점 = 클릭 가능한 그룹(data-q 검색키 · data-key 매칭키). 넓은 투명 히트원으로 클릭/hover 쉬움.
-    pts.forEach(function (p) {
-      var cx = X(Math.min(p.per, perMax)), cy = Y(Math.max(roeMin, Math.min(p.roe, roeMax)));
-      var kids = [
-        el('circle', { cx: cx, cy: cy, r: 15, fill: 'transparent', className: 'hit' }),
-        el('circle', { cx: cx, cy: cy, r: p.self ? 8 : 6, fill: p.self ? 'var(--dv-navy)' : 'var(--paper)', stroke: p.self ? 'var(--dv-navy)' : 'var(--ink-3)', strokeWidth: 1.8, className: 'dot' }),
-        el('text', { x: cx, y: cy - 12, fontSize: p.self ? 13 : 12, fontWeight: p.self ? 700 : 500, fill: p.self ? 'var(--ink)' : 'var(--ink-2)', fontFamily: 'var(--font-sans)', textAnchor: 'middle', className: 'lbl' }, esc(p.n))
+    // 라벨 자리는 본인부터 잡고(위→아래→오른→왼), 자리가 없으면 숨겨 hover 때만 보여준다.
+    var boxes = [], rendered = [];
+    function collides(r) {
+      if (r.x < padL || r.x + r.w > padL + xw || r.y < padT || r.y + r.h > padT + plotH) return true;
+      for (var i = 0; i < boxes.length; i++) {
+        var q = boxes[i];
+        if (r.x < q.x + q.w && r.x + r.w > q.x && r.y < q.y + q.h && r.y + r.h > q.y) return true;
+      }
+      return false;
+    }
+    pts.slice().sort(function (a, b) { return (b.self ? 1 : 0) - (a.self ? 1 : 0); }).forEach(function (p) {
+      var cx = X(p.per), cy = Y(p.roe), fs = p.self ? 12.5 : 11.5, r = p.self ? 7 : 5;
+      var name = String(p.n || ''), w = Math.max(20, name.length * fs * 0.62), h = fs + 3;
+      var cands = [
+        { bx: cx - w / 2, by: cy - r - 7 - h, tx: cx, ty: cy - r - 9, an: 'middle' },
+        { bx: cx - w / 2, by: cy + r + 5, tx: cx, ty: cy + r + 6 + fs, an: 'middle' },
+        { bx: cx + r + 6, by: cy - h / 2, tx: cx + r + 7, ty: cy + 4, an: 'start' },
+        { bx: cx - r - 6 - w, by: cy - h / 2, tx: cx - r - 7, ty: cy + 4, an: 'end' }
       ];
-      els.push(el('g', { className: 'pt', 'data-q': p.q || '', 'data-key': p.key || '', style: { cursor: 'pointer' } }, kids));
+      var spot = null;
+      for (var i = 0; i < cands.length; i++) {
+        var c = cands[i];
+        if (!collides({ x: c.bx, y: c.by, w: w, h: h })) { spot = c; boxes.push({ x: c.bx, y: c.by, w: w, h: h }); break; }
+      }
+      var c0 = spot || cands[0];
+      var kids = [
+        el('title', {}, esc(name) + ' · PER ' + p.per.toFixed(1) + '× · ROE ' + p.roe.toFixed(1) + '%'),
+        el('circle', { cx: cx, cy: cy, r: 16, fill: 'transparent', className: 'hit' }),
+        el('circle', { cx: cx, cy: cy, r: r, fill: p.self ? 'var(--dv-navy)' : 'var(--paper)', stroke: p.self ? 'var(--dv-navy)' : 'var(--line-strong)', strokeWidth: 1.6, className: 'dot' }),
+        el('text', { x: c0.tx, y: c0.ty, fontSize: fs, fontWeight: p.self ? 700 : 500, fill: p.self ? 'var(--ink)' : 'var(--ink-2)', fontFamily: 'var(--font-sans)', textAnchor: c0.an, className: 'lbl' + (spot ? '' : ' lbl-off') }, esc(name))
+      ];
+      rendered.push({ self: !!p.self, html: el('g', { className: 'pt', 'data-q': p.q || '', 'data-key': p.key || '', style: { cursor: 'pointer' } }, kids) });
     });
-    els.push(el('text', { x: padL + xw, y: top + plotH + 38, fontSize: 12, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '→ PER (배)'));
-    els.push(el('text', { x: padL - 40, y: top + 10, fontSize: 12, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, 'ROE %'));
-    return el('svg', { viewBox: '0 0 ' + W + ' ' + (H + 8), style: { width: '100%', height: 'auto', display: 'block' } }, els);
+    // 본인 점을 맨 위에 그린다(SVG는 나중에 그린 것이 위)
+    rendered.sort(function (a, b) { return (a.self ? 1 : 0) - (b.self ? 1 : 0); }).forEach(function (x) { els.push(x.html); });
+    els.push(el('text', { x: padL + xw, y: padT + plotH + 40, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, 'PER (배) →'));
+    els.push(el('text', { x: padL - 47, y: padT - 9, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, '↑ ROE (%)'));
+    return el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
 
   /* 점·표 클릭 → 재검색, 점 hover ↔ 좌측 피어표 행 상호 하이라이트 */
@@ -683,8 +747,23 @@
   }
 
   function renderTiles() {
-    var t = D.tiles;
-    var items = [['시가총액', fmtMoney(t.market_cap)], ['PER (TTM)', fmtX(t.per)], ['PBR', fmtX(t.pbr)], ['ROE (TTM)', fmtPct(t.roe)], ['베타 (β)', t.beta != null ? t.beta.toFixed(2) : '—'], ['WACC', t.wacc != null ? fmtPct(t.wacc) : 'N/A']];
+    var t = D.tiles, isFin = !!(D.financials && D.financials.is_financial);
+    // 빈 값이면 그 지표에서 가장 흔한 결측 이유를 말풍선으로 알린다.
+    var why = {
+      cap: '주가 또는 상장주식수 데이터가 없어 시가총액을 계산하지 못했습니다.',
+      per: '순이익이 적자이거나 EPS 데이터가 없어 PER를 계산할 수 없습니다.',
+      pbr: '주당순자산(BPS) 데이터가 없어 PBR를 계산할 수 없습니다.',
+      roe: '순이익 또는 자기자본 데이터가 없어 ROE를 계산할 수 없습니다.',
+      beta: '상장 기간이 짧거나 주가 이력이 부족해 베타를 추정하지 못했습니다.',
+      wacc: isFin ? '금융업은 부채가 영업의 재료라 자본구조 가정이 달라, WACC를 제공하지 않습니다.'
+                  : '자본비용(WACC) 계산에 필요한 입력이 부족합니다.'
+    };
+    var items = [['시가총액', t.market_cap == null ? na(why.cap) : fmtMoney(t.market_cap)],
+      ['PER (TTM)', t.per == null ? na(why.per) : fmtX(t.per)],
+      ['PBR', t.pbr == null ? na(why.pbr) : fmtX(t.pbr)],
+      ['ROE (TTM)', t.roe == null ? na(why.roe) : fmtPct(t.roe)],
+      ['베타 (β)', t.beta == null ? na(why.beta) : t.beta.toFixed(2)],
+      ['WACC', t.wacc == null ? na(why.wacc) : fmtPct(t.wacc)]];
     $('tiles').innerHTML = items.map(function (it, i) {
       return '<div style="padding:0 16px' + (i === 0 ? ' 0 0' : '') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + it[0] + '</div><div class="mono" style="font-size:22px;font-weight:500;margin-top:7px;white-space:nowrap">' + it[1] + '</div></div>';
     }).join('');
@@ -819,9 +898,18 @@
       ], { fmt: function (v) { return v.toFixed(0) + '%'; }, H: 200 });
     }
     if (f.is_financial) $('finCash').innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:20px 0">금융업 — 생략</div>';
-    else $('finCash').innerHTML = barGroups(f.years, [
-      { name: '영업현금흐름', color: 'var(--dv-green)', data: f.ocf }, { name: '잉여현금흐름 FCF', color: 'var(--dv-plum)', data: f.fcf }
-    ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 210 });
+    else {
+      $('finCash').innerHTML = barGroups(f.years, [
+        { name: '영업현금흐름', color: 'var(--dv-green)', data: f.ocf }, { name: '잉여현금흐름 FCF', color: 'var(--dv-plum)', data: f.fcf }
+      ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 210 });
+      // 영업현금흐름 음수 해 — 규칙 기반 고정 문구(AI·추가 요청 없음). 어느 해인지 짚고 해석 방향만 알린다.
+      var negY = (f.years || []).filter(function (y, i) { return f.ocf && f.ocf[i] != null && f.ocf[i] < 0; });
+      if (negY.length) {
+        $('finCash').innerHTML += '<div style="margin-top:10px;font-size:12px;color:var(--ink-2);line-height:1.6">' +
+          '<b style="color:var(--dv-negative)">' + negY.join('·') + '년 영업현금흐름 (−)</b> — 본업에서 현금이 들어온 게 아니라 나갔다는 뜻입니다. ' +
+          '회계상 이익이 나더라도 재고 증가·매출채권 회수 지연 등으로 생길 수 있어, 일시적인지 반복되는지 추세를 확인하세요.</div>';
+      }
+    }
     // 표
     var tb = f.table, cols = '1.4fr repeat(' + tb.years.length + ',1fr)';
     var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + unit + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
@@ -841,9 +929,9 @@
     var cols = '1.3fr 0.9fr 0.7fr 0.7fr 0.8fr';
     var head = '<div class="row head" style="grid-template-columns:' + cols + '"><span class="col-label">종목</span><span class="col-label r">시총' + (CUR === 'KRW' ? '(조)' : '') + '</span><span class="col-label r">PER</span><span class="col-label r">PBR</span><span class="col-label r">ROE</span></div>';
     var body = pr.rows.map(function (p, i) {
-      var mc = p.market_cap == null ? '—' : CUR === 'KRW' ? (p.market_cap / 1e12).toFixed(1) : (p.market_cap / 1e9).toFixed(1);
+      var mc = p.market_cap == null ? na('시가총액 데이터가 없습니다.') : CUR === 'KRW' ? (p.market_cap / 1e12).toFixed(1) : (p.market_cap / 1e9).toFixed(1);
       var last = i === pr.rows.length - 1;
-      return '<div class="row' + (p.is_self ? ' self' : '') + '" data-q="' + esc(p.q || '') + '" data-key="' + esc(p.key || '') + '" style="grid-template-columns:' + cols + ';font-family:var(--font-mono);font-size:12.5px;cursor:pointer' + (last ? ';border-bottom:none' : '') + '"><span style="font-family:var(--font-sans)' + (p.is_self ? ';font-weight:700' : '') + '">' + esc(p.name) + '</span><span class="r">' + mc + '</span><span class="r">' + (p.per != null ? p.per.toFixed(1) : '—') + '</span><span class="r">' + (p.pbr != null ? p.pbr.toFixed(2) : '—') + '</span><span class="r">' + (p.roe != null ? (p.roe * 100).toFixed(1) : '—') + '</span></div>';
+      return '<div class="row' + (p.is_self ? ' self' : '') + '" data-q="' + esc(p.q || '') + '" data-key="' + esc(p.key || '') + '" style="grid-template-columns:' + cols + ';font-family:var(--font-mono);font-size:12.5px;cursor:pointer' + (last ? ';border-bottom:none' : '') + '"><span style="font-family:var(--font-sans)' + (p.is_self ? ';font-weight:700' : '') + '">' + esc(p.name) + '</span><span class="r">' + mc + '</span><span class="r">' + (p.per != null ? p.per.toFixed(1) : na('적자이거나 EPS 데이터가 없어 PER를 계산할 수 없습니다.')) + '</span><span class="r">' + (p.pbr != null ? p.pbr.toFixed(2) : na('주당순자산(BPS) 데이터가 없어 PBR를 계산할 수 없습니다.')) + '</span><span class="r">' + (p.roe != null ? (p.roe * 100).toFixed(1) : na('순이익 또는 자기자본 데이터가 없어 ROE를 계산할 수 없습니다.')) + '</span></div>';
     }).join('');
     $('peerTable').innerHTML = head + body;
     $('peerScatter').innerHTML = peerScatter();

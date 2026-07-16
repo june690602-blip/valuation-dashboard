@@ -92,6 +92,10 @@
   .tbl .row.linked { background: var(--paper-2); box-shadow: inset 2px 0 0 var(--dv-navy); }
   #peerScatter .pt:hover .dot, #peerScatter .pt.linked .dot { stroke: var(--dv-navy); stroke-width: 2.6; }
   #peerScatter .pt:hover .lbl, #peerScatter .pt.linked .lbl { fill: var(--ink); font-weight: 700; }
+  /* 라벨에 종이색 후광을 둘러 그리드·점 위에서도 읽히게. 자리를 못 잡은 라벨은 hover 때만 드러낸다. */
+  #peerScatter .lbl { paint-order: stroke; stroke: var(--paper); stroke-width: 3px; stroke-linejoin: round; }
+  #peerScatter .lbl-off { opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); }
+  #peerScatter .pt:hover .lbl-off, #peerScatter .pt.linked .lbl-off { opacity: 1; }
   /* AI 마크다운 렌더 */
   .aimd h3 { font-size: 15px; font-weight: 700; margin: 18px 0 6px; color: var(--ink); }
   .aimd p { font-size: 13px; color: var(--ink-2); line-height: 1.75; margin: 6px 0; }
@@ -115,6 +119,21 @@
   .analysis-section-chart { max-width: 760px; margin: 20px 0 0 46px; }
   /* 탭 역할 지도 — 각 탭 상단에 "이 탭이 적정가 지표의 어느 부품인지"를 한 줄로 알린다.
      적정가 재료 ①②③(업종 비교·밸류에이션·재무 분석)과 그 외 역할(현재가·결론·검증·맥락)을 구분. */
+  /* 빈 값(—) 말풍선 — 왜 없는지 짧게 알린다. 순수 CSS라 추가 요청·스크립트가 없다. */
+  .na { position: relative; color: var(--ink-3); cursor: help; border-bottom: 1px dotted var(--line-strong); }
+  .na::after {
+    content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 9px); transform: translateX(-50%);
+    width: max-content; max-width: min(230px, 60vw); background: var(--ink); color: var(--ink-inverse);
+    font-family: var(--font-sans); font-size: 11.5px; font-weight: 400; line-height: 1.55; letter-spacing: normal;
+    text-align: left; white-space: normal; padding: 8px 10px; border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+    opacity: 0; visibility: hidden; transition: opacity var(--dur-fast) var(--ease-out); pointer-events: none; z-index: 30;
+  }
+  .na::before {
+    content: ''; position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: var(--ink);
+    opacity: 0; visibility: hidden; transition: opacity var(--dur-fast) var(--ease-out); pointer-events: none; z-index: 30;
+  }
+  .na:hover::after, .na:hover::before, .na:focus-visible::after, .na:focus-visible::before { opacity: 1; visibility: visible; }
   .method-map { display: flex; align-items: baseline; gap: 11px; margin: 2px 0 22px; font-size: 12.5px; color: var(--ink-3); line-height: 1.6; }
   .method-chip { flex: none; font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--spine-ink-strong); background: var(--spine-band); border: 1px solid color-mix(in srgb, var(--spine) 45%, var(--line)); border-radius: 2px; padding: 3px 9px; letter-spacing: .02em; white-space: nowrap; }
   .methods-mno { font-family: var(--font-mono); font-size: 11px; color: var(--spine-ink-strong); margin-right: 6px; }
@@ -260,7 +279,7 @@
 
         <!-- 02 요약·판정 -->
         <section class="panel on" data-tab="summary" id="panel-summary">
-          <div class="method-map"><span class="method-chip">결론</span><span>세 가지 방법으로 만든 적정가 범위와 현재가를 비교해 판정을 종합합니다 — 아래 표의 <b>①②③</b>이 각각의 재료 탭입니다.</span></div>
+          <div class="method-map"><span class="method-chip">결론</span><span>적정가를 세 가지 방법으로 추정해, 현재가가 싼지 비싼지 판정합니다. 아래 표의 <b>①②③</b>을 누르면 근거 탭으로 이동합니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="summary-value-title">
               <div class="analysis-section-head">
@@ -311,7 +330,7 @@
 
         <!-- 03 주가차트 -->
         <section class="panel" data-tab="price" id="panel-price">
-          <div class="method-map"><span class="method-chip">현재가</span><span>적정가 범위와 비교되는 시장 가격입니다. 추세와 밴드 위치로 현재가가 범위의 어디쯤인지 봅니다.</span></div>
+          <div class="method-map"><span class="method-chip">현재가</span><span>시장이 실제로 매긴 가격과 그 흐름입니다. 적정가와 비교하는 기준이 됩니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="price-position-title">
               <div class="analysis-section-head">
@@ -357,7 +376,7 @@
 
         <!-- 04 밸류에이션 -->
         <section class="panel" data-tab="valuation" id="panel-valuation">
-          <div class="method-map"><span class="method-chip">적정가 재료 ②</span><span>역사적 밴드 — 자기 5년 멀티플(25~75분위)로 적정가 범위를 만드는 재료입니다.</span></div>
+          <div class="method-map"><span class="method-chip">적정가 근거 ②</span><span>이 종목의 지난 5년 평가 배수와 비교해, 지금이 역사적으로 싼지 비싼지 봅니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="valuation-peer-title">
               <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="valuation-peer-title">현재 멀티플</h3><p class="analysis-section-desc">현재 평가배수를 업종 중앙값과 비교해 상대적인 가격 수준을 확인합니다.</p></div><span class="analysis-section-meta">PER · PBR · PSR · EV/EBITDA</span></div>
@@ -372,7 +391,7 @@
 
         <!-- 01 기업·뉴스 -->
         <section class="panel" data-tab="company" id="panel-company">
-          <div class="method-map"><span class="method-chip">정성 맥락</span><span>적정가 계산에 직접 들어가지 않는 뉴스·사업 맥락입니다. 숫자의 배경을 확인합니다.</span></div>
+          <div class="method-map"><span class="method-chip">참고 정보</span><span>적정가 계산에는 들어가지 않는 뉴스·사업 내용입니다. 숫자의 배경을 확인합니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="company-overview-title">
               <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="company-overview-title">기업 개요</h3><p class="analysis-section-desc">사업 구조와 기본 정보를 확인해 숫자가 만들어지는 배경을 이해합니다.</p></div><span class="analysis-section-meta">사업 · 산업 · 기본정보</span></div>
@@ -387,7 +406,7 @@
 
         <!-- 05 재무 분석 -->
         <section class="panel" data-tab="financials" id="panel-financials">
-          <div class="method-map"><span class="method-chip">적정가 재료 ③</span><span>수익가치(RIM) — 핵심 입력인 ROE와 이익의 질을 확인합니다. 할인율 r은 <b>07 자본비용</b>에서 만듭니다.</span></div>
+          <div class="method-map"><span class="method-chip">적정가 근거 ③</span><span>수익성(ROE)과 이익의 질을 봅니다. 세 번째 방법(RIM)의 입력값이며, 할인율은 <b>자본비용</b> 탭에서 정합니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="fin-growth-title">
               <div class="analysis-section-head">
@@ -449,7 +468,7 @@
 
         <!-- 06 업종 비교 -->
         <section class="panel" data-tab="peers" id="panel-peers">
-          <div class="method-map"><span class="method-chip">적정가 재료 ①</span><span>업종 상대가치 — 피어 중앙값 멀티플(PER·PBR·EV/EBITDA)로 적정가 범위를 만드는 재료입니다.</span></div>
+          <div class="method-map"><span class="method-chip">적정가 근거 ①</span><span>비슷한 업종의 회사들과 PER·PBR을 나란히 비교해, 적정 가격대를 가늠합니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="peer-table-title">
               <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="peer-table-title">피어 지표 비교</h3><p class="analysis-section-desc">같은 업종의 기업을 동일한 지표 기준으로 나란히 비교합니다.</p></div><span class="analysis-section-meta" id="peerLabel">업종 피어</span></div>
@@ -468,7 +487,7 @@
 
         <!-- 07 자본비용 -->
         <section class="panel" data-tab="wacc" id="panel-wacc">
-          <div class="method-map"><span class="method-chip">적정가 재료 ③</span><span>수익가치(RIM)의 할인율 r(자본비용)을 산출합니다. 나머지 재료는 <b>05 재무 분석</b>에 있습니다.</span></div>
+          <div class="method-map"><span class="method-chip">적정가 근거 ③</span><span>세 번째 방법(RIM)에 쓰는 할인율(WACC)을 계산합니다. 나머지 입력은 <b>재무 분석</b> 탭에 있습니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="wacc-input-title">
               <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="wacc-input-title">자본비용 요약</h3><p class="analysis-section-desc">무위험이자율, 베타와 부채비용 등 WACC 계산의 핵심 입력값을 확인합니다.</p></div><span class="analysis-section-meta" id="waccPeriod"></span></div>
@@ -487,7 +506,7 @@
 
         <!-- 08 백테스트 -->
         <section class="panel" data-tab="backtest" id="panel-backtest">
-          <div class="method-map"><span class="method-chip">사후 검증 · ②</span><span>역사적 밴드(②) 신호가 과거에 유효했는지 통계로 되돌아봅니다. 종합 판정 전체의 검증은 아닙니다.</span></div>
+          <div class="method-map"><span class="method-chip">사후 검증</span><span>역사적 밴드(근거 ②) 신호가 과거에 맞았는지 통계로 되돌아봅니다. 종합 판정 전체를 검증하는 건 아닙니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="bt-setup-title">
               <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="bt-setup-title">관찰 기준과 표본</h3><p class="analysis-section-desc">자기 역사적 정상 배수보다 크게 낮았던 시점을 골라 이후 수익을 관찰합니다.</p></div><span class="analysis-section-meta">저평가 기준 · 적정가 대비 +30%</span></div>
@@ -511,7 +530,7 @@
 
         <!-- 09 AI -->
         <section class="panel" data-tab="ai" id="panel-ai">
-          <div class="method-map"><span class="method-chip">결론 · AI 서술</span><span>세 방법의 결과와 뉴스 맥락을 AI가 문장으로 종합합니다(학습·분석 보조).</span></div>
+          <div class="method-map"><span class="method-chip">결론 · AI</span><span>세 방법의 결과와 뉴스를 AI가 문장으로 요약합니다. (학습·분석 보조용)</span></div>
           <div class="analysis-sections"><section class="analysis-section" aria-labelledby="ai-observation-title"><div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="ai-observation-title">종합 관찰</h3><p class="analysis-section-desc">앞선 탭의 계산 결과를 한 흐름으로 정리하고 강점과 위험 요인을 나눠 봅니다.</p></div><span class="analysis-section-meta">규칙 기반 · 선택적 AI 설명</span></div><div class="analysis-section-body" style="max-width:820px" id="aiContent"></div></section></div>
         </section>
 

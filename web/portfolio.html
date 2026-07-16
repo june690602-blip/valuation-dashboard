@@ -9,6 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/meridian.css">
 <style>
+  /* σ-E(r) 평면 라벨의 종이 후광 — 구름·선 위에서도 글자가 읽히게 */
+  #planeChart .plbl { paint-order: stroke; stroke: var(--paper); stroke-width: 3px; stroke-linejoin: round; }
   .navlink { color: var(--ink-3); cursor: pointer; }
   .navlink:hover { color: var(--ink); text-decoration: none; }
   .sec { padding: 36px 0; border-bottom: 1px solid var(--line); }

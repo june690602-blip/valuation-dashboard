@@ -175,9 +175,19 @@
   }
 
   /* ── 차트: σ-E(r) 평면 ── */
+  /* 축 눈금 간격 — 1·2·5·10 계열의 읽기 좋은 값으로 (주식 탭 차트와 동일 규칙) */
+  function niceStep(range, target) {
+    var raw = Math.max(range, 1e-9) / target;
+    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), n = raw / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+  }
+  /* 라벨 종이 후광 — 그리드·점·선 위에서도 글자가 읽히게. paint-order는 CSS(.plbl)로 준다
+     (el()의 ATTR 변환표에 없는 속성이라 SVG 속성으로 넣으면 무시되어 글자가 지워진다). */
+  function halo(attrs) { attrs.className = (attrs.className ? attrs.className + ' ' : '') + 'plbl'; return attrs; }
+
   function planeChart(d) {
     var assets = d.assets || [], port = d.port, cml = d.cml || {};
-    var W = 900, padL = 48, padR = 20, top = 16, plotH = 320, xw = W - padL - padR;
+    var W = 900, padL = 56, padR = 22, top = 20, plotH = 330, xw = W - padL - padR;
     var xsAll = assets.map(function (a) { return a.sigma * 100; }).concat([port.sigma * 100]);
     var sigMs = []; for (var mk in cml) if (cml[mk].sigma_m != null) sigMs.push(cml[mk].sigma_m * 100);
     if (d.optimal) xsAll.push(d.optimal.sigma * 100);
@@ -188,11 +198,42 @@
     var ymin = Math.min.apply(null, ysAll), ymax = Math.max.apply(null, ysAll); var pd = (ymax - ymin) * 0.15 || 2; ymin -= pd; ymax += pd;
     var X = function (s) { return padL + s / sigMax * xw; }, Y = function (v) { return top + (1 - (v - ymin) / (ymax - ymin)) * plotH; };
     var els = [];
-    for (var g = 0; g <= 4; g++) { var yy = top + g / 4 * plotH, val = ymax - (ymax - ymin) * g / 4; els.push(el('line', { x1: padL, x2: padL + xw, y1: yy, y2: yy, stroke: 'var(--line)', strokeWidth: 1 })); els.push(el('text', { x: padL - 8, y: yy + 4, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, val.toFixed(0) + '%')); }
-    for (var t = 0; t <= 4; t++) { var sv = sigMax * t / 4; els.push(el('text', { x: X(sv), y: top + plotH + 18, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, sv.toFixed(0) + '%')); }
-    // CML 참고선
+    // 그리드 — 나이스 눈금(가로·세로), 모노 축라벨. 주가차트·가격과 수익성 지도와 같은 문법.
+    var yStep = niceStep(ymax - ymin, 5);
+    for (var gv = Math.ceil(ymin / yStep) * yStep; gv <= ymax + 1e-9; gv += yStep) {
+      els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(gv), y2: Y(gv), stroke: 'var(--line)', strokeWidth: 1 }));
+      els.push(el('text', { x: padL - 9, y: Y(gv) + 3.5, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, Math.round(gv) + '%'));
+    }
+    var xStep = niceStep(sigMax, 5);
+    for (var gx = xStep; gx <= sigMax + 1e-9; gx += xStep) {
+      els.push(el('line', { x1: X(gx), x2: X(gx), y1: top, y2: top + plotH, stroke: 'var(--line)', strokeWidth: 1, opacity: 0.6 }));
+    }
+    for (var tx = 0; tx <= sigMax + 1e-9; tx += xStep) {
+      els.push(el('text', { x: X(tx), y: top + plotH + 19, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, Math.round(tx) + '%'));
+    }
+    // 손익 경계(0%)와 축 테두리
+    if (ymin < 0 && ymax > 0) els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(0), y2: Y(0), stroke: 'var(--line-strong)', strokeWidth: 1 }));
+    els.push(el('line', { x1: padL, x2: padL + xw, y1: top + plotH, y2: top + plotH, stroke: 'var(--line-strong)', strokeWidth: 1 }));
+    els.push(el('line', { x1: padL, x2: padL, y1: top, y2: top + plotH, stroke: 'var(--line-strong)', strokeWidth: 1 }));
+    // CML 참고선 — 라벨은 선 위 서로 다른 지점에 얹어 겹침을 피한다
     var cmlCol = { KR: 'var(--dv-teal)', US: 'var(--dv-gold)' };
-    for (mk in cml) { var c = cml[mk]; if (c.sigma_m == null || c.sigma_m <= 0) continue; var slope = (c.er_m - c.rf) / c.sigma_m; var y2 = (c.rf + slope * (sigMax / 100)) * 100; els.push(el('line', { x1: X(0), y1: Y(c.rf * 100), x2: X(sigMax), y2: Y(y2), stroke: cmlCol[mk] || 'var(--ink-3)', strokeWidth: 1.5, strokeDasharray: '4 3' })); els.push(el('text', { x: X(sigMax) - 4, y: Y(y2) - 5, fontSize: 10.5, fill: cmlCol[mk] || 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, 'CML ' + esc(c.label))); }
+    var cmlIdx = 0;
+    for (mk in cml) {
+      var c = cml[mk]; if (c.sigma_m == null || c.sigma_m <= 0) continue;
+      var slope = (c.er_m - c.rf) / c.sigma_m;
+      var y2 = (c.rf + slope * (sigMax / 100)) * 100;
+      els.push(el('line', { x1: X(0), y1: Y(c.rf * 100), x2: X(sigMax), y2: Y(y2), stroke: cmlCol[mk] || 'var(--ink-3)', strokeWidth: 1.2, strokeDasharray: '4 3', opacity: 0.9 }));
+      var frac = cmlIdx === 0 ? 0.86 : 0.62;                     // 첫 선은 오른쪽, 둘째 선은 중간에
+      var lx = sigMax * frac, ly = (c.rf + slope * (lx / 100)) * 100;
+      if (ly > ymax) { lx = ((ymax - pd * 0.4) - c.rf * 100) / slope; ly = ymax - pd * 0.4; }
+      els.push(el('text', halo({ x: X(lx), y: Y(ly) - 6, fontSize: 10, fill: cmlCol[mk] || 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }), 'CML ' + esc(c.label)));
+      cmlIdx++;
+    }
+    // 무위험수익률 R_f — CML의 출발점
+    if (d.rf != null) {
+      els.push(el('circle', { cx: padL, cy: Y(d.rf * 100), r: 3, fill: 'var(--ink)', stroke: 'var(--paper)', strokeWidth: 1.2 }));
+      els.push(el('text', halo({ x: padL + 7, y: Y(d.rf * 100) + 3.5, fontSize: 9.5, fill: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }), 'R_f ' + (d.rf * 100).toFixed(1) + '%'));
+    }
     // 조합 구름 + 효율적 투자선(근사) — 공매도 없는 랜덤 비중 조합의 (σ, E(r))
     var frontier = feasibleSet(assets, d.cov);
     if (frontier) {
@@ -209,7 +250,7 @@
         if (upper.length >= 2) {
           els.push(el('path', { d: toPath(upper), fill: 'none', stroke: 'var(--dv-plum)', strokeWidth: 1.8, strokeLinejoin: 'round' }));
           var lb = upper[Math.floor(upper.length * 0.6)];
-          els.push(el('text', { x: X(Math.min(lb.s, sigMax)) - 8, y: Y(lb.e) - 6, fontSize: 10.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '효율적 프론티어(근사)'));
+          els.push(el('text', halo({ x: X(Math.min(lb.s, sigMax)) - 8, y: Y(lb.e) - 6, fontSize: 10.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }), '효율적 프론티어(근사)'));
         }
         // rf에서 이 자산 집합에 그은 접선과 접점(최대 샤프 조합) — 시장지수 CML과 구분
         if (d.rf != null) {
@@ -220,23 +261,58 @@
             if (eEnd > ymax) { sEnd = (ymax - rfP) / best.sh; eEnd = ymax; }
             els.push(el('line', { x1: X(0), y1: Y(rfP), x2: X(sEnd), y2: Y(eEnd), stroke: 'var(--dv-plum)', strokeWidth: 1.2, strokeDasharray: '6 4' }));
             els.push(el('circle', { cx: X(Math.min(best.s, sigMax)), cy: Y(best.e), r: 4.5, fill: 'var(--paper)', stroke: 'var(--dv-plum)', strokeWidth: 2 }));
-            els.push(el('text', { x: X(Math.min(best.s, sigMax)) + 8, y: Y(best.e) + 13, fontSize: 10.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '접점 — 최대 샤프 조합'));
+            els.push(el('text', halo({ x: X(Math.min(best.s, sigMax)) + 8, y: Y(best.e) + 13, fontSize: 10.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', fontWeight: 600 }), '접점 — 최대 샤프 조합'));
           }
         }
       }
     }
-    // 자산 점 (비중 비례 크기)
+    // 자산 점 (비중 비례 크기) — 라벨은 위→아래→오른쪽 순으로 빈자리를 찾고, 종이 후광으로 판독 확보
     var wmax = Math.max.apply(null, assets.map(function (a) { return a.weight || 0; })) || 1;
-    assets.forEach(function (a) { var r = 6 + 16 * Math.sqrt((a.weight || 0) / wmax); var cx = X(Math.min(a.sigma * 100, sigMax)), cy = Y(a.mu * 100); els.push(el('circle', { cx: cx, cy: cy, r: r, fill: 'var(--dv-navy)', fillOpacity: 0.5, stroke: 'var(--dv-navy)', strokeWidth: 1 })); els.push(el('text', { x: cx, y: cy - r - 4, fontSize: 11, fill: 'var(--ink-2)', fontFamily: 'var(--font-sans)', textAnchor: 'middle' }, esc(a.name.length > 12 ? a.name.slice(0, 11) + '…' : a.name))); });
-    // 내 포트폴리오 (별 대용: 링 + 라벨)
+    var lblBoxes = [];
+    function lblCollides(r) {
+      if (r.x < padL || r.x + r.w > padL + xw || r.y < top || r.y + r.h > top + plotH) return true;
+      for (var i = 0; i < lblBoxes.length; i++) {
+        var q = lblBoxes[i];
+        if (r.x < q.x + q.w && r.x + r.w > q.x && r.y < q.y + q.h && r.y + r.h > q.y) return true;
+      }
+      return false;
+    }
+    function placeLabel(cx, cy, rr, name, fs) {
+      var w = Math.max(20, name.length * fs * 0.62), h = fs + 3;
+      var cands = [
+        { bx: cx - w / 2, by: cy - rr - 6 - h, tx: cx, ty: cy - rr - 8, an: 'middle' },
+        { bx: cx - w / 2, by: cy + rr + 4, tx: cx, ty: cy + rr + 5 + fs, an: 'middle' },
+        { bx: cx + rr + 6, by: cy - h / 2, tx: cx + rr + 7, ty: cy + 4, an: 'start' },
+        { bx: cx - rr - 6 - w, by: cy - h / 2, tx: cx - rr - 7, ty: cy + 4, an: 'end' }
+      ];
+      for (var i = 0; i < cands.length; i++) {
+        var c = cands[i];
+        if (!lblCollides({ x: c.bx, y: c.by, w: w, h: h })) { lblBoxes.push({ x: c.bx, y: c.by, w: w, h: h }); return c; }
+      }
+      return cands[0];
+    }
+    assets.forEach(function (a) {
+      var r = 6 + 16 * Math.sqrt((a.weight || 0) / wmax);
+      var cx = X(Math.min(a.sigma * 100, sigMax)), cy = Y(a.mu * 100);
+      var name = a.name.length > 12 ? a.name.slice(0, 11) + '…' : a.name;
+      els.push(el('circle', { cx: cx, cy: cy, r: r, fill: 'var(--dv-navy)', fillOpacity: 0.45, stroke: 'var(--dv-navy)', strokeWidth: 1.2 }));
+      var lp = placeLabel(cx, cy, r, name, 11);
+      els.push(el('text', halo({ x: lp.tx, y: lp.ty, fontSize: 11, fill: 'var(--ink-2)', fontFamily: 'var(--font-sans)', textAnchor: lp.an }), esc(name)));
+    });
+    // 내 포트폴리오 (링 + 라벨) — 화면의 주인공이라 마지막에, 라벨도 자리 우선권
     var px = X(Math.min(port.sigma * 100, sigMax)), py = Y(port.er * 100);
     els.push(el('circle', { cx: px, cy: py, r: 8, fill: 'var(--dv-clay)', stroke: 'var(--paper)', strokeWidth: 2 }));
-    els.push(el('text', { x: px + 12, y: py + 4, fontSize: 12, fill: 'var(--dv-clay)', fontFamily: 'var(--font-sans)', fontWeight: 700, textAnchor: 'start' }, '★ 내 포트폴리오'));
-    if (d.optimal) { var ox = X(Math.min(d.optimal.sigma * 100, sigMax)), oy = Y(d.optimal.er * 100); els.push(el('path', { d: diamond(ox, oy, 7), fill: 'var(--dv-plum)', stroke: 'var(--paper)', strokeWidth: 1.5 })); els.push(el('text', { x: ox + 11, y: oy + 4, fontSize: 11.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', fontWeight: 600, textAnchor: 'start' }, '◆ ' + esc(d.optimal.label))); }
-    els.push(el('text', { x: padL + xw, y: H2() - 2, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '연 변동성 σ →'));
-    els.push(el('text', { x: padL - 34, y: 9, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, 'E(r)'));
-    function H2() { return top + plotH + 30; }
-    return el('svg', { viewBox: '0 0 ' + W + ' ' + (top + plotH + 34), style: { width: '100%', height: 'auto', display: 'block' } }, els);
+    var pl = placeLabel(px, py, 9, '★ 내 포트폴리오', 12);
+    els.push(el('text', halo({ x: pl.tx, y: pl.ty, fontSize: 12, fill: 'var(--dv-clay)', fontFamily: 'var(--font-sans)', fontWeight: 700, textAnchor: pl.an }), '★ 내 포트폴리오'));
+    if (d.optimal) {
+      var ox = X(Math.min(d.optimal.sigma * 100, sigMax)), oy = Y(d.optimal.er * 100);
+      els.push(el('path', { d: diamond(ox, oy, 7), fill: 'var(--dv-plum)', stroke: 'var(--paper)', strokeWidth: 1.5 }));
+      var ol = placeLabel(ox, oy, 8, '◆ ' + d.optimal.label, 11.5);
+      els.push(el('text', halo({ x: ol.tx, y: ol.ty, fontSize: 11.5, fill: 'var(--dv-plum)', fontFamily: 'var(--font-sans)', fontWeight: 600, textAnchor: ol.an }), '◆ ' + esc(d.optimal.label)));
+    }
+    els.push(el('text', { x: padL + xw, y: top + plotH + 40, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '연 변동성 σ (%) →'));
+    els.push(el('text', { x: padL - 45, y: top - 8, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, '↑ E(r) 연 기대수익'));
+    return el('svg', { viewBox: '0 0 ' + W + ' ' + (top + plotH + 46), style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
 
   /* ── 구성 렌더 ── */
