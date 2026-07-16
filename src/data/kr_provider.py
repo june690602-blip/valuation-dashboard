@@ -11,6 +11,7 @@ import pandas as pd
 import yfinance as yf
 
 from .base import (DataProvider, build_peer_table, extract_financials,
+                   fill_self_from_financials,
                    extract_ttm, fetch_index_prices, fetch_prices, trim_peers)
 from .models import FIN_COLUMNS, CompanyData
 from .naver import fetch_naver_fundamental
@@ -166,6 +167,7 @@ class KRProvider(DataProvider):
         peers = build_peer_table(peer_yts, yt, labels)
         peers = self._patch_kr_peers(peers, listing)
         peers = trim_peers(peers, yt, peer_count)
+        peers = fill_self_from_financials(peers, yt, financials, mcap)
         warnings.append(f"피어 기준: {peer_basis}, {len(peers)}개 종목")
         if len(peers) < 4:
             warnings.append("같은 업종 피어가 적어 업종 비교의 신뢰도가 낮습니다.")
@@ -176,7 +178,7 @@ class KRProvider(DataProvider):
             "재무제표": fin_source,
             "공식 멀티플": official.get("source") or "재무제표 기반 계산",
             "피어 선정": peer_basis,
-            "피어 지표": "Yahoo Finance, 결측 시 KRX·네이버 금융 보완",
+            "피어 지표": "Yahoo Finance, 결측 시 KRX·네이버 금융 보완 · 자사 심층 지표는 재무제표로 보완",
         }
 
         return CompanyData(

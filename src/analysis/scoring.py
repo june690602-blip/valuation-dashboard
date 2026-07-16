@@ -89,13 +89,14 @@ def compute_scores(peers: pd.DataFrame, self_ticker: str,
                 continue
             target = me.get(col)
             pv = others[col].dropna() if col in others.columns else pd.Series(dtype=float)
-            med = float(pv.median()) if len(pv) >= 3 else None
-            if target is None or (isinstance(target, float) and np.isnan(target)) or len(pv) < 3:
-                rows.append((col, target, med, None))
+            n_avail = int(len(pv))                     # 이 지표 값을 가진 피어 수 (표본 부족 사유 표시용)
+            med = float(pv.median()) if n_avail >= 3 else None
+            if target is None or (isinstance(target, float) and np.isnan(target)) or n_avail < 3:
+                rows.append((col, target, med, None, n_avail))
                 continue
             sc = _percentile_score(float(target), pv, higher)
             scores.append(sc)
-            rows.append((col, float(target), med, sc))
+            rows.append((col, float(target), med, sc, n_avail))
         out.details[cat] = rows
         out.scores[cat] = float(np.mean(scores)) if scores else None
 

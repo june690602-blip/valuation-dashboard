@@ -311,7 +311,7 @@ def render_peers_tab(d, scores, all_peer_names=None):
     with st.expander("카테고리 점수 상세 (지표별 백분위)"):
         for cat, rows in scores.details.items():
             html = [f"<b>{cat}</b><table style='margin:4px 0 14px;border-collapse:collapse;'>"]
-            for key, target, med, sc in rows:
+            for key, target, med, sc, _n in rows:
                 html.append(
                     "<tr>"
                     f"<td style='padding:2px 14px 2px 0;color:#52514e;'>{label(key)}</td>"
