@@ -39,7 +39,7 @@
   .section h2 { font-family: var(--font-display); font-size: clamp(23px,3vw,30px); letter-spacing: -.018em; margin: 7px 0 0; }
   .section-desc { margin: 0; max-width: 54ch; color: var(--ink-2); line-height: 1.7; font-size: 13.5px; }
   .quick-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
-  .step-card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 18px; background: var(--paper); min-height: 172px; }
+  .step-card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 18px; background: var(--paper); min-height: 172px; box-shadow: var(--shadow-card); }
   .step-num { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb,var(--dv-navy) 10%,var(--paper)); color: var(--dv-navy); font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
   .step-card h3 { font-size: 14px; margin: 16px 0 7px; }
   .step-card p { margin: 0; color: var(--ink-2); line-height: 1.7; font-size: 13px; }
@@ -51,7 +51,7 @@
   .flow-row .num { color: var(--ink-4); font-family: var(--font-mono); font-size: 11px; padding-top: 2px; }
   .flow-row h3 { font-size: 13.5px; margin: 0; }
   .flow-row p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.7; }
-  details { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); }
+  details { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); box-shadow: var(--shadow-card); }
   details + details { margin-top: 9px; }
   summary { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 16px; cursor: pointer; color: var(--ink); font-size: 13.5px; font-weight: 600; list-style: none; }
   summary::-webkit-details-marker { display: none; }
@@ -69,7 +69,7 @@
   .guide-table td { padding: 11px; border-bottom: 1px solid var(--line); color: var(--ink-2); line-height: 1.55; vertical-align: top; }
   .guide-table td:nth-child(2) { color: var(--ink); font-weight: 600; white-space: nowrap; }
   .tool-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
-  .tool-card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 20px; display: flex; flex-direction: column; min-height: 250px; }
+  .tool-card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 20px; display: flex; flex-direction: column; min-height: 250px; box-shadow: var(--shadow-card); }
   .tool-card .label { font-family: var(--font-mono); color: var(--ink-4); font-size: 10px; letter-spacing: .09em; }
   .tool-card h3 { font-size: 17px; margin: 12px 0 8px; }
   .tool-card p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.7; }
@@ -78,7 +78,7 @@
   .details-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
   .details-grid details + details { margin-top: 0; }
   code { font-family: var(--font-mono); font-size: .9em; background: var(--paper-3); padding: 1px 5px; border-radius: 3px; color: var(--ink); }
-  .checklist { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px 22px; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 20px; background: var(--paper-2); }
+  .checklist { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px 22px; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 20px; background: var(--paper-2); box-shadow: var(--shadow-card); }
   .check-item { display: flex; gap: 10px; align-items: start; color: var(--ink-2); font-size: 13px; line-height: 1.65; }
   .check-box { flex: none; width: 16px; height: 16px; margin-top: 2px; border: 1px solid var(--line-strong); background: var(--paper); }
   .bottom-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }

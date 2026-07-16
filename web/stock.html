@@ -84,8 +84,11 @@
   .tbl .r { text-align: right; }
   .tbl .c { text-align: center; }
   .tbl .col-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
-  .cmt { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 15px 17px; display: flex; gap: 12px; }
+  .cmt { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 15px 17px; display: flex; gap: 12px; box-shadow: var(--shadow-card); }
   .cmt.key { border-color: var(--dv-navy); background: var(--paper-2); }
+  /* 카드급 컨테이너 그림자 — 히어로 판정 카드·경고 박스(JS 인라인 렌더라 여기서 부여) */
+  #hv-B > div { box-shadow: var(--shadow-card); }
+  #warnWrap > div { box-shadow: var(--shadow-card); }
   /* 업종비교: 클릭-검색 행 hover + 점↔행 상호 하이라이트(절제) */
   .tbl .row[data-q]:hover { background: var(--paper-3); }
   .tbl .row.self[data-q]:hover { background: var(--paper-2); }
@@ -139,7 +142,7 @@
   .methods-mno { font-family: var(--font-mono); font-size: 11px; color: var(--spine-ink-strong); margin-right: 6px; }
   .methods-goto { appearance: none; border: none; background: none; padding: 0; cursor: pointer; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
   .methods-goto:hover { text-decoration-color: var(--ink-3); }
-  .analysis-details { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius-md); }
+  .analysis-details { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-card); }
   .analysis-details summary::-webkit-details-marker { display: none; }
   .analysis-details[open] summary .chev { transform: rotate(180deg); }
   /* 로딩/에러 오버레이 */

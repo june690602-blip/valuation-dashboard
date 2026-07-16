@@ -98,7 +98,7 @@
   .section-title { margin: 12px 0 0; font-family: var(--font-display); font-size: clamp(29px, 3.2vw, 40px); letter-spacing: -0.035em; line-height: 1.2; }
   .section-copy { max-width: 440px; margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.75; word-break: keep-all; }
   .tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 34px; }
-  .tool-card { position: relative; min-height: 338px; display: flex; flex-direction: column; overflow: hidden; padding: 25px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); text-decoration: none; transition: border-color var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out); }
+  .tool-card { position: relative; min-height: 338px; display: flex; flex-direction: column; overflow: hidden; padding: 25px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); text-decoration: none; box-shadow: var(--shadow-card); transition: border-color var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out); }
   .tool-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); text-decoration: none; transform: translateY(-3px); }
   .tool-card::after { content: ""; position: absolute; right: -40px; bottom: -45px; width: 140px; height: 140px; border: 1px solid var(--line); border-radius: 50%; opacity: 0; transition: opacity var(--dur-med) var(--ease-out); }
   .tool-card:hover::after { opacity: 0.8; }
