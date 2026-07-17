@@ -472,8 +472,8 @@ def analyze(market: str, query: str, peer_count: int = 9,
         "scores": {
             "overall": num(scores.overall), "n_peers": scores.n_peers,
             "cats": {k: num(v) for k, v in scores.scores.items()},
-            "details": {cat: [{"key": key, "target": num(t), "med": num(m), "score": num(s)}
-                              for (key, t, m, s) in rows]
+            "details": {cat: [{"key": key, "target": num(t), "med": num(m), "score": num(s), "n": n}
+                              for (key, t, m, s, n) in rows]
                         for cat, rows in scores.details.items()},
         },
         "multiples": _multiples(d, ind, val),

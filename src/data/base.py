@@ -213,9 +213,17 @@ def fetch_company_profile(yahoo_ticker: str) -> dict:
     }
 
 
-@file_cache("peer_info", ttl_hours=24)
+def _info_has_substance(m: dict) -> bool:
+    """야후가 레이트리밋으로 빈 info를 성공처럼 줄 때를 걸러낸다.
+    시총·가격·PER·PBR이 전부 없으면 실질 없는 응답으로 본다
+    (정상 응답은 결측이 있어도 이 중 하나는 있다)."""
+    return isinstance(m, dict) and any(
+        m.get(k) is not None for k in ("market_cap", "price", "per", "pbr"))
+
+
+@file_cache("peer_info", ttl_hours=24, validate=_info_has_substance)
 def fetch_info_metrics(yahoo_ticker: str) -> dict:
-    """한 종목의 info 기반 비교 지표 (json 캐시)."""
+    """한 종목의 info 기반 비교 지표 (json 캐시). 빈 응답은 캐시하지 않는다."""
     info = yf.Ticker(yahoo_ticker).info or {}
     g = info.get
     mcap = g("marketCap")
@@ -274,6 +282,64 @@ def build_peer_table(yahoo_tickers: list[str], self_ticker: str,
     # 명백한 이상치 제거: 음수/0 시총
     df = df[(df["market_cap"].isna()) | (df["market_cap"] > 0)]
     return df.sort_values("market_cap", ascending=False)
+
+
+def fill_self_from_financials(peers: pd.DataFrame, self_ticker: str,
+                              fin: pd.DataFrame, market_cap) -> pd.DataFrame:
+    """야후 info에 없는 자사 성장률·안정성·현금흐름 지표를 자사 연간 재무제표로 보완.
+
+    일부 종목(특히 코스닥)은 야후가 revenueGrowth·debtToEquity·freeCashflow를
+    제공하지 않아 자사 값 결측만으로 업종 상대점수 축 전체가 죽는다.
+    피어 값(야후 TTM 근사)과 산출 기준이 완전히 같지는 않지만 결측보다 낫다.
+    이미 값이 있는 지표는 건드리지 않는다.
+    """
+    if peers.empty or fin is None or fin.empty or self_ticker not in peers.index:
+        return peers
+    df = peers.copy()
+
+    def _series(col):
+        if col not in fin.columns:
+            return None
+        s = pd.to_numeric(fin[col], errors="coerce").dropna()
+        return s if len(s) else None
+
+    def _growth(col):
+        s = _series(col)
+        if s is None or len(s) < 2:
+            return None
+        prev, cur = float(s.iloc[-2]), float(s.iloc[-1])
+        return (cur / prev - 1.0) if prev > 0 else None
+
+    def _ratio(num_col, den_col, scale=1.0):
+        n, dv = _series(num_col), _series(den_col)
+        if n is None or dv is None:
+            return None
+        den = float(dv.iloc[-1])
+        return (float(n.iloc[-1]) / den * scale) if den > 0 else None
+
+    mcap = float(market_cap) if market_cap else 0.0
+
+    def _yield(col):
+        s = _series(col)
+        return (float(s.iloc[-1]) / mcap) if s is not None and mcap > 0 else None
+
+    fills = {
+        "rev_growth": _growth("revenue"),
+        "earnings_growth": _growth("net_income"),
+        "debt_to_equity": _ratio("total_debt", "total_equity", 100.0),  # yfinance % 관례
+        "current_ratio": _ratio("current_assets", "current_liabilities"),
+        "fcf_yield": _yield("fcf"),
+        "ocf_yield": _yield("ocf"),
+    }
+    for col, val in fills.items():
+        if val is None:
+            continue
+        if col not in df.columns:
+            df[col] = np.nan
+        cur = df.at[self_ticker, col]
+        if cur is None or (isinstance(cur, float) and np.isnan(cur)):
+            df.at[self_ticker, col] = float(val)
+    return df
 
 
 def trim_peers(df: pd.DataFrame, self_ticker: str, n: int) -> pd.DataFrame:

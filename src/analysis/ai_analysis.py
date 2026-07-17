@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 
+from ..data.cache import file_cache
 from ..data.gemini import generate_text
 
 DISCLAIMER = ("\n\n> ⚠️ 위 내용은 공개정보를 바탕으로 한 AI 생성 참고 의견이며 투자 조언이 아닙니다. "
@@ -24,8 +25,12 @@ def _strip_json(text: str) -> str:
 
 
 # ── ① 업종분류 + 피어 후보 ──────────────────────────────────────────
+@file_cache("ai_peers", ttl_hours=168, validate=lambda c: bool(isinstance(c, dict) and c.get("peers")))
 def classify_peers(name: str, market: str, hint_industry: str = "") -> dict:
-    """{'sector','industry','peers':[{'name','ticker'}...]} 반환. 같은 시장 상장사 위주."""
+    """{'sector','industry','peers':[{'name','ticker'}...]} 반환. 같은 시장 상장사 위주.
+
+    Gemini 응답이 호출마다 달라 피어 구성이 흔들리는 것을 막기 위해 7일 디스크 캐시.
+    피어가 비어 있는 응답은 캐시하지 않는다(오염 방지)."""
     if market == "KR":
         mkt = "한국(KOSPI/KOSDAQ)"
         tk_rule = "ticker는 6자리 종목코드(예: 005930)"

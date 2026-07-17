@@ -26,8 +26,13 @@ def _is_fresh(path: Path, ttl_hours: float) -> bool:
     return path.exists() and (time.time() - path.stat().st_mtime) < ttl_hours * 3600
 
 
-def file_cache(name: str, ttl_hours: float = 24.0):
-    """함수 결과를 파일로 캐시하는 데코레이터. 반환형은 DataFrame 또는 json 직렬화 가능 객체."""
+def file_cache(name: str, ttl_hours: float = 24.0, validate=None):
+    """함수 결과를 파일로 캐시하는 데코레이터. 반환형은 DataFrame 또는 json 직렬화 가능 객체.
+
+    validate: 결과가 '실질이 있는지' 검사하는 콜러블. 무료 API가 레이트리밋으로
+    빈 값을 성공처럼 반환할 때가 있는데, 검사에 실패한 결과는 캐시에 저장하지 않고
+    (오염 방지) 기존 캐시(만료 포함)가 검사를 통과하면 그것을 대신 반환한다.
+    """
 
     def deco(fn):
         @wraps(fn)
@@ -38,7 +43,10 @@ def file_cache(name: str, ttl_hours: float = 24.0):
 
             for path in (pq, js):
                 if _is_fresh(path, ttl_hours):
-                    return _load(path)
+                    cached = _load(path)
+                    if validate is None or validate(cached):
+                        return cached
+                    break  # 과거에 저장된 빈 캐시 → 무시하고 다시 받아온다
             try:
                 result = fn(*args, **kwargs)
             except Exception:
@@ -47,6 +55,14 @@ def file_cache(name: str, ttl_hours: float = 24.0):
                     if path.exists():
                         return _load(path)
                 raise
+            if validate is not None and not validate(result):
+                # 빈 결과 — 저장하지 않고, 검사를 통과하는 이전 캐시가 있으면 그걸 반환
+                for path in (pq, js):
+                    if path.exists():
+                        old = _load(path)
+                        if validate(old):
+                            return old
+                return result
             _save(result, pq, js)
             return result
 

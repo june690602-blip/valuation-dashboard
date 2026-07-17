@@ -4,6 +4,7 @@ from __future__ import annotations
 import yfinance as yf
 
 from .base import (DataProvider, build_peer_table, extract_financials,
+                   fill_self_from_financials,
                    extract_ttm, fetch_index_prices, fetch_info_metrics,
                    fetch_prices, trim_peers)
 from .models import CompanyData
@@ -101,6 +102,7 @@ class USProvider(DataProvider):
                 warnings.append("S&P500 밖 종목이라 업종 피어를 구성하지 못했습니다.")
         peers = build_peer_table(cands[: peer_count + 8], sym, labels=None)
         peers = trim_peers(peers, sym, peer_count)
+        peers = fill_self_from_financials(peers, sym, financials, mcap)
         if basis:
             warnings.append(f"피어 기준: {basis}, {len(peers)}개 종목")
         if len(peers) < 4:

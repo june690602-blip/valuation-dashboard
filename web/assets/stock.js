@@ -152,10 +152,21 @@
   }
 
   function scoreDesc(k, v) {
-    if (v == null) return '피어 표본 부족 — 산출 불가';
+    if (v == null) return nullScoreReason(k);
     var strong = v >= 65, weak = v < 35;
     var tail = strong ? '업종 상위 — 강점' : weak ? '업종 하위 — 약점' : v >= 50 ? '업종 평균 이상' : '업종 평균 부근';
     return tail;
+  }
+
+  // 점수 미산출 사유 — details의 지표별 피어 보유 수(n)로 원인을 구분해 보여준다.
+  function nullScoreReason(k) {
+    var rows = (D.scores.details || {})[k] || [];
+    if (!rows.length) return '산출 불가';
+    var maxN = 0, selfMissing = true;
+    rows.forEach(function (r) { if (r.n != null && r.n > maxN) maxN = r.n; if (r.target != null) selfMissing = false; });
+    if (maxN < 3) return '피어 표본 부족 — 지표 보유 피어 ' + maxN + '개 (최소 3개 필요). 무료 데이터 결측으로, 잠시 후 재조회하면 채워질 수 있어요.';
+    if (selfMissing) return '자사 지표 결측 — 피어는 충분하지만 이 종목의 값이 없어 산출 불가';
+    return '산출 불가 (지표별 상세 참조)';
   }
   function scoreBars() {
     var order = ['밸류에이션', '수익성', '성장성', '재무 안정성', '현금흐름'];
