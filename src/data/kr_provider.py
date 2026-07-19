@@ -13,7 +13,7 @@ import yfinance as yf
 from .base import (DataProvider, build_peer_table, extract_financials,
                    fill_self_from_financials,
                    extract_ttm, fetch_index_prices, fetch_prices, trim_peers)
-from .models import FIN_COLUMNS, CompanyData
+from .models import FIN_COLUMNS, CompanyData, Consensus, recomm_label
 from .naver import fetch_naver_fundamental
 from .opendart import get_dart_financials
 from .universe import (detect_financial, find_kr, get_kr_listing,
@@ -128,6 +128,7 @@ class KRProvider(DataProvider):
         warnings += w
 
         official: dict = {"source": None}
+        consensus: Consensus | None = None
         try:
             nv = fetch_naver_fundamental(code)
             official = {
@@ -137,6 +138,19 @@ class KRProvider(DataProvider):
                 "시가총액": nv.get("market_cap") or meta["marcap"],
                 "source": nv.get("source"),
             }
+            score = nv.get("recomm_score")   # FnGuide 척도 = 이미 5=적극매수
+            consensus = Consensus(
+                forward_eps=nv.get("forward_eps"),
+                forward_per=nv.get("forward_per"),
+                target_mean=nv.get("target_mean"),
+                recomm_score=score, recomm_label=recomm_label(score),
+                as_of=nv.get("consensus_date") or "",
+                source="네이버금융(FnGuide 컨센서스)",
+            )
+            if not consensus.has_any():
+                consensus = None
+                warnings.append("애널리스트 컨센서스가 없는 종목입니다 "
+                                "(커버리지 없음 — 소형주에 흔함).")
         except Exception:
             warnings.append("네이버 금융 지표 조회 실패 — 재무제표 기반 계산값만 사용합니다.")
         official["재무출처"] = fin_source
@@ -189,6 +203,7 @@ class KRProvider(DataProvider):
             index_prices=index_prices, benchmark_name=benchmark,
             peers=peers, official=official, warnings=warnings,
             is_financial=detect_financial(meta["sector"], meta["industry"], "KR"),
+            consensus=consensus,
         )
 
     @staticmethod

@@ -70,6 +70,9 @@
     .chart-status-metrics { grid-template-columns:repeat(3,1fr); }
     .price-toolbar .seg button, .ma-btn, .chart-reset { min-height:38px; }
   }
+  /* lineMulti hover 값 표시 — 밴드에 마우스를 올리면 해당 시점 값이 나타난다 */
+  .lm-hband .lm-hv { opacity: 0; pointer-events: none; transition: opacity .1s ease; }
+  .lm-hband:hover .lm-hv { opacity: 1; }
   .chev { transition: transform var(--dur-med) var(--ease-out); }
   .chev.open { transform: rotate(180deg); }
   .aside-wrap { flex: none; overflow: hidden; border-right: 1px solid var(--line); transition: width .28s var(--ease-out); width: 279px; }
@@ -260,13 +263,13 @@
 
         <!-- 02 요약·판정 -->
         <section class="panel on" data-tab="summary" id="panel-summary">
-          <div class="method-map"><span class="method-chip">결론</span><span>세 가지 방법으로 만든 적정가 범위와 현재가를 비교해 판정을 종합합니다 — 아래 표의 <b>①②③</b>이 각각의 재료 탭입니다.</span></div>
+          <div class="method-map"><span class="method-chip">결론</span><span>네 가지 방법으로 만든 적정가 범위와 현재가를 비교해 판정을 종합합니다 — 아래 표의 <b>①②③</b>이 각각의 재료 탭이고, <b>④</b>는 애널리스트 컨센서스 선행 이익입니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="summary-value-title">
               <div class="analysis-section-head">
                 <span class="analysis-section-index">01</span>
-                <div><h3 class="analysis-section-title" id="summary-value-title">적정가 추정</h3><p class="analysis-section-desc">서로 다른 세 가지 평가 방법을 함께 보고 현재가와의 괴리를 비교합니다.</p></div>
-                <span class="analysis-section-meta">상대가치 · 역사적 밴드 · RIM</span>
+                <div><h3 class="analysis-section-title" id="summary-value-title">적정가 추정</h3><p class="analysis-section-desc">서로 다른 평가 방법을 함께 보고 현재가와의 괴리를 비교합니다.</p></div>
+                <span class="analysis-section-meta">상대가치 · 역사적 밴드 · RIM · 선행 이익</span>
               </div>
               <div class="analysis-section-body">
                 <div id="bulletChart"></div>
@@ -274,9 +277,18 @@
               </div>
             </section>
 
-            <section class="analysis-section" aria-labelledby="summary-score-title">
+            <section class="analysis-section" aria-labelledby="summary-consensus-title" id="consensusSection">
               <div class="analysis-section-head">
                 <span class="analysis-section-index">02</span>
+                <div><h3 class="analysis-section-title" id="summary-consensus-title">시장 컨센서스 교차검증</h3><p class="analysis-section-desc">증권가 애널리스트 평균 전망과 이 대시보드 모형의 결론을 나란히 놓고 차이를 확인합니다. 목표주가는 참고용 시장 시각이며 판정 계산에는 넣지 않습니다.</p></div>
+                <span class="analysis-section-meta" id="consensusMeta">애널리스트 평균</span>
+              </div>
+              <div class="analysis-section-body" id="consensusBody"></div>
+            </section>
+
+            <section class="analysis-section" aria-labelledby="summary-score-title">
+              <div class="analysis-section-head">
+                <span class="analysis-section-index">03</span>
                 <div><h3 class="analysis-section-title" id="summary-score-title">업종 상대점수</h3><p class="analysis-section-desc">같은 업종의 기업과 비교한 백분위입니다. 50은 업종 중앙값을 뜻합니다.</p></div>
                 <span class="analysis-section-meta">0–100 백분위</span>
               </div>
@@ -294,7 +306,7 @@
 
             <section class="analysis-section" aria-labelledby="summary-reason-title">
               <div class="analysis-section-head">
-                <span class="analysis-section-index">03</span>
+                <span class="analysis-section-index">04</span>
                 <div><h3 class="analysis-section-title" id="summary-reason-title">판정 근거</h3><p class="analysis-section-desc">계산 결과에서 긍정 요인과 위험 요인을 규칙 기반으로 분리해 보여줍니다.</p></div>
                 <span class="analysis-section-meta">자동 해설</span>
               </div>
@@ -366,6 +378,10 @@
             <section class="analysis-section" aria-labelledby="valuation-history-title">
               <div class="analysis-section-head"><span class="analysis-section-index">02</span><div><h3 class="analysis-section-title" id="valuation-history-title">역사적 밴드</h3><p class="analysis-section-desc">자기 과거의 평가배수 범위 안에서 현재 위치가 높은지 낮은지 확인합니다.</p></div><div class="seg" id="bandSeg"><button class="on" data-val="PER">PER</button><button data-val="PBR">PBR</button></div></div>
               <div class="analysis-section-body"><div style="min-height:250px" id="bandChart"></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:8px" id="bandCaption"></div></div>
+            </section>
+            <section class="analysis-section" aria-labelledby="valuation-scenario-title" id="scenarioSection">
+              <div class="analysis-section-head"><span class="analysis-section-index">03</span><div><h3 class="analysis-section-title" id="valuation-scenario-title">시나리오 분석</h3><p class="analysis-section-desc">비관·기준·낙관 가정에서 가격이 어떻게 달라지는지, 어떤 가정이 결론을 좌우하는지 확인합니다. 예측이 아니라 가정을 바꿔 보는 사고 실험입니다.</p></div><span class="analysis-section-meta">EPS 가정 × 멀티플 민감도</span></div>
+              <div class="analysis-section-body" id="scenarioBody"></div>
             </section>
           </div>
         </section>

@@ -55,13 +55,35 @@ def sanitize_peer_frame(peers: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def peer_median(peers: pd.DataFrame, col: str, exclude_self: bool = True):
-    """정제된 피어 중앙값 (표본 3개 미만이면 None)."""
+def comparable_peers(peers: pd.DataFrame, self_mcap: float | None,
+                     factor: float = 20.0) -> pd.DataFrame:
+    """밸류에이션용 규모 비교가능 피어 — 시총이 자사의 1/factor~factor 범위만.
+
+    AI 업종분류가 초소형주를 섞으면(예: 28조 기업의 피어에 0.1조 기업) 멀티플
+    중앙값이 소형주 디스카운트에 오염된다. 필터 후 남는 피어가 3개 미만이면
+    해당 지표는 peer_median의 최소표본 규칙에 걸려 자연히 건너뛰게 된다
+    (오염된 값보다 '계산 불가'가 정직하다). 점수·비교표는 원본 피어를 유지한다.
+    """
+    df = sanitize_peer_frame(peers)
+    if not self_mcap or "market_cap" not in df.columns or "is_self" not in df.columns:
+        return df
+    keep = df["is_self"] | (pd.to_numeric(df["market_cap"], errors="coerce")
+                            .between(self_mcap / factor, self_mcap * factor))
+    return df[keep.fillna(False)]
+
+
+def peer_median(peers: pd.DataFrame, col: str, exclude_self: bool = True,
+                min_n: int = 3):
+    """정제된 피어 중앙값 (표본 min_n개 미만이면 None).
+
+    min_n 기본 3. 규모 비교가능 피어(comparable_peers)처럼 품질 필터를 거친
+    표본은 호출부에서 2까지 낮춰 쓸 수 있다.
+    """
     if col not in peers.columns:
         return None
     df = peers[~peers["is_self"]] if exclude_self and "is_self" in peers.columns else peers
     v = df[col].dropna()
-    return float(v.median()) if len(v) >= 3 else None
+    return float(v.median()) if len(v) >= min_n else None
 
 
 def _percentile_score(target: float, peer_values: pd.Series, higher_better: bool) -> float:

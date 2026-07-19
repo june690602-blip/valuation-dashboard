@@ -7,7 +7,7 @@ from .base import (DataProvider, build_peer_table, extract_financials,
                    fill_self_from_financials,
                    extract_ttm, fetch_index_prices, fetch_info_metrics,
                    fetch_prices, trim_peers)
-from .models import CompanyData
+from .models import CompanyData, Consensus, recomm_label
 from .universe import detect_financial, find_us, peers_us_by_sector, select_peers_us
 
 
@@ -108,6 +108,25 @@ class USProvider(DataProvider):
         if len(peers) < 4:
             warnings.append("피어 표본이 적어 업종 비교의 신뢰도가 낮습니다.")
 
+        # 애널리스트 컨센서스 (야후 recommendationMean은 1=적극매수라 6-x로 통일 척도 변환)
+        yf_rec = self_info.get("recomm_mean_yf")
+        score = (6.0 - float(yf_rec)) if yf_rec is not None else None
+        fwd_eps = self_info.get("forward_eps")
+        consensus = Consensus(
+            forward_eps=fwd_eps if fwd_eps and fwd_eps > 0 else None,
+            forward_per=self_info.get("forward_per"),
+            target_mean=self_info.get("target_mean"),
+            target_high=self_info.get("target_high"),
+            target_low=self_info.get("target_low"),
+            n_analysts=self_info.get("n_analysts"),
+            recomm_score=score, recomm_label=recomm_label(score),
+            source="Yahoo Finance(애널리스트 컨센서스)",
+        )
+        if not consensus.has_any():
+            consensus = None
+            warnings.append("애널리스트 컨센서스가 없는 종목입니다 "
+                            "(커버리지 없음 — 소형주에 흔함).")
+
         official = {
             "PER": self_info.get("per"), "PBR": self_info.get("pbr"),
             "DIV": self_info.get("div_yield"), "beta": self_info.get("beta"),
@@ -130,4 +149,5 @@ class USProvider(DataProvider):
             index_prices=index_prices, benchmark_name="S&P 500",
             peers=peers, official=official, warnings=warnings,
             is_financial=detect_financial(sector, industry, "US"),
+            consensus=consensus,
         )

@@ -61,6 +61,31 @@ def main(market: str, query: str):
     print(f"  종합: {fmt(val.fair_mid)} | 괴리율 {fmt(val.gap, 'pct')} → {val.verdict} (신뢰도 {val.confidence})")
     print(f"  PER밴드 백분위={fmt(val.per_percentile)} PBR밴드 백분위={fmt(val.pbr_percentile)}")
 
+    c = d.consensus
+    print("\n[컨센서스]")
+    if c is None:
+        print("  없음 (커버리지 없음)")
+    else:
+        print(f"  선행EPS={fmt(c.forward_eps)} 선행PER={fmt(c.forward_per, 'x')} "
+              f"목표주가평균={fmt(c.target_mean)} 의견={c.recomm_label}({fmt(c.recomm_score)}) "
+              f"n={c.n_analysts} [{c.source}]")
+        if val.forward_growth is not None:
+            print(f"  내재 이익 변화(TTM 대비): {fmt(val.forward_growth, 'pct')}")
+
+    from src.analysis.scenario import build_scenarios
+    from src.analysis.scoring import comparable_peers, peer_median
+    scn = build_scenarios(price=d.price, eps_fwd=c.forward_eps if c else None,
+                          eps_ttm=d.latest("eps"), per_q=val.per_q,
+                          peer_per=peer_median(comparable_peers(d.peers, d.market_cap), "per"))
+    print("\n[시나리오]")
+    if scn is None:
+        print("  계산 불가 (적자 또는 데이터 부족)")
+    else:
+        print(f"  기준 EPS {fmt(scn.eps_base)} ({scn.eps_basis}) | {scn.multiple_basis}")
+        for cs in scn.cases:
+            print(f"  {cs.name}: EPS {cs.eps_delta:+.0%} × {cs.multiple:.1f}배 "
+                  f"→ {cs.price:,.0f} (현재가 대비 {fmt(cs.upside, 'pct')})")
+
     print("\n[해설]")
     for cm in build_commentary(d, ind, sc, cc, val):
         print(f"  ({cm.kind}) {cm.text}")

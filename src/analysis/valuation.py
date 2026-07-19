@@ -1,6 +1,10 @@
-"""적정주가 삼각측량: ① 업종 상대가치 ② 역사적 밴드 ③ RIM(잔여이익모델).
+"""적정주가 삼각측량: ① 업종 상대가치 ② 역사적 밴드 ③ RIM ④ 선행 이익(컨센서스).
 
-세 방법의 적정가 범위를 현재가와 비교해 5단계 판정을 내린다.
+①~③은 과거(TTM) 실적 기반, ④는 애널리스트 컨센서스 12개월 선행 EPS 기반 —
+증권사 목표주가의 지배적 산식(선행 EPS × 타깃 멀티플)을 따른다.
+방법별 적정가 중심값의 중앙값을 현재가와 비교해 5단계 판정을 내린다
+(중앙값 = 극단적인 방법 하나가 결론을 끌고 가지 못하게 하는 강건한 종합).
+컨센서스 '목표주가' 자체는 종합에 섞지 않고 외부 교차검증치로만 쓴다.
 """
 from __future__ import annotations
 
@@ -10,9 +14,19 @@ import numpy as np
 import pandas as pd
 
 from ..data.models import CompanyData
-from .scoring import peer_median, sanitize_peer_frame
+from .scoring import comparable_peers, peer_median, sanitize_peer_frame
 
 VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
+
+# 방법별 가중치 — Liu·Nissim·Thomas(2002, JAR)의 가격 설명력 순위
+# (선행이익 > 과거이익 멀티플 > 장부가 기반)를 반영한 기본값.
+# 사용 가능한 방법만으로 재정규화해 합이 1이 되게 쓴다.
+METHOD_WEIGHTS = {
+    "선행 이익(컨센서스)": 0.35,
+    "업종 상대가치": 0.25,
+    "역사적 밴드": 0.25,
+    "수익가치(RIM)": 0.15,
+}
 
 
 @dataclass
@@ -42,40 +56,61 @@ class ValuationResult:
     rim_fair_pbr: float | None = None
     rim_roe: float | None = None
     rim_r: float | None = None
+    forward_eps: float | None = None       # ④에 사용한 컨센서스 12개월 EPS
+    forward_growth: float | None = None    # 선행 EPS / TTM EPS - 1 (내재 성장률)
+    weights: dict = field(default_factory=dict)   # 종합에 쓴 방법별 가중치 (재정규화)
+    skipped: list = field(default_factory=list)   # [(방법명, 건너뛴 사유)] — 번호 자리 유지용
     notes: list = field(default_factory=list)
 
 
 # ── ① 업종 상대가치 ──────────────────────────────────────────────────
-def _relative_value(d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
-                    revenue_ps=None) -> FairValue | None:
-    peers = sanitize_peer_frame(d.peers)
+def _rel_fairs(peers, d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
+               revenue_ps, min_n: int):
+    """주어진 피어 프레임에서 배수별 적정가 후보 목록을 만든다."""
     fairs, used = [], []
     is_loss = not (eps and eps > 0)
-    m = peer_median(peers, "per")
+    m = peer_median(peers, "per", min_n=min_n)
     if m and not is_loss:
         fairs.append(m * eps)
         used.append(f"PER {m:.1f}배")
-    m = peer_median(peers, "pbr")
+    m = peer_median(peers, "pbr", min_n=min_n)
     if m and bps and bps > 0:
         fairs.append(m * bps)
         used.append(f"PBR {m:.2f}배")
     # 적자 기업은 이익 기반 배수를 못 쓰므로 매출 기반(PSR)을 보강
     if is_loss:
-        m = peer_median(peers, "psr")
+        m = peer_median(peers, "psr", min_n=min_n)
         if m and revenue_ps and revenue_ps > 0:
             fairs.append(m * revenue_ps)
             used.append(f"PSR {m:.1f}배")
     if not d.is_financial:
-        m = peer_median(peers, "ev_ebitda")
+        m = peer_median(peers, "ev_ebitda", min_n=min_n)
         if m and ebitda_ps and ebitda_ps > 0:
             fair = m * ebitda_ps - (debt_ps or 0) + (cash_ps or 0)
             if fair > 0:
                 fairs.append(fair)
                 used.append(f"EV/EBITDA {m:.1f}배")
+    return fairs, used
+
+
+def _relative_value(d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
+                    revenue_ps=None) -> FairValue | None:
+    """규모 비교가능 피어(시총 1/20~20배) 우선 — 품질 필터를 거쳤으므로 표본 2개부터
+    허용. 부족하면 전체 피어로 폴백하되 규모 차이 경고를 note에 남긴다
+    (AI 피어에 초소형주가 섞이면 중앙값이 소형주 디스카운트에 오염되기 때문)."""
+    sized = comparable_peers(d.peers, d.market_cap)
+    fairs, used = _rel_fairs(sized, d, eps, bps, ebitda_ps, debt_ps, cash_ps,
+                             revenue_ps, min_n=2)
+    suffix = ""
+    if not fairs:
+        full = sanitize_peer_frame(d.peers)
+        fairs, used = _rel_fairs(full, d, eps, bps, ebitda_ps, debt_ps, cash_ps,
+                                 revenue_ps, min_n=3)
+        suffix = " · 전체 피어(자사와 규모 차이 커 신뢰 주의)"
     if not fairs:
         return None
     return FairValue("업종 상대가치", min(fairs), float(np.median(fairs)), max(fairs),
-                     note="피어 중앙값 " + ", ".join(used))
+                     note="피어 중앙값 " + ", ".join(used) + suffix)
 
 
 # ── ② 역사적 밴드 ────────────────────────────────────────────────────
@@ -165,6 +200,36 @@ def _recent_roe(d: CompanyData, ttm_roe: float | None) -> float | None:
     return ttm_roe if ttm_roe is not None else hist
 
 
+# ── ④ 선행 이익 (컨센서스 12개월 EPS × 타깃 멀티플) ─────────────────
+def _forward_value(fwd_eps: float | None, peer_fwd_per: float | None,
+                   per_q: dict | None) -> FairValue | None:
+    """중심 = 타깃 멀티플 × 선행 EPS. 타깃 멀티플은 **자기 5년 PER 중앙값 우선**,
+    없으면 피어 선행PER 폴백. 범위는 자기 5년 밴드 q25~q75.
+
+    근거(실증): 11종목 횡단면 테스트(scripts/check_multiple_rules.py)에서 자기 5년
+    중앙값이 |log(예측/현재가)| 최소(0.26)였고, 증권사 목표주가의 내재 멀티플과
+    중앙값 기준 +2% 이내로 일치했다. 피어 선행PER 중앙값은 AI 피어에 소형주가
+    섞이면 체계적으로 과소 추정된다(오차 0.65).
+    """
+    if not fwd_eps or fwd_eps <= 0:
+        return None
+    q25 = per_q.get(25) if per_q else None
+    q50 = per_q.get(50) if per_q else None
+    q75 = per_q.get(75) if per_q else None
+    if q50 and q50 > 0:
+        mult, label = q50, "자기 5년 PER 중앙값"
+    elif peer_fwd_per and peer_fwd_per > 0:
+        mult, label = peer_fwd_per, "피어 선행PER"
+    else:
+        return None
+    mid = mult * fwd_eps
+    lo = q25 * fwd_eps if q25 else mid
+    hi = q75 * fwd_eps if q75 else mid
+    # note는 요약 차트 라벨 폭(~34자)에 맞춰 짧게 유지한다
+    return FairValue("선행 이익(컨센서스)", min(lo, mid), mid, max(hi, mid),
+                     note=f"컨센서스 EPS × {label} {mult:.1f}배")
+
+
 # ── 종합 ────────────────────────────────────────────────────────────
 def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     """ind: Indicators, r_equity: RIM 요구수익률(기본 CAPM k_e)."""
@@ -185,6 +250,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     if fv:
         res.estimates.append(fv)
     else:
+        res.skipped.append(("업종 상대가치", "피어 표본 부족"))
         res.notes.append("피어 표본이 부족해 상대가치 평가를 건너뜁니다.")
 
     # ② 역사적 밴드 (PER 우선, 적자면 PBR)
@@ -197,6 +263,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         res.estimates.append(FairValue("역사적 밴드", fair[0], fair[1], fair[2],
                                        note=f"5년 {basis} 25~75분위 × 현재 펀더멘털"))
     else:
+        res.skipped.append(("역사적 밴드", "상장기간 짧음 또는 적자 지속"))
         res.notes.append("상장기간이 짧거나 적자가 길어 역사적 밴드를 계산하지 못했습니다.")
 
     # ③ RIM — 장부자본이 왜곡된 기업(대규모 자사주 매입 등)은 건너뜀
@@ -206,6 +273,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     book_distorted = (roe_raw is not None and roe_raw > 0.6) or \
                      (pbr_actual is not None and pbr_actual > 12) or pbr_actual is None
     if book_distorted:
+        res.skipped.append(("수익가치(RIM)", "자사주 매입 등 장부자본 왜곡"))
         res.notes.append("자사주 매입 등으로 장부자본이 극단적으로 작아 "
                          "RIM(장부가치 기반) 평가는 신뢰할 수 없어 건너뜁니다.")
         res.rim_r = r_equity
@@ -216,14 +284,40 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         if rim:
             res.estimates.append(rim)
         else:
+            res.skipped.append(("수익가치(RIM)", "ROE ≤ 0 (적자)"))
             res.notes.append("ROE가 0 이하라 RIM 평가를 건너뜁니다 (적자 기업).")
 
-    # 종합 판정
+    # ④ 선행 이익 — 애널리스트 컨센서스가 있을 때만 (판정이 미래 추정을 반영하게)
+    cons = d.consensus
+    if cons is None or not cons.forward_eps or cons.forward_eps <= 0:
+        res.skipped.append(("선행 이익(컨센서스)", "애널리스트 커버리지 없음"))
+    else:
+        peers = comparable_peers(d.peers, d.market_cap)   # 규모 비교가능 피어만
+        fv4 = _forward_value(cons.forward_eps, peer_median(peers, "forward_per", min_n=2),
+                             res.per_q)
+        if fv4:
+            res.estimates.append(fv4)
+            res.forward_eps = cons.forward_eps
+            if eps and eps > 0:
+                res.forward_growth = cons.forward_eps / eps - 1
+                res.notes.append(
+                    f"선행 이익 방법은 컨센서스 12개월 EPS(현 TTM 대비 "
+                    f"{res.forward_growth:+.0%})를 사용합니다 — 시장의 실적 전망이 "
+                    "빗나가면 함께 빗나갑니다.")
+        else:
+            res.skipped.append(("선행 이익(컨센서스)", "밴드·피어 멀티플 부족"))
+
+    # 종합 판정 — 방법별 **가중평균**. 가중치는 Liu·Nissim·Thomas(2002)의 가격
+    # 설명력 순위(선행이익 > 과거이익 멀티플 > 장부가 기반)를 반영한 METHOD_WEIGHTS.
+    # 없는 방법은 제외하고 재정규화한다.
     if res.estimates:
         mids = [e.mid for e in res.estimates]
-        res.fair_low = float(np.mean([e.low for e in res.estimates]))
-        res.fair_mid = float(np.mean(mids))
-        res.fair_high = float(np.mean([e.high for e in res.estimates]))
+        w = np.array([METHOD_WEIGHTS.get(e.method, 0.25) for e in res.estimates])
+        w = w / w.sum()
+        res.weights = {e.method: float(wi) for e, wi in zip(res.estimates, w)}
+        res.fair_low = float(np.dot(w, [e.low for e in res.estimates]))
+        res.fair_mid = float(np.dot(w, mids))
+        res.fair_high = float(np.dot(w, [e.high for e in res.estimates]))
         res.gap = res.fair_mid / d.price - 1
         g = res.gap
         res.verdict = (VERDICTS[0] if g >= 0.30 else

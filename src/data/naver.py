@@ -62,24 +62,30 @@ def fetch_company_overview(code: str) -> dict:
     return {"summary": " ".join(body) or None, "source": "에프앤가이드(네이버금융)"}
 
 
-@file_cache("naver_fund", ttl_hours=12)
+@file_cache("naver_fund_v2", ttl_hours=12)
 def fetch_naver_fundamental(code: str) -> dict:
-    """종목 하나의 네이버 공시 지표. 실패 시 예외 → 호출부에서 폴백."""
+    """종목 하나의 네이버 공시 지표 + FnGuide 컨센서스. 실패 시 예외 → 호출부에서 폴백."""
     url = f"https://m.stock.naver.com/api/stock/{code}/integration"
     r = requests.get(url, headers=_HEADERS, timeout=15)
     r.raise_for_status()
     j = r.json()
     infos = {i.get("code"): i.get("value") for i in j.get("totalInfos", [])}
+    cns = j.get("consensusInfo") or {}   # {"recommMean": "4.04", "priceTargetMean": "513,958", ...}
 
     per = _parse_number(infos.get("per"))
     eps = _parse_number(infos.get("eps"))
     pbr = _parse_number(infos.get("pbr"))
     bps = _parse_number(infos.get("bps"))
     div = _parse_number(infos.get("dividendYieldRatio"))
+    fwd_eps = _parse_number(infos.get("cnsEps"))
     out = {
         "name": j.get("stockName"),
         "per": per if per and per > 0 else None,
         "forward_per": _parse_number(infos.get("cnsPer")),
+        "forward_eps": fwd_eps if fwd_eps and fwd_eps > 0 else None,
+        "target_mean": _parse_number(cns.get("priceTargetMean")),
+        "recomm_score": _parse_number(cns.get("recommMean")),  # 5=적극매수 (FnGuide 척도)
+        "consensus_date": str(cns.get("createDate") or ""),
         "eps": eps,
         "bps": bps,
         "pbr": pbr if pbr and pbr > 0 else None,

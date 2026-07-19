@@ -221,7 +221,7 @@ def _info_has_substance(m: dict) -> bool:
         m.get(k) is not None for k in ("market_cap", "price", "per", "pbr"))
 
 
-@file_cache("peer_info", ttl_hours=24, validate=_info_has_substance)
+@file_cache("peer_info_v2", ttl_hours=24, validate=_info_has_substance)
 def fetch_info_metrics(yahoo_ticker: str) -> dict:
     """한 종목의 info 기반 비교 지표 (json 캐시). 빈 응답은 캐시하지 않는다."""
     info = yf.Ticker(yahoo_ticker).info or {}
@@ -233,6 +233,12 @@ def fetch_info_metrics(yahoo_ticker: str) -> dict:
         "market_cap": mcap,
         "per": g("trailingPE"),
         "forward_per": g("forwardPE"),
+        "forward_eps": g("forwardEps"),
+        "target_mean": g("targetMeanPrice"),
+        "target_high": g("targetHighPrice"),
+        "target_low": g("targetLowPrice"),
+        "n_analysts": g("numberOfAnalystOpinions"),
+        "recomm_mean_yf": g("recommendationMean"),   # 1=적극매수 (야후 척도, provider에서 뒤집음)
         "pbr": g("priceToBook"),
         "psr": g("priceToSalesTrailing12Months"),
         "ev_ebitda": g("enterpriseToEbitda"),

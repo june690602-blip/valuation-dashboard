@@ -11,7 +11,8 @@ from src.analysis.backtest import HORIZONS, run_backtest
 from src.analysis.capital_cost import compute_capital_cost
 from src.analysis.commentary import build_commentary
 from src.analysis.indicators import compute_indicators
-from src.analysis.scoring import (compute_scores, peer_median,
+from src.analysis.scenario import build_scenarios
+from src.analysis.scoring import (comparable_peers, compute_scores, peer_median,
                                    rank_peers_cheapness, sanitize_peer_frame)
 from src.analysis.valuation import compute_valuation
 from src.ui import charts
@@ -93,7 +94,8 @@ def render_landing(market: str):
     st.markdown(
         "**종목 하나를 입력하면** 재무제표·주가·업종 데이터를 자동 수집해 다음을 보여줍니다.\n"
         "- 5개 카테고리(밸류에이션·수익성·성장성·안정성·현금흐름) **업종 상대 점수**\n"
-        "- 3가지 방법(업종 상대가치 · 역사적 밴드 · RIM)으로 삼각측량한 **적정주가와 판정**\n"
+        "- 4가지 방법(업종 상대가치 · 역사적 밴드 · RIM · 컨센서스 선행 이익)으로 삼각측량한 **적정주가와 판정**\n"
+        "- 증권가 **컨센서스(목표주가·선행 EPS)와 교차검증**, 비관·기준·낙관 **시나리오 분석**\n"
         "- 과거 시세로 회귀한 **베타 → 영업위험 자본비용 → WACC** 분해\n"
         "- 낮은 멀티플이 기회인지 밸류트랩인지 가려주는 **자동 해설**"
     )
@@ -123,17 +125,36 @@ def render_summary_tab(d, ind, scores, cc, val):
     c1, c2 = st.columns([3, 2])
     with c1:
         st.markdown(section_header_html("Fair Value", "적정주가 vs 현재가",
-                                        "업종 상대가치 · 역사적 밴드 · RIM 삼각측량"),
+                                        "상대가치 · 역사적 밴드 · RIM · 선행 이익 삼각측량"),
                     unsafe_allow_html=True)
         if val.estimates:
             st.plotly_chart(charts.fair_value_bullet(val.estimates, val.fair_mid,
-                                                     d.price, d.currency),
+                                                     d.price, d.currency,
+                                                     val.fair_low, val.fair_high),
                             use_container_width=True, config=PLOTLY_CFG)
-            rows = [{"방법": e.method,
-                     "적정가 범위": f"{fmt_price(e.low, d.currency)} ~ {fmt_price(e.high, d.currency)}",
-                     "중심": fmt_price(e.mid, d.currency), "근거": e.note}
-                    for e in val.estimates]
+            # 건너뛴 방법도 번호 자리를 유지해 ①~④가 항상 순서대로 보이게 한다
+            canon = ["업종 상대가치", "역사적 밴드", "수익가치(RIM)", "선행 이익(컨센서스)"]
+            est_map = {e.method: e for e in val.estimates}
+            skip_map = dict(val.skipped)
+            order = canon + [e.method for e in val.estimates if e.method not in canon]
+            rows = []
+            for name in order:
+                e = est_map.get(name)
+                if e is not None:
+                    rows.append({"방법": name,
+                                 "가중": f"{val.weights.get(name, 0) * 100:.0f}%",
+                                 "적정가 범위": f"{fmt_price(e.low, d.currency)} ~ {fmt_price(e.high, d.currency)}",
+                                 "중심": fmt_price(e.mid, d.currency), "근거": e.note})
+                elif name in skip_map:
+                    rows.append({"방법": name, "가중": "—", "적정가 범위": "건너뜀",
+                                 "중심": "—", "근거": skip_map[name]})
             st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.caption("공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 · "
+                       "② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS · "
+                       "③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 · "
+                       "④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — "
+                       "종합 = 가중평균 ④35·①25·②25·③15% (근거: Liu·Nissim·Thomas 2002, JAR) · "
+                       "출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)")
         else:
             st.info("적정주가를 계산할 수 있는 방법이 없습니다 (데이터 부족).")
     with c2:
@@ -151,6 +172,9 @@ def render_summary_tab(d, ind, scores, cc, val):
                        "백분위 평균 (밸류에이션은 높을수록 '싸다'는 뜻)")
 
     st.divider()
+    _render_consensus_summary(d, val)
+
+    st.divider()
     st.markdown(section_header_html("Rationale", "판정 근거", "규칙 기반 자동 해설"),
                 unsafe_allow_html=True)
     comments = build_commentary(d, ind, scores, cc, val)
@@ -158,6 +182,114 @@ def render_summary_tab(d, ind, scores, cc, val):
     funcs = {"good": st.success, "bad": st.error, "warn": st.warning, "info": st.info}
     for cm in comments:
         funcs[cm.kind](cm.text, icon=icons[cm.kind])
+
+
+def _render_consensus_summary(d, val):
+    """요약 탭 — 증권가 컨센서스 vs 우리 모형 교차검증 (목표주가는 판정 계산에 미포함)."""
+    st.markdown(section_header_html("Consensus", "시장 컨센서스 교차검증",
+                                    "증권가 애널리스트 평균 vs 이 대시보드 모형"),
+                unsafe_allow_html=True)
+    c = d.consensus
+    if c is None or not c.has_any():
+        st.caption("애널리스트 컨센서스가 없는 종목입니다 — 증권사 커버리지가 없는 소형주에 흔합니다. "
+                   "이 경우 위 적정가 삼각측량만으로 판단 근거를 삼습니다.")
+        return
+    cols = st.columns(4)
+    cols[0].metric("현재가", fmt_price(d.price, d.currency))
+    cols[1].metric("모형 종합 적정가", fmt_price(val.fair_mid, d.currency),
+                   delta=f"{val.gap * 100:+.1f}%" if val.gap is not None else None)
+    tgt_up = c.target_mean / d.price - 1 if c.target_mean and d.price else None
+    cols[2].metric("컨센서스 목표주가", fmt_price(c.target_mean, d.currency),
+                   delta=f"{tgt_up * 100:+.1f}%" if tgt_up is not None else None)
+    rec = f"{c.recomm_label} ({c.recomm_score:.2f}/5)" if c.recomm_label else "—"
+    cols[3].metric("투자의견 평균", rec)
+
+    bits = []
+    if c.forward_eps:
+        g = (f" (TTM 대비 {val.forward_growth * 100:+.0f}%)"
+             if val.forward_growth is not None else "")
+        bits.append(f"12개월 선행 EPS {fmt_price(c.forward_eps, d.currency)}{g}")
+    if c.forward_per:
+        bits.append(f"선행 PER {fmt_x(c.forward_per)}")
+    if val.fair_mid and c.target_mean:
+        diff = val.fair_mid / c.target_mean - 1
+        bits.append(f"모형 적정가는 컨센서스 목표가 대비 {diff * 100:+.1f}%")
+    # 목표주가 역산 — 증권가가 어떤 멀티플을 깔았는지 되짚어 차이의 원인을 보여준다
+    if c.target_mean and c.forward_eps:
+        implied = c.target_mean / c.forward_eps
+        ours = next((e.mid / c.forward_eps for e in val.estimates
+                     if e.method == "선행 이익(컨센서스)" and e.mid), None)
+        st.markdown(
+            f"**목표주가 역산**: 증권가 목표가({fmt_price(c.target_mean, d.currency)})는 "
+            f"선행 EPS × **{implied:.1f}배**를 적용한 셈입니다"
+            + (f" — 이 대시보드 ④는 보수 원칙으로 **{ours:.1f}배**를 적용했습니다. "
+               "두 값 차이의 대부분은 '정당한 멀티플이 몇 배냐'(성장 프리미엄) 가정에서 나옵니다."
+               if ours else ".")
+            + " 증권사 리포트의 정성적 근거(수주·신제품·업황 전망)는 무료 데이터에 없어 "
+              "이렇게 역산으로만 추정합니다.")
+    n = f" · 애널리스트 {c.n_analysts}명" if c.n_analysts else ""
+    asof = f" · {c.as_of}" if c.as_of else ""
+    st.caption(" · ".join(bits) + f"  \n출처: {c.source}{n}{asof} — 목표주가·추정 EPS는 증권가 "
+               "평균이며 매수 편향이 있을 수 있습니다. 판정에는 ④ 선행 이익 방법만 반영하고 "
+               "목표주가 자체는 계산에 넣지 않습니다.")
+
+
+def _render_scenario_section(d, val):
+    """밸류에이션 탭 — 비관/기준/낙관 시나리오 + 멀티플×EPS 민감도."""
+    st.markdown(section_header_html("Scenario", "시나리오 분석",
+                                    "비관·기준·낙관 가정 × 멀티플 민감도 — 예측이 아닌 사고 실험"),
+                unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    bear = c1.slider("비관 EPS 조정 (%)", -40, 0, -15, 5, key=f"scn_bear_{d.ticker}") / 100
+    bull = c2.slider("낙관 EPS 조정 (%)", 0, 40, 15, 5, key=f"scn_bull_{d.ticker}") / 100
+    madj = c3.slider("멀티플 조정 (%)", -30, 30, 0, 5, key=f"scn_mult_{d.ticker}",
+                     help="세 케이스의 멀티플에 일괄 적용합니다. 민감도 표는 열 자체가 "
+                          "멀티플 축이라 고정입니다.") / 100
+    scn = build_scenarios(
+        price=d.price,
+        eps_fwd=d.consensus.forward_eps if d.consensus else None,
+        eps_ttm=d.latest("eps"), per_q=val.per_q,
+        peer_per=peer_median(comparable_peers(d.peers, d.market_cap), "per"),
+        bear_delta=bear, bull_delta=bull, mult_adjust=madj)
+    if scn is None:
+        st.info("이익(EPS)이 적자이거나 밴드·피어 데이터가 부족해 이익 기반 시나리오를 "
+                "만들 수 없습니다.")
+        return
+    mc = st.columns(3)
+    for col, case in zip(mc, scn.cases):
+        up = f"{case.upside * 100:+.1f}%" if case.upside is not None else None
+        col.metric(f"{case.name} — EPS {case.eps_delta * 100:+.0f}% × {case.multiple:.1f}배",
+                   fmt_price(case.price, d.currency), delta=up)
+    st.caption(f"기준 EPS: {fmt_price(scn.eps_base, d.currency)} ({scn.eps_basis}) · "
+               f"멀티플: {scn.multiple_basis}")
+    if scn.grid is not None:
+        price = d.price
+
+        def _bg(v):
+            if v is None or not price:
+                return ""
+            up = v / price - 1
+            alpha = min(abs(up) * 0.55, 0.25)
+            rgb = "42,120,214" if up >= 0 else "227,73,72"   # 파랑=현재가보다 높음(저평가 방향)
+            return f"background-color: rgba({rgb},{alpha:.2f})"
+
+        styled = scn.grid.style.format(lambda v: fmt_price(v, d.currency)).map(_bg)
+        st.dataframe(styled, use_container_width=True)
+        st.caption("셀 = 해당 EPS 가정 × 멀티플의 이론 가격. 파랑 = 현재가보다 높음(상승여력), "
+                   "빨강 = 낮음. 색이 짙을수록 괴리가 큽니다.")
+        # 자동 해석 — 표에서 어떤 직관을 얻어야 하는지 한 줄로
+        green = int((scn.grid > d.price).values.sum())
+        total = int(scn.grid.size)
+        bear_up = scn.cases[0].upside
+        st.markdown(
+            f"**어떻게 읽나** — 이 표는 예측이 아니라 가정 조합의 지도입니다. 지금 가정에서는 "
+            f"{total}칸 중 **{green}칸({green / total * 100:.0f}%)**이 현재가 위에 있고, "
+            f"비관 케이스는 현재가 대비 **{bear_up * 100:+.1f}%**입니다. "
+            "파란 칸이 많다 = 이 가정 범위 안에서 현재가가 낮게 거래된다는 신호이지 상승 보장이 "
+            "아니며, 비관 케이스까지 플러스면 하방 완충(안전마진)이 있다고 읽습니다. "
+            "출발점이 컨센서스 EPS라서 시장의 이익 전망이 꺾이면 표 전체가 아래로 이동합니다.")
+    for note in scn.notes:
+        st.caption(f"ⓘ {note}")
 
 
 def render_valuation_tab(d, ind, val):
@@ -201,6 +333,9 @@ def render_valuation_tab(d, ind, val):
                    "주가가 짙은 선 위에 있을수록 역사적으로 비싼 영역입니다.")
     else:
         st.info(f"{kind} 밴드를 계산할 수 없습니다 (적자 지속 또는 데이터 부족).")
+
+    st.divider()
+    _render_scenario_section(d, val)
 
 
 def render_financial_tab(d, ind):
@@ -631,8 +766,10 @@ def render_news_tab(d):
         for it in group:
             meta = " · ".join(x for x in (it.get("source"), it.get("date")) if x)
             badges = " ".join(news_badge_html(t) for t in it.get("tags", []))
+            # 마크다운 링크는 같은 탭에서 열려 분석 화면을 대체하므로 HTML 앵커(새 탭)로 렌더
+            link = it.get("link") or "#"
             st.markdown(
-                f"- [{it['title']}]({it.get('link') or '#'}) {badges} "
+                f"- <a href='{link}' target='_blank' rel='noopener'>{it['title']}</a> {badges} "
                 f"<span style='color:#898781;font-size:0.85em;'>{meta}</span>",
                 unsafe_allow_html=True)
 

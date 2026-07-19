@@ -119,12 +119,13 @@ def radar(scores: dict) -> go.Figure:
 
 
 # ── ① 요약: 적정주가 불릿 차트 ──────────────────────────────────────
-def fair_value_bullet(estimates, fair_mid, price, currency: str) -> go.Figure:
+def fair_value_bullet(estimates, fair_mid, price, currency: str,
+                      fair_low=None, fair_high=None) -> go.Figure:
     rows = [(e.method, e.low, e.mid, e.high) for e in estimates]
     if fair_mid is not None and len(rows) >= 2:
-        lows = [r[1] for r in rows]
-        highs = [r[3] for r in rows]
-        rows.append(("종합", float(np.mean(lows)), fair_mid, float(np.mean(highs))))
+        lo = fair_low if fair_low is not None else float(np.median([r[1] for r in rows]))
+        hi = fair_high if fair_high is not None else float(np.median([r[3] for r in rows]))
+        rows.append(("종합", lo, fair_mid, hi))
     names = [r[0] for r in rows][::-1]
     fig = go.Figure()
     for i, (name, lo, mid, hi) in enumerate(rows[::-1]):

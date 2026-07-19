@@ -20,8 +20,8 @@ from src.analysis.backtest import HORIZONS, run_backtest
 from src.analysis.capital_cost import compute_capital_cost
 from src.analysis.commentary import build_commentary
 from src.analysis.indicators import compute_indicators
-from src.analysis.scoring import (peer_median, rank_peers_cheapness,
-                                   sanitize_peer_frame)
+from src.analysis.scoring import (comparable_peers, peer_median,
+                                   rank_peers_cheapness, sanitize_peer_frame)
 from src.analysis.valuation import compute_valuation
 
 MULTIPLE_LABELS = {"per": "PER", "pbr": "PBR", "psr": "PSR", "ev_ebitda": "EV/EBITDA",
@@ -369,6 +369,52 @@ def _backtest(d) -> dict | None:
     }
 
 
+def _consensus(d, val) -> dict | None:
+    """애널리스트 컨센서스 vs 우리 모형 교차검증 데이터. 커버리지 없으면 None."""
+    c = d.consensus
+    if c is None or not c.has_any():
+        return None
+    return {
+        "forward_eps": num(c.forward_eps), "forward_per": num(c.forward_per),
+        "target_mean": num(c.target_mean), "target_high": num(c.target_high),
+        "target_low": num(c.target_low), "n_analysts": c.n_analysts,
+        "recomm_score": num(c.recomm_score), "recomm_label": c.recomm_label,
+        "as_of": c.as_of, "source": c.source,
+        "implied_growth": num(val.forward_growth),   # 선행 EPS / TTM EPS - 1
+        "target_upside": num(c.target_mean / d.price - 1)
+        if c.target_mean and d.price else None,
+        "model_vs_target": num(val.fair_mid / c.target_mean - 1)
+        if val.fair_mid and c.target_mean else None,
+    }
+
+
+def _scenario(d, val) -> dict | None:
+    """비관/기준/낙관 시나리오 + 민감도 그리드. 적자·데이터 부족이면 None."""
+    from src.analysis.scenario import build_scenarios
+    c = d.consensus
+    res = build_scenarios(
+        price=d.price,
+        eps_fwd=c.forward_eps if c else None,
+        eps_ttm=d.latest("eps"),
+        per_q=val.per_q,
+        peer_per=peer_median(comparable_peers(d.peers, d.market_cap), "per"))
+    if res is None:
+        return None
+    grid = None
+    if res.grid is not None:
+        grid = {"eps_labels": list(res.grid.index),
+                "mult_labels": list(res.grid.columns),
+                "values": [[num(v) for v in row] for row in res.grid.values]}
+    return {
+        "eps_base": num(res.eps_base), "eps_basis": res.eps_basis,
+        "multiple_basis": res.multiple_basis,
+        "cases": [{"name": cs.name, "eps_delta": num(cs.eps_delta), "eps": num(cs.eps),
+                   "multiple": num(cs.multiple), "price": num(cs.price),
+                   "upside": num(cs.upside)} for cs in res.cases],
+        "grid": grid, "notes": res.notes,
+    }
+
+
 def _company(d) -> dict | None:
     if d.market == "KR":
         from src.data.naver import fetch_company_overview
@@ -454,6 +500,8 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "verdict": val.verdict, "gap": num(val.gap), "confidence": val.confidence,
             "fair_low": num(val.fair_low), "fair_mid": num(val.fair_mid),
             "fair_high": num(val.fair_high),
+            "weights": {k: num(v) for k, v in (val.weights or {}).items()},
+            "skipped": [{"method": m, "reason": r} for m, r in (val.skipped or [])],
             "estimates": [{"method": e.method, "low": num(e.low), "mid": num(e.mid),
                            "high": num(e.high), "note": e.note} for e in val.estimates],
         },
@@ -488,7 +536,9 @@ def analyze(market: str, query: str, peer_count: int = 9,
     # 섹션별 best-effort (실패해도 나머지 유지)
     for key, fn in (("price", lambda: _price(d)), ("financials", lambda: _financials(d, ind)),
                     ("peers", lambda: _peers(d)), ("wacc", lambda: _wacc(d, cc, ind)),
-                    ("backtest", lambda: _backtest(d)), ("company", lambda: _company(d))):
+                    ("backtest", lambda: _backtest(d)), ("company", lambda: _company(d)),
+                    ("consensus", lambda: _consensus(d, val)),
+                    ("scenario", lambda: _scenario(d, val))):
         try:
             payload[key] = fn()
         except Exception as e:
