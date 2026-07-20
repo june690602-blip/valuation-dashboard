@@ -516,12 +516,17 @@
             <section class="analysis-section" aria-labelledby="bt-relation-title">
               <div class="analysis-section-head"><span class="analysis-section-index">03</span><div><h3 class="analysis-section-title" id="bt-relation-title">저평가율과 이후 수익의 관계</h3><p class="analysis-section-desc">더 크게 저평가된 시점일수록 이후 수익이 높았는지 산점도와 순위상관으로 봅니다.</p></div><span class="analysis-section-meta">저평가율 × 12개월 수익</span></div>
               <div class="analysis-section-chart" id="backtestScatter"></div>
+              <div class="analysis-section-body" style="margin-top:16px" id="btScatterGuide"></div>
+            </section>
+            <section class="analysis-section" aria-labelledby="bt-equity-title">
+              <div class="analysis-section-head"><span class="analysis-section-index">04</span><div><h3 class="analysis-section-title" id="bt-equity-title">예시 전략 자산곡선</h3><p class="analysis-section-desc">"저평가 신호일 때만 보유"라는 규칙을 과거에 적용했다면 어땠을지, 그냥 들고만 있었을 때와 비교합니다.</p></div><span class="analysis-section-meta">시작 = 100 · 거래비용 미반영</span></div>
+              <div class="analysis-section-body">
+                <div style="font-size:11.5px;color:var(--warning);line-height:1.6;margin-bottom:10px">사후 규칙은 과최적화에 취약하므로 곡선의 절대 높이보다 방향성만 참고하세요.</div>
+                <div id="equityCurve" style="max-width:760px"></div>
+                <div id="equityGuide" style="margin-top:16px"></div>
+              </div>
             </section>
           </div>
-          <details class="analysis-details">
-            <summary style="cursor:pointer;padding:12px 15px;font-size:13px;color:var(--ink-2);font-weight:600;display:flex;align-items:center;justify-content:space-between;list-style:none"><span><span class="analysis-section-index" style="margin-right:12px">04</span>예시 전략 자산곡선</span><svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.75"><path d="m6 9 6 6 6-6"/></svg></summary>
-            <div style="padding:2px 15px 16px"><div style="font-size:11.5px;color:var(--warning);line-height:1.6;margin-bottom:10px">사후 규칙은 과최적화에 취약하므로 곡선의 절대 높이보다 방향성만 참고하세요.</div><div id="equityCurve"></div></div>
-          </details>
           <div style="font-size:11.5px;color:var(--ink-3);line-height:1.65;margin-top:14px">단일 종목·짧은 표본이며 거래비용·세금이 반영되지 않았습니다. 과거 결과는 미래 성과를 보장하지 않습니다.</div>
         </section>
 

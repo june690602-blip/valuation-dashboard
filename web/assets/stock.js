@@ -1062,7 +1062,7 @@
 
   function renderBacktest() {
     var bt = D.backtest;
-    if (!bt || bt.error || !bt.ok) { $('btTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">' + esc((bt && (bt.warnings || [])[0]) || '백테스트를 수행할 수 없습니다 (표본 부족).') + '</div>'; $('btTable').innerHTML = ''; $('backtestScatter').innerHTML = ''; $('equityCurve').innerHTML = ''; return; }
+    if (!bt || bt.error || !bt.ok) { $('btTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">' + esc((bt && (bt.warnings || [])[0]) || '백테스트를 수행할 수 없습니다 (표본 부족).') + '</div>'; $('btTable').innerHTML = ''; $('backtestScatter').innerHTML = ''; $('equityCurve').innerHTML = ''; if ($('btScatterGuide')) $('btScatterGuide').innerHTML = ''; if ($('equityGuide')) $('equityGuide').innerHTML = ''; return; }
     var tiles = [['비중복 12M 표본', (bt.event_count || 0).toLocaleString('en-US') + '개'], ['신호 후 12M 평균', '<span style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</span>'], ['그때 플러스 확률', bt.hit12 != null ? (bt.hit12 * 100).toFixed(0) + '%' : '—'], ['저평가↔수익 상관', '<span style="color:' + (bt.spearman >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + (bt.spearman != null ? (bt.spearman >= 0 ? '+' : '') + bt.spearman.toFixed(2) : '—') + '</span>']];
     $('btTiles').innerHTML = tiles.map(function (t, i) { return '<div style="flex:1;min-width:130px;padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:20px;font-weight:500;margin-top:6px">' + t[1] + '</div></div>'; }).join('');
     // 정직한 한 줄 관찰 (저평가 신호 후 vs 아무 때나)
@@ -1081,6 +1081,50 @@
     $('btTable').innerHTML = head + rows;
     $('backtestScatter').innerHTML = backtestScatter();
     $('equityCurve').innerHTML = equityCurve();
+
+    // ── 산점도 읽는 법 (+ 순위상관 자동 해석) ──
+    var li0 = '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">';
+    var thPct = ((bt.threshold || 0.3) * 100).toFixed(0);
+    var rho = bt.spearman, rhoRead = '';
+    if (rho != null) {
+      rhoRead = rho >= 0.3
+        ? '이 종목은 순위상관 <b>+' + rho.toFixed(2) + '</b> — 더 싸 보였던 날일수록 이후 12개월 수익이 높은 경향이 실제로 있었습니다.'
+        : rho >= 0
+          ? '이 종목은 순위상관 <b>+' + rho.toFixed(2) + '</b> — 관계가 있긴 하지만 약해서, 저평가 신호를 보조 근거 정도로만 쓰는 게 안전합니다.'
+          : '이 종목은 순위상관 <b>−' + Math.abs(rho).toFixed(2) + '</b> — 싸 보였을 때 사도 이후 수익이 좋지 않았습니다. 낮은 멀티플이 실적 훼손의 반영(밸류트랩)이었을 가능성을 요약 탭 해설과 함께 확인하세요.';
+    }
+    if ($('btScatterGuide')) $('btScatterGuide').innerHTML =
+      '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
+      '<div class="kick" style="margin-bottom:8px">이 그래프 읽는 법</div>' +
+      '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
+      li0 + '점 하나 = 과거의 어느 하루입니다. <b>가로축</b>은 그날의 저평가율(모형 적정가 ÷ 주가 − 1, +30%면 주가가 적정가보다 30% 싸 보였다는 뜻), <b>세로축</b>은 그날 사서 12개월 들고 있었을 때의 실제 수익률입니다.</li>' +
+      li0 + '연한 <b>초록 배경</b>이 우리 기준 저평가 신호(+' + thPct + '%↑) 구간입니다. 이 구간의 점들이 가로 0선 위(플러스)에 몰려 있을수록 신호가 과거에 통했다는 뜻입니다.</li>' +
+      li0 + '<b>클레이색 사선</b>은 전체 점의 추세선 — 오른쪽 위로 기울수록 "더 싸 보일 때 살수록 이후 수익이 좋았다"입니다. 상단 타일의 <b>저평가↔수익 상관</b>(순위상관, −1~+1)이 이 관계의 일관성을 숫자 하나로 요약합니다.</li>' +
+      li0 + '주의: 한 종목의 5년 남짓 표본이고 인접한 날들은 사실상 같은 사건이라, 관계가 보여도 우연일 수 있습니다. 방향 참고용이지 매매 규칙이 아닙니다.</li>' +
+      '</ul>' + (rhoRead ? '<div style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + rhoRead + '</div>' : '') + '</div>';
+
+    // ── 자산곡선: 선 설명 + CAGR 풀이 + 자동 비교 한 줄 ──
+    var eqd = bt.equity, cag = (eqd && eqd.cagr) || {};
+    var cs = cag['저평가 매수 전략'], cb = cag['단순 보유(Buy&Hold)'];
+    var benchKey = Object.keys(cag).filter(function (k) { return k !== '저평가 매수 전략' && k !== '단순 보유(Buy&Hold)'; })[0];
+    var cbm = benchKey != null ? cag[benchKey] : null;
+    var eqRead = (cs != null && cb != null)
+      ? '이 종목·기간에서는 저평가 매수 전략 CAGR <b>' + (cs * 100).toFixed(1) + '%</b> vs 단순 보유 <b>' + (cb * 100).toFixed(1) + '%</b>' +
+        (cbm != null ? ' vs ' + esc(benchKey) + ' <b>' + (cbm * 100).toFixed(1) + '%</b>' : '') + ' — ' +
+        (cs > cb ? '신호가 종목 보유 대비 초과 성과를 냈습니다. 다만 한 종목의 사후 검증이라 우연·과최적화 가능성은 남습니다.'
+                 : '신호가 단순 보유를 이기지 못했습니다. 저평가 신호는 매매 타이밍 도구가 아니라 "지금 가격이 어느 수준인지" 보는 관찰 보조로 쓰는 게 안전합니다.')
+      : '';
+    if ($('equityGuide')) $('equityGuide').innerHTML =
+      '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
+      '<div class="kick" style="margin-bottom:8px">선과 숫자의 뜻</div>' +
+      '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
+      li0 + '<b>남색 선 · 저평가 매수 전략</b>: 모형이 저평가(+' + thPct + '%↑)로 본 날에만 주식을 보유하고, 아닌 날은 현금(수익 0)으로 쉬는 규칙의 가상 자산 가치입니다. 신호가 뜬 <b>다음 날</b> 진입해 미래 정보를 미리 쓰는 것(룩어헤드)을 막았습니다.</li>' +
+      li0 + '<b>회청색 선 · 단순 보유(Buy&Hold)</b>: 같은 기간 처음에 사서 끝까지 그냥 들고 있었을 때 — 전략을 평가하는 비교 기준선입니다.</li>' +
+      (benchKey ? li0 + '<b>클레이색 선 · ' + esc(benchKey) + '</b>: 같은 기간 시장 전체가 얼마나 움직였는지입니다. 종목·전략의 성과가 시장 상승 덕분인지, 종목 자체의 힘인지 가려주는 배경 기준입니다.</li>' : '') +
+      li0 + '모든 선은 시작을 100으로 맞춘 상대 가치이고, 거래비용·세금·슬리피지는 반영되지 않았습니다.</li>' +
+      li0 + '<b>CAGR</b>(연평균 복리 성장률) = 전체 기간의 최종 결과를 "매년 몇 %씩 복리로 불린 셈인가"로 환산한 값입니다. 예: 5년에 100→200이면 CAGR ≈ 14.9%. 범례 괄호 속 숫자가 이것입니다.</li>' +
+      li0 + '읽는 법: 전략 선이 높다고 무조건 좋은 게 아니라, <b>하락 구간을 신호가 피해 갔는지</b>(전략 선이 덜 꺾였는지)를 보는 게 핵심입니다.</li>' +
+      '</ul>' + (eqRead ? '<div style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + eqRead + '</div>' : '') + '</div>';
   }
 
   function renderAi() {
