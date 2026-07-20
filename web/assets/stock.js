@@ -791,7 +791,8 @@
       body.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:4px 0">애널리스트 컨센서스가 없는 종목입니다 — 증권사가 분석 리포트를 내지 않는 소형주에 흔합니다. 이 경우 위 적정가 추정(①~③)만으로 판단 근거를 삼습니다.</div>';
       return;
     }
-    meta.textContent = (c.n_analysts != null ? '애널리스트 ' + c.n_analysts + '명 평균' : '애널리스트 평균') + (c.as_of ? ' · ' + c.as_of : '');
+    meta.textContent = (c.n_analysts != null ? '애널리스트 ' + c.n_analysts + '명 평균'
+      : D.meta.market === 'KR' ? 'FnGuide · 42개 증권사 집계' : '애널리스트 평균') + (c.as_of ? ' · ' + c.as_of : '');
     function tone(v) { return v == null ? 'var(--ink)' : v >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)'; }
     var tiles = [
       ['현재가', fmtPrice(D.meta.price), '', 'var(--ink)'],

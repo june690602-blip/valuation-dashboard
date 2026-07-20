@@ -11,7 +11,7 @@ from src.ui.pages import bond, guide, home, portfolio, stock
 PAGES = {
     "home": st.Page(home.render, title="홈", icon="🏠", url_path="home", default=True),
     "stock": st.Page(stock.render, title="주식 가치평가", icon="📈", url_path="stock"),
-    "bond": st.Page(bond.render, title="채권 금리·시나리오", icon="🏦", url_path="bond"),
+    "bond": st.Page(bond.render, title="금리 · 국채 시나리오", icon="🏦", url_path="bond"),
     "portfolio": st.Page(portfolio.render, title="포트폴리오", icon="🧺", url_path="portfolio"),
     "guide": st.Page(guide.render, title="사용설명서", icon="📖", url_path="guide"),
 }

@@ -120,7 +120,7 @@ class USProvider(DataProvider):
             target_low=self_info.get("target_low"),
             n_analysts=self_info.get("n_analysts"),
             recomm_score=score, recomm_label=recomm_label(score),
-            source="Yahoo Finance(애널리스트 컨센서스)",
+            source="Yahoo Finance · LSEG I/B/E/S(글로벌 애널리스트 추정치 집계)",
         )
         if not consensus.has_any():
             consensus = None

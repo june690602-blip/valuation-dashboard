@@ -145,7 +145,7 @@ class KRProvider(DataProvider):
                 target_mean=nv.get("target_mean"),
                 recomm_score=score, recomm_label=recomm_label(score),
                 as_of=nv.get("consensus_date") or "",
-                source="네이버금융(FnGuide 컨센서스)",
+                source="네이버금융 · FnGuide 컨센서스(국내 42개 증권사 리포트 추정치 평균)",
             )
             if not consensus.has_any():
                 consensus = None
