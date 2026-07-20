@@ -517,7 +517,8 @@ def render_capital_tab(d, cc, ind):
 def render_backtest_tab(d):
     st.markdown("### 🎯 우리 툴이 과거에도 맞았나?")
     st.markdown("이 종목이 **우리 기준으로 '크게 저평가'였던 과거 시점**에 샀다면 이후 수익이 "
-                "어땠는지 검증합니다. (적정가 = 그 시점까지의 정상 배수 × 펀더멘털)")
+                "어땠는지 검증합니다. 신호는 복원 가능한 **② 역사적 밴드 + ③ RIM**을 기본가중으로 "
+                "합친 종합 저평가율입니다 (① 피어·④ 컨센서스는 과거 시점 복원이 불가/편향이라 제외).")
 
     c1, c2 = st.columns(2)
     kind = c1.radio("기준 배수", ["PER", "PBR"], horizontal=True, key="bt_kind",
