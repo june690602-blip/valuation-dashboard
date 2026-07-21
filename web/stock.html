@@ -77,6 +77,12 @@
   .chev.open { transform: rotate(180deg); }
   .aside-wrap { flex: none; overflow: hidden; border-right: 1px solid var(--line); transition: width .28s var(--ease-out); width: 279px; }
   .aside-wrap.collapsed { width: 0; }
+  /* 데스크톱: 헤더·사이드바 고정, 본문만 스크롤 — 스크롤해도 시장·종목 입력이 따라 내려가지 않는다 */
+  @media (min-width: 901px) {
+    .app-layout { flex: none !important; height: calc(100vh - 58px); min-height: 0; }
+    .app-main { min-height: 0; }
+    .app-content { overflow-y: auto; }
+  }
   /* 테이블 공통(데이터 렌더) */
   .tbl { border-top: 1px solid var(--line-strong); }
   .tbl .row { display: grid; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: center; }
@@ -123,6 +129,32 @@
   .methods-mno { font-family: var(--font-mono); font-size: 11px; color: var(--spine-ink-strong); margin-right: 6px; }
   .methods-goto { appearance: none; border: none; background: none; padding: 0; cursor: pointer; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
   .methods-goto:hover { text-decoration-color: var(--ink-3); }
+  /* 빈 값(—)·신뢰도 말풍선 — 왜 없는지/왜 낮은지 짧게 알린다. 순수 CSS라 추가 요청·스크립트가 없다. */
+  .na { position: relative; color: var(--ink-3); cursor: help; border-bottom: 1px dotted var(--line-strong); }
+  .na::after {
+    content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 9px); transform: translateX(-50%);
+    width: max-content; max-width: min(230px, 60vw); background: var(--ink); color: var(--ink-inverse);
+    font-family: var(--font-sans); font-size: 11.5px; font-weight: 400; line-height: 1.55; letter-spacing: normal;
+    text-align: left; white-space: normal; padding: 8px 10px; border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+    opacity: 0; visibility: hidden; transition: opacity var(--dur-fast) var(--ease-out); pointer-events: none; z-index: 30;
+  }
+  .na::before {
+    content: ''; position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%);
+    border: 5px solid transparent; border-top-color: var(--ink);
+    opacity: 0; visibility: hidden; transition: opacity var(--dur-fast) var(--ease-out); pointer-events: none; z-index: 30;
+  }
+  .na:hover::after, .na:hover::before, .na:focus-visible::after, .na:focus-visible::before { opacity: 1; visibility: visible; }
+  /* 피어 편집 — 행에 커서를 올리면 왼쪽에 X(제거), 표 아래에 + 추가. 고스트 컨트롤로 조용하게 */
+  .peer-name { position: relative; padding-left: 20px; }
+  .peer-x { position: absolute; left: -2px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; line-height: 13px; text-align: center; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--paper); color: var(--ink-3); font-size: 11px; cursor: pointer; opacity: 0; transition: opacity var(--dur-fast) var(--ease-out); padding: 0; }
+  #peerTable .row:hover .peer-x, .peer-x:focus-visible { opacity: 1; }
+  .peer-x:hover { color: var(--danger); border-color: var(--danger); }
+  .peer-addrow { display: flex; align-items: center; gap: 12px; padding: 10px 0 2px; }
+  .peer-addbtn, .peer-reset { appearance: none; background: none; border: none; padding: 4px 2px; cursor: pointer; font-family: var(--font-sans); font-size: 12px; color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
+  .peer-addbtn:hover, .peer-reset:hover { color: var(--ink); }
+  .peer-reset { color: var(--ink-3); }
+  .peer-addinput { display: none; min-width: 210px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--paper); padding: 6px 9px; font: 12.5px var(--font-sans); color: var(--ink); outline: none; }
+  .peer-addinput:focus { border-color: var(--dv-navy); }
   .analysis-details { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius-md); }
   .analysis-details summary::-webkit-details-marker { display: none; }
   .analysis-details[open] summary .chev { transform: rotate(180deg); }
@@ -168,10 +200,10 @@
 
   <!-- ══ TOP NAV ══ -->
   <header class="app-header" style="height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:26px;padding:0 26px;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
-    <div style="display:flex;align-items:baseline;gap:8px;flex:none;white-space:nowrap">
+    <a href="home.html" title="투자지표 홈으로" style="display:flex;align-items:baseline;gap:8px;flex:none;white-space:nowrap;text-decoration:none;color:inherit">
       <span style="font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-0.01em">투자지표</span>
       <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--ink-3);letter-spacing:0.1em;border:1px solid var(--line);padding:1px 5px;border-radius:2px">BETA</span>
-    </div>
+    </a>
     <nav class="app-nav" style="display:flex;gap:4px;align-items:center;white-space:nowrap">
       <a class="navlink" href="home.html" style="font-size:13.5px;padding:6px 10px">홈</a>
       <span style="font-size:13.5px;font-weight:600;color:var(--ink);padding:6px 10px;border-bottom:2px solid var(--ink)">주식 가치평가</span>
@@ -342,6 +374,7 @@
                 <div class="price-toolbar">
                   <div class="price-toolbar-main">
                     <div class="seg" id="priceModeSeg"><button class="on" data-val="abs">절대 주가</button><button data-val="rel">지수 대비</button></div>
+                    <div class="seg" id="chartTypeSeg" title="선 차트 / 봉(캔들) 차트 전환"><button class="on" data-val="line">선</button><button data-val="candle">봉</button></div>
                     <div id="maToggles" style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
                       <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-3)">이동평균</span>
                       <button class="ma-btn on" data-ma="m20" style="border-color:var(--dv-gold);color:var(--ink)"><span class="dash" style="background:var(--dv-gold)"></span>20일</button>
