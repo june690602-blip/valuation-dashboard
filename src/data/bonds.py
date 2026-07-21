@@ -17,6 +17,10 @@ from .cache import file_cache
 _NAVER = "https://m.stock.naver.com/front-api/marketIndex"
 _HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
+# 네이버 front-api가 한 요청에 돌려주는 최대 건수 — 실측(2026-07): pageSize 60까지 200,
+# 61 이상은 400. 예전엔 100을 요청해 매번 400을 맞고 10건짜리로 폴백해 페이지 수가 6배 많았다.
+_MAX_PAGE_SIZE = 60
+
 # (만기 년, 네이버 코드) — 2026-07 실검증 완료. 한·미 모두 네이버가 전 만기·약 3년 이력 제공.
 KR_TENORS: tuple = ((1, "KR1YT=RR"), (2, "KR2YT=RR"), (3, "KR3YT=RR"), (5, "KR5YT=RR"),
                     (10, "KR10YT=RR"), (20, "KR20YT=RR"), (30, "KR30YT=RR"))
@@ -24,8 +28,8 @@ US_TENORS: tuple = ((1, "US1YT=RR"), (2, "US2YT=RR"), (3, "US3YT=RR"), (5, "US5Y
                     (7, "US7YT=RR"), (10, "US10YT=RR"), (20, "US20YT=RR"), (30, "US30YT=RR"))
 
 
-def _naver_prices(code: str, page: int = 1, page_size: int = 100) -> list[dict]:
-    """네이버 채권 일별 시세 1페이지. pageSize 하한 10, 상한은 서버가 거부하면 축소 재시도."""
+def _naver_prices(code: str, page: int = 1, page_size: int = _MAX_PAGE_SIZE) -> list[dict]:
+    """네이버 채권 일별 시세 1페이지. 요청한 pageSize가 거부되면 10건으로 축소 재시도."""
     for ps in (page_size, 10):
         r = requests.get(f"{_NAVER}/prices", headers=_HEADERS, timeout=15,
                          params={"category": "bond", "reutersCode": code,
@@ -67,13 +71,15 @@ def fetch_yield_curve(market: str) -> pd.DataFrame:
 def _naver_history_df(code: str, days: int) -> pd.DataFrame:
     """네이버 채권 일별 시세를 페이지 병렬로 모아 오름차순 시계열(columns=[yield]).
 
-    네이버는 pageSize와 무관하게 **페이지당 10건**만 준다(실측). days건을 채우려면 약
-    days/10 페이지가 필요해 순차로는 느리다 → 병렬로 받는다. 국고채·미국채 모두 약 3년
-    (≈75페이지)까지 존재하며, 그 너머 페이지는 빈 응답이라 무해하다."""
-    max_pages = min(days // 10 + 6, 90)
+    네이버 front-api는 **한 요청에 최대 60건**을 준다(실측; `_MAX_PAGE_SIZE`). days건을 채우려면
+    약 days/60 페이지면 돼, 페이지당 10건씩 받던 예전보다 요청 수가 6배 이상 줄었다. 국고채·
+    미국채 모두 약 3년(≈13페이지)까지 존재하며, 그 너머 페이지는 빈 응답이라 무해하다."""
+    per = _MAX_PAGE_SIZE
+    max_pages = min(days // per + 2, 16)
     recs: list[tuple] = []
     with ThreadPoolExecutor(max_workers=8) as ex:
-        pages = ex.map(lambda pg: _naver_prices(code, page=pg), range(1, max_pages + 1))
+        pages = ex.map(lambda pg: _naver_prices(code, page=pg, page_size=per),
+                       range(1, max_pages + 1))
     for items in pages:
         for it in items:
             try:
