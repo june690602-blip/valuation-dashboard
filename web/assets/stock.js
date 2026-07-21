@@ -86,7 +86,7 @@
   function vTone(v) { var i = vIdx(v); return i <= 1 ? 'positive' : i === 2 ? 'neutral' : 'negative'; }
 
   /* ── 상태 ── */
-  var state = { market: 'KR', query: '035420', pricePeriod: '1Y', priceMode: 'abs', ma: { m20: true, m60: true, m120: false }, hover: null, bandMetric: 'PER' };
+  var state = { market: 'KR', query: '035420', pricePeriod: '1Y', priceMode: 'abs', ma: { m20: true, m60: true, m120: false }, hover: null, bandMetric: 'PER', scnBear: -0.15, scnBull: 0.15, scnMult: 0 };
   var D = null;
   var EXAMPLES = { KR: [['삼성전자', '005930'], ['현대차', '005380'], ['NAVER', '035420'], ['KB금융', '105560']], US: [['Apple', 'AAPL'], ['Microsoft', 'MSFT'], ['Coca-Cola', 'KO'], ['Rivian', 'RIVN']] };
 
@@ -109,7 +109,7 @@
     els.push(el('text', { x: 0, y: 20, fontSize: 12, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, '현재가'));
     els.push(el('text', { x: 0, y: 52, fontSize: 30, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(cur)));
     els.push(el('path', { d: 'M196 43 h44 m-9 -7 l9 7 l-9 7', fill: 'none', stroke: 'var(--ink-3)', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }));
-    els.push(el('text', { x: 256, y: 20, fontSize: 12, fill: accent, fontFamily: 'var(--font-sans)' }, '평균 적정가'));
+    els.push(el('text', { x: 256, y: 20, fontSize: 12, fill: accent, fontFamily: 'var(--font-sans)' }, '종합 적정가 · 가중'));
     els.push(el('text', { x: 256, y: 52, fontSize: 30, fill: accent, fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(avg)));
     if (upside != null) {
       els.push(el('rect', { x: 452, y: 24, width: 92, height: 34, rx: 17, fill: accent }));
@@ -126,7 +126,8 @@
     est.forEach(function (m, i) {
       var y = rowsTop + i * rowH + rowH / 2;
       els.push(el('text', { x: 0, y: y - 4, fontSize: 15, fill: 'var(--ink)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, esc(m.method)));
-      els.push(el('text', { x: 0, y: y + 14, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, esc((m.note || '').slice(0, 34))));
+      var _nt = m.note || '';
+      els.push(el('text', { x: 0, y: y + 14, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, esc(_nt.length > 34 ? _nt.slice(0, 33) + '…' : _nt)));
       if (m.low != null && m.high != null) els.push(el('line', { x1: X(m.low), x2: X(m.high), y1: y, y2: y, stroke: 'var(--dv-navy)', strokeWidth: 9, strokeLinecap: 'round', opacity: 0.22 }));
       if (m.mid != null) els.push(el('circle', { cx: X(m.mid), cy: y, r: 6, fill: 'var(--dv-navy)', stroke: 'var(--paper)', strokeWidth: 1.5 }));
       els.push(el('text', { x: plotL + plotW + padR, y: y + 5, fontSize: 14, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', fontWeight: 500, textAnchor: 'end' }, compactWon(m.mid)));
@@ -152,7 +153,13 @@
   }
 
   function scoreDesc(k, v) {
-    if (v == null) return nullScoreReason(k);
+    if (v == null) {
+      // 금융업은 이 두 축의 지표(부채비율·유동비율·FCF수익률 등)가 부적합해 의도적으로 제외한다.
+      // '산출 불가'(데이터 실패)로 오해되지 않게 사유를 분명히 구분한다.
+      if (D.meta && D.meta.is_financial && (k === '재무 안정성' || k === '현금흐름'))
+        return '금융업 특성상 일반 지표가 부적합 — 제외';
+      return nullScoreReason(k);
+    }
     var strong = v >= 65, weak = v < 35;
     var tail = strong ? '업종 상위 — 강점' : weak ? '업종 하위 — 약점' : v >= 50 ? '업종 평균 이상' : '업종 평균 부근';
     return tail;
@@ -523,6 +530,24 @@
     for (var gg = 0; gg <= 3; gg++) { var val = vmax - (vmax - vmin) * gg / 3, yy = Y(val); els.push(el('line', { x1: padL, x2: padL + xw, y1: yy, y2: yy, stroke: 'var(--line)', strokeWidth: 1 })); els.push(el('text', { x: padL + xw + 6, y: yy + 3.5, fontSize: 10, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }, opt.fmt ? opt.fmt(val) : val.toFixed(0))); }
     series.forEach(function (s) { var p = ''; s.data.forEach(function (v, i) { if (v == null) return; p += (p ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' '; }); els.push(el('path', { d: p, fill: 'none', stroke: s.color, strokeWidth: 1.8 })); var last = s.data.length - 1; if (s.data[last] != null) els.push(el('circle', { cx: X(last), cy: Y(s.data[last]), r: 3, fill: s.color })); });
     labels.forEach(function (lb, i) { if (i % Math.ceil(n / 6) === 0 || i === n - 1) els.push(el('text', { x: X(i), y: top + plotH + 16, fontSize: 10, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, lb)); });
+    // hover: 인덱스별 투명 밴드 → 세로 가이드 + 라벨·시리즈 값 표시 (.lm-hband CSS가 토글)
+    var step = n <= 1 ? xw : xw / (n - 1);
+    labels.forEach(function (lb, i) {
+      var hx = X(i);
+      var anchor = hx > padL + xw * 0.62 ? 'end' : 'start';
+      var tx = anchor === 'end' ? hx - 7 : hx + 7;
+      var hv = [el('line', { x1: hx, x2: hx, y1: top, y2: top + plotH, stroke: 'var(--ink-3)', strokeWidth: 1, strokeDasharray: '3 3' }),
+                el('text', { x: tx, y: top + 11, fontSize: 10.5, fontWeight: 700, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', textAnchor: anchor }, esc(lb))];
+      series.forEach(function (s, si) {
+        var v = s.data[i];
+        if (v != null) hv.push(el('circle', { cx: hx, cy: Y(v), r: 3.5, fill: s.color, stroke: 'var(--paper)', strokeWidth: 1.2 }));
+        hv.push(el('text', { x: tx, y: top + 11 + 13 * (si + 1), fontSize: 10.5, fontWeight: 600, fill: s.color, fontFamily: 'var(--font-mono)', textAnchor: anchor },
+          esc(s.name.replace(' %', '')) + ' ' + (v == null ? '—' : (opt.fmt ? opt.fmt(v) : String(v)))));
+      });
+      els.push(el('g', { className: 'lm-hband' },
+        el('rect', { x: hx - step / 2, y: top - 6, width: step, height: plotH + 26, fill: 'transparent' }),
+        el('g', { className: 'lm-hv' }, hv)));
+    });
     var lg = el('div', { style: { display: 'flex', gap: '16px', marginTop: '8px', flexWrap: 'wrap' } }, series.map(function (s) { return el('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink-2)' } }, el('span', { style: { width: '12px', height: '2px', background: s.color, display: 'inline-block' } }), s.name); }).join(''));
     return el('div', {}, el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els), lg);
   }
@@ -678,7 +703,7 @@
             '<div style="position:absolute;top:-5px;left:' + pos + '%;transform:translateX(-50%);width:2px;height:21px;background:var(--ink)"></div>' +
             '<div style="position:absolute;top:-13px;left:' + pos + '%;transform:translateX(-50%);width:9px;height:9px;border-radius:50%;background:var(--ink);border:2px solid var(--paper)"></div>' +
             '<div style="display:flex;margin-top:9px;font-size:10.5px;color:var(--ink-3);text-align:center">' + VERDICTS.map(function (t, i) { return '<span style="flex:1' + (t === v.verdict ? ';color:' + (tone === 'negative' ? 'var(--dv-negative)' : 'var(--dv-positive)') + ';font-weight:600' : '') + '">' + t.replace(' ', '<br>') + '</span>'; }).join('') + '</div></div>' +
-          '<div style="margin-top:12px;font-size:13px;color:var(--ink-2)">괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b> · 3개 방법 평균 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b></div></div>' +
+          '<div style="margin-top:12px;font-size:13px;color:var(--ink-2)">괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b> · 4방법 가중 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b></div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button></div></div>';
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
   }
@@ -721,20 +746,47 @@
     var est = D.verdict.estimates || [], v = D.verdict;
     var head = '<div class="row head" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr"><span class="col-label">방법</span><span class="col-label r">적정가 범위</span><span class="col-label r">중심</span><span class="col-label">근거</span></div>';
     // 방법 → 적정가 재료 번호·재료 탭 (요약 표에서 근거가 되는 탭으로 바로 이동)
-    var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'] };
-    var rows = est.map(function (e) {
-      var mt = METHOD_TAB[e.method];
-      var nameCell = mt
-        ? '<span style="font-size:13.5px;font-weight:600"><span class="methods-mno">' + mt[0] + '</span><button type="button" class="methods-goto" data-goto="' + mt[1] + '">' + esc(e.method) + ' ↗</button></span>'
-        : '<span style="font-size:13.5px;font-weight:600">' + esc(e.method) + '</span>';
-      return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + '</span></div>';
+    var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'], '선행 이익(컨센서스)': ['④', null] };
+    var CANON = ['업종 상대가치', '역사적 밴드', '수익가치(RIM)', '선행 이익(컨센서스)'];
+    var estMap = {}; est.forEach(function (e) { estMap[e.method] = e; });
+    var skipMap = {}; (v.skipped || []).forEach(function (sk) { skipMap[sk.method] = sk.reason; });
+    var order = CANON.concat(est.map(function (e) { return e.method; }).filter(function (m) { return CANON.indexOf(m) < 0; }));
+    var rows = order.map(function (name) {
+      var mt = METHOD_TAB[name];
+      var e = estMap[name];
+      if (e) {
+        var nameCell = mt && mt[1]
+          ? '<span style="font-size:13.5px;font-weight:600"><span class="methods-mno">' + mt[0] + '</span><button type="button" class="methods-goto" data-goto="' + mt[1] + '">' + esc(name) + ' ↗</button></span>'
+          : mt
+            ? '<span style="font-size:13.5px;font-weight:600"><span class="methods-mno">' + mt[0] + '</span>' + esc(name) + '</span>'
+            : '<span style="font-size:13.5px;font-weight:600">' + esc(name) + '</span>';
+        var wgt = (v.weights || {})[name];
+        if (wgt != null) nameCell += ' <span class="mono" style="font-size:10.5px;color:var(--ink-3)">가중 ' + Math.round(wgt * 100) + '%</span>';
+        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + '</span></div>';
+      }
+      if (skipMap[name] != null) {
+        // 건너뛴 방법도 번호 자리를 유지해 ①~④가 항상 순서대로 보이게 한다
+        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;opacity:.55"><span style="font-size:13px;color:var(--ink-3)">' + (mt ? '<span class="methods-mno">' + mt[0] + '</span>' : '') + esc(name) + '</span><span class="mono r" style="font-size:12.5px;color:var(--ink-3)">—</span><span class="r" style="font-size:12px;color:var(--ink-3)">건너뜀</span><span style="font-size:12px;color:var(--ink-3)">' + esc(skipMap[name]) + '</span></div>';
+      }
+      return '';
     }).join('');
-    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">평균 적정가</span><span></span><span class="mono r" style="font-size:15px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
-    $('methodsTable').innerHTML = est.length ? head + rows + total : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
+    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">종합 적정가 (가중평균)</span><span></span><span class="mono r" style="font-size:15px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
+    // 동일가중 민감도 — 가중치 선택이 결론을 좌우하지 않는지 투명하게 병기
+    var sens = '';
+    if (v.fair_mid_equal != null) {
+      var flip = v.verdict_equal && v.verdict_equal !== v.verdict;
+      sens = '<div style="font-size:11.5px;color:var(--ink-3);margin-top:7px;padding-top:8px;border-top:1px dashed var(--line)">민감도 · 동일가중(단순평균)이면 적정가 <b class="mono" style="color:var(--ink-2)">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b style="color:var(--warning)">' + esc(v.verdict_equal) + '</b>로 갈림' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.</div>';
+    }
+    var formula = '<div style="font-size:11px;color:var(--ink-3);line-height:1.75;margin-top:10px">공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — 종합 = 가중평균 ④35 · ①25 · ②25 · ③15% (순위 근거: Liu·Nissim·Thomas 2002·2007 국제 + 국내 가치관련성; 국내 컨센서스 낙관편의 유의 — 상세 docs/adr/0003) · 출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)</div>';
+    $('methodsTable').innerHTML = est.length ? head + rows + total + sens + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
     // 점수
     $('scoreOverall').textContent = D.scores.overall != null ? Math.round(D.scores.overall) : '—';
     $('radarChart').innerHTML = radarChart();
     $('scoreBars').innerHTML = scoreBars();
+    // 금융업이면 두 축이 '—'로 비는 이유를 한 줄로 밝힌다(05·07 탭 안내와 톤 통일).
+    $('scoreFinNote').innerHTML = (D.meta && D.meta.is_financial)
+      ? '<div style="font-size:11.5px;color:var(--ink-3);line-height:1.65;margin-top:18px;padding-top:12px;border-top:1px dashed var(--line)">금융업(은행·보험·증권)은 부채 대부분이 예금·보험부채라 일반 <b>재무 안정성·현금흐름</b> 지표(부채비율·유동비율·FCF수익률 등)가 부적합해 상대점수에서 제외합니다. 은행 건전성은 BIS 자기자본비율·고정이하여신비율 등 <b>감독당국 공시</b>로 평가해야 하며, 본 도구는 무료 공개 데이터 범위상 이를 제공하지 않습니다.</div>'
+      : '';
     // 해설
     $('commentary').innerHTML = (D.commentary || []).map(function (c) {
       var m = CMT[c.kind] || CMT.info, key = c.text.indexOf('밸류트랩') >= 0 || c.text.indexOf('순수 저평가') >= 0;
@@ -742,6 +794,49 @@
       var icon = c.kind === 'info' ? '<circle cx="12" cy="12" r="10"/><path d="' + m[1] + '"/>' : c.kind === 'warn' ? '<path d="' + m[1] + '"/><path d="M12 9v4"/><path d="M12 17h.01"/>' : '<path d="' + m[1] + '"/>';
       return '<div class="cmt' + (key ? ' key' : '') + '"><span style="color:' + m[0] + ';flex:none;margin-top:1px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round">' + icon + '</svg></span><div style="font-size:12.5px;color:var(--ink-2);line-height:1.55">' + esc(c.text) + '</div></div>';
     }).join('') || '<div style="color:var(--ink-3);font-size:13px">해설을 생성할 수 없습니다.</div>';
+    renderConsensus();
+  }
+
+  /* ── 시장 컨센서스 교차검증 (요약 탭 02) ── */
+  function renderConsensus() {
+    var body = $('consensusBody'), meta = $('consensusMeta');
+    if (!body) return;
+    var c = D.consensus;
+    if (!c || c.error) {
+      meta.textContent = '커버리지 없음';
+      body.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:4px 0">애널리스트 컨센서스가 없는 종목입니다 — 증권사가 분석 리포트를 내지 않는 소형주에 흔합니다. 이 경우 위 적정가 추정(①~③)만으로 판단 근거를 삼습니다.</div>';
+      return;
+    }
+    meta.textContent = (c.n_analysts != null ? '애널리스트 ' + c.n_analysts + '명 평균'
+      : D.meta.market === 'KR' ? 'FnGuide · 42개 증권사 집계' : '애널리스트 평균') + (c.as_of ? ' · ' + c.as_of : '');
+    function tone(v) { return v == null ? 'var(--ink)' : v >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)'; }
+    var tiles = [
+      ['현재가', fmtPrice(D.meta.price), '', 'var(--ink)'],
+      ['모형 종합 적정가 · 이 대시보드', fmtPrice(D.verdict.fair_mid), D.verdict.gap != null ? '현재가 대비 ' + fmtSigned(D.verdict.gap) : '', tone(D.verdict.gap)],
+      ['컨센서스 목표주가 · 증권가', fmtPrice(c.target_mean), c.target_upside != null ? '현재가 대비 ' + fmtSigned(c.target_upside) : '', tone(c.target_upside)],
+      ['투자의견 평균', c.recomm_label || '—', c.recomm_score != null ? c.recomm_score.toFixed(2) + ' / 5.0' : '', 'var(--ink)']
+    ];
+    var tilesHtml = tiles.map(function (t, i) {
+      return '<div style="flex:1;min-width:168px;padding:' + (i === 0 ? '0 18px 0 0' : '0 18px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:21px;font-weight:500;margin-top:6px;color:' + t[3] + '">' + t[1] + '</div><div style="font-size:11.5px;color:var(--ink-3);margin-top:3px">' + t[2] + '</div></div>';
+    }).join('');
+    var rows = [];
+    if (c.forward_eps != null) rows.push('12개월 선행 EPS(컨센서스) <b class="mono">' + fmtPrice(c.forward_eps) + '</b>' + (c.implied_growth != null ? ' — 최근 12개월 실적 대비 <b style="color:' + tone(c.implied_growth) + '">' + fmtSigned(c.implied_growth) + '</b>의 이익 변화를 전제합니다' : ''));
+    if (c.forward_per != null) rows.push('선행 PER <b class="mono">' + fmtX(c.forward_per) + '</b> — 트레일링 PER와의 차이가 시장이 반영 중인 실적 전망입니다');
+    if (c.model_vs_target != null) rows.push('모형 종합 적정가는 컨센서스 목표주가보다 <b style="color:' + tone(c.model_vs_target) + '">' + fmtSigned(c.model_vs_target) + '</b> — 두 값이 가까울수록 서로 다른 접근이 같은 결론을 가리킨다는 뜻입니다');
+    // 목표주가 역산 — 증권가가 어떤 멀티플을 깔았는지 되짚어 차이의 원인을 보여준다
+    if (c.target_mean != null && c.forward_eps) {
+      var impliedPer = c.target_mean / c.forward_eps;
+      var e4 = null, ests = D.verdict.estimates || [];
+      for (var ei = 0; ei < ests.length; ei++) if (ests[ei].method === '선행 이익(컨센서스)') e4 = ests[ei];
+      var ourMult = (e4 && e4.mid != null) ? e4.mid / c.forward_eps : null;
+      rows.push('<b>목표주가 역산</b>: 증권가 목표가(' + fmtPrice(c.target_mean) + ')는 선행 EPS × <b class="mono">' + fmtX(impliedPer) + '</b>를 적용한 셈입니다' +
+        (ourMult != null ? ' — 이 대시보드 ④는 보수 원칙으로 <b class="mono">' + fmtX(ourMult) + '</b>를 적용했습니다. 두 값 차이의 대부분은 "정당한 멀티플이 몇 배냐"(성장 프리미엄) 가정에서 나옵니다' : '') +
+        '. 증권사 리포트의 정성적 근거(수주·신제품·업황 전망)는 무료 데이터에 포함되지 않아 이렇게 역산으로만 추정합니다');
+    }
+    body.innerHTML =
+      '<div style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0">' + tilesHtml + '</div>' +
+      (rows.length ? '<ul style="margin:14px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px">' + rows.map(function (r) { return '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.6">' + r + '</li>'; }).join('') + '</ul>' : '') +
+      '<div style="font-size:11.5px;color:var(--ink-3);margin-top:12px">출처: ' + esc(c.source || '') + ' · 목표주가·추정 EPS는 증권사 애널리스트 평균이며 매수 편향이 있을 수 있습니다. 판정에는 ④ 선행 이익 방법(추정 EPS × 시장 멀티플)만 반영하고 목표주가 자체는 계산에 넣지 않습니다.</div>';
   }
 
   function renderPriceTab() {
@@ -762,6 +857,104 @@
     }).join('');
     $('multiplesTable').innerHTML = head + rows;
     renderBand();
+    renderScenario();
+  }
+
+  /* ── 시나리오 분석 (밸류에이션 탭 03) ── */
+  function renderScenario() {
+    var body = $('scenarioBody');
+    if (!body) return;
+    var s = D.scenario;
+    if (!s || s.error || !s.cases || !s.cases.length) {
+      body.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:4px 0">이익(EPS)이 적자이거나 밴드·피어 데이터가 부족해 이익 기반 시나리오를 만들 수 없습니다.</div>';
+      return;
+    }
+    var CASE_TONE = { '비관': 'var(--dv-clay)', '기준': 'var(--ink)', '낙관': 'var(--dv-green)' };
+    function caseDelta(name) { return name === '비관' ? state.scnBear : name === '낙관' ? state.scnBull : 0; }
+    function tilesHtml() {
+      return s.cases.map(function (cs, i) {
+        var dlt = caseDelta(cs.name);
+        var m = cs.multiple * (1 + state.scnMult);
+        var p = s.eps_base * (1 + dlt) * m;
+        var up = D.meta.price ? p / D.meta.price - 1 : null;
+        return '<div style="flex:1;min-width:168px;padding:' + (i === 0 ? '0 18px 0 0' : '0 18px') + (i ? ';border-left:1px solid var(--line)' : '') + '">' +
+          '<div class="kick" style="color:' + CASE_TONE[cs.name] + '">' + cs.name + '</div>' +
+          '<div class="mono" style="font-size:22px;font-weight:500;margin-top:6px">' + fmtPrice(p) + '</div>' +
+          '<div style="font-size:11.5px;color:var(--ink-3);margin-top:3px">EPS ' + fmtSigned(dlt) + ' × ' + fmtX(m) +
+          (up != null ? ' · 현재가 대비 <b style="color:' + (up >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">' + fmtSigned(up) + '</b>' : '') + '</div></div>';
+      }).join('');
+    }
+    // 자동 해석 한 줄 — 그리드에서 현재가 위 칸 수 + 비관 케이스의 완충 여부
+    function readLine() {
+      var parts = [];
+      if (s.grid && s.grid.values && D.meta.price) {
+        var tot = 0, green = 0;
+        s.grid.values.forEach(function (row) { row.forEach(function (v) { if (v != null) { tot++; if (v > D.meta.price) green++; } }); });
+        if (tot) parts.push('민감도 ' + tot + '칸 중 <b>' + green + '칸(' + Math.round(green / tot * 100) + '%)</b>이 현재가 위');
+      }
+      var bear = s.cases[0], up = null;
+      if (bear && D.meta.price) up = s.eps_base * (1 + state.scnBear) * bear.multiple * (1 + state.scnMult) / D.meta.price - 1;
+      if (up != null) parts.push('비관 케이스는 현재가 대비 <b style="color:' + (up >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">' + fmtSigned(up) + '</b>' + (up >= 0 ? ' (하방 완충이 있는 편)' : ' (비관 가정 실현 시 하락 여지)'));
+      return parts.length ? '지금 가정에서는 ' + parts.join(', ') + '입니다.' : '';
+    }
+    function slider(label, id, val, min, max) {
+      return '<label style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-2)">' + label +
+        '<input type="range" id="' + id + '" min="' + min + '" max="' + max + '" step="5" value="' + Math.round(val * 100) + '" style="width:150px">' +
+        '<span class="mono" id="' + id + 'Val" style="min-width:44px">' + fmtSigned(val) + '</span></label>';
+    }
+    // 민감도 그리드 — 축은 서버가 고정(EPS ±30% × 밴드 분위), 셀 색은 현재가 대비 괴리
+    var gridHtml = '';
+    if (s.grid && s.grid.values) {
+      var cols = s.grid.mult_labels.length;
+      var cells = '<div style="display:grid;grid-template-columns:86px repeat(' + cols + ',1fr);border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden;font-variant-numeric:tabular-nums">';
+      cells += '<div style="padding:8px 10px;background:var(--paper-2);font-size:10.5px;letter-spacing:.06em;color:var(--ink-3)">EPS \\ 배수</div>';
+      s.grid.mult_labels.forEach(function (m) { cells += '<div class="mono" style="padding:8px 10px;background:var(--paper-2);font-size:11.5px;color:var(--ink-2);text-align:right">' + esc(m) + '</div>'; });
+      s.grid.values.forEach(function (row, ri) {
+        cells += '<div class="mono" style="padding:8px 10px;background:var(--paper-2);font-size:11.5px;color:var(--ink-2);border-top:1px solid var(--line)">' + esc(s.grid.eps_labels[ri]) + '</div>';
+        row.forEach(function (v, ci) {
+          var up = (v != null && D.meta.price) ? v / D.meta.price - 1 : null;
+          var pct = up == null ? 0 : Math.min(Math.abs(up) * 55, 24);
+          var bg = up == null ? 'transparent' : 'color-mix(in srgb, ' + (up >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + ' ' + pct.toFixed(0) + '%, transparent)';
+          var isBase = ri === Math.floor(s.grid.values.length / 2) && ci === Math.floor(cols / 2);
+          cells += '<div class="mono" style="padding:8px 10px;font-size:12px;text-align:right;border-top:1px solid var(--line);background:' + bg + (isBase ? ';box-shadow:inset 0 0 0 1.5px var(--ink-3)' : '') + '">' +
+            (v == null ? '—' : compactWon(v)) + '<span style="display:block;font-size:10px;color:var(--ink-3)">' + (up == null ? '' : fmtSigned(up)) + '</span></div>';
+        });
+      });
+      cells += '</div>';
+      gridHtml = '<div style="margin-top:22px"><div class="kick" style="margin-bottom:10px">민감도 — EPS 가정 × 멀티플</div>' + cells +
+        '<div style="font-size:11.5px;color:var(--ink-3);margin-top:8px">셀 = 해당 가정의 이론 가격(위)과 현재가 대비 괴리율(아래). 초록 = 현재가보다 높음, 클레이 = 낮음. 테두리 셀이 기준 가정입니다.</div></div>';
+    }
+    var howto =
+      '<div style="margin-top:18px;border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
+      '<div class="kick" style="margin-bottom:8px">어떻게 읽나</div>' +
+      '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
+      '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">이 표는 예측이 아니라 <b>가정 조합의 지도</b>입니다. 초록 칸이 많다 = 표에 깔린 가정 범위(EPS ±30% × 자기 5년 배수 폭) 안에서 이론 가격이 현재가보다 높은 조합이 많다는 뜻 — 현재가가 그 가정들 대비 낮게 거래된다는 신호이지 상승 보장이 아닙니다.</li>' +
+      '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65"><b>비관 케이스까지 플러스</b>면 가정이 다소 빗나가도 버티는 하방 완충(안전마진)이 있다고 읽고, <b>낙관에서만 플러스</b>면 수익이 낙관 가정의 실현에 의존한다고 읽습니다.</li>' +
+      '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">출발점이 컨센서스 EPS라서 시장의 이익 전망 자체가 꺾이면 표 전체가 아래로 이동합니다. 멀티플 슬라이더는 위 케이스 카드에 적용되며, 민감도 표는 열 자체가 멀티플 축이라 고정입니다.</li>' +
+      '</ul><div id="scnRead" style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + readLine() + '</div></div>';
+    body.innerHTML =
+      '<div id="scnTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0">' + tilesHtml() + '</div>' +
+      '<div style="display:flex;gap:26px;flex-wrap:wrap;margin-top:14px;align-items:center">' +
+      slider('비관 EPS 조정', 'scnBearSlider', state.scnBear, -40, 0) +
+      slider('낙관 EPS 조정', 'scnBullSlider', state.scnBull, 0, 40) +
+      slider('멀티플 조정', 'scnMultSlider', state.scnMult, -30, 30) +
+      '<span style="font-size:11.5px;color:var(--ink-3)">기준 EPS: ' + fmtPrice(s.eps_base) + ' (' + esc(s.eps_basis) + ') · 멀티플: ' + esc(s.multiple_basis) + '</span></div>' +
+      gridHtml + howto +
+      ((s.notes || []).length ? '<div style="font-size:11.5px;color:var(--ink-3);margin-top:12px;line-height:1.7">' + s.notes.map(esc).join('<br/>') + '</div>' : '');
+    function bind(id, key) {
+      var inp = $(id);
+      if (!inp) return;
+      inp.addEventListener('input', function () {
+        state[key] = Number(inp.value) / 100;
+        $(id + 'Val').textContent = fmtSigned(state[key]);
+        $('scnTiles').innerHTML = tilesHtml();
+        var rd = $('scnRead');
+        if (rd) rd.innerHTML = readLine();
+      });
+    }
+    bind('scnBearSlider', 'scnBear');
+    bind('scnBullSlider', 'scnBull');
+    bind('scnMultSlider', 'scnMult');
   }
 
   function renderCompany() {
@@ -886,7 +1079,7 @@
 
   function renderBacktest() {
     var bt = D.backtest;
-    if (!bt || bt.error || !bt.ok) { $('btTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">' + esc((bt && (bt.warnings || [])[0]) || '백테스트를 수행할 수 없습니다 (표본 부족).') + '</div>'; $('btTable').innerHTML = ''; $('backtestScatter').innerHTML = ''; $('equityCurve').innerHTML = ''; return; }
+    if (!bt || bt.error || !bt.ok) { $('btTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">' + esc((bt && (bt.warnings || [])[0]) || '백테스트를 수행할 수 없습니다 (표본 부족).') + '</div>'; $('btTable').innerHTML = ''; $('backtestScatter').innerHTML = ''; $('equityCurve').innerHTML = ''; if ($('btScatterGuide')) $('btScatterGuide').innerHTML = ''; if ($('equityGuide')) $('equityGuide').innerHTML = ''; return; }
     var tiles = [['비중복 12M 표본', (bt.event_count || 0).toLocaleString('en-US') + '개'], ['신호 후 12M 평균', '<span style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</span>'], ['그때 플러스 확률', bt.hit12 != null ? (bt.hit12 * 100).toFixed(0) + '%' : '—'], ['저평가↔수익 상관', '<span style="color:' + (bt.spearman >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + (bt.spearman != null ? (bt.spearman >= 0 ? '+' : '') + bt.spearman.toFixed(2) : '—') + '</span>']];
     $('btTiles').innerHTML = tiles.map(function (t, i) { return '<div style="flex:1;min-width:130px;padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:20px;font-weight:500;margin-top:6px">' + t[1] + '</div></div>'; }).join('');
     // 정직한 한 줄 관찰 (저평가 신호 후 vs 아무 때나)
@@ -899,12 +1092,64 @@
     } else {
       lede = '확보된 기간에 이 종목이 우리 기준 <b>저평가(+30%↑)</b>였던 적은 없었습니다 — 아래 관찰 통계가 비어 있는 이유예요. (다른 종목·기간에서는 신호가 잡히기도 합니다.)';
     }
-    if ($('btLede')) $('btLede').innerHTML = lede;
+    var mu = bt.methods_used || [];
+    var methodNote = '';
+    if (mu.length >= 2 && bt.weights) {
+      var wB = Math.round((bt.weights['역사적 밴드'] || 0) * 100), wR = Math.round((bt.weights['수익가치(RIM)'] || 0) * 100);
+      methodNote = '<div style="font-size:11.5px;color:var(--ink-3);margin-bottom:8px">검증 신호 = ② 역사적 밴드 + ③ RIM 가중 종합(' + wB + ':' + wR + '). ①·④는 사후검증 불가로 제외.</div>';
+    } else if (mu.length === 1) {
+      methodNote = '<div style="font-size:11.5px;color:var(--ink-3);margin-bottom:8px">검증 신호 = ② 역사적 밴드 단독(③ RIM 복원 불가). 종합 판정 일부만 검증됨.</div>';
+    }
+    if ($('btLede')) $('btLede').innerHTML = methodNote + lede;
     var head = '<div class="row head" style="grid-template-columns:1fr .7fr 1fr 1fr 1fr"><span class="col-label">보유기간</span><span class="col-label r">표본</span><span class="col-label r">평균수익</span><span class="col-label r">승률</span><span class="col-label r">전체평균</span></div>';
     var rows = (bt.horizons || []).map(function (h, i) { var last = i === bt.horizons.length - 1; return '<div class="row" style="grid-template-columns:1fr .7fr 1fr 1fr 1fr;font-family:var(--font-mono);font-size:12.5px' + (last ? ';border-bottom:none' : '') + '"><span style="font-family:var(--font-sans)">' + h.h + '</span><span class="r">' + (h.ev_n || 0) + '</span><span class="r" style="color:' + (h.ev_mean >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(h.ev_mean) + '</span><span class="r">' + (h.ev_hit != null ? (h.ev_hit * 100).toFixed(0) + '%' : '—') + '</span><span class="r" style="color:var(--ink-3)">' + fmtSigned(h.base_mean) + '</span></div>'; }).join('');
     $('btTable').innerHTML = head + rows;
     $('backtestScatter').innerHTML = backtestScatter();
     $('equityCurve').innerHTML = equityCurve();
+
+    // ── 산점도 읽는 법 (+ 순위상관 자동 해석) ──
+    var li0 = '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">';
+    var thPct = ((bt.threshold || 0.3) * 100).toFixed(0);
+    var rho = bt.spearman, rhoRead = '';
+    if (rho != null) {
+      rhoRead = rho >= 0.3
+        ? '이 종목은 순위상관 <b>+' + rho.toFixed(2) + '</b> — 더 싸 보였던 날일수록 이후 12개월 수익이 높은 경향이 실제로 있었습니다.'
+        : rho >= 0
+          ? '이 종목은 순위상관 <b>+' + rho.toFixed(2) + '</b> — 관계가 있긴 하지만 약해서, 저평가 신호를 보조 근거 정도로만 쓰는 게 안전합니다.'
+          : '이 종목은 순위상관 <b>−' + Math.abs(rho).toFixed(2) + '</b> — 싸 보였을 때 사도 이후 수익이 좋지 않았습니다. 낮은 멀티플이 실적 훼손의 반영(밸류트랩)이었을 가능성을 요약 탭 해설과 함께 확인하세요.';
+    }
+    if ($('btScatterGuide')) $('btScatterGuide').innerHTML =
+      '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
+      '<div class="kick" style="margin-bottom:8px">이 그래프 읽는 법</div>' +
+      '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
+      li0 + '점 하나 = 과거의 어느 하루입니다. <b>가로축</b>은 그날의 저평가율(모형 적정가 ÷ 주가 − 1, +30%면 주가가 적정가보다 30% 싸 보였다는 뜻), <b>세로축</b>은 그날 사서 12개월 들고 있었을 때의 실제 수익률입니다.</li>' +
+      li0 + '연한 <b>초록 배경</b>이 우리 기준 저평가 신호(+' + thPct + '%↑) 구간입니다. 이 구간의 점들이 가로 0선 위(플러스)에 몰려 있을수록 신호가 과거에 통했다는 뜻입니다.</li>' +
+      li0 + '<b>클레이색 사선</b>은 전체 점의 추세선 — 오른쪽 위로 기울수록 "더 싸 보일 때 살수록 이후 수익이 좋았다"입니다. 상단 타일의 <b>저평가↔수익 상관</b>(순위상관, −1~+1)이 이 관계의 일관성을 숫자 하나로 요약합니다.</li>' +
+      li0 + '주의: 한 종목의 5년 남짓 표본이고 인접한 날들은 사실상 같은 사건이라, 관계가 보여도 우연일 수 있습니다. 방향 참고용이지 매매 규칙이 아닙니다.</li>' +
+      '</ul>' + (rhoRead ? '<div style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + rhoRead + '</div>' : '') + '</div>';
+
+    // ── 자산곡선: 선 설명 + CAGR 풀이 + 자동 비교 한 줄 ──
+    var eqd = bt.equity, cag = (eqd && eqd.cagr) || {};
+    var cs = cag['저평가 매수 전략'], cb = cag['단순 보유(Buy&Hold)'];
+    var benchKey = Object.keys(cag).filter(function (k) { return k !== '저평가 매수 전략' && k !== '단순 보유(Buy&Hold)'; })[0];
+    var cbm = benchKey != null ? cag[benchKey] : null;
+    var eqRead = (cs != null && cb != null)
+      ? '이 종목·기간에서는 저평가 매수 전략 CAGR <b>' + (cs * 100).toFixed(1) + '%</b> vs 단순 보유 <b>' + (cb * 100).toFixed(1) + '%</b>' +
+        (cbm != null ? ' vs ' + esc(benchKey) + ' <b>' + (cbm * 100).toFixed(1) + '%</b>' : '') + ' — ' +
+        (cs > cb ? '신호가 종목 보유 대비 초과 성과를 냈습니다. 다만 한 종목의 사후 검증이라 우연·과최적화 가능성은 남습니다.'
+                 : '신호가 단순 보유를 이기지 못했습니다. 저평가 신호는 매매 타이밍 도구가 아니라 "지금 가격이 어느 수준인지" 보는 관찰 보조로 쓰는 게 안전합니다.')
+      : '';
+    if ($('equityGuide')) $('equityGuide').innerHTML =
+      '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
+      '<div class="kick" style="margin-bottom:8px">선과 숫자의 뜻</div>' +
+      '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
+      li0 + '<b>남색 선 · 저평가 매수 전략</b>: 모형이 저평가(+' + thPct + '%↑)로 본 날에만 주식을 보유하고, 아닌 날은 현금(수익 0)으로 쉬는 규칙의 가상 자산 가치입니다. 신호가 뜬 <b>다음 날</b> 진입해 미래 정보를 미리 쓰는 것(룩어헤드)을 막았습니다.</li>' +
+      li0 + '<b>회청색 선 · 단순 보유(Buy&Hold)</b>: 같은 기간 처음에 사서 끝까지 그냥 들고 있었을 때 — 전략을 평가하는 비교 기준선입니다.</li>' +
+      (benchKey ? li0 + '<b>클레이색 선 · ' + esc(benchKey) + '</b>: 같은 기간 시장 전체가 얼마나 움직였는지입니다. 종목·전략의 성과가 시장 상승 덕분인지, 종목 자체의 힘인지 가려주는 배경 기준입니다.</li>' : '') +
+      li0 + '모든 선은 시작을 100으로 맞춘 상대 가치이고, 거래비용·세금·슬리피지는 반영되지 않았습니다.</li>' +
+      li0 + '<b>CAGR</b>(연평균 복리 성장률) = 전체 기간의 최종 결과를 "매년 몇 %씩 복리로 불린 셈인가"로 환산한 값입니다. 예: 5년에 100→200이면 CAGR ≈ 14.9%. 범례 괄호 속 숫자가 이것입니다.</li>' +
+      li0 + '읽는 법: 전략 선이 높다고 무조건 좋은 게 아니라, <b>하락 구간을 신호가 피해 갔는지</b>(전략 선이 덜 꺾였는지)를 보는 게 핵심입니다.</li>' +
+      '</ul>' + (eqRead ? '<div style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + eqRead + '</div>' : '') + '</div>';
   }
 
   function renderAi() {
@@ -958,7 +1203,7 @@
   var _reqSeq = 0;
   function load() {
     var seq = ++_reqSeq;
-    setStatus(true, "'" + state.query + "' 데이터 수집 중… (첫 조회는 피어 수집으로 수십 초 걸릴 수 있어요)");
+    setStatus(true, "'" + state.query + "' 데이터 수집 중… (첫 조회는 피어 지표를 병렬로 모으느라 10초 안팎 걸릴 수 있어요)");
     var url = 'api/analyze?market=' + encodeURIComponent(state.market) + '&query=' + encodeURIComponent(state.query) + '&peer_count=' + (state.peer_count || 9);
     fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {

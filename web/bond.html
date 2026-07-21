@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>투자지표 — 채권 금리·시나리오</title>
+<title>투자지표 — 금리·수익률곡선</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -41,9 +41,7 @@
     <nav style="display:flex;gap:4px;align-items:center;white-space:nowrap">
       <a class="navlink" href="home.html" style="font-size:13.5px;padding:6px 10px">홈</a>
       <a class="navlink" href="stock.html" style="font-size:13.5px;padding:6px 10px">주식 가치평가</a>
-      <span style="font-size:13.5px;font-weight:600;color:var(--ink);padding:6px 10px;border-bottom:2px solid var(--ink)">채권</span>
-      <a class="navlink" href="portfolio.html" style="font-size:13.5px;padding:6px 10px">포트폴리오</a>
-      <a class="navlink" href="test.html" style="font-size:13.5px;padding:6px 10px">위험 프로파일</a>
+      <span style="font-size:13.5px;font-weight:600;color:var(--ink);padding:6px 10px;border-bottom:2px solid var(--ink)">금리</span>
       <a class="navlink" href="guide.html" target="_blank" rel="noopener" style="font-size:13.5px;padding:6px 10px">사용설명서 ↗</a>
     </nav>
     <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
@@ -54,14 +52,20 @@
   <main style="flex:1;width:100%;max-width:var(--content-max);margin:0 auto;padding:0 30px">
 
     <section style="padding:44px 0 8px">
-      <div class="kick section-spine" style="color:var(--dv-navy)">채권 · Rates &amp; scenarios</div>
+      <div class="kick section-spine" style="color:var(--dv-navy)">금리 · Rates &amp; scenarios</div>
       <h1 style="font-family:var(--font-display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:-0.02em;margin:12px 0 0">국채 금리 · 시나리오</h1>
       <p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:12px 0 0;max-width:64ch">주식이 "적정가 vs 시장가"라면, 채권은 <b style="color:var(--ink)">금리가 움직이면 가격이 얼마나 변하나</b>를 듀레이션·볼록성·DV01로 봅니다. 국공채 현물 금리 기준(회사채·신용스프레드는 무료 신뢰 소스가 없어 제외).</p>
     </section>
 
     <!-- 1. 수익률곡선 -->
     <section class="sec">
-      <span class="kick section-spine">지금 금리 — 수익률곡선</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+        <span class="kick section-spine">지금 금리 — 수익률곡선</span>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:11.5px;color:var(--ink-3)">국가 선택 — 둘 다 켜면 한 차트에 겹쳐 비교</span>
+          <div class="seg" id="mktSeg"><button class="on" data-val="KR">🇰🇷 한국</button><button class="on" data-val="US">🇺🇸 미국</button></div>
+        </div>
+      </div>
       <div id="rateTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:14px"></div>
       <div id="curveChart" style="margin-top:18px;min-height:280px"></div>
       <div id="curveNote" style="font-size:12px;color:var(--ink-3);margin-top:8px"></div>
@@ -72,7 +76,7 @@
       <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
         <span class="kick section-spine">금리 추이</span>
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-          <div class="seg" id="histMkt"><button class="on" data-val="KR">🇰🇷 한국</button><button data-val="US">🇺🇸 미국</button></div>
+          <span style="font-size:11.5px;color:var(--ink-3)">위에서 선택한 국가가 함께 표시됩니다</span>
           <div class="seg" id="histTenor"></div>
         </div>
       </div>

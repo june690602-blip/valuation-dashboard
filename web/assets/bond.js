@@ -43,8 +43,16 @@
 
   /* ── 상태 ── */
   var TENORS = { KR: [1, 2, 3, 5, 10, 20, 30], US: [1, 2, 3, 5, 7, 10, 20, 30] };
-  var state = { histMkt: 'KR', histTenor: 10, scMkt: 'KR', scTenor: 10, scFreq: 2 };
+  // mkts: 다중 선택 — 한국만/미국만/둘 다 (둘 다면 곡선·추이를 한 차트에 겹쳐 그림)
+  var state = { mkts: { KR: true, US: true }, histTenor: 10, scMkt: 'KR', scTenor: 10, scFreq: 2 };
   var BOND = null;
+
+  function activeMkts() { return ['KR', 'US'].filter(function (m) { return state.mkts[m]; }); }
+  function histTenorList() {
+    var ms = activeMkts(), ts = TENORS[ms[0]] || [];
+    if (ms.length > 1) ts = ts.filter(function (t) { return TENORS[ms[1]].indexOf(t) >= 0; });
+    return ts;
+  }
 
   function fmtSigned(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'; }
   function curveYield(c, t) { if (!c || !c.tenors || !c.tenors.length) return null; var best = null, bd = 1e9; for (var i = 0; i < c.tenors.length; i++) { var d = Math.abs(c.tenors[i] - t); if (d < bd) { bd = d; best = c.yields[i]; } } return best; }
@@ -60,35 +68,62 @@
     var ymin = Math.min.apply(null, ally), ymax = Math.max.apply(null, ally); var pad = (ymax - ymin) * 0.15 || 0.2; ymin -= pad; ymax += pad;
     var X = function (t) { return padL + Math.sqrt(t / maxT) * xw; };          // √스케일: 단기 구간을 넓게
     var Y = function (v) { return top + (1 - (v - ymin) / (ymax - ymin)) * plotH; };
-    var colors = ['var(--dv-navy)', 'var(--dv-clay)'];
+    // 색은 선택 조합과 무관하게 국가 고정: 한국=남색, 미국=클레이
+    var colorOf = function (nm) { return nm.indexOf('한국') >= 0 ? 'var(--dv-navy)' : 'var(--dv-clay)'; };
     var els = [];
     for (var g = 0; g <= 3; g++) { var yy = top + g / 3 * plotH, val = ymax - (ymax - ymin) * g / 3; els.push(el('line', { x1: padL, x2: padL + xw, y1: yy, y2: yy, stroke: 'var(--line)', strokeWidth: 1 })); els.push(el('text', { x: padL - 8, y: yy + 4, fontSize: 11.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, val.toFixed(2) + '%')); }
     tvals.forEach(function (t) { els.push(el('text', { x: X(t), y: top + plotH + 18, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, t + 'Y')); });
-    series.forEach(function (s, si) {
+    series.forEach(function (s) {
+      var col = colorOf(s.name);
       var pairs = s.c.tenors.map(function (t, i) { return [t, s.c.yields[i]]; }).filter(function (p) { return p[1] != null; }).sort(function (a, b) { return a[0] - b[0]; });
       var p = ''; pairs.forEach(function (pr, i) { p += (i ? 'L' : 'M') + X(pr[0]).toFixed(1) + ' ' + Y(pr[1]).toFixed(1) + ' '; });
-      els.push(el('path', { d: p, fill: 'none', stroke: colors[si % 2], strokeWidth: 2.2 }));
-      pairs.forEach(function (pr) { els.push(el('circle', { cx: X(pr[0]), cy: Y(pr[1]), r: 3.6, fill: colors[si % 2] })); });
+      els.push(el('path', { d: p, fill: 'none', stroke: col, strokeWidth: 2.2 }));
+      pairs.forEach(function (pr) { els.push(el('circle', { cx: X(pr[0]), cy: Y(pr[1]), r: 3.6, fill: col })); });
     });
     // 범례
-    var lg = el('div', { style: { display: 'flex', gap: '18px', marginTop: '8px' } }, series.map(function (s, si) { return el('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '12.5px', color: 'var(--ink-2)' } }, el('span', { style: { width: '14px', height: '2px', background: colors[si % 2], display: 'inline-block' } }), s.name); }).join(''));
+    var lg = el('div', { style: { display: 'flex', gap: '18px', marginTop: '8px' } }, series.map(function (s) { return el('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '12.5px', color: 'var(--ink-2)' } }, el('span', { style: { width: '14px', height: '2px', background: colorOf(s.name), display: 'inline-block' } }), s.name); }).join(''));
     els.push(el('text', { x: padL + xw, y: top + plotH + 34, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '만기 →'));
     return el('div', {}, el('svg', { viewBox: '0 0 ' + W + ' ' + (top + plotH + 42), style: { width: '100%', height: 'auto', display: 'block' } }, els), lg);
   }
 
-  function yieldHistoryChart(hist) {
-    if (!hist || !hist.yields || hist.yields.length < 2) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px', padding: '20px 0' } }, '이 만기의 시계열을 가져오지 못했습니다.');
-    var ys = hist.yields, dates = hist.dates, n = ys.length;
+  function yieldHistoryChartMulti(series) {
+    // 여러 시장을 실제 날짜축(시간 스케일)에 겹쳐 그린다 — 시장별 표본 길이가 달라도 정렬이 맞는다
+    var COLOR = { KR: 'var(--dv-navy)', US: 'var(--dv-clay)' };
+    var pts = series.map(function (s) {
+      var t = [], y = [];
+      (s.h.dates || []).forEach(function (d, i) { var ts = Date.parse(d), v = s.h.yields[i]; if (!isNaN(ts) && v != null) { t.push(ts); y.push(v); } });
+      return { mkt: s.mkt, label: s.h.label, t: t, y: y };
+    }).filter(function (p) { return p.t.length > 1; });
+    if (!pts.length) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px', padding: '20px 0' } }, '이 만기의 시계열을 가져오지 못했습니다.');
+    var tmin = Infinity, tmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+    pts.forEach(function (p) {
+      p.t.forEach(function (v) { if (v < tmin) tmin = v; if (v > tmax) tmax = v; });
+      p.y.forEach(function (v) { if (v < ymin) ymin = v; if (v > ymax) ymax = v; });
+    });
+    var pad = (ymax - ymin) * 0.12 || 0.1; ymin -= pad; ymax += pad;
     var W = 900, padL = 42, padR = 16, top = 14, plotH = 200, xw = W - padL - padR;
-    var ymin = Math.min.apply(null, ys), ymax = Math.max.apply(null, ys); var pad = (ymax - ymin) * 0.12 || 0.1; ymin -= pad; ymax += pad;
-    var X = function (i) { return padL + (n <= 1 ? 0 : i / (n - 1) * xw); }, Y = function (v) { return top + (1 - (v - ymin) / (ymax - ymin)) * plotH; };
+    var X = function (t) { return padL + (tmax <= tmin ? 0 : (t - tmin) / (tmax - tmin) * xw); };
+    var Y = function (v) { return top + (1 - (v - ymin) / (ymax - ymin)) * plotH; };
     var els = [];
     for (var g = 0; g <= 3; g++) { var yy = top + g / 3 * plotH, val = ymax - (ymax - ymin) * g / 3; els.push(el('line', { x1: padL, x2: padL + xw, y1: yy, y2: yy, stroke: 'var(--line)', strokeWidth: 1 })); els.push(el('text', { x: padL - 8, y: yy + 4, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, val.toFixed(2) + '%')); }
-    var p = ''; for (var i = 0; i < n; i++) p += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(ys[i]).toFixed(1) + ' ';
-    els.push(el('path', { d: p, fill: 'none', stroke: 'var(--dv-navy)', strokeWidth: 1.9 }));
-    els.push(el('circle', { cx: X(n - 1), cy: Y(ys[n - 1]), r: 3.4, fill: 'var(--dv-navy)' }));
-    for (var t = 0; t <= 4; t++) { var ix = Math.round(t / 4 * (n - 1)); els.push(el('text', { x: X(ix), y: top + plotH + 16, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, (dates[ix] || '').slice(2))); }
-    return el('svg', { viewBox: '0 0 ' + W + ' ' + (top + plotH + 24), style: { width: '100%', height: 'auto', display: 'block' } }, els);
+    pts.forEach(function (pnt) {
+      var c = COLOR[pnt.mkt] || 'var(--dv-navy)';
+      var p = ''; for (var i = 0; i < pnt.t.length; i++) p += (i ? 'L' : 'M') + X(pnt.t[i]).toFixed(1) + ' ' + Y(pnt.y[i]).toFixed(1) + ' ';
+      els.push(el('path', { d: p, fill: 'none', stroke: c, strokeWidth: 1.9 }));
+      els.push(el('circle', { cx: X(pnt.t[pnt.t.length - 1]), cy: Y(pnt.y[pnt.y.length - 1]), r: 3.4, fill: c }));
+    });
+    for (var t = 0; t <= 4; t++) {
+      var tv = tmin + (tmax - tmin) * t / 4, d = new Date(tv);
+      var lb = String(d.getFullYear()).slice(2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2);
+      els.push(el('text', { x: X(tv), y: top + plotH + 16, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, lb));
+    }
+    var lg = el('div', { style: { display: 'flex', gap: '18px', marginTop: '8px', flexWrap: 'wrap' } }, pts.map(function (pnt) {
+      var last = pnt.y[pnt.y.length - 1];
+      return el('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '12.5px', color: 'var(--ink-2)' } },
+        el('span', { style: { width: '14px', height: '2px', background: COLOR[pnt.mkt] || 'var(--dv-navy)', display: 'inline-block' } }),
+        esc(pnt.label) + ' · 현재 ' + last.toFixed(2) + '%');
+    }).join(''));
+    return el('div', {}, el('svg', { viewBox: '0 0 ' + W + ' ' + (top + plotH + 24), style: { width: '100%', height: 'auto', display: 'block' } }, els), lg);
   }
 
   function priceYieldChart(ytm, coupon, years, freq, price, modified) {
@@ -117,36 +152,52 @@
   function tiles(container, items) { container.innerHTML = items.map(function (t, i) { return '<div class="tile" style="padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="v">' + t[1] + '</div></div>'; }).join(''); }
 
   function renderRates() {
-    var p = BOND.policy || {}, kr = BOND.kr, us = BOND.us;
-    var kr10 = curveYield(kr, 10), us10 = curveYield(us, 10);
-    tiles($('rateTiles'), [
-      ['한국은행 기준금리', p['한국은행'] != null ? p['한국은행'].toFixed(2) + '%' : '—'],
-      ['미국 연준 기준금리', p['미국 연준'] != null ? p['미국 연준'].toFixed(2) + '%' : '—'],
-      ['한국 국고채 10년', kr10 != null ? kr10.toFixed(3) + '%' : '—'],
-      ['미국 국채 10년', us10 != null ? us10.toFixed(3) + '%' : '—']
-    ]);
-    $('curveChart').innerHTML = yieldCurveChart({ '🇰🇷 한국 국고채': kr, '🇺🇸 미국 국채': us });
-    var notes = [];
-    var kr3 = curveYield(kr, 3), us2 = curveYield(us, 2);
-    if (kr10 != null && kr3 != null) { var sp = (kr10 - kr3) * 100; notes.push('한국 10−3년 스프레드 <b class="mono">' + (sp >= 0 ? '+' : '') + sp.toFixed(0) + 'bp</b> (' + (sp > 0 ? '정상(우상향)' : '역전 — 침체 신호로 자주 해석') + ')'); }
-    if (us10 != null && us2 != null) { var sp2 = (us10 - us2) * 100; notes.push('미국 10−2년 스프레드 <b class="mono">' + (sp2 >= 0 ? '+' : '') + sp2.toFixed(0) + 'bp</b> (' + (sp2 > 0 ? '정상' : '역전') + ')'); }
-    var asof = (kr && kr.asof) || (us && us.asof) || '';
+    // 국가 선택(mkts)에 따라 타일·곡선·스프레드 노트를 함께 필터링한다
+    var p = BOND.policy || {};
+    var tileItems = [], curves = {}, notes = [];
+    if (state.mkts.KR) {
+      var kr = BOND.kr, kr10 = curveYield(kr, 10), kr3 = curveYield(kr, 3);
+      tileItems.push(['한국은행 기준금리', p['한국은행'] != null ? p['한국은행'].toFixed(2) + '%' : '—']);
+      tileItems.push(['한국 국고채 10년', kr10 != null ? kr10.toFixed(3) + '%' : '—']);
+      curves['🇰🇷 한국 국고채'] = kr;
+      if (kr10 != null && kr3 != null) { var sp = (kr10 - kr3) * 100; notes.push('한국 10−3년 스프레드 <b class="mono">' + (sp >= 0 ? '+' : '') + sp.toFixed(0) + 'bp</b> (' + (sp > 0 ? '정상(우상향)' : '역전 — 침체 신호로 자주 해석') + ')'); }
+    }
+    if (state.mkts.US) {
+      var us = BOND.us, us10 = curveYield(us, 10), us2 = curveYield(us, 2);
+      tileItems.push(['미국 연준 기준금리', p['미국 연준'] != null ? p['미국 연준'].toFixed(2) + '%' : '—']);
+      tileItems.push(['미국 국채 10년', us10 != null ? us10.toFixed(3) + '%' : '—']);
+      curves['🇺🇸 미국 국채'] = us;
+      if (us10 != null && us2 != null) { var sp2 = (us10 - us2) * 100; notes.push('미국 10−2년 스프레드 <b class="mono">' + (sp2 >= 0 ? '+' : '') + sp2.toFixed(0) + 'bp</b> (' + (sp2 > 0 ? '정상' : '역전') + ')'); }
+    }
+    tiles($('rateTiles'), tileItems);
+    $('curveChart').innerHTML = yieldCurveChart(curves);
+    var asof = (BOND.kr && BOND.kr.asof) || (BOND.us && BOND.us.asof) || '';
     $('curveNote').innerHTML = (notes.join(' · ') + (asof ? '  |  기준일 ' + asof : '')) || '';
     $('asof').textContent = asof ? '기준일 ' + asof : '';
   }
 
   function renderHistTenorSeg() {
-    var ts = TENORS[state.histMkt];
+    var ts = histTenorList();
     if (ts.indexOf(state.histTenor) < 0) state.histTenor = 10;
     $('histTenor').innerHTML = ts.map(function (t) { return '<button class="' + (t === state.histTenor ? 'on' : '') + '" data-val="' + t + '">' + t + 'Y</button>'; }).join('');
   }
   function loadHistory() {
+    var ms = activeMkts();
     $('histChart').innerHTML = '<div style="color:var(--ink-3);font-size:12.5px;padding:20px 0">금리 시계열 불러오는 중…</div>';
-    fetch('api/bond_history?market=' + state.histMkt + '&tenor=' + state.histTenor).then(function (r) { return r.json(); }).then(function (h) {
-      if (h.error) { $('histChart').innerHTML = '<div style="color:var(--ink-3);font-size:12.5px">불러오기 실패.</div>'; return; }
-      $('histChart').innerHTML = yieldHistoryChart(h);
-      if (h.change_bp != null) $('histNote').innerHTML = h.label + ' — 표시 구간 변화 <b class="mono">' + (h.change_bp >= 0 ? '+' : '') + h.change_bp.toFixed(0) + 'bp</b> · 표본 ' + h.n + '일 · 출처 ' + h.source;
-      else $('histNote').textContent = '';
+    Promise.all(ms.map(function (m) {
+      return fetch('api/bond_history?market=' + m + '&tenor=' + state.histTenor)
+        .then(function (r) { return r.json(); }).catch(function () { return { error: 1 }; });
+    })).then(function (hs) {
+      var series = [];
+      hs.forEach(function (h, i) { if (h && !h.error && h.yields && h.yields.length > 1) series.push({ mkt: ms[i], h: h }); });
+      if (!series.length) { $('histChart').innerHTML = '<div style="color:var(--ink-3);font-size:12.5px">불러오기 실패.</div>'; $('histNote').textContent = ''; return; }
+      $('histChart').innerHTML = yieldHistoryChartMulti(series);
+      $('histNote').innerHTML = series.map(function (s) {
+        var h = s.h;
+        return h.change_bp != null
+          ? esc(h.label) + ' — 표시 구간 변화 <b class="mono">' + (h.change_bp >= 0 ? '+' : '') + h.change_bp.toFixed(0) + 'bp</b> · 표본 ' + h.n + '일 · 출처 ' + esc(h.source)
+          : '';
+      }).filter(Boolean).join('<br/>');
     }).catch(function () { $('histChart').innerHTML = '<div style="color:var(--ink-3);font-size:12.5px">서버 연결 실패.</div>'; });
   }
 
@@ -205,10 +256,21 @@
 
   /* ══════════ 인터랙션 ══════════ */
   function wireSeg(id, onChange) { var seg = $(id); if (!seg) return; seg.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on'); onChange(b.getAttribute('data-val')); }); }
+  // 다중 선택 세그먼트 — 버튼별 on/off 토글, 최소 1개는 켜진 상태 유지
+  function wireMultiSeg(id, onChange) {
+    var seg = $(id); if (!seg) return;
+    seg.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      if (b.classList.contains('on') && seg.querySelectorAll('button.on').length <= 1) return;
+      b.classList.toggle('on');
+      state.mkts[b.getAttribute('data-val')] = b.classList.contains('on');
+      onChange();
+    });
+  }
 
   function init() {
-    // 히스토리
-    wireSeg('histMkt', function (v) { state.histMkt = v; renderHistTenorSeg(); loadHistory(); });
+    // 국가 다중 선택 — 곡선·타일·추이가 함께 반응
+    wireMultiSeg('mktSeg', function () { renderRates(); renderHistTenorSeg(); loadHistory(); });
     $('histTenor').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; state.histTenor = +b.getAttribute('data-val'); renderHistTenorSeg(); loadHistory(); });
     // 시나리오
     wireSeg('scMkt', function (v) { state.scMkt = v; renderScTenorSeg(); prefillYtm(); renderScenario(); });

@@ -5,8 +5,12 @@
 
 ## 프로젝트 개요
 기본적 분석 기반 **주식 가치평가 대시보드**(한국+미국). 종목 하나를 넣으면 재무·주가·업종 데이터를
-자동 수집해 "지금 주가가 적정한가, 아니라면 왜인가"를 판정·시각화한다. Streamlit 9개 탭
+자동 수집해 "지금 주가가 적정한가, 아니라면 왜인가"를 판정·시각화한다.
+프런트는 둘: **Meridian 웹**(`server.py` + `web/`, 실제 실행 진입점 — `대시보드실행.bat`)과
+Streamlit(`app.py`). 두 프런트 모두 같은 분석 엔진(`src/analysis`)을 쓴다. 9개 탭
 (기업·뉴스, 요약·판정, 주가차트, 밸류에이션, 재무, 업종비교, 자본비용(WACC), 백테스트, AI투자평가).
+적정주가는 4방법 삼각측량(업종 상대가치·역사적 밴드·RIM·컨센서스 선행 이익) + 증권가 컨센서스
+교차검증 + 비관/기준/낙관 시나리오.
 
 ## 실행 / 검증
 - 실행: `pip install -r requirements.txt` → `streamlit run app.py`
@@ -19,7 +23,7 @@
 - `src/data/` — 데이터 수집. `models.py`(시장 무관 표준 모델 `CompanyData`), `base.py`(yfinance),
   `opendart.py`(한국 공시 원본), `naver.py`, `news.py`, `gemini.py`(AI), `kr_provider.py`/`us_provider.py`.
 - `src/analysis/` — **순수 함수**로 작성(입력=CompanyData, 부작용 없음). `indicators.py`, `scoring.py`,
-  `capital_cost.py`(베타·하마다·WACC), `valuation.py`(적정주가 3방법), `backtest.py`, `ai_analysis.py`.
+  `capital_cost.py`(베타·하마다·WACC), `valuation.py`(적정주가 4방법·가중종합, ADR-0003), `backtest.py`, `ai_analysis.py`.
 - `src/ui/` — `charts.py`(Plotly), `components.py`(포맷터·배지). `app.py`가 엔트리.
 
 ## 코딩 규칙

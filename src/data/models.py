@@ -45,6 +45,45 @@ PEER_COLUMNS = [
 ]
 
 
+def recomm_label(score: float | None) -> str | None:
+    """투자의견 점수(1~5, 5=적극매수 통일 척도) → 한국어 라벨."""
+    if score is None:
+        return None
+    if score >= 4.5:
+        return "적극매수"
+    if score >= 3.5:
+        return "매수"
+    if score >= 2.5:
+        return "중립"
+    if score >= 1.5:
+        return "매도"
+    return "적극매도"
+
+
+@dataclass
+class Consensus:
+    """애널리스트 컨센서스(시장 추정치) — 커버리지가 없으면 필드별 None.
+
+    recomm_score는 시장 무관 1~5 통일 척도(5=적극매수). KR(FnGuide)은 원래
+    5=매수 척도라 그대로, US(yfinance)는 1=매수 척도라 provider에서 6-x로 뒤집는다.
+    """
+
+    forward_eps: float | None = None    # 12개월 선행 EPS (해당 통화, 주당)
+    forward_per: float | None = None    # 선행 PER (참고 표시용)
+    target_mean: float | None = None    # 목표주가 평균
+    target_high: float | None = None
+    target_low: float | None = None
+    n_analysts: int | None = None       # 추정 참여 애널리스트 수 (KR은 미제공)
+    recomm_score: float | None = None   # 1~5 (5=적극매수)
+    recomm_label: str | None = None
+    as_of: str = ""                     # 집계 기준일 (있을 때만)
+    source: str = ""
+
+    def has_any(self) -> bool:
+        return any(v is not None for v in
+                   (self.forward_eps, self.target_mean, self.recomm_score))
+
+
 @dataclass
 class CompanyData:
     """한 기업의 분석에 필요한 모든 원천 데이터."""
@@ -71,6 +110,7 @@ class CompanyData:
     official: dict = field(default_factory=dict)   # 공식/참고 지표 (pykrx PER 등)
     warnings: list = field(default_factory=list)   # 데이터 품질 경고 문구
     is_financial: bool = False                     # 금융업 여부 (지표 마스킹용)
+    consensus: Consensus | None = None             # 애널리스트 컨센서스 (없으면 None)
 
     def latest(self, col: str):
         """TTM 우선, 없으면 최근 연간 값."""

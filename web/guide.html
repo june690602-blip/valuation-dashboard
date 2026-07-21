@@ -127,9 +127,7 @@
     <nav class="top-nav" aria-label="주요 메뉴">
       <a class="navlink" href="home.html">홈</a>
       <a class="navlink" href="stock.html">주식 가치평가</a>
-      <a class="navlink" href="bond.html">채권</a>
-      <a class="navlink" href="portfolio.html">포트폴리오</a>
-      <a class="navlink" href="test.html">위험 프로파일</a>
+      <a class="navlink" href="bond.html">금리</a>
       <a class="navlink" href="guide.html" aria-current="page">사용설명서</a>
     </nav>
     <a class="btn btn-primary btn-sm header-action" href="stock.html" target="_blank" rel="noopener">분석 화면 열기 ↗</a>
@@ -178,12 +176,12 @@
       </div>
       <div class="flow">
         <div class="flow-row"><span class="num">01</span><h3>종목 불러오기</h3><p>한국 주식은 6자리 코드 또는 종목명, 미국 주식은 티커를 입력합니다. 종목명·현재가·판정이 보이면 준비 완료입니다.</p></div>
-        <div class="flow-row"><span class="num">02</span><h3>요약·판정</h3><p>적정가 범위, 괴리율, 신뢰도를 먼저 봅니다. 괴리율의 <strong>+</strong>는 모형 적정가가 현재가보다 높고, <strong>−</strong>는 낮다는 뜻입니다.</p></div>
-        <div class="flow-row"><span class="num">03</span><h3>밸류·재무·업종</h3><p>업종·자기 역사·RIM의 방향이 같은지, 이익과 현금흐름이 받쳐주는지, 경쟁사 대비 싼 이유가 있는지 확인합니다.</p></div>
+        <div class="flow-row"><span class="num">02</span><h3>요약·판정</h3><p>적정가 범위, 괴리율, 신뢰도를 먼저 봅니다. 괴리율의 <strong>+</strong>는 모형 적정가가 현재가보다 높고, <strong>−</strong>는 낮다는 뜻입니다. 증권가 <strong>컨센서스 목표주가·투자의견과의 교차검증</strong>도 여기서 확인합니다.</p></div>
+        <div class="flow-row"><span class="num">03</span><h3>밸류·재무·업종</h3><p>업종·자기 역사·RIM·컨센서스 선행 이익의 방향이 같은지, 이익과 현금흐름이 받쳐주는지, 경쟁사 대비 싼 이유가 있는지 확인합니다. 밸류에이션 탭의 <strong>시나리오 분석</strong>으로 가정을 바꿔볼 수 있습니다.</p></div>
         <div class="flow-row"><span class="num">04</span><h3>주가차트</h3><p>기간별 추세와 지수 대비 성과를 봅니다. 상대성과는 과거 결과이며 향후 수익을 예측하지 않습니다.</p></div>
         <div class="flow-row"><span class="num">05</span><h3>반대 근거 점검</h3><p>ROIC−WACC, 백테스트 표본, 최근 공시·뉴스를 확인합니다. 백테스트는 역사적 밴드 신호 하나만 점검하며 종합 판정 전체를 검증하지 않습니다.</p></div>
       </div>
-      <div class="callout" style="margin-top:18px"><strong>신뢰도는 ‘평가 방법 간 합의 정도’입니다.</strong> 데이터 정확도나 수익 가능성을 보증하는 점수가 아닙니다. 신뢰도가 낮다면 세 방법 중 어떤 값이 유독 다른지 먼저 확인하세요.</div>
+      <div class="callout" style="margin-top:18px"><strong>신뢰도는 ‘평가 방법 간 합의 정도’입니다.</strong> 데이터 정확도나 수익 가능성을 보증하는 점수가 아닙니다. 신뢰도가 낮다면 네 방법 중 어떤 값이 유독 다른지 먼저 확인하세요.</div>
 
       <details style="margin-top:14px">
         <summary>9개 분석 화면 지도</summary>
@@ -194,9 +192,9 @@
               <thead><tr><th scope="col">알고 싶은 것</th><th scope="col">화면</th><th scope="col">먼저 볼 것</th></tr></thead>
               <tbody>
                 <tr><td>이 회사는 무엇을 하나?</td><td>기업·뉴스</td><td>사업 개요와 최근 이슈</td></tr>
-                <tr><td>결론은 무엇인가?</td><td>요약·판정</td><td>적정가 범위·괴리율·신뢰도</td></tr>
+                <tr><td>결론은 무엇인가?</td><td>요약·판정</td><td>적정가 범위·괴리율·신뢰도, 컨센서스 교차검증</td></tr>
                 <tr><td>가격 흐름은 어떤가?</td><td>주가차트</td><td>기간별 추세·지수 대비 성과</td></tr>
-                <tr><td>업종·과거 대비 싼가?</td><td>밸류에이션</td><td>업종·자기 역사·RIM의 방향</td></tr>
+                <tr><td>업종·과거 대비 싼가?</td><td>밸류에이션</td><td>업종·자기 역사 배수의 방향, 시나리오·민감도</td></tr>
                 <tr><td>회사 체력은 괜찮은가?</td><td>재무 분석</td><td>매출·마진·현금흐름</td></tr>
                 <tr><td>경쟁사 중 어디쯤인가?</td><td>업종 비교</td><td>가치와 수익성의 상대 위치</td></tr>
                 <tr><td>자본비용보다 더 버는가?</td><td>자본비용</td><td>ROIC와 WACC의 차이</td></tr>
@@ -216,10 +214,10 @@
       </div>
       <div class="tool-grid">
         <article class="tool-card">
-          <span class="label">FIXED INCOME</span><h3>채권</h3>
+          <span class="label">RATES</span><h3>금리</h3>
           <p>금리 수준보다 금리 변화에 가격이 얼마나 민감한지를 봅니다.</p>
           <ul><li>국가와 만기별 수익률곡선 확인</li><li>현재 금리와 과거 범위 비교</li><li>듀레이션·볼록성 시나리오 점검</li></ul>
-          <a class="btn btn-secondary" href="bond.html" target="_blank" rel="noopener">채권 화면 열기 ↗</a>
+          <a class="btn btn-secondary" href="bond.html" target="_blank" rel="noopener">금리 화면 열기 ↗</a>
         </article>
         <article class="tool-card">
           <span class="label">ASSET ALLOCATION</span><h3>포트폴리오</h3>
@@ -246,6 +244,7 @@
         <details><summary>PER · PBR · ROE · 업종 백분위</summary><div class="detail-body"><ul><li><strong>PER</strong>: 주가가 이익의 몇 배인지 보여줍니다.</li><li><strong>PBR</strong>: 주가가 장부가치의 몇 배인지 보여줍니다.</li><li><strong>ROE</strong>: 주주자본으로 낸 수익률입니다.</li><li><strong>업종 백분위</strong>: 50이 업종 중앙값입니다.</li></ul></div></details>
         <details><summary>ROIC · WACC · 베타</summary><div class="detail-body"><ul><li><strong>ROIC</strong>: 영업에 투입한 자본으로 낸 수익률입니다.</li><li><strong>WACC</strong>: 주주와 채권자가 요구하는 평균 자본비용입니다.</li><li><strong>ROIC−WACC</strong>: 양수면 자본비용보다 더 벌었다는 뜻입니다.</li><li><strong>베타</strong>: 시장 움직임에 대한 민감도입니다.</li></ul></div></details>
         <details><summary>변동성 · 샤프비율 · 백테스트</summary><div class="detail-body"><ul><li><strong>변동성</strong>: 수익률이 흔들린 정도입니다.</li><li><strong>샤프비율</strong>: 변동성 한 단위당 무위험수익 초과 성과입니다.</li><li><strong>백테스트</strong>: 이 앱에서는 역사적 밴드 신호 하나를 점검합니다. 종합 판정 검증이나 미래 보장이 아닙니다.</li></ul></div></details>
+        <details><summary>컨센서스 · 선행 EPS · 시나리오</summary><div class="detail-body"><ul><li><strong>컨센서스</strong>: 증권사 애널리스트 추정치의 평균입니다. 목표주가·투자의견은 교차검증용이며 판정 계산에는 넣지 않습니다. 매수 편향이 있을 수 있습니다.</li><li><strong>선행 EPS</strong>: 향후 12개월 예상 주당순이익(컨센서스)입니다. ④ 선행 이익 방법은 여기에 보수적 멀티플을 곱합니다.</li><li><strong>목표주가 역산</strong>: 목표가 ÷ 선행 EPS로 증권가가 깔아 둔 멀티플을 되짚어, 모형과의 차이가 어느 가정에서 오는지 보여줍니다.</li><li><strong>시나리오·민감도</strong>: 예측이 아니라 가정 조합의 지도입니다. 비관 케이스까지 플러스면 하방 완충이 있다고 읽습니다.</li></ul></div></details>
       </div>
     </section>
 

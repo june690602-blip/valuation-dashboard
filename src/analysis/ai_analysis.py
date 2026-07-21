@@ -197,7 +197,9 @@ def investment_opinion(context: str) -> str:
   현재가와의 괴리율(%)을 계산해 밝혀라.
 - 52주 최저·역사적 지지 수준은 매매 지시가 아니라 현재 관찰을 재검토할 기준으로 설명하라.
 - 다만 **제공되지 않은 완전히 새로운 수치**(예: 존재하지 않는 미래 실적 추정)는 지어내지 말 것.
-- 3가지 방법의 편차가 크면(신뢰도 낮음) 그 불확실성도 함께 밝혀라.
+- 방법 간 편차가 크면(신뢰도 낮음) 그 불확실성도 함께 밝혀라.
+- '증권가 컨센서스'(목표주가·투자의견·선행 EPS)가 제공되면 **시장 전문가 평균 시각**으로 인용하되,
+  이 대시보드 모형과의 차이(수렴/괴리)를 함께 밝혀라. 컨센서스에는 매수 편향이 있을 수 있다.
 
 [분석 컨텍스트]
 {context}
@@ -247,7 +249,7 @@ def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "",
     if val.fair_mid:
         upside = val.fair_mid / d.price - 1 if d.price else None
         lines.append(
-            f"적정주가 범위(3방법 평균, =목표가 근거): {val.fair_low:,.0f} ~ {val.fair_high:,.0f} {cur}"
+            f"적정주가 범위(방법별 가중평균, =목표가 근거): {val.fair_low:,.0f} ~ {val.fair_high:,.0f} {cur}"
             + (f", 중심 {val.fair_mid:,.0f} → 현재가 대비 상승여력 {pct(upside)}" if upside is not None else ""))
         # 방법별 세부 (편차=신뢰도 판단 근거)
         if getattr(val, "estimates", None):
@@ -255,6 +257,24 @@ def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "",
             lines.append(f"방법별 적정가 중심: {per_method}")
     else:
         lines.append("적정주가: 계산 불가")
+    # 증권가 컨센서스 (모형과의 교차검증용 — 시장 전문가 평균 시각)
+    cons = getattr(d, "consensus", None)
+    if cons is not None and cons.has_any():
+        seg = []
+        if cons.target_mean:
+            up = cons.target_mean / d.price - 1 if d.price else None
+            seg.append(f"목표주가 평균 {cons.target_mean:,.0f} {cur}"
+                       + (f" (현재가 대비 {pct(up)})" if up is not None else ""))
+        if cons.recomm_label and cons.recomm_score is not None:
+            seg.append(f"투자의견 평균 {cons.recomm_label}({cons.recomm_score:.2f}/5)")
+        if cons.forward_eps:
+            seg.append(f"12개월 선행 EPS {cons.forward_eps:,.0f}"
+                       + (f" (TTM 대비 {pct(val.forward_growth)})"
+                          if getattr(val, "forward_growth", None) is not None else ""))
+        if cons.n_analysts:
+            seg.append(f"애널리스트 {cons.n_analysts}명")
+        if seg:
+            lines.append("증권가 컨센서스: " + ", ".join(seg))
     # 52주 범위 (현재 관찰을 재검토할 가격 기준)
     try:
         c = d.prices.tail(252)
