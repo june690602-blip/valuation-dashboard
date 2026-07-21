@@ -120,6 +120,9 @@ class Handler(SimpleHTTPRequestHandler):
                 data = cached_analyze(market, query, peer_count, include_news, exclude, extra)
                 print(f"[api] {market} {query} → {data['meta']['name']} ({time.time() - t0:.1f}s)")
                 return self._send_json(data)
+            except ValueError as e:  # 종목 미탐색 등 사용자 입력 오류 — 안내 문구를 그대로 전달(서버 오류 아님)
+                print(f"[api] {market} {query} → 입력 오류: {e}")
+                return self._send_json({"error": str(e)}, 400)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
                 return self._send_json({"error": _ERR_MSG}, 500)
