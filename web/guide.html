@@ -35,9 +35,11 @@
   .ver-toggle { position: sticky; top: 58px; z-index: 20; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 4px; padding: 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: rgba(255,255,255,.96); backdrop-filter: blur(8px); box-shadow: var(--shadow-sm); }
   .ver-btn { appearance: none; cursor: pointer; text-align: left; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent; padding: 12px 16px; display: flex; flex-direction: column; gap: 3px; color: var(--ink-2); transition: background .15s, border-color .15s, color .15s; }
   .ver-btn:hover { background: var(--paper-2); }
+  .ver-btn .vt-kick { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .13em; color: var(--ink-4); }
   .ver-btn .vt-title { font-size: 15px; font-weight: 700; font-family: var(--font-display); }
   .ver-btn .vt-sub { font-size: 11.5px; opacity: .82; }
   .ver-btn.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .ver-btn.on .vt-kick { color: var(--paper); opacity: .58; }
   .ver-btn.on .vt-sub { color: var(--paper); opacity: .72; }
   .ver-btn:focus-visible { outline: 2px solid var(--dv-navy); outline-offset: 2px; }
 
@@ -121,9 +123,10 @@
   .footer-inner { max-width: 1060px; margin: 0 auto; font-size: 11.5px; color: var(--ink-3); line-height: 1.7; }
 
   /* 비유 카드 (일반인용) */
-  .analogy { display: grid; grid-template-columns: 46px minmax(0,1fr); gap: 15px; border: 1px solid var(--line); border-left: 3px solid var(--dv-gold); border-radius: var(--radius-md); padding: 17px 19px; background: var(--paper); }
+  .analogy { display: grid; grid-template-columns: 32px minmax(0,1fr); gap: 15px; border: 1px solid var(--line); border-left: 3px solid var(--dv-gold); border-radius: var(--radius-md); padding: 17px 19px; background: var(--paper); }
+  .analogy.solo { display: block; }
   .analogy + .analogy { margin-top: 11px; }
-  .analogy .emo { font-size: 27px; line-height: 1.1; }
+  .analogy .anum { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--spine-ink); padding-top: 3px; }
   .analogy h3 { margin: 0 0 6px; font-size: 15px; }
   .analogy p { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.78; }
   .analogy p + p { margin-top: 7px; }
@@ -131,14 +134,6 @@
   /* 건너뛰는 이유 안내 (기분 좋게) */
   .skip-note { border: 1px dashed var(--line-strong); border-radius: var(--radius-md); padding: 17px 19px; background: color-mix(in srgb,var(--dv-green) 5%,var(--paper)); color: var(--ink-2); font-size: 13.5px; line-height: 1.78; }
   .skip-note strong { color: var(--ink); }
-  /* 탭별 상세 (전문가용) */
-  .tab-detail { border-top: 1px solid var(--line-strong); }
-  .tab-row { display: grid; grid-template-columns: 152px minmax(0,1fr); gap: 20px; padding: 16px 0; border-bottom: 1px solid var(--line); }
-  .tab-row:last-child { border-bottom: 0; }
-  .tab-row .tab-name { font-size: 13.5px; font-weight: 700; color: var(--ink); }
-  .tab-row .tab-name span { display: block; font-size: 11px; font-weight: 500; color: var(--ink-3); margin-top: 3px; }
-  .tab-row .tab-body { color: var(--ink-2); font-size: 13px; line-height: 1.72; }
-  .tab-row .tab-body b { color: var(--ink); font-weight: 600; }
   /* 시각자료 읽기 (전문가용) */
   .viz-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
   .viz-card { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px 18px; background: var(--paper); }
@@ -175,7 +170,6 @@
     .step-card { min-height: auto; }
     .flow-row { grid-template-columns: 30px minmax(0,1fr); gap: 8px 10px; }
     .flow-row p { grid-column: 2; }
-    .tab-row { grid-template-columns: 1fr; gap: 6px; }
     footer { padding: 20px 18px; }
   }
 </style>
@@ -216,12 +210,14 @@
     <!-- 버전 선택 -->
     <div class="ver-toggle" role="tablist" aria-label="설명서 눈높이 선택">
       <button class="ver-btn on" id="tab-basic" role="tab" aria-selected="true" aria-controls="v-basic" data-ver="basic">
-        <span class="vt-title">🌱 처음이에요</span>
-        <span class="vt-sub">일반인용 · 비유로 핵심만 쉽게</span>
+        <span class="vt-kick">BASIC · 입문</span>
+        <span class="vt-title">처음이에요</span>
+        <span class="vt-sub">비유로 핵심만 쉽게</span>
       </button>
       <button class="ver-btn" id="tab-pro" role="tab" aria-selected="false" aria-controls="v-pro" data-ver="pro">
-        <span class="vt-title">📊 익숙해요</span>
-        <span class="vt-sub">전문가용 · 모든 기능 + 화면 읽는 법</span>
+        <span class="vt-kick">ADVANCED · 심화</span>
+        <span class="vt-title">익숙해요</span>
+        <span class="vt-sub">모든 기능 + 화면 읽는 법</span>
       </button>
     </div>
 
@@ -242,7 +238,7 @@
         </div>
         <div class="map-strip-label">주식 가치평가 안에서 — 9개 탭이 ②요약·판정(결론)으로 모입니다</div>
         <div class="map-strip">
-          <span>① 기업·뉴스</span><span class="star">② 요약·판정 ★</span><span>③ 주가차트</span><span>④ 밸류에이션</span><span>⑤ 재무</span><span>⑥ 업종비교</span><span>⑦ 자본비용</span><span>⑧ 백테스트</span><span>⑨ 종합평가</span>
+          <span>① 기업·뉴스</span><span class="star">② 요약·판정 · 결론</span><span>③ 주가차트</span><span>④ 밸류에이션</span><span>⑤ 재무</span><span>⑥ 업종비교</span><span>⑦ 자본비용</span><span>⑧ 백테스트</span><span>⑨ 종합평가</span>
         </div>
       </div>
     </section>
@@ -255,14 +251,11 @@
           <div><div class="kick section-spine">01 · 이게 뭐예요?</div><h2>한마디로, "가격표 검증기"</h2></div>
           <p class="section-desc">주식도 물건처럼 "지금 값이 적당한지"가 궁금하죠. 이 도구가 그걸 여러 방법으로 따져 줍니다.</p>
         </div>
-        <div class="analogy">
-          <span class="emo" aria-hidden="true">🏷️</span>
-          <div>
-            <h3>물건 살 때처럼 생각해요</h3>
-            <p>중고 거래에서 "이거 이 가격이면 바가지인가, 싼가?"를 따지듯, 이 도구는 주식의 <b>지금 가격(현재가)</b>이
-              <b>제값(적정가)</b>에 비해 싼지 비싼지를 알려줍니다.</p>
-            <p>제값보다 싸면 <span class="term">저평가</span>, 비슷하면 <span class="term">적정</span>, 비싸면 <span class="term">고평가</span> — 딱 이 세 가지로 판정합니다.</p>
-          </div>
+        <div class="analogy solo">
+          <h3>물건 살 때처럼 생각해요</h3>
+          <p>중고 거래에서 "이거 이 가격이면 바가지인가, 싼가?"를 따지듯, 이 도구는 주식의 <b>지금 가격(현재가)</b>이
+            <b>제값(적정가)</b>에 비해 싼지 비싼지를 알려줍니다.</p>
+          <p>제값보다 싸면 <span class="term">저평가</span>, 비슷하면 <span class="term">적정</span>, 비싸면 <span class="term">고평가</span> — 딱 이 세 가지로 판정합니다.</p>
         </div>
         <div class="callout" style="margin-top:14px">이 도구는 "사라/팔아라"를 말하지 않습니다. <strong>판단의 재료</strong>를 정직하게 보여줄 뿐, 결정은 언제나 본인 몫이에요.</div>
       </section>
@@ -274,7 +267,7 @@
         </div>
 
         <div class="analogy">
-          <span class="emo" aria-hidden="true">🌡️</span>
+          <span class="anum" aria-hidden="true">01</span>
           <div>
             <h3>판정 바 — 온도계처럼 읽어요</h3>
             <p>화면 맨 위의 색 막대는 <b>왼쪽(저평가) → 가운데(적정) → 오른쪽(고평가)</b> 온도계예요.
@@ -282,7 +275,7 @@
           </div>
         </div>
         <div class="analogy">
-          <span class="emo" aria-hidden="true">🍚</span>
+          <span class="anum" aria-hidden="true">02</span>
           <div>
             <h3><span class="term">PER</span> — "몇 년 치 이익이면 본전인가"</h3>
             <p>1년에 1만 원 버는 가게를 15만 원에 산다면 PER는 15예요(가격 ÷ 1년 이익). <b>숫자가 작을수록 싸 보입니다.</b>
@@ -290,14 +283,14 @@
           </div>
         </div>
         <div class="analogy">
-          <span class="emo" aria-hidden="true">💪</span>
+          <span class="anum" aria-hidden="true">03</span>
           <div>
             <h3><span class="term">ROE</span> — "장사 수완"</h3>
             <p>가진 밑천(자기자본)으로 얼마나 잘 버는지예요. 같은 돈으로 더 많이 벌면 수완이 좋은 것 — 높을수록 좋습니다.</p>
           </div>
         </div>
         <div class="analogy">
-          <span class="emo" aria-hidden="true">🎯</span>
+          <span class="anum" aria-hidden="true">04</span>
           <div>
             <h3><span class="term">신뢰도</span> — "여러 사람 의견이 얼마나 모였나"</h3>
             <p>이 도구는 적정가를 <b>네 가지 방법</b>으로 따로 계산해요. 네 답이 서로 비슷하면 <b>신뢰도 높음</b>,
@@ -308,7 +301,7 @@
 
       <section class="section" id="b-try">
         <div class="section-head">
-          <div><div class="kick section-spine">03 · 5분 실습</div><h2>딱 세 걸음이면 끝나요</h2></div>
+          <div><div class="kick section-spine">03 · 5분 빠른 시작</div><h2>딱 세 걸음이면 끝나요</h2></div>
           <p class="section-desc">위의 "삼성전자로 따라 하기"를 누르고, 아래 세 걸음만 해 보세요.</p>
         </div>
         <div class="quick-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
@@ -326,8 +319,8 @@
         <div class="skip-note">
           <p style="margin:0 0 8px"><strong>밸류에이션 · 자본비용 · 백테스트</strong> 같은 탭은 조금 더 익숙해졌을 때 열어보면 됩니다.
             지금 판정을 이해하는 데는 <strong>없어도 전혀 지장이 없어요.</strong> 이 설명서에서 일부러 다루지 않은 건
-            "당장 필요하지 않아서"일 뿐, 어렵거나 중요하지 않아서가 아닙니다. 🙂</p>
-          <p style="margin:0">더 깊이 알고 싶어지면 언제든 위에서 <strong>「📊 익숙해요(전문가용)」</strong>로 바꿔 보세요 —
+            "당장 필요하지 않아서"일 뿐, 어렵거나 중요하지 않아서가 아닙니다.</p>
+          <p style="margin:0">더 깊이 알고 싶어지면 언제든 위에서 <strong>「익숙해요 · 심화」</strong>로 바꿔 보세요 —
             9개 탭 전부와 화면(그래프) 읽는 법까지 자세히 설명해 둡니다.</p>
         </div>
       </section>
@@ -336,12 +329,9 @@
         <div class="section-head">
           <div><div class="kick section-spine">05 · 기억할 것</div><h2>이것만은 꼭</h2></div>
         </div>
-        <div class="analogy" style="border-left-color:var(--dv-clay)">
-          <span class="emo" aria-hidden="true">⚖️</span>
-          <div>
-            <p style="margin:0"><b>투자 조언이 아니라 학습·분석 도구</b>예요. 무료 공개 데이터를 쓰기 때문에 값이 조금 틀리거나 비어 있을 수 있고(빈 칸은 <b>—</b>로 표시),
-              최종 판단과 책임은 언제나 본인에게 있습니다. 실제 결정 전에는 공식 공시·뉴스를 함께 확인하세요.</p>
-          </div>
+        <div class="analogy solo" style="border-left-color:var(--dv-clay)">
+          <p style="margin:0"><b>투자 조언이 아니라 학습·분석 도구</b>예요. 무료 공개 데이터를 쓰기 때문에 값이 조금 틀리거나 비어 있을 수 있고(빈 칸은 <b>—</b>로 표시),
+            최종 판단과 책임은 언제나 본인에게 있습니다. 실제 결정 전에는 공식 공시·뉴스를 함께 확인하세요.</p>
         </div>
         <div class="bottom-actions">
           <a class="btn btn-primary" href="stock.html" target="_blank" rel="noopener">주식 분석 시작 ↗</a>
@@ -353,7 +343,7 @@
     <!-- ══════════════ 버전 2 · 전문가용 ══════════════ -->
     <div class="ver" id="v-pro" role="tabpanel" aria-labelledby="tab-pro">
 
-      <nav class="toc" aria-label="전문가용 목차">
+      <nav class="toc" aria-label="사용설명서 목차">
         <a href="#p-flow">읽는 순서</a>
         <a href="#p-tabs">9개 탭 상세</a>
         <a href="#p-viz">화면 읽는 법</a>
@@ -375,7 +365,7 @@
           <div class="flow-row"><span class="num">04</span><h3>자본비용·백테스트 (반대 근거)</h3><p>ROIC−WACC 스프레드, 백테스트 표본을 확인합니다. 백테스트는 <strong>역사적 밴드(②) 신호 하나만</strong> 점검하며 종합 판정 전체를 검증하지 않습니다.</p></div>
           <div class="flow-row"><span class="num">05</span><h3>공시·뉴스로 교차 확인</h3><p>최근 공시·뉴스 원문으로 핵심 가정을 검증합니다. AI 종합 평가는 참고용 서술이며 주문 기준이 아닙니다.</p></div>
         </div>
-        <div class="callout" style="margin-top:18px"><strong>신뢰도 = 평가 방법 간 합의 정도</strong>(방법 간 중심값 변동계수). 데이터 정확도나 수익 가능성 보증이 아닙니다. 낮으면 네 방법 중 어떤 값이 유독 다른지 먼저 확인하세요.</div>
+        <div class="callout" style="margin-top:18px"><strong>신뢰도 = 평가 방법 간 합의 정도</strong>(방법 간 중심값 변동계수). 데이터 정확도나 수익 가능성을 보증하는 점수가 아닙니다. 낮으면 네 방법 중 어떤 값이 유독 다른지 먼저 확인하세요.</div>
       </section>
 
       <section class="section" id="p-tabs">
@@ -383,16 +373,22 @@
           <div><div class="kick section-spine">02 · 9 tabs</div><h2>9개 탭, 각각 무엇을 보나</h2></div>
           <p class="section-desc">탭마다 상단에 "이 탭이 적정가 지표의 어느 부품인지" 역할 라벨이 붙어 있습니다.</p>
         </div>
-        <div class="tab-detail">
-          <div class="tab-row"><div class="tab-name">① 기업·뉴스<span>정성 맥락</span></div><div class="tab-body">사업 개요 + Google News 헤드라인(거시·산업·기업). <b>AI 뉴스분석</b>은 온디맨드(키 있을 때) — 분류·요약이며 숫자는 만들지 않습니다.</div></div>
-          <div class="tab-row"><div class="tab-name">② 요약·판정<span>결론</span></div><div class="tab-body">적정가 4방법 가중 종합, 괴리율, <b>신뢰도 툴팁</b>(방법 간 편차), 업종 상대점수(레이더), 규칙 기반 판정 근거. 방법별 <b>가중·재정규화</b>와 <b>동일가중 민감도</b>를 병기해 가중치가 결론을 좌우하지 않는지 보여줍니다.</div></div>
-          <div class="tab-row"><div class="tab-name">③ 주가차트<span>현재가 맥락</span></div><div class="tab-body">종가 + 이동평균(20/60/120) + 거래량, 52주 위치, 지수 대비 상대성과. <b>선/봉(캔들) 전환</b> 가능 — 봉은 초록=상승·빨강=하락. 드래그·휠로 확대·이동, 더블클릭 리셋.</div></div>
-          <div class="tab-row"><div class="tab-name">④ 밸류에이션<span>적정가 재료 ②</span></div><div class="tab-body">멀티플 7종을 업종·자기 5년 25~75분위 밴드와 비교. <b>비관/기준/낙관 시나리오</b>와 민감도 — 비관 케이스까지 플러스면 하방 완충으로 읽습니다.</div></div>
-          <div class="tab-row"><div class="tab-name">⑤ 재무 분석<span>적정가 재료 ③</span></div><div class="tab-body">성장·수익성·안정성·현금흐름과 재무제표 원본. 음수 영업현금흐름은 해당 연도를 짚어 자동 해설합니다.</div></div>
-          <div class="tab-row"><div class="tab-name">⑥ 업종 비교<span>적정가 재료 ①</span></div><div class="tab-body">피어 지표·산점도·저평가 랭킹. <b>피어 편집</b> — 행에 커서를 올려 ×로 빼고, 표 아래 ＋로 더해 재계산(편집 내역은 화면에 명시). 규모가 지나치게 다른 피어는 자동 제외됩니다.</div></div>
-          <div class="tab-row"><div class="tab-name">⑦ 자본비용<span>적정가 재료 ③</span></div><div class="tab-body">베타 회귀 → 하마다 언레버링 → CAPM → <b>WACC</b>, 그리고 ROIC 스프레드(ROIC−WACC). 금융업은 자금조달 구조가 달라 WACC를 제공하지 않고 사유를 표시합니다.</div></div>
-          <div class="tab-row"><div class="tab-name">⑧ 백테스트<span>사후 검증(②)</span></div><div class="tab-body">역사적 밴드 신호의 과거 예측력(비중복 표본·순위상관). <b>종합 판정 전체의 검증이 아님</b>을 명시 — 표본 수와 이후 수익 분포를 함께 보세요.</div></div>
-          <div class="tab-row"><div class="tab-name">⑨ 종합 평가<span>결론·AI 서술</span></div><div class="tab-body">계산 결과를 Gemini가 문장으로 종합(온디맨드). 스탠스·목표가·성향별 편입비중까지 생성할 수 있으나 <b>언어모델 출력</b>이므로 면책을 붙이고 주문 기준으로 쓰지 않습니다.</div></div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="9개 주식 분석 탭 표, 가로로 스크롤할 수 있습니다">
+          <table class="guide-table">
+            <caption>9개 탭이 각각 적정가 판정의 어느 부품인지 — 역할과 먼저 볼 것</caption>
+            <thead><tr><th scope="col">탭</th><th scope="col">역할</th><th scope="col">무엇을 보나</th></tr></thead>
+            <tbody>
+              <tr><td>① 기업·뉴스</td><td>정성 맥락</td><td>사업 개요 + Google News 헤드라인(거시·산업·기업). <b>AI 뉴스분석</b>은 온디맨드(키 있을 때) — 분류·요약이며 숫자는 만들지 않습니다.</td></tr>
+              <tr><td>② 요약·판정</td><td>결론</td><td>적정가 4방법 가중 종합, 괴리율, <b>신뢰도 툴팁</b>(방법 간 편차), 업종 상대점수(레이더), 규칙 기반 판정 근거. 방법별 <b>가중·재정규화</b>와 <b>동일가중 민감도</b>를 병기해 가중치가 결론을 좌우하지 않는지 보여줍니다.</td></tr>
+              <tr><td>③ 주가차트</td><td>현재가 맥락</td><td>종가 + 이동평균(20/60/120) + 거래량, 52주 위치, 지수 대비 상대성과. <b>선/봉(캔들) 전환</b> 가능 — 봉은 초록=상승·빨강=하락. 드래그·휠로 확대·이동, 더블클릭 리셋.</td></tr>
+              <tr><td>④ 밸류에이션</td><td>적정가 재료 ②</td><td>멀티플 7종을 업종·자기 5년 25~75분위 밴드와 비교. <b>비관/기준/낙관 시나리오</b>와 민감도 — 비관 케이스까지 플러스면 하방 완충으로 읽습니다.</td></tr>
+              <tr><td>⑤ 재무 분석</td><td>적정가 재료 ③</td><td>성장·수익성·안정성·현금흐름과 재무제표 원본. 음수 영업현금흐름은 해당 연도를 짚어 자동 해설합니다.</td></tr>
+              <tr><td>⑥ 업종 비교</td><td>적정가 재료 ①</td><td>피어 지표·산점도·저평가 랭킹. <b>피어 편집</b> — 행에 커서를 올려 ×로 빼고, 표 아래 ＋로 더해 재계산(편집 내역은 화면에 명시). 규모가 지나치게 다른 피어는 자동 제외됩니다.</td></tr>
+              <tr><td>⑦ 자본비용</td><td>적정가 재료 ③</td><td>베타 회귀 → 하마다 언레버링 → CAPM → <b>WACC</b>, 그리고 ROIC 스프레드(ROIC−WACC). 금융업은 자금조달 구조가 달라 WACC를 제공하지 않고 사유를 표시합니다.</td></tr>
+              <tr><td>⑧ 백테스트</td><td>사후 검증(②)</td><td>역사적 밴드 신호의 과거 예측력(비중복 표본·순위상관). <b>종합 판정 전체의 검증이 아님</b>을 명시 — 표본 수와 이후 수익 분포를 함께 보세요.</td></tr>
+              <tr><td>⑨ 종합 평가</td><td>결론·AI 서술</td><td>계산 결과를 Gemini가 문장으로 종합(온디맨드). 스탠스·<b>목표가·손절선</b>·성향별 편입비중까지 생성할 수 있으나 <b>언어모델 출력</b>이므로 면책을 붙이고 주문 기준으로 쓰지 않습니다.</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -445,7 +441,7 @@
         </div>
         <div class="callout" style="margin-bottom:12px"><strong>기준일 배지</strong> — 히어로에 "주가 기준일 · 재무 연도 · 계산 시각"이 표시됩니다. 포털·증권사와 값이 다르면 기준일, 연결/별도, TTM, 수정주가, 환율·주식 수 처리부터 맞춰 보세요.</div>
         <div class="callout" style="margin-bottom:12px"><strong>결측(—)</strong> — 공개 데이터에 값이 없거나 비교가 부적절하면 임의 추정 없이 —로 두고, 마우스를 올리면 사유가 뜹니다(예: 적자라 PER 계산 불가).</div>
-        <div class="callout" style="border-left-color:var(--dv-clay)"><strong>AI(Gemini)는 선택 기능</strong> — 키가 없어도 핵심 분석은 규칙 기반으로 동작합니다. 키를 연결하면 피어 후보 선정·기업 소개 번역·뉴스 분류·종합 평가에 참여하지만 <b>화면의 숫자는 만들지 않습니다.</b> 키는 코드·저장소에 올리지 말고 <code>.streamlit/secrets.toml</code>이나 환경변수로만 두세요.</div>
+        <div class="callout" style="border-left-color:var(--dv-clay)"><strong>AI는 선택 기능</strong> — Gemini 키가 없어도 핵심 분석은 규칙 기반으로 동작합니다. 키를 연결하면 피어 후보 선정·기업 소개 번역·뉴스 분류·종합 평가에 참여하지만 <b>화면의 숫자는 만들지 않습니다.</b> 키는 코드·저장소에 올리지 말고 <code>.streamlit/secrets.toml</code>이나 환경변수로만 두세요.</div>
       </section>
 
       <section class="section" id="p-terms">
