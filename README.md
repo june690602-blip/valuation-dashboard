@@ -51,6 +51,7 @@ flowchart LR
 
 - 분석은 전부 **순수 함수**(입력=CompanyData) — 69개 단위·회귀 테스트가 CI(Quality 워크플로)에서 돕니다.
 - 설계 결정은 [docs/adr/](docs/adr/)에 기록합니다 — 적정가 종합 방식, 백테스트 통계, 랭킹 가중치.
+- 개발 중 부딪힌 문제와 해결 과정은 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)에 증상→원인→해결→교훈 형식으로 남깁니다.
 
 ## 무엇을 보여주나
 
@@ -124,6 +125,7 @@ src/data/                  수집·표준화 (providers, opendart, naver, news, 
 src/analysis/              순수 분석 함수 (indicators·scoring·capital_cost·valuation·backtest·commentary)
 src/web/serialize.py       분석 결과 → 프런트 JSON
 docs/adr/                  설계 결정 기록 (ADR)
+docs/TROUBLESHOOTING.md     트러블슈팅 로그 (증상→원인→해결→교훈)
 docs/사용설명서.md          CPA 1차 눈높이 설명서
 tests/                     69개 단위·회귀 테스트
 app.py, src/ui/            [레거시] Streamlit 구버전
