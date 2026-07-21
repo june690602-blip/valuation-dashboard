@@ -195,6 +195,20 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
                 return self._send_json({"error": _ERR_MSG}, 500)
+        if u.path == "/api/suggest":
+            # 종목 자동완성 — 타이핑마다 호출되므로 (market,q)로 짧게 캐시. 실패해도 빈 목록.
+            q = parse_qs(u.query)
+            market = (q.get("market", ["KR"])[0] or "KR").upper()
+            term = (q.get("q", [""])[0] or "").strip()
+            if not term:
+                return self._send_json({"items": []})
+            try:
+                from src.web.serialize import suggest
+                items = cached_generic(f"sug:{market}:{term.lower()}",
+                                       lambda: suggest(market, term), ttl=300)
+                return self._send_json({"items": items})
+            except Exception:  # noqa: BLE001
+                return self._send_json({"items": []})
         if u.path in ("/", "/index.html"):
             self.path = "/home.html"   # 진입점 = 홈(랜딩). 주식 페이지는 nav·예시카드로 이동.
         return super().do_GET()

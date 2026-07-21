@@ -605,6 +605,55 @@
     return el('svg', { viewBox: '0 0 ' + W + ' ' + (H + 8), style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
 
+  /* ── 종목 자동완성(타입어헤드) — 증권사 검색창처럼 타이핑에 맞는 종목을 밑에 띄운다 ── */
+  function attachAutocomplete(input, onPick) {
+    if (!input) return;
+    var box = document.createElement('div');
+    box.className = 'ac-drop';
+    box.style.display = 'none';
+    input.parentNode.appendChild(box);   // 부모 form이 position:relative
+    var items = [], sel = -1, seq = 0, timer = null, lastQ = null;
+
+    function close() { box.style.display = 'none'; items = []; sel = -1; }
+    function render() {
+      if (!items.length) { close(); return; }
+      box.innerHTML = items.map(function (it, i) {
+        return '<div class="ac-item' + (i === sel ? ' on' : '') + '" data-i="' + i + '">' +
+          '<span class="ac-name">' + esc(it.name) + '</span>' +
+          '<span class="ac-code">' + esc(it.code) + '</span>' +
+          '<span class="ac-sub">' + esc(it.sub || '') + '</span></div>';
+      }).join('');
+      box.style.display = 'block';
+    }
+    function pick(i) { var it = items[i]; if (!it) return; close(); onPick(it); }
+    function fetchSuggest(q) {
+      var my = ++seq;
+      fetch('api/suggest?market=' + encodeURIComponent(state.market) + '&q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (my !== seq || input !== document.activeElement) return; // 최신 입력·포커스 유지 시만
+          items = (d && d.items) || []; sel = -1; render();
+        }).catch(function () { /* 자동완성 실패는 조용히 무시 — 직접 입력은 계속 가능 */ });
+    }
+    input.addEventListener('input', function () {
+      var q = input.value.trim();
+      if (q === lastQ) return; lastQ = q;
+      clearTimeout(timer);
+      if (q.length < 1) { close(); return; }
+      timer = setTimeout(function () { fetchSuggest(q); }, 140);
+    });
+    input.addEventListener('keydown', function (e) {
+      if (box.style.display === 'none' || !items.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); sel = (sel + 1) % items.length; render(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); sel = (sel - 1 + items.length) % items.length; render(); }
+      else if (e.key === 'Enter') { if (sel >= 0) { e.preventDefault(); pick(sel); } }   // 미선택 시 form 제출(직접 입력)
+      else if (e.key === 'Escape') { close(); }
+    });
+    // mousedown(클릭 전 blur보다 먼저) — 항목 선택이 blur로 닫히기 전에 처리
+    box.addEventListener('mousedown', function (e) { var t = e.target.closest('.ac-item'); if (!t) return; e.preventDefault(); pick(+t.getAttribute('data-i')); });
+    input.addEventListener('blur', function () { setTimeout(close, 120); });
+  }
+
   /* 점·표 클릭 → 재검색, 점 hover ↔ 좌측 피어표 행 상호 하이라이트 */
   function _searchTo(q) { if (!q) return; state.query = q; var ti = $('tickerInput'); if (ti) ti.value = q; state.hover = null; load(); }
   function _setLinked(key, on) {
@@ -1371,6 +1420,9 @@
     // 종목 입력
     $('tickerForm').addEventListener('submit', function (e) { e.preventDefault(); var q = $('tickerInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; load(); } });
     $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; $('tickerInput').value = q; load(); } });
+    // 자동완성 — 헤더 검색창과 사이드바 티커 입력 둘 다. 선택 시 그 종목으로 바로 분석.
+    attachAutocomplete($('navSearchInput'), function (it) { state.query = it.code; $('tickerInput').value = it.code; $('navSearchInput').value = ''; load(); });
+    attachAutocomplete($('tickerInput'), function (it) { state.query = it.code; $('tickerInput').value = it.code; load(); });
     $('examples').addEventListener('click', function (e) { var s = e.target.closest('[data-code]'); if (!s) return; state.query = s.getAttribute('data-code'); $('tickerInput').value = state.query; load(); });
     // 주가 컨트롤
     wireSeg('priceModeSeg', function (v) { state.priceMode = v; state.hover = null; var showAbs = v === 'abs'; $('maToggles').style.display = showAbs ? 'inline-flex' : 'none'; var cts = $('chartTypeSeg'); if (cts) cts.style.display = showAbs ? '' : 'none'; if (D) renderPrice(); });
