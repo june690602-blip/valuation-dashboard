@@ -300,6 +300,7 @@
                 </div>
                 <div style="flex:1;min-width:300px;display:flex;flex-direction:column;gap:16px" id="scoreBars"></div>
               </div>
+              <div id="scoreFinNote"></div>
             </section>
 
             <section class="analysis-section" aria-labelledby="summary-reason-title">
@@ -501,10 +502,10 @@
 
         <!-- 08 백테스트 -->
         <section class="panel" data-tab="backtest" id="panel-backtest">
-          <div class="method-map"><span class="method-chip">사후 검증 · ②</span><span>역사적 밴드(②) 신호가 과거에 유효했는지 통계로 되돌아봅니다. 종합 판정 전체의 검증은 아닙니다.</span></div>
+          <div class="method-map"><span class="method-chip">사후 검증 · ②+③</span><span>복원 가능한 두 방법(② 역사적 밴드 + ③ RIM)을 기본가중으로 합친 저평가 신호가 과거에 유효했는지 되돌아봅니다. ① 피어(현재 목록의 소급 편향)·④ 컨센서스(과거 시점값 부재)는 사후검증 밖이라, 종합 판정 전체가 아닌 그 하위집합의 검증입니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="bt-setup-title">
-              <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="bt-setup-title">관찰 기준과 표본</h3><p class="analysis-section-desc">자기 역사적 정상 배수보다 크게 낮았던 시점을 골라 이후 수익을 관찰합니다.</p></div><span class="analysis-section-meta">저평가 기준 · 적정가 대비 +30%</span></div>
+              <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="bt-setup-title">관찰 기준과 표본</h3><p class="analysis-section-desc">종합(②+③) 적정가보다 주가가 크게 낮았던 시점을 골라 이후 수익을 관찰합니다.</p></div><span class="analysis-section-meta">저평가 기준 · 적정가 대비 +30%</span></div>
               <div class="analysis-section-body"><div id="btTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0"></div><div id="btLede" style="font-size:13px;color:var(--ink-2);margin-top:14px;line-height:1.65"></div></div>
             </section>
             <section class="analysis-section" aria-labelledby="bt-return-title">
@@ -530,7 +531,7 @@
 
         <!-- 09 AI -->
         <section class="panel" data-tab="ai" id="panel-ai">
-          <div class="method-map"><span class="method-chip">결론 · AI 서술</span><span>세 방법의 결과와 뉴스 맥락을 AI가 문장으로 종합합니다(학습·분석 보조).</span></div>
+          <div class="method-map"><span class="method-chip">결론 · AI 서술</span><span>네 방법의 결과와 뉴스 맥락을 AI가 문장으로 종합합니다(학습·분석 보조).</span></div>
           <div class="analysis-sections"><section class="analysis-section" aria-labelledby="ai-observation-title"><div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="ai-observation-title">종합 관찰</h3><p class="analysis-section-desc">앞선 탭의 계산 결과를 한 흐름으로 정리하고 강점과 위험 요인을 나눠 봅니다.</p></div><span class="analysis-section-meta">규칙 기반 · 선택적 AI 설명</span></div><div class="analysis-section-body" style="max-width:820px" id="aiContent"></div></section></div>
         </section>
 

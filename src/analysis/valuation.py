@@ -2,8 +2,10 @@
 
 ①~③은 과거(TTM) 실적 기반, ④는 애널리스트 컨센서스 12개월 선행 EPS 기반 —
 증권사 목표주가의 지배적 산식(선행 EPS × 타깃 멀티플)을 따른다.
-방법별 적정가 중심값의 중앙값을 현재가와 비교해 5단계 판정을 내린다
-(중앙값 = 극단적인 방법 하나가 결론을 끌고 가지 못하게 하는 강건한 종합).
+방법별 적정가 중심값을 **가격 설명력 순위 기반 가중평균**(METHOD_WEIGHTS)해
+현재가와 비교해 5단계 판정을 내린다. 설계 근거·대안·한계는 docs/adr/0003 참고
+(0003이 0001의 '동일가중 산술평균'을 대체함). 동일가중 결과도 함께 계산해
+가중치가 결론을 좌우하지 않음을 화면에 병기한다(민감도 노출).
 컨센서스 '목표주가' 자체는 종합에 섞지 않고 외부 교차검증치로만 쓴다.
 """
 from __future__ import annotations
@@ -18,9 +20,22 @@ from .scoring import comparable_peers, peer_median, sanitize_peer_frame
 
 VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
 
-# 방법별 가중치 — Liu·Nissim·Thomas(2002, JAR)의 가격 설명력 순위
-# (선행이익 > 과거이익 멀티플 > 장부가 기반)를 반영한 기본값.
-# 사용 가능한 방법만으로 재정규화해 합이 1이 되게 쓴다.
+
+def _verdict(gap: float) -> str:
+    """괴리율 → 5단계 판정 (±10%/±30% 기준)."""
+    return (VERDICTS[0] if gap >= 0.30 else
+            VERDICTS[1] if gap >= 0.10 else
+            VERDICTS[2] if gap > -0.10 else
+            VERDICTS[3] if gap > -0.30 else VERDICTS[4])
+
+# 방법별 가중치 — 가격 설명력 순위(선행이익 > 이익 멀티플 > 장부가 기반)를 인코딩한 기본값.
+# 근거: Liu·Nissim·Thomas(2002, JAR, 미국)와 그 국제 확장(2007, FAJ, 10개국)에서
+# 선행EPS 멀티플이 현금흐름·배당·장부가를 모든 시장에서 압도했고, 국내 가치관련성
+# 연구(Ohlson 모형 기반)도 이익>장부가 순위를 지지한다. 순위는 국제·국내 공통이나
+# 절대 수치(35/25/25/15)는 한국 데이터로 추정한 값이 아니라 순위의 정성적 인코딩이다.
+# ④는 국내 컨센서스 낙관편의(자본시장연구원 2025)에 노출되므로 '편향 없는 값'이 아니라
+# '시장기대 앵커'로 읽어야 한다(배수측 편향은 자기 5년 PER 중앙값 사용으로 차단).
+# 상세·대안·한계·인용은 docs/adr/0003. 사용 가능한 방법만으로 재정규화해 합이 1이 되게 쓴다.
 METHOD_WEIGHTS = {
     "선행 이익(컨센서스)": 0.35,
     "업종 상대가치": 0.25,
@@ -47,6 +62,9 @@ class ValuationResult:
     gap: float | None = None            # 적정가(mid)/현재가 - 1  (+면 상승여력)
     verdict: str | None = None
     confidence: str | None = None       # 높음/중간/낮음
+    fair_mid_equal: float | None = None  # 동일가중 종합(민감도 비교용)
+    gap_equal: float | None = None       # 동일가중 괴리율
+    verdict_equal: str | None = None     # 동일가중 판정
     per_band: pd.DataFrame | None = None   # 밴드 차트용 (price + 분위선)
     pbr_band: pd.DataFrame | None = None
     per_percentile: float | None = None    # 현재 PER의 5년 내 백분위
@@ -307,9 +325,9 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         else:
             res.skipped.append(("선행 이익(컨센서스)", "밴드·피어 멀티플 부족"))
 
-    # 종합 판정 — 방법별 **가중평균**. 가중치는 Liu·Nissim·Thomas(2002)의 가격
-    # 설명력 순위(선행이익 > 과거이익 멀티플 > 장부가 기반)를 반영한 METHOD_WEIGHTS.
-    # 없는 방법은 제외하고 재정규화한다.
+    # 종합 판정 — 방법별 **가중평균**. 가중치는 가격 설명력 순위(선행이익 > 이익 멀티플
+    # > 장부가 기반)를 인코딩한 METHOD_WEIGHTS(근거·한계는 docs/adr/0003). 없는 방법은
+    # 제외하고 재정규화한다. 동일가중 결과도 함께 계산해 가중치 민감도를 화면에 병기한다.
     if res.estimates:
         mids = [e.mid for e in res.estimates]
         w = np.array([METHOD_WEIGHTS.get(e.method, 0.25) for e in res.estimates])
@@ -319,11 +337,16 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         res.fair_mid = float(np.dot(w, mids))
         res.fair_high = float(np.dot(w, [e.high for e in res.estimates]))
         res.gap = res.fair_mid / d.price - 1
-        g = res.gap
-        res.verdict = (VERDICTS[0] if g >= 0.30 else
-                       VERDICTS[1] if g >= 0.10 else
-                       VERDICTS[2] if g > -0.10 else
-                       VERDICTS[3] if g > -0.30 else VERDICTS[4])
+        res.verdict = _verdict(res.gap)
+        # 동일가중(단순평균) 민감도 — 가중치 선택이 결론을 좌우하는지 투명하게 노출
+        res.fair_mid_equal = float(np.mean(mids))
+        res.gap_equal = res.fair_mid_equal / d.price - 1
+        res.verdict_equal = _verdict(res.gap_equal)
+        if res.verdict_equal != res.verdict:
+            res.notes.append(
+                f"가중 방식에 따라 판정이 갈립니다(가중 '{res.verdict}' vs "
+                f"동일가중 '{res.verdict_equal}'). 가중치는 순위 근거의 정성적 인코딩이니 "
+                "참고로만 보세요.")
         if len(mids) >= 2 and res.fair_mid:
             disp = float(np.std(mids) / abs(np.mean(mids)))
             res.confidence = "높음" if disp < 0.15 else "중간" if disp < 0.35 else "낮음"

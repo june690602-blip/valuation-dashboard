@@ -153,7 +153,13 @@
   }
 
   function scoreDesc(k, v) {
-    if (v == null) return nullScoreReason(k);
+    if (v == null) {
+      // 금융업은 이 두 축의 지표(부채비율·유동비율·FCF수익률 등)가 부적합해 의도적으로 제외한다.
+      // '산출 불가'(데이터 실패)로 오해되지 않게 사유를 분명히 구분한다.
+      if (D.meta && D.meta.is_financial && (k === '재무 안정성' || k === '현금흐름'))
+        return '금융업 특성상 일반 지표가 부적합 — 제외';
+      return nullScoreReason(k);
+    }
     var strong = v >= 65, weak = v < 35;
     var tail = strong ? '업종 상위 — 강점' : weak ? '업종 하위 — 약점' : v >= 50 ? '업종 평균 이상' : '업종 평균 부근';
     return tail;
@@ -697,7 +703,7 @@
             '<div style="position:absolute;top:-5px;left:' + pos + '%;transform:translateX(-50%);width:2px;height:21px;background:var(--ink)"></div>' +
             '<div style="position:absolute;top:-13px;left:' + pos + '%;transform:translateX(-50%);width:9px;height:9px;border-radius:50%;background:var(--ink);border:2px solid var(--paper)"></div>' +
             '<div style="display:flex;margin-top:9px;font-size:10.5px;color:var(--ink-3);text-align:center">' + VERDICTS.map(function (t, i) { return '<span style="flex:1' + (t === v.verdict ? ';color:' + (tone === 'negative' ? 'var(--dv-negative)' : 'var(--dv-positive)') + ';font-weight:600' : '') + '">' + t.replace(' ', '<br>') + '</span>'; }).join('') + '</div></div>' +
-          '<div style="margin-top:12px;font-size:13px;color:var(--ink-2)">괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b> · 3개 방법 평균 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b></div></div>' +
+          '<div style="margin-top:12px;font-size:13px;color:var(--ink-2)">괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b> · 4방법 가중 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b></div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button></div></div>';
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
   }
@@ -765,12 +771,22 @@
       return '';
     }).join('');
     var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">종합 적정가 (가중평균)</span><span></span><span class="mono r" style="font-size:15px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
-    var formula = '<div style="font-size:11px;color:var(--ink-3);line-height:1.75;margin-top:10px">공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — 종합 = 가중평균 ④35 · ①25 · ②25 · ③15% (근거: Liu·Nissim·Thomas 2002, J. Accounting Research) · 출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)</div>';
-    $('methodsTable').innerHTML = est.length ? head + rows + total + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
+    // 동일가중 민감도 — 가중치 선택이 결론을 좌우하지 않는지 투명하게 병기
+    var sens = '';
+    if (v.fair_mid_equal != null) {
+      var flip = v.verdict_equal && v.verdict_equal !== v.verdict;
+      sens = '<div style="font-size:11.5px;color:var(--ink-3);margin-top:7px;padding-top:8px;border-top:1px dashed var(--line)">민감도 · 동일가중(단순평균)이면 적정가 <b class="mono" style="color:var(--ink-2)">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b style="color:var(--warning)">' + esc(v.verdict_equal) + '</b>로 갈림' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.</div>';
+    }
+    var formula = '<div style="font-size:11px;color:var(--ink-3);line-height:1.75;margin-top:10px">공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — 종합 = 가중평균 ④35 · ①25 · ②25 · ③15% (순위 근거: Liu·Nissim·Thomas 2002·2007 국제 + 국내 가치관련성; 국내 컨센서스 낙관편의 유의 — 상세 docs/adr/0003) · 출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)</div>';
+    $('methodsTable').innerHTML = est.length ? head + rows + total + sens + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
     // 점수
     $('scoreOverall').textContent = D.scores.overall != null ? Math.round(D.scores.overall) : '—';
     $('radarChart').innerHTML = radarChart();
     $('scoreBars').innerHTML = scoreBars();
+    // 금융업이면 두 축이 '—'로 비는 이유를 한 줄로 밝힌다(05·07 탭 안내와 톤 통일).
+    $('scoreFinNote').innerHTML = (D.meta && D.meta.is_financial)
+      ? '<div style="font-size:11.5px;color:var(--ink-3);line-height:1.65;margin-top:18px;padding-top:12px;border-top:1px dashed var(--line)">금융업(은행·보험·증권)은 부채 대부분이 예금·보험부채라 일반 <b>재무 안정성·현금흐름</b> 지표(부채비율·유동비율·FCF수익률 등)가 부적합해 상대점수에서 제외합니다. 은행 건전성은 BIS 자기자본비율·고정이하여신비율 등 <b>감독당국 공시</b>로 평가해야 하며, 본 도구는 무료 공개 데이터 범위상 이를 제공하지 않습니다.</div>'
+      : '';
     // 해설
     $('commentary').innerHTML = (D.commentary || []).map(function (c) {
       var m = CMT[c.kind] || CMT.info, key = c.text.indexOf('밸류트랩') >= 0 || c.text.indexOf('순수 저평가') >= 0;
@@ -1076,7 +1092,15 @@
     } else {
       lede = '확보된 기간에 이 종목이 우리 기준 <b>저평가(+30%↑)</b>였던 적은 없었습니다 — 아래 관찰 통계가 비어 있는 이유예요. (다른 종목·기간에서는 신호가 잡히기도 합니다.)';
     }
-    if ($('btLede')) $('btLede').innerHTML = lede;
+    var mu = bt.methods_used || [];
+    var methodNote = '';
+    if (mu.length >= 2 && bt.weights) {
+      var wB = Math.round((bt.weights['역사적 밴드'] || 0) * 100), wR = Math.round((bt.weights['수익가치(RIM)'] || 0) * 100);
+      methodNote = '<div style="font-size:11.5px;color:var(--ink-3);margin-bottom:8px">검증 신호 = ② 역사적 밴드 + ③ RIM 가중 종합(' + wB + ':' + wR + '). ①·④는 사후검증 불가로 제외.</div>';
+    } else if (mu.length === 1) {
+      methodNote = '<div style="font-size:11.5px;color:var(--ink-3);margin-bottom:8px">검증 신호 = ② 역사적 밴드 단독(③ RIM 복원 불가). 종합 판정 일부만 검증됨.</div>';
+    }
+    if ($('btLede')) $('btLede').innerHTML = methodNote + lede;
     var head = '<div class="row head" style="grid-template-columns:1fr .7fr 1fr 1fr 1fr"><span class="col-label">보유기간</span><span class="col-label r">표본</span><span class="col-label r">평균수익</span><span class="col-label r">승률</span><span class="col-label r">전체평균</span></div>';
     var rows = (bt.horizons || []).map(function (h, i) { var last = i === bt.horizons.length - 1; return '<div class="row" style="grid-template-columns:1fr .7fr 1fr 1fr 1fr;font-family:var(--font-mono);font-size:12.5px' + (last ? ';border-bottom:none' : '') + '"><span style="font-family:var(--font-sans)">' + h.h + '</span><span class="r">' + (h.ev_n || 0) + '</span><span class="r" style="color:' + (h.ev_mean >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(h.ev_mean) + '</span><span class="r">' + (h.ev_hit != null ? (h.ev_hit * 100).toFixed(0) + '%' : '—') + '</span><span class="r" style="color:var(--ink-3)">' + fmtSigned(h.base_mean) + '</span></div>'; }).join('');
     $('btTable').innerHTML = head + rows;
@@ -1179,7 +1203,7 @@
   var _reqSeq = 0;
   function load() {
     var seq = ++_reqSeq;
-    setStatus(true, "'" + state.query + "' 데이터 수집 중… (첫 조회는 피어 수집으로 수십 초 걸릴 수 있어요)");
+    setStatus(true, "'" + state.query + "' 데이터 수집 중… (첫 조회는 피어 지표를 병렬로 모으느라 10초 안팎 걸릴 수 있어요)");
     var url = 'api/analyze?market=' + encodeURIComponent(state.market) + '&query=' + encodeURIComponent(state.query) + '&peer_count=' + (state.peer_count || 9);
     fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {

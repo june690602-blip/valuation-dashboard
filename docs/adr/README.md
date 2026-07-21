@@ -11,5 +11,7 @@
 
 | 번호 | 제목 | 상태 |
 |---|---|---|
-| [0001](0001-fair-value-simple-average.md) | 적정가 종합은 동일가중 산술평균으로 한다 | 채택됨 |
+| [0001](0001-fair-value-simple-average.md) | 적정가 종합은 동일가중 산술평균으로 한다 | 대체됨 (→ 0003) |
 | [0002](0002-backtest-statistics.md) | 백테스트 통계는 비중복 표본과 순위상관으로 계산한다 | 채택됨 |
+| [0003](0003-fair-value-weighted-average.md) | 적정가 종합은 가격 설명력 순위 기반 가중평균으로 한다 | 채택됨 |
+| [0004](0004-backtest-reconstructable-composite.md) | 백테스트 신호는 복원 가능한 ②+③ 가중 종합으로 한다 | 채택됨 |

@@ -4,26 +4,35 @@
 샀다면, 이후 수익률이 실제로 좋았는가? 그렇다면 우리 툴의 '저평가' 판정이 과거에 유효했다는
 근거가 된다.
 
-방법(복원 가능한 레그 = ③ 역사적 밴드):
-- 각 과거일 t에서 그 종목의 배수(PER/PBR)의 **롤링 중앙값**을 '정상 배수'로 보고,
-  추정 적정가 = 정상배수 × 그 시점 펀더멘털. 괴리율(저평가율) = 적정가/주가 − 1.
-- 신호 = 괴리율 ≥ 임계(기본 +30%, 앱 '크게 저평가' 기준과 동일).
+**어느 방법까지 사후검증할 수 있나 — 4방법 중 복원 가능한 ②+③만 종합한다:**
+- ② 역사적 밴드: 자기 과거 배수(PER/PBR)의 롤링 중앙값 = '정상 배수'. 완전 복원 가능.
+- ③ 수익가치(RIM): 그 시점 BPS·ROE로 적정 PBR을 되살림(자본비용 r은 상수 근사). 복원 가능.
+- ① 업종 상대가치: 피어 목록이 **현재** 시점에 구성돼(생존·선택편향) 과거로 소급하면 룩어헤드가
+  껴서 제외. ④ 선행이익(컨센서스): 과거 **시점별** 컨센서스 EPS 빈티지가 무료데이터에 없어 제외.
+- 그래서 백테스트 신호 = ②·③ 괴리율을 기본가중(0.25:0.15 → 재정규화)으로 합친 **종합 괴리율**.
+  ①④가 사후검증 밖이므로 종합 판정 전체가 아니라 그 하위집합의 검증임을 화면에 명시한다.
+
+방법:
+- 각 과거일 t에서 종합 괴리율(저평가율) = 종합 적정가/주가 − 1.
+- 신호 = 종합 괴리율 ≥ 임계(기본 +30%, 앱 '크게 저평가' 기준과 동일).
 - 이벤트 스터디: 신호가 뜬 모든 날의 이후 3/6/12개월 수익률(평균·중앙값·승률)을
   전체 기간 평균과 비교한다.
 
-룩어헤드 방지: '정상 배수'는 그 시점까지의 과거 구간 롤링 중앙값만 사용한다.
+룩어헤드 방지: '정상 배수'·ROE·BPS 모두 그 시점까지의 과거 데이터만 쓴다(r만 상수 근사).
 
-한계(단일 종목): 표본이 적고 과최적화·생존편향에 취약하다. '과거의 평균회귀'가 미래를
-보장하지 않으며, 전략 곡선은 거래비용·세금·슬리피지를 무시한 예시다.
+한계(단일 종목): 표본이 적고 과최적화·생존편향에 취약하다. RIM 적정가는 완만히 움직여
+밴드보다 평균회귀 성격이 약하다. '과거의 평균회귀'가 미래를 보장하지 않으며, 전략 곡선은
+거래비용·세금·슬리피지를 무시한 예시다.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import numpy as np
 import pandas as pd
 
 from ..data.models import CompanyData
-from .valuation import _fundamental_daily
+from .valuation import METHOD_WEIGHTS, _fundamental_daily
 
 # 미래수익률 측정 구간 (거래일 기준)
 HORIZONS = {"3개월": 63, "6개월": 126, "12개월": 252}
@@ -31,11 +40,13 @@ HORIZONS = {"3개월": 63, "6개월": 126, "12개월": 252}
 
 @dataclass
 class BacktestResult:
-    kind: str = "PER"
+    kind: str = "PER"                          # 밴드 레그(②) 기준 배수 (PER/PBR)
     ok: bool = False
     threshold: float = 0.30                    # 저평가 임계(괴리율)
-    discount: pd.Series | None = None          # 일별 저평가율(적정가/주가 − 1)
-    fair_price: pd.Series | None = None        # 추정 적정가(롤링 중앙값 배수 × 펀더멘털)
+    methods_used: list = field(default_factory=list)   # 종합에 실제로 합류한 레그
+    weights: dict = field(default_factory=dict)        # 레그별 재정규화 가중치
+    discount: pd.Series | None = None          # 일별 저평가율(종합 적정가/주가 − 1)
+    fair_price: pd.Series | None = None        # 추정 적정가(롤링 중앙값 배수 × 펀더멘털, 밴드 레그)
     signal_days: int = 0
     event_count: int = 0                       # 12개월 기준 비중복 신호 표본 수
     event_stats: dict = field(default_factory=dict)     # {구간: {mean, median, hit, n}}
@@ -72,8 +83,67 @@ def _non_overlapping_values(values: pd.Series, eligible: pd.Series, horizon: int
     return pd.Series(chosen, dtype=float)
 
 
-def run_backtest(d: CompanyData, kind: str = "PER",
-                 threshold: float = 0.30, window_years: float = 1.5) -> BacktestResult:
+def _annual_daily(d: CompanyData, annual: pd.Series) -> pd.Series | None:
+    """연간 비율(예: ROE) → '회계연도 종료 + 90일'부터 적용되는 일별 계단 시리즈.
+
+    _fundamental_daily가 단일 컬럼용이라, 비율 시계열은 여기서 별도로 계단화한다."""
+    fin = d.financials
+    if "fiscal_end" not in fin.columns:
+        return None
+    df = pd.DataFrame({"v": annual, "fiscal_end": fin["fiscal_end"]}).dropna()
+    if len(df) < 2:
+        return None
+    steps = pd.Series(df["v"].to_numpy(),
+                      index=pd.to_datetime(df["fiscal_end"]) + pd.Timedelta(days=90)).sort_index()
+    return steps.reindex(d.prices.index, method="ffill")
+
+
+def _default_r_equity(market: str) -> float:
+    """RIM 레그의 상수 자본비용 근사(베타=1 가정, R_f + MRP). 시장별 기본값."""
+    return (0.035 + 0.06) if (market or "KR").upper() == "KR" else (0.045 + 0.05)
+
+
+def _rim_discount(d: CompanyData, r_equity: float) -> pd.Series | None:
+    """③ RIM 적정가의 일별 복원 → 저평가율(적정가/주가 − 1). ROE>0에서만 정의.
+
+    지속계수 0.9 시나리오의 적정 PBR = 1 + (ROE−r)·0.9/(0.1+r) (valuation._rim과 동일 식).
+    BPS·ROE는 그 시점 재무만 쓰고 r만 상수 근사 → 룩어헤드 없음."""
+    bps = _fundamental_daily(d, "total_equity", per_share=True)
+    fin = d.financials
+    if bps is None or not {"net_income", "total_equity"}.issubset(fin.columns):
+        return None
+    roe_annual = (fin["net_income"] / fin["total_equity"]).replace([np.inf, -np.inf], np.nan)
+    roe = _annual_daily(d, roe_annual)
+    if roe is None:
+        return None
+    roe = roe.clip(-0.5, 0.6)
+    bps = bps.where(bps > 0)
+    fair_pbr = 1.0 + (roe - r_equity) * 0.9 / (0.1 + r_equity)
+    fair = (bps * fair_pbr).where((roe > 0) & bps.notna())
+    disc = (fair / d.prices.reindex(fair.index)) - 1.0
+    return disc.where(fair > 0)
+
+
+def _composite_discount(band: pd.Series, rim: pd.Series | None) -> tuple[pd.Series, list, dict]:
+    """②·③ 저평가율을 기본가중(재정규화)으로 합친 종합 저평가율.
+
+    두 레그가 다 있는 날은 가중평균, 한쪽만 있는 날은 그 값만 쓴다."""
+    wb = METHOD_WEIGHTS["역사적 밴드"]
+    wr = METHOD_WEIGHTS["수익가치(RIM)"]
+    if rim is None:
+        return band, ["역사적 밴드"], {"역사적 밴드": 1.0}
+    rim = rim.reindex(band.index)
+    mb, mr = band.notna(), rim.notna()
+    wsum = wb * mb + wr * mr
+    comp = (wb * band.where(mb, 0.0) + wr * rim.where(mr, 0.0))
+    discount = (comp / wsum).where(wsum > 0)
+    denom = wb + wr
+    return discount, ["역사적 밴드", "수익가치(RIM)"], {"역사적 밴드": wb / denom,
+                                                        "수익가치(RIM)": wr / denom}
+
+
+def run_backtest(d: CompanyData, kind: str = "PER", threshold: float = 0.30,
+                 window_years: float = 1.5, r_equity: float | None = None) -> BacktestResult:
     res = BacktestResult(kind=kind, threshold=threshold, window_years=window_years)
     col, per_share = ("eps", False) if kind == "PER" else ("total_equity", True)
     daily = _fundamental_daily(d, col, per_share=per_share)
@@ -90,11 +160,21 @@ def run_backtest(d: CompanyData, kind: str = "PER",
             f"유효 표본이 {len(mult)}일뿐이라 롤링 백테스트 신뢰도가 낮습니다 "
             f"(권장: {window + 126}일 이상). 결과를 참고용으로만 보세요.")
 
-    # 정상 배수 = 과거 구간 롤링 중앙값 → 추정 적정가 = 정상배수 × 펀더멘털
-    # 괴리율 = 적정가/주가 − 1 = 정상배수/현재배수 − 1
+    # ② 밴드 레그: 정상 배수 = 과거 구간 롤링 중앙값 → 적정가 = 정상배수 × 펀더멘털
+    # 저평가율 = 적정가/주가 − 1 = 정상배수/현재배수 − 1
     fair_mult = mult.rolling(window, min_periods=minp).median()
-    discount = (fair_mult / mult) - 1.0
+    discount_band = (fair_mult / mult) - 1.0
     fair_price = fair_mult * daily.reindex(mult.index)
+
+    # ③ RIM 레그: 복원 가능하면 종합에 합류(안 되면 밴드 단독)
+    if r_equity is None:
+        r_equity = _default_r_equity(d.market)
+    discount_rim = _rim_discount(d, r_equity)
+    discount, res.methods_used, res.weights = _composite_discount(
+        discount_band, discount_rim.reindex(mult.index) if discount_rim is not None else None)
+    if discount_rim is None:
+        res.warnings.append("RIM(③) 복원에 필요한 ROE·장부가가 부족해 역사적 밴드(②) 단독으로 "
+                            "검증합니다. 종합 판정의 일부만 사후검증됨에 유의하세요.")
 
     df = pd.DataFrame({"price": d.prices.reindex(mult.index), "mult": mult,
                        "discount": discount}).dropna(subset=["discount", "price"])

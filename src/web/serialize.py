@@ -336,8 +336,8 @@ def _wacc(d, cc, ind) -> dict:
     }
 
 
-def _backtest(d) -> dict | None:
-    bt = run_backtest(d, kind="PER", threshold=0.30)
+def _backtest(d, r_equity=None) -> dict | None:
+    bt = run_backtest(d, kind="PER", threshold=0.30, r_equity=r_equity)
     if not bt.ok:
         return {"ok": False, "warnings": list(bt.warnings)}
     horizons = []
@@ -361,6 +361,8 @@ def _backtest(d) -> dict | None:
     ev12 = bt.event_stats.get("12개월", {})
     return {
         "ok": True, "kind": bt.kind, "threshold": num(bt.threshold),
+        "methods_used": list(bt.methods_used),
+        "weights": {k: num(v) for k, v in (bt.weights or {}).items()},
         "signal_days": int(bt.signal_days), "event_count": int(bt.event_count),
         "spearman": num(bt.spearman),
         "ret12": num(ev12.get("mean")), "hit12": num(ev12.get("hit")),
@@ -500,6 +502,8 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "verdict": val.verdict, "gap": num(val.gap), "confidence": val.confidence,
             "fair_low": num(val.fair_low), "fair_mid": num(val.fair_mid),
             "fair_high": num(val.fair_high),
+            "fair_mid_equal": num(val.fair_mid_equal), "gap_equal": num(val.gap_equal),
+            "verdict_equal": val.verdict_equal,
             "weights": {k: num(v) for k, v in (val.weights or {}).items()},
             "skipped": [{"method": m, "reason": r} for m, r in (val.skipped or [])],
             "estimates": [{"method": e.method, "low": num(e.low), "mid": num(e.mid),
@@ -536,7 +540,7 @@ def analyze(market: str, query: str, peer_count: int = 9,
     # 섹션별 best-effort (실패해도 나머지 유지)
     for key, fn in (("price", lambda: _price(d)), ("financials", lambda: _financials(d, ind)),
                     ("peers", lambda: _peers(d)), ("wacc", lambda: _wacc(d, cc, ind)),
-                    ("backtest", lambda: _backtest(d)), ("company", lambda: _company(d)),
+                    ("backtest", lambda: _backtest(d, cc.k_e)), ("company", lambda: _company(d)),
                     ("consensus", lambda: _consensus(d, val)),
                     ("scenario", lambda: _scenario(d, val))):
         try:
