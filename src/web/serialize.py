@@ -813,4 +813,4 @@ def bond_history(market: str, tenor: int) -> dict:
     change_bp = (ys[-1] - ys[0]) * 100 if len(ys) > 1 and ys[0] is not None and ys[-1] is not None else None
     return {"dates": dates, "yields": ys, "label": label,
             "change_bp": num(change_bp), "n": len(ys),
-            "source": "네이버 시장지표" if market == "KR" else "FRED"}
+            "source": "네이버 시장지표"}
