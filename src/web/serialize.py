@@ -10,6 +10,7 @@ JSON 사전을 만든다. 부작용 없음 — 입력은 (market, query)뿐.
 from __future__ import annotations
 
 import math
+import threading
 from datetime import datetime
 from functools import lru_cache
 
@@ -47,12 +48,13 @@ def series_list(s: pd.Series) -> dict:
     return {"x": [str(i) for i in s.index], "y": [num(v) for v in s.values]}
 
 
-def _load(market: str, query: str, peer_count: int):
+def _load(market: str, query: str, peer_count: int,
+          exclude: tuple = (), extra: tuple = ()):
     if market == "KR":
         from src.data.kr_provider import KRProvider
-        return KRProvider().load(query, peer_count)
+        return KRProvider().load(query, peer_count, exclude=exclude, extra=extra)
     from src.data.us_provider import USProvider
-    return USProvider().load(query, peer_count)
+    return USProvider().load(query, peer_count, exclude=exclude, extra=extra)
 
 
 def _defaults(market: str):
@@ -62,18 +64,41 @@ def _defaults(market: str):
 
 
 @lru_cache(maxsize=8)
-def _pipeline(market: str, query: str, peer_count: int, rf: float, mrp: float):
+def _pipeline(market: str, query: str, peer_count: int, rf: float, mrp: float,
+              exclude: tuple = (), extra: tuple = ()):
     """load → indicators → scores → capital_cost → valuation. 순수 파이프라인(캐시).
 
     analyze()와 AI 헬퍼(ai_news·ai_opinion)가 공유 — 분석 직후 AI 버튼은 캐시 적중으로 빠르다.
+    exclude/extra(피어 사용자 편집)는 정렬된 튜플로 받아 캐시 키에 포함된다.
     """
     from src.analysis.scoring import compute_scores
-    d = _load(market, query, peer_count)
+    d = _load(market, query, peer_count, exclude, extra)
     ind = compute_indicators(d)
     scores = compute_scores(d.peers, d.yahoo_ticker, d.is_financial)
     cc = compute_capital_cost(d, rf=rf, mrp=mrp)
     val = compute_valuation(d, ind, r_equity=cc.k_e)
     return d, ind, scores, cc, val
+
+
+# ── 분석 진행 상태 (피어 수집 등 느린 단계를 프런트에 알림) ─────────
+_PROGRESS: dict = {}
+_PROGRESS_LOCK = threading.Lock()
+
+
+def _progress_key(market: str, query: str) -> str:
+    return f"{(market or 'KR').upper()}:{query.strip().upper()}"
+
+
+def get_progress(market: str, query: str) -> dict | None:
+    """진행 중이면 {'stage','done','total'}, 아니면 None. server의 /api/progress가 사용."""
+    with _PROGRESS_LOCK:
+        v = _PROGRESS.get(_progress_key(market, query))
+        return dict(v) if v else None
+
+
+def _edit_tuple(csv: str) -> tuple:
+    """'a, b,' 같은 콤마 문자열 → 캐시 키로 쓸 정렬 튜플."""
+    return tuple(sorted({p.strip() for p in str(csv or "").split(",") if p.strip()}))
 
 
 def _ai_available() -> bool:
@@ -474,14 +499,34 @@ def _news(d) -> list:
 # ── 메인 ────────────────────────────────────────────────────────────
 def analyze(market: str, query: str, peer_count: int = 9,
             rf: float | None = None, mrp: float | None = None,
-            include_news: bool = True) -> dict:
-    """종목 하나 → 웹 프런트가 그릴 전체 분석 JSON 사전."""
+            include_news: bool = True,
+            exclude: str = "", extra: str = "") -> dict:
+    """종목 하나 → 웹 프런트가 그릴 전체 분석 JSON 사전.
+
+    exclude/extra: 피어 사용자 편집(콤마 구분 이름·코드). 파이프라인 캐시 키에 포함.
+    """
     market = (market or "KR").upper()
     drf, dmrp = _defaults(market)
     rf = drf if rf is None else rf
     mrp = dmrp if mrp is None else mrp
+    ex_t, add_t = _edit_tuple(exclude), _edit_tuple(extra)
 
-    d, ind, scores, cc, val = _pipeline(market, query.strip(), peer_count, rf, mrp)
+    # 느린 단계(피어 수집) 진행을 프런트가 폴링할 수 있게 리포터를 건다
+    from src.data.progress import set_reporter
+    pkey = _progress_key(market, query)
+
+    def _report(stage: str, done: int, total: int):
+        with _PROGRESS_LOCK:
+            _PROGRESS[pkey] = {"stage": stage, "done": done, "total": total}
+
+    set_reporter(_report)
+    try:
+        d, ind, scores, cc, val = _pipeline(market, query.strip(), peer_count, rf, mrp,
+                                            ex_t, add_t)
+    finally:
+        set_reporter(None)
+        with _PROGRESS_LOCK:
+            _PROGRESS.pop(pkey, None)
 
     asof = d.prices.index[-1].strftime("%Y-%m-%d") if len(d.prices) else datetime.now().strftime("%Y-%m-%d")
     quality = [w for w in d.warnings if not w.startswith(("피어 기준", "재무제표:"))]
@@ -498,8 +543,10 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "ai_available": _ai_available(),
         },
         "warnings": quality,
+        "computed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "verdict": {
             "verdict": val.verdict, "gap": num(val.gap), "confidence": val.confidence,
+            "dispersion": num(getattr(val, "dispersion", None)),
             "fair_low": num(val.fair_low), "fair_mid": num(val.fair_mid),
             "fair_high": num(val.fair_high),
             "fair_mid_equal": num(val.fair_mid_equal), "gap_equal": num(val.gap_equal),
