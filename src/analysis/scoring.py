@@ -144,6 +144,11 @@ def rank_peers_cheapness(peers: pd.DataFrame, is_financial: bool = False,
     """업종 내 '싸고 우량한' 순 랭킹. 이미 로드된 피어 지표만 사용(추가 조회 없음).
 
     combined = value_weight·가치점수 + (1-value_weight)·우량점수, 둘 다 피어 백분위 평균.
+
+    가중 60/40의 성격(ADR-0005): 학술적 최적값이 아니라 **관례적 기본값**이다 —
+    이 랭킹의 목적이 '저평가 후보 발견'(가치가 주), 수익성은 밸류트랩을 거르는
+    보정(부)이라 가치에 더 큰 가중을 준다. 정밀한 순위 판단용이 아니라 탐색용이며,
+    가중을 바꿔도 상·하위권 구성이 크게 흔들리지 않는지 확인해 문서화했다.
     """
     if peers.empty:
         return pd.DataFrame()

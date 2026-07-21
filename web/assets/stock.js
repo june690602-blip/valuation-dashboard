@@ -78,6 +78,8 @@
   function fmtX(v) { if (v == null) return '—'; return (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : v.toFixed(0)) + '×'; }
   function fmtSigned(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'; }
   function fmtMult(key, v) { if (v == null) return '—'; if (key === 'div_yield') return (v * 100).toFixed(1) + '%'; if (key === 'peg') return v.toFixed(2); return fmtX(v); }
+  /* 빈 값 '—'에 이유 말풍선을 붙인다(순수 CSS 툴팁, .na) — 왜 없는지 짧게 알린다. */
+  function na(reason) { return '<span class="na" tabindex="0" data-tip="' + esc(reason) + '">—</span>'; }
   function compactWon(v) { if (v == null) return '—'; return CUR === 'KRW' ? Math.round(v / 1000).toLocaleString('en-US') + '천' : '$' + Math.round(v).toLocaleString('en-US'); }
 
   var VERDICTS = ['크게 저평가', '저평가', '적정 수준', '고평가', '크게 고평가'];
@@ -86,7 +88,7 @@
   function vTone(v) { var i = vIdx(v); return i <= 1 ? 'positive' : i === 2 ? 'neutral' : 'negative'; }
 
   /* ── 상태 ── */
-  var state = { market: 'KR', query: '035420', pricePeriod: '1Y', priceMode: 'abs', ma: { m20: true, m60: true, m120: false }, hover: null, bandMetric: 'PER', scnBear: -0.15, scnBull: 0.15, scnMult: 0 };
+  var state = { market: 'KR', query: '035420', pricePeriod: '1Y', priceMode: 'abs', chartType: 'line', ma: { m20: true, m60: true, m120: false }, hover: null, bandMetric: 'PER', scnBear: -0.15, scnBull: 0.15, scnMult: 0, peerEx: [], peerAdd: [], _editKey: '' };
   var D = null;
   var EXAMPLES = { KR: [['삼성전자', '005930'], ['현대차', '005380'], ['NAVER', '035420'], ['KB금융', '105560']], US: [['Apple', 'AAPL'], ['Microsoft', 'MSFT'], ['Coca-Cola', 'KO'], ['Rivian', 'RIVN']] };
 
@@ -360,6 +362,20 @@
       for (var i = Math.max(0, b[0] - 1); i <= Math.min(n - 1, b[1] + 1); i++) { var v = arr[i]; if (v == null) { started = false; continue; } var sx = xDoc(i), sy = yDoc(v); if (!started) { ctx.moveTo(sx, sy); started = true; } else ctx.lineTo(sx, sy); }
       ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.stroke();
     }
+    /* 봉(캔들) 차트 — 시가 대비 종가로 양봉(초록)·음봉(빨강). 색은 앱 전반과 통일(초록=상승). */
+    function drawCandles() {
+      var b = visibleBounds(), visN = Math.max(1, viewEnd - viewStart);
+      var step = visN > 520 ? 3 : visN > 260 ? 2 : 1, bw = Math.max(1, xw / visN * 0.62 * step);
+      for (var i = Math.max(0, b[0]); i <= Math.min(n - 1, b[1]); i += step) {
+        var o = open[i], hh = high[i], ll = low[i], c = close[i];
+        if (c == null) continue;
+        var up = (o == null) ? true : c >= o, col = up ? COL.positive : COL.negative, x = xDoc(i);
+        if (hh != null && ll != null) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, yDoc(hh)); ctx.lineTo(x, yDoc(ll)); ctx.stroke(); }
+        ctx.fillStyle = col;
+        if (o != null) { var yO = yDoc(o), yC = yDoc(c), top = Math.min(yO, yC); ctx.fillRect(x - bw / 2, top, bw, Math.max(1, Math.abs(yC - yO))); }
+        else ctx.fillRect(x - bw / 2, yDoc(c) - 0.75, bw, 1.5);
+      }
+    }
     function axisTag(text, x, y, align, bg, fg) {
       ctx.font = '10.5px ' + CH_FONT_MONO; var tw = Math.ceil(ctx.measureText(text).width) + 12, th = 19;
       var bx = align === 'right' ? x : x - tw / 2, by = y - th / 2;
@@ -385,10 +401,17 @@
           ctx.fillRect(xDoc(i) - bw / 2, volTop + volH - h, bw, Math.max(0.5, h));
         }
         ctx.globalAlpha = 1;
-        if (state.ma.m120) strokeArr(ma120, COL.plum, 1.3);
-        if (state.ma.m60) strokeArr(ma60, COL.slate, 1.3);
-        if (state.ma.m20) strokeArr(ma20, COL.gold, 1.3);
-        strokeArr(close, COL.ink, 1.9);
+        if (state.chartType === 'candle') {
+          drawCandles();
+          if (state.ma.m120) strokeArr(ma120, COL.plum, 1.3);
+          if (state.ma.m60) strokeArr(ma60, COL.slate, 1.3);
+          if (state.ma.m20) strokeArr(ma20, COL.gold, 1.3);
+        } else {
+          if (state.ma.m120) strokeArr(ma120, COL.plum, 1.3);
+          if (state.ma.m60) strokeArr(ma60, COL.slate, 1.3);
+          if (state.ma.m20) strokeArr(ma20, COL.gold, 1.3);
+          strokeArr(close, COL.ink, 1.9);
+        }
       } else { strokeArr(benchY, COL.clay, 1.4); strokeArr(stockY, COL.ink, 1.9); }
       /* 현재가 점선과 최신 데이터 포인트 */
       var latest = d.cur != null ? d.cur : close[latestIndex], lastVisible = latestIndex >= viewStart && latestIndex <= viewEnd;
@@ -591,6 +614,30 @@
       for (var i = 0; i < els.length; i++) if (els[i].getAttribute('data-key') === key) els[i].classList.toggle('linked', on);
     });
   }
+  /* 피어 편집 배선 — X(제외)·＋(추가)·초기화. 서버가 캐시된 원자료로 재계산하므로 수 초면 끝난다. */
+  function wirePeerEdit() {
+    var tbl = $('peerTable');
+    tbl.querySelectorAll('.peer-x').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var k = b.getAttribute('data-ex');
+        if (k && state.peerEx.indexOf(k) < 0) { state.peerEx.push(k); load(); }
+      });
+    });
+    var addBtn = tbl.querySelector('.peer-addbtn'), inp = tbl.querySelector('.peer-addinput');
+    if (addBtn && inp) {
+      addBtn.addEventListener('click', function () { inp.style.display = 'inline-block'; inp.focus(); });
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          var v = inp.value.trim();
+          if (v && state.peerAdd.indexOf(v) < 0) { state.peerAdd.push(v); load(); }
+        } else if (e.key === 'Escape') { inp.value = ''; inp.style.display = 'none'; }
+      });
+    }
+    var rst = tbl.querySelector('.peer-reset');
+    if (rst) rst.addEventListener('click', function () { state.peerEx = []; state.peerAdd = []; load(); });
+  }
+
   function wirePeerLinks() {
     ['peerScatter', 'peerTable', 'rankTable'].forEach(function (id) {
       var c = $(id); if (!c || c._wired) return; c._wired = true;
@@ -689,6 +736,27 @@
     var tone = vTone(v.verdict), pos = vPos(v.verdict), gapCol = v.gap != null && v.gap >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)';
     var mono = 'var(--font-mono)', disp = 'var(--font-display)';
     var sub = [m.sector, m.industry].filter(Boolean).join(' · ');
+    // 신뢰도 툴팁 — 산출 근거(방법 간 편차 = 변동계수)를 실제 수치로 설명
+    var nMeth = (v.estimates || []).length;
+    var confTip = v.dispersion != null
+      ? '방법 간 중심값 편차 ±' + Math.round(v.dispersion * 100) + '% (' + nMeth + '개 방법) — '
+        + (v.confidence === '높음' ? '방법들이 비슷한 값을 냅니다(±15% 미만).'
+          : v.confidence === '중간' ? '방법 간 차이가 다소 있습니다(±15~35%).'
+          : '방법들이 서로 크게 다른 값을 냅니다(±35% 이상). 판정을 보수적으로 해석하세요.')
+      : nMeth <= 1 ? '사용 가능한 평가 방법이 1개뿐이라 낮음으로 처리합니다.'
+      : '편차 정보를 계산하지 못했습니다.';
+    var finYear = (D.financials && D.financials.years && D.financials.years.length)
+      ? D.financials.years[D.financials.years.length - 1] : null;
+    // 판정 헤드라인 색 · 연속 마커 위치 · 평이한 해설
+    var vColor = tone === 'positive' ? 'var(--dv-positive)' : tone === 'negative' ? 'var(--dv-negative)' : 'var(--ink)';
+    var gp = v.gap == null ? null : Math.max(-0.4, Math.min(0.4, v.gap));
+    var mpos = gp == null ? pos : (50 - gp / 0.4 * 40);   // 괴리율(연속)→바 위치. +괴리(상승여력)=왼쪽(저평가)
+    var gapAbs = v.gap == null ? null : Math.abs(v.gap * 100).toFixed(1);
+    var verdictLine = v.verdict === '적정 수준'
+      ? '현재가가 가중 종합 적정가 범위 안에 있습니다.'
+      : (v.gap != null
+        ? '현재가가 적정가보다 ' + gapAbs + '% ' + (v.gap > 0 ? '낮습니다 — 상승여력' : '높습니다 — 하락위험') + '.'
+        : '적정가를 계산하지 못했습니다.');
     // ── B (기본) ──
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
@@ -697,13 +765,28 @@
           '<div><div style="display:flex;align-items:center;gap:7px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(m.ticker) + '</span>' + badge(m.market + ' · ' + m.benchmark, 'info') + '</div>' +
           '<div style="font-family:' + disp + ';font-weight:700;font-size:29px;letter-spacing:-0.01em;line-height:1;margin-top:3px">' + esc(m.name) + '</div></div></div>' +
           '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(m.price) + '</div></div>' +
-        '<div style="flex:1;min-width:320px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="kick">밸류에이션 판정</span><span style="font-size:12px;color:var(--ink-3)">신뢰도 <b style="color:var(--ink-2)">' + esc(v.confidence || '—') + '</b></span></div>' +
-          '<div style="position:relative;margin-top:14px"><div style="display:flex;height:11px;border-radius:var(--radius-pill);overflow:hidden">' +
-            '<span style="flex:1;background:var(--dv-green);opacity:.82"></span><span style="flex:1;background:var(--dv-green);opacity:.45"></span><span style="flex:1;background:var(--paper-3)"></span><span style="flex:1;background:var(--dv-clay);opacity:.45"></span><span style="flex:1;background:var(--dv-clay);opacity:.82"></span></div>' +
-            '<div style="position:absolute;top:-5px;left:' + pos + '%;transform:translateX(-50%);width:2px;height:21px;background:var(--ink)"></div>' +
-            '<div style="position:absolute;top:-13px;left:' + pos + '%;transform:translateX(-50%);width:9px;height:9px;border-radius:50%;background:var(--ink);border:2px solid var(--paper)"></div>' +
-            '<div style="display:flex;margin-top:9px;font-size:10.5px;color:var(--ink-3);text-align:center">' + VERDICTS.map(function (t, i) { return '<span style="flex:1' + (t === v.verdict ? ';color:' + (tone === 'negative' ? 'var(--dv-negative)' : 'var(--dv-positive)') + ';font-weight:600' : '') + '">' + t.replace(' ', '<br>') + '</span>'; }).join('') + '</div></div>' +
-          '<div style="margin-top:12px;font-size:13px;color:var(--ink-2)">괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b> · 4방법 가중 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b></div></div>' +
+        '<div style="flex:1;min-width:320px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="kick">밸류에이션 판정</span><span style="font-size:12px;color:var(--ink-3)">신뢰도 <b class="na" tabindex="0" data-tip="' + esc(confTip) + '" style="color:var(--ink-2)">' + esc(v.confidence || '—') + '</b></span></div>' +
+          // 큰 판정 헤드라인 — 결론(저평가/적정/고평가)이 한눈에
+          '<div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap">' +
+            '<span style="font-family:' + disp + ';font-weight:800;font-size:27px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(v.verdict || '—') + '</span>' +
+            '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + verdictLine + '</span></div>' +
+          // 3존 라벨(저평가·적정·고평가) + 연속 마커
+          '<div style="position:relative;margin-top:15px;padding-bottom:28px">' +
+            '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:7px">' +
+              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--dv-positive);font-weight:700' : '') + '">저평가</span>' +
+              '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">적정</span>' +
+              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--dv-negative);font-weight:700' : '') + '">고평가</span></div>' +
+            '<div style="display:flex;height:13px;border-radius:var(--radius-pill);overflow:hidden">' +
+              '<span style="flex:1;background:var(--dv-green);opacity:.82"></span><span style="flex:1;background:var(--dv-green);opacity:.45"></span><span style="flex:1;background:var(--paper-3)"></span><span style="flex:1;background:var(--dv-clay);opacity:.45"></span><span style="flex:1;background:var(--dv-clay);opacity:.82"></span></div>' +
+            '<div style="position:absolute;left:' + mpos + '%;top:26px;transform:translateX(-50%);width:2px;height:22px;background:var(--ink)"></div>' +
+            '<div style="position:absolute;left:' + mpos + '%;top:22px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:var(--ink);border:2px solid var(--paper);box-shadow:var(--shadow-sm)"></div>' +
+            '<div style="position:absolute;left:' + mpos + '%;top:51px;transform:translateX(-50%);white-space:nowrap;font-family:' + mono + ';font-size:10.5px;font-weight:700;color:var(--ink)">현재가</div></div>' +
+          // 현재가 vs 적정가 vs 괴리율 — 수치 요약
+          '<div style="margin-top:6px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)">' +
+            '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
+            '<span>가중 종합 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b></span>' +
+            '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
+          '<div style="margin-top:9px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (D.computed_at ? ' · 계산 ' + esc(D.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button></div></div>';
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
   }
@@ -719,8 +802,14 @@
   }
 
   function renderTiles() {
-    var t = D.tiles;
-    var items = [['시가총액', fmtMoney(t.market_cap)], ['PER (TTM)', fmtX(t.per)], ['PBR', fmtX(t.pbr)], ['ROE (TTM)', fmtPct(t.roe)], ['베타 (β)', t.beta != null ? t.beta.toFixed(2) : '—'], ['WACC', t.wacc != null ? fmtPct(t.wacc) : 'N/A']];
+    var t = D.tiles, fin = D.meta.is_financial;
+    var items = [
+      ['시가총액', t.market_cap != null ? fmtMoney(t.market_cap) : na('주가 또는 상장주식수를 확인하지 못했습니다.')],
+      ['PER (TTM)', t.per != null ? fmtX(t.per) : na('적자(EPS≤0)이거나 이익 데이터가 없어 PER를 계산할 수 없습니다.')],
+      ['PBR', t.pbr != null ? fmtX(t.pbr) : na('자본(BPS) 데이터가 없어 PBR를 계산할 수 없습니다.')],
+      ['ROE (TTM)', t.roe != null ? fmtPct(t.roe) : na('순이익 또는 자기자본 데이터가 없습니다.')],
+      ['베타 (β)', t.beta != null ? t.beta.toFixed(2) : na('상장 기간이 짧아 회귀 표본이 부족합니다 — 자본비용 탭은 β=1을 가정합니다.')],
+      ['WACC', t.wacc != null ? fmtPct(t.wacc) : na(fin ? '금융업은 자금조달 구조가 달라 WACC를 제공하지 않습니다.' : '부채·베타 재료가 부족해 WACC를 계산하지 못했습니다.')]];
     $('tiles').innerHTML = items.map(function (it, i) {
       return '<div style="padding:0 16px' + (i === 0 ? ' 0 0' : '') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + it[0] + '</div><div class="mono" style="font-size:22px;font-weight:500;margin-top:7px;white-space:nowrap">' + it[1] + '</div></div>';
     }).join('');
@@ -778,7 +867,10 @@
       sens = '<div style="font-size:11.5px;color:var(--ink-3);margin-top:7px;padding-top:8px;border-top:1px dashed var(--line)">민감도 · 동일가중(단순평균)이면 적정가 <b class="mono" style="color:var(--ink-2)">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b style="color:var(--warning)">' + esc(v.verdict_equal) + '</b>로 갈림' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.</div>';
     }
     var formula = '<div style="font-size:11px;color:var(--ink-3);line-height:1.75;margin-top:10px">공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — 종합 = 가중평균 ④35 · ①25 · ②25 · ③15% (순위 근거: Liu·Nissim·Thomas 2002·2007 국제 + 국내 가치관련성; 국내 컨센서스 낙관편의 유의 — 상세 docs/adr/0003) · 출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)</div>';
-    $('methodsTable').innerHTML = est.length ? head + rows + total + sens + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
+    // 건너뛴 방법이 있으면 가중치가 재정규화됐음을 명시 — 각 행의 '가중 %'가 실제 적용값
+    var renorm = (v.skipped || []).length && est.length
+      ? '<div style="font-size:11px;color:var(--ink-3);margin-top:6px">건너뛴 방법의 가중치는 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.</div>' : '';
+    $('methodsTable').innerHTML = est.length ? head + rows + total + sens + renorm + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
     // 점수
     $('scoreOverall').textContent = D.scores.overall != null ? Math.round(D.scores.overall) : '—';
     $('radarChart').innerHTML = radarChart();
@@ -1044,12 +1136,23 @@
     if (pr.basis) $('peerBasis').textContent = pr.basis;
     var cols = '1.3fr 0.9fr 0.7fr 0.7fr 0.8fr';
     var head = '<div class="row head" style="grid-template-columns:' + cols + '"><span class="col-label">종목</span><span class="col-label r">시총' + (CUR === 'KRW' ? '(조)' : '') + '</span><span class="col-label r">PER</span><span class="col-label r">PBR</span><span class="col-label r">ROE</span></div>';
+    var naPeer = '이 종목의 해당 지표가 원천 데이터(Yahoo·KRX)에 없습니다 — 적자 기업은 PER가 비게 됩니다.';
     var body = pr.rows.map(function (p, i) {
       var mc = p.market_cap == null ? '—' : CUR === 'KRW' ? (p.market_cap / 1e12).toFixed(1) : (p.market_cap / 1e9).toFixed(1);
       var last = i === pr.rows.length - 1;
-      return '<div class="row' + (p.is_self ? ' self' : '') + '" data-q="' + esc(p.q || '') + '" data-key="' + esc(p.key || '') + '" style="grid-template-columns:' + cols + ';font-family:var(--font-mono);font-size:12.5px;cursor:pointer' + (last ? ';border-bottom:none' : '') + '"><span style="font-family:var(--font-sans)' + (p.is_self ? ';font-weight:700' : '') + '">' + esc(p.name) + '</span><span class="r">' + mc + '</span><span class="r">' + (p.per != null ? p.per.toFixed(1) : '—') + '</span><span class="r">' + (p.pbr != null ? p.pbr.toFixed(2) : '—') + '</span><span class="r">' + (p.roe != null ? (p.roe * 100).toFixed(1) : '—') + '</span></div>';
+      // 제외 키: KR은 상장목록 이름, US는 심볼(data-key) — 서버 exclude 매칭과 동일 기준
+      var exKey = CUR === 'KRW' ? p.name : (p.key || p.name);
+      var xBtn = p.is_self ? '' : '<button type="button" class="peer-x" data-ex="' + esc(exKey) + '" title="이 피어 제외" aria-label="' + esc(p.name) + ' 피어에서 제외">×</button>';
+      return '<div class="row' + (p.is_self ? ' self' : '') + '" data-q="' + esc(p.q || '') + '" data-key="' + esc(p.key || '') + '" style="grid-template-columns:' + cols + ';font-family:var(--font-mono);font-size:12.5px;cursor:pointer' + (last ? ';border-bottom:none' : '') + '"><span class="peer-name" style="font-family:var(--font-sans)' + (p.is_self ? ';font-weight:700' : '') + '">' + xBtn + esc(p.name) + '</span><span class="r">' + mc + '</span><span class="r">' + (p.per != null ? p.per.toFixed(1) : na(naPeer)) + '</span><span class="r">' + (p.pbr != null ? p.pbr.toFixed(2) : na(naPeer)) + '</span><span class="r">' + (p.roe != null ? (p.roe * 100).toFixed(1) : na(naPeer)) + '</span></div>';
     }).join('');
-    $('peerTable').innerHTML = head + body;
+    var edited = state.peerEx.length || state.peerAdd.length;
+    var addRow = '<div class="peer-addrow">'
+      + '<button type="button" class="peer-addbtn">＋ 피어 추가</button>'
+      + '<input class="peer-addinput" type="text" placeholder="' + (CUR === 'KRW' ? '종목명 또는 코드 (예: 카카오, 035720)' : '심볼 (예: MSFT)') + '" aria-label="추가할 피어">'
+      + (edited ? '<button type="button" class="peer-reset">편집 초기화 (제외 ' + state.peerEx.length + ' · 추가 ' + state.peerAdd.length + ')</button>' : '')
+      + '</div>';
+    $('peerTable').innerHTML = head + body + addRow;
+    wirePeerEdit();
     $('peerScatter').innerHTML = peerScatter();
     // 랭킹
     var rcols = '0.5fr 1.3fr 0.8fr 0.8fr 0.8fr';
@@ -1201,17 +1304,38 @@
     s.querySelector('.spin').style.display = isErr ? 'none' : 'block';
   }
   var _reqSeq = 0;
+  var _progT = null;
+  function stopProgress() { if (_progT) { clearInterval(_progT); _progT = null; } }
+  function startProgress(seq) {
+    // 서버의 진행 상태(피어 수집 n/m)를 폴링해 대기 체감을 줄인다 — 실측값이라 정직하다
+    stopProgress();
+    var pu = 'api/progress?market=' + encodeURIComponent(state.market) + '&query=' + encodeURIComponent(state.query);
+    _progT = setInterval(function () {
+      if (seq !== _reqSeq) { stopProgress(); return; }
+      fetch(pu).then(function (r) { return r.json(); }).then(function (p) {
+        if (seq !== _reqSeq || !p || !p.total) return;
+        $('statusMsg').textContent = "'" + state.query + "' " + p.stage + ' ' + p.done + '/' + p.total + '…';
+      }).catch(function () {});
+    }, 700);
+  }
   function load() {
     var seq = ++_reqSeq;
+    // 종목·시장이 바뀌면 피어 편집은 초기화(편집은 종목별 상태)
+    var ek = state.market + ':' + state.query;
+    if (state._editKey !== ek) { state._editKey = ek; state.peerEx = []; state.peerAdd = []; }
     setStatus(true, "'" + state.query + "' 데이터 수집 중… (첫 조회는 피어 지표를 병렬로 모으느라 10초 안팎 걸릴 수 있어요)");
     var url = 'api/analyze?market=' + encodeURIComponent(state.market) + '&query=' + encodeURIComponent(state.query) + '&peer_count=' + (state.peer_count || 9);
+    if (state.peerEx.length) url += '&exclude=' + encodeURIComponent(state.peerEx.join(','));
+    if (state.peerAdd.length) url += '&add=' + encodeURIComponent(state.peerAdd.join(','));
+    startProgress(seq);
     fetch(url).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
         if (seq !== _reqSeq) return; // 최신 요청만 반영
+        stopProgress();
         if (!res.ok || res.j.error) { setStatus(true, res.j.error || '분석에 실패했습니다.', true); return; }
         D = res.j; state.hover = null; renderAll(); setStatus(false);
       })
-      .catch(function (e) { if (seq !== _reqSeq) return; setStatus(true, '서버에 연결하지 못했습니다: ' + e.message, true); });
+      .catch(function (e) { if (seq !== _reqSeq) return; stopProgress(); setStatus(true, '서버에 연결하지 못했습니다: ' + e.message, true); });
   }
 
   /* ══════════ 인터랙션 ══════════ */
@@ -1249,7 +1373,8 @@
     $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; $('tickerInput').value = q; load(); } });
     $('examples').addEventListener('click', function (e) { var s = e.target.closest('[data-code]'); if (!s) return; state.query = s.getAttribute('data-code'); $('tickerInput').value = state.query; load(); });
     // 주가 컨트롤
-    wireSeg('priceModeSeg', function (v) { state.priceMode = v; state.hover = null; $('maToggles').style.display = v === 'abs' ? 'inline-flex' : 'none'; if (D) renderPrice(); });
+    wireSeg('priceModeSeg', function (v) { state.priceMode = v; state.hover = null; var showAbs = v === 'abs'; $('maToggles').style.display = showAbs ? 'inline-flex' : 'none'; var cts = $('chartTypeSeg'); if (cts) cts.style.display = showAbs ? '' : 'none'; if (D) renderPrice(); });
+    wireSeg('chartTypeSeg', function (v) { state.chartType = v; state.hover = null; if (D) renderPrice(); });
     wireSeg('periodSeg', function (v) { state.pricePeriod = v; state.hover = null; if (D) renderPrice(); });
     $('priceReset').addEventListener('click', function () { if (priceChartInst && priceChartInst.reset) priceChartInst.reset(); });
     document.querySelectorAll('#maToggles .ma-btn').forEach(function (btn) { btn.setAttribute('aria-pressed', btn.classList.contains('on') ? 'true' : 'false'); btn.addEventListener('click', function () { var k = btn.getAttribute('data-ma'); state.ma[k] = !state.ma[k]; btn.classList.toggle('on', state.ma[k]); btn.setAttribute('aria-pressed', state.ma[k] ? 'true' : 'false'); var col = { m20: 'var(--dv-gold)', m60: 'var(--dv-slate)', m120: 'var(--dv-plum)' }[k]; btn.style.borderColor = state.ma[k] ? col : 'var(--line-strong)'; btn.style.color = state.ma[k] ? 'var(--ink)' : 'var(--ink-3)'; btn.querySelector('.dash').style.background = state.ma[k] ? col : 'var(--line-strong)'; if (D) renderPrice(); }); });

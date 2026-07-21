@@ -88,7 +88,8 @@ class KRProvider(DataProvider):
             "marcap": float(row["Marcap"]) if pd.notna(row.get("Marcap")) else None,
         }
 
-    def load(self, query: str, peer_count: int = 10) -> CompanyData:
+    def load(self, query: str, peer_count: int = 10,
+             exclude: tuple = (), extra: tuple = ()) -> CompanyData:
         meta = self.resolve(query)
         code, yt = meta["ticker"], meta["yahoo_ticker"]
         warnings: list[str] = []
@@ -171,6 +172,34 @@ class KRProvider(DataProvider):
             peer_codes = select_peers_kr(code, n=peer_count + 5)
             peer_basis = f"KRX 업종분류 '{sector}'" if sector else "업종분류 불명"
 
+        # 사용자 피어 편집 — 제외는 다운로드 전에 걸러 낭비를 없애고, 추가는 검색으로
+        # 코드를 찾아 뒤에 붙인다. 편집 사실은 피어 기준 문구에 남긴다(재현성·투명성).
+        if exclude:
+            ex = {str(e).strip() for e in exclude if str(e).strip()}
+            def _kept(c):
+                nm = str(listing.loc[c]["Name"]) if c in listing.index else ""
+                return c not in ex and nm not in ex
+            peer_codes = [c for c in peer_codes if c == code or _kept(c)]
+        added_codes: list[str] = []
+        if extra:
+            for q2 in extra:
+                q2 = str(q2).strip()
+                if not q2:
+                    continue
+                try:
+                    hit = find_kr(q2)
+                    c2 = str(hit.iloc[0]["Code"]) if not hit.empty else None
+                except Exception:
+                    c2 = None
+                if c2 and c2 in listing.index and c2 not in peer_codes:
+                    peer_codes.append(c2)
+                    added_codes.append(c2)
+                else:
+                    warnings.append(f"피어 추가 실패: '{q2}' — 상장목록에서 찾지 못했습니다.")
+        added = len(added_codes)
+        if exclude or added:
+            peer_basis += f" · 사용자 편집(제외 {len(exclude)}·추가 {added})"
+
         peer_yts, labels = [], {}
         for c in peer_codes:
             if c in listing.index:
@@ -178,9 +207,15 @@ class KRProvider(DataProvider):
                 pyt = yahoo_ticker_kr(c, r.get("Market", "KOSPI"))
                 peer_yts.append(pyt)
                 labels[pyt] = r["Name"]
-        peers = build_peer_table(peer_yts, yt, labels)
-        peers = self._patch_kr_peers(peers, listing)
-        peers = trim_peers(peers, yt, peer_count)
+        peers_full = build_peer_table(peer_yts, yt, labels)
+        peers_full = self._patch_kr_peers(peers_full, listing)
+        peers = trim_peers(peers_full, yt, peer_count + added)
+        # 사용자가 추가한 피어는 시총 컷에 잘리지 않게 고정(핀)
+        if added:
+            pin = [yahoo_ticker_kr(c, listing.loc[c].get("Market", "KOSPI")) for c in added_codes]
+            back = [t for t in pin if t in peers_full.index and t not in peers.index]
+            if back:
+                peers = pd.concat([peers, peers_full.loc[back]])
         peers = fill_self_from_financials(peers, yt, financials, mcap)
         warnings.append(f"피어 기준: {peer_basis}, {len(peers)}개 종목")
         if len(peers) < 4:

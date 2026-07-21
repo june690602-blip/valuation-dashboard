@@ -32,15 +32,17 @@ _TTL = 1800     # 30분
 _AI_TTL = 21600  # 6시간 (AI 결과는 헤드라인·펀더멘털이 크게 안 바뀌므로 길게 캐시)
 
 
-def cached_analyze(market: str, query: str, peer_count: int, include_news: bool) -> dict:
-    key = (market, query, peer_count, include_news)
+def cached_analyze(market: str, query: str, peer_count: int, include_news: bool,
+                   exclude: str = "", extra: str = "") -> dict:
+    key = (market, query, peer_count, include_news, exclude, extra)
     now = time.time()
     with _LOCK:
         hit = _CACHE.get(key)
         if hit and now - hit[0] < _TTL:
             return hit[1]
     from src.web.serialize import analyze  # 지연 임포트(서버 기동을 빠르게)
-    data = analyze(market, query, peer_count=peer_count, include_news=include_news)
+    data = analyze(market, query, peer_count=peer_count, include_news=include_news,
+                   exclude=exclude, extra=extra)
     with _LOCK:
         _CACHE[key] = (now, data)
     return data
@@ -75,9 +77,19 @@ def cached_ai(kind: str, market: str, query: str, peer_count: int) -> dict:
     return data
 
 
+_ERR_MSG = "서버 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. (원인은 서버 콘솔 로그에 기록됩니다)"
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB), **kwargs)
+
+    def end_headers(self):  # noqa: N802
+        # 정적 파일은 항상 재검증(no-cache) — 코드 수정·배포 직후 브라우저가
+        # 옛 CSS/JS를 계속 보여주는 문제 방지. API는 _send_json이 no-store를 보냄.
+        if not self.path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
 
     def _send_json(self, obj, code: int = 200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -99,16 +111,18 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError:
                 peer_count = 9
             include_news = q.get("news", ["1"])[0] != "0"
+            exclude = (q.get("exclude", [""])[0] or "").strip()
+            extra = (q.get("add", [""])[0] or "").strip()
             if not query:
                 return self._send_json({"error": "종목(query)을 입력하세요."}, 400)
             try:
                 t0 = time.time()
-                data = cached_analyze(market, query, peer_count, include_news)
+                data = cached_analyze(market, query, peer_count, include_news, exclude, extra)
                 print(f"[api] {market} {query} → {data['meta']['name']} ({time.time() - t0:.1f}s)")
                 return self._send_json(data)
-            except Exception as e:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 traceback.print_exc()
-                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
+                return self._send_json({"error": _ERR_MSG}, 500)
         if u.path in ("/api/news_ai", "/api/opinion"):
             q = parse_qs(u.query)
             market = (q.get("market", ["KR"])[0] or "KR").upper()
@@ -130,30 +144,40 @@ class Handler(SimpleHTTPRequestHandler):
                 data = cached_ai(kind, market, query, peer_count)
                 print(f"[ai:{kind}] {market} {query} ({time.time() - t0:.1f}s)")
                 return self._send_json(data)
-            except Exception as e:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 traceback.print_exc()
-                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
+                return self._send_json({"error": _ERR_MSG}, 500)
+        if u.path == "/api/progress":
+            # 분석 진행 폴링(피어 수집 n/m) — 진행 중이 아니면 빈 객체
+            q = parse_qs(u.query)
+            market = (q.get("market", ["KR"])[0] or "KR").upper()
+            query = (q.get("query", [""])[0] or "").strip()
+            try:
+                from src.web.serialize import get_progress
+                return self._send_json(get_progress(market, query) or {})
+            except Exception:  # noqa: BLE001
+                return self._send_json({})
         if u.path == "/api/risk-profile":
             try:
                 from src.analysis.risk_profile import risk_profile_config
                 return self._send_json(risk_profile_config())
-            except Exception as e:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 traceback.print_exc()
-                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
+                return self._send_json({"error": _ERR_MSG}, 500)
         if u.path == "/api/market":
             try:
                 from src.web.serialize import market_params
                 return self._send_json(cached_generic("market", market_params, ttl=3600))
-            except Exception as e:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 traceback.print_exc()
-                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
+                return self._send_json({"error": _ERR_MSG}, 500)
         if u.path == "/api/bond":
             try:
                 from src.web.serialize import bond_data
                 return self._send_json(cached_generic("bond", bond_data))
-            except Exception as e:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 traceback.print_exc()
-                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
+                return self._send_json({"error": _ERR_MSG}, 500)
         if u.path == "/api/bond_history":
             q = parse_qs(u.query)
             market = (q.get("market", ["KR"])[0] or "KR").upper()
@@ -165,9 +189,9 @@ class Handler(SimpleHTTPRequestHandler):
                 from src.web.serialize import bond_history
                 return self._send_json(
                     cached_generic(f"bh:{market}:{tenor}", lambda: bond_history(market, tenor)))
-            except Exception as e:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 traceback.print_exc()
-                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
+                return self._send_json({"error": _ERR_MSG}, 500)
         if u.path in ("/", "/index.html"):
             self.path = "/home.html"   # 진입점 = 홈(랜딩). 주식 페이지는 nav·예시카드로 이동.
         return super().do_GET()
@@ -188,9 +212,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._send_json(profile_to_dict(grade(answers)))
             except (ValueError, TypeError) as e:
                 return self._send_json({"error": str(e)}, 400)
-            except Exception as e:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 traceback.print_exc()
-                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
+                return self._send_json({"error": _ERR_MSG}, 500)
         if u.path == "/api/portfolio":
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -204,9 +228,9 @@ class Handler(SimpleHTTPRequestHandler):
                 data = cached_generic("pf:" + str(abs(hash(body))), lambda: portfolio_analyze(req))
                 print(f"[pf] {len(req.get('assets', []))} assets ({time.time() - t0:.1f}s)")
                 return self._send_json(data)
-            except Exception as e:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 traceback.print_exc()
-                return self._send_json({"error": f"{type(e).__name__}: {e}"}, 500)
+                return self._send_json({"error": _ERR_MSG}, 500)
         return self._send_json({"error": "not found"}, 404)
 
     def log_message(self, fmt, *args):  # 정적 요청 로그는 조용히
@@ -217,11 +241,13 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     port = int(os.environ.get("PORT", "5178"))
-    # 모든 인터페이스에 바인딩(HOST 환경변수로 재정의 가능) — 프리뷰·컨테이너가
-    # localhost가 아닌 주소로 접속해도 열리도록. 로컬 브라우저는 그대로 localhost로 접속.
-    host = os.environ.get("HOST", "0.0.0.0")
+    # 기본은 로컬 전용(127.0.0.1) — 로컬 분석 도구가 같은 네트워크에 노출되지 않게.
+    # 프리뷰·컨테이너·배포처럼 외부 접속이 필요하면 HOST=0.0.0.0 으로 명시해 연다.
+    host = os.environ.get("HOST", "127.0.0.1")
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"투자지표 웹서버 실행 → http://localhost:{port}/  (바인딩 {host}:{port})")
+    if host == "127.0.0.1":
+        print("  외부(다른 기기)에서 접속하려면: HOST=0.0.0.0 로 실행")
     print(f"  API 예: http://localhost:{port}/api/analyze?market=KR&query=035420")
     print("  (첫 조회는 피어 수집으로 수십 초 걸릴 수 있습니다. Ctrl+C 로 종료)")
     try:

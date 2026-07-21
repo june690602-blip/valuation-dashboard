@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="한국·미국 주식의 적정가치, 채권 금리 민감도, 포트폴리오 위험을 한 흐름에서 분석하는 투자 학습 도구입니다.">
+<meta name="description" content="한국·미국 주식의 적정가치, 금리 민감도, 포트폴리오 위험을 한 흐름에서 분석하는 투자 학습 도구입니다.">
 <title>투자지표 — 가격을 넘어, 가치의 범위를 보다</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,12 +11,12 @@
 <link rel="stylesheet" href="assets/meridian.css">
 <style>
   :root { --page-pad: clamp(18px, 3vw, 34px); }
-
-  .page { min-height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); }
+  .page { min-height: 100vh; display: flex; flex-direction: column; background: var(--paper); }
   .container { width: min(100%, var(--content-max)); margin: 0 auto; padding-inline: var(--page-pad); }
   .skip-link { position: fixed; top: 10px; left: 10px; z-index: 100; transform: translateY(-150%); padding: 9px 14px; border-radius: var(--radius-sm); background: var(--ink); color: var(--paper); }
   .skip-link:focus { transform: none; color: var(--paper); }
 
+  /* ── 헤더 ── */
   .site-header { position: sticky; top: 0; z-index: 30; border-bottom: 1px solid color-mix(in srgb, var(--line) 84%, transparent); background: color-mix(in srgb, var(--paper) 91%, transparent); backdrop-filter: blur(14px); }
   .header-inner { min-height: 64px; display: flex; align-items: center; gap: 28px; }
   .brand { display: inline-flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
@@ -32,99 +32,73 @@
   .header-guide { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12.5px; font-weight: 600; text-decoration: none; }
   .header-guide:hover { color: var(--ink); text-decoration: none; }
 
-  .hero { display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(400px, 0.96fr); gap: clamp(44px, 7vw, 88px); align-items: center; min-height: 660px; padding-block: clamp(64px, 8vw, 106px) clamp(54px, 7vw, 82px); }
-  .hero-copy { min-width: 0; }
-  .hero-kicker { display: inline-flex; align-items: center; gap: 9px; color: var(--dv-navy); }
-  .hero-kicker::before { content: ""; width: 24px; height: 1px; background: currentColor; }
-  .hero h1 { max-width: 10.5ch; margin: 18px 0 0; font-family: var(--font-display); font-size: clamp(42px, 5.4vw, 68px); font-weight: 700; letter-spacing: -0.045em; line-height: 1.08; }
-  .hero-lede { max-width: 610px; margin: 24px 0 0; color: var(--ink-2); font-size: clamp(15px, 1.35vw, 17px); line-height: 1.8; word-break: keep-all; }
+  /* ── 히어로 (중앙 목적 선언 + 검색) ── */
+  .hero { text-align: center; padding-block: clamp(56px, 7vw, 96px) clamp(28px, 4vw, 42px); }
+  .hero-kicker { display: inline-flex; align-items: center; gap: 9px; color: var(--spine-ink); }
+  .hero-kicker::before, .hero-kicker::after { content: ""; width: 22px; height: 1px; background: currentColor; }
+  .hero h1 { max-width: 19ch; margin: 18px auto 0; font-family: var(--font-display); font-size: clamp(40px, 5.4vw, 64px); font-weight: 700; letter-spacing: -0.045em; line-height: 1.1; }
+  .hero-lede { max-width: 640px; margin: 22px auto 0; color: var(--ink-2); font-size: clamp(15px, 1.35vw, 16.5px); line-height: 1.8; word-break: keep-all; }
   .hero-lede strong { color: var(--ink); font-weight: 700; }
 
-  .search-panel { margin-top: 32px; padding: 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--paper); box-shadow: 0 12px 34px rgba(20,19,15,0.07); }
+  .search-panel { max-width: 660px; margin: 30px auto 0; padding: 9px; border: 1px solid var(--line-strong); border-radius: var(--radius-lg); background: var(--paper); box-shadow: 0 14px 38px rgba(20,19,15,0.08); }
   .search-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
   .market-switch { min-width: 0; margin: 0; padding: 0; border: 0; }
   .market-options { display: inline-flex; padding: 3px; border-radius: var(--radius-pill); background: var(--paper-2); }
   .market-options input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
   .market-options label { min-width: 46px; padding: 7px 11px; border-radius: var(--radius-pill); color: var(--ink-3); font-size: 12px; font-weight: 700; text-align: center; cursor: pointer; }
   .market-options input:checked + label { background: var(--ink); color: var(--paper); box-shadow: var(--shadow-sm); }
-  .market-options input:focus-visible + label { outline: 2px solid var(--dv-navy); outline-offset: 2px; }
+  .market-options input:focus-visible + label { outline: 2px solid var(--ink); outline-offset: 2px; }
   .search-input-wrap { position: relative; min-width: 0; }
   .search-input-wrap svg { position: absolute; top: 50%; left: 10px; color: var(--ink-3); transform: translateY(-50%); pointer-events: none; }
   .hero-search-input { width: 100%; min-height: 42px; padding: 8px 8px 8px 38px; border: 0; outline: 0; background: transparent; color: var(--ink); font: 500 14px/1.4 var(--font-sans); }
-  .hero-search-input:focus-visible { border-radius: var(--radius-sm); box-shadow: inset 0 0 0 2px var(--dv-navy); }
+  .hero-search-input:focus-visible { border-radius: var(--radius-sm); box-shadow: inset 0 0 0 2px var(--ink); }
   .hero-search-input::placeholder { color: var(--ink-4); }
   .hero-search-input[aria-invalid="true"]::placeholder { color: var(--danger); }
   .search-button { height: 42px; gap: 8px; padding-inline: 18px; }
   .search-button:hover { color: var(--paper); text-decoration: none; }
-  .search-meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 10px 5px 2px; }
-  .quick-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .quick-examples { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px; margin-top: 15px; }
   .quick-label { color: var(--ink-3); font-size: 11.5px; }
   .example-link { color: var(--ink-2); font-family: var(--font-mono); font-size: 11.5px; text-underline-offset: 3px; }
-  .search-hint { flex: none; color: var(--ink-3); font-size: 11px; }
 
-  .valuation-card { position: relative; padding: 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: linear-gradient(145deg, var(--paper) 0%, var(--paper-2) 100%); box-shadow: var(--shadow-lg); }
-  .valuation-card::before { content: ""; position: absolute; z-index: -1; top: -22px; right: -22px; width: 136px; height: 136px; border: 1px solid var(--line); border-radius: 50%; opacity: 0.7; }
-  .visual-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
-  .visual-eyebrow { color: var(--ink-3); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; }
-  .visual-title { margin-top: 6px; font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
-  .quote { text-align: right; }
-  .quote-label { display: block; color: var(--ink-3); font-size: 10.5px; }
-  .quote-value { display: block; margin-top: 3px; font-family: var(--font-mono); font-size: 18px; font-weight: 700; }
-  .valuation-map { position: relative; margin-top: 24px; }
-  .source-list { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .source-list::after { content: ""; position: absolute; z-index: 0; right: 15%; bottom: -23px; left: 15%; height: 24px; border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); border-left: 1px solid var(--line-strong); }
-  .valuation-source { position: relative; z-index: 1; min-width: 0; padding: 14px 11px; border: 1px solid var(--line); border-radius: var(--radius-md); background: color-mix(in srgb, var(--paper) 88%, transparent); }
-  .source-icon { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: var(--paper-3); color: var(--ink-2); }
-  .source-name { display: block; margin-top: 12px; color: var(--ink-2); font-size: 11.5px; line-height: 1.35; }
-  .source-value { display: block; margin-top: 4px; font-family: var(--font-mono); font-size: 14px; font-weight: 700; }
-  .convergence { position: relative; width: 64%; margin: 46px auto 0; padding: 18px; border: 1px solid var(--ink); border-radius: var(--radius-md); background: var(--ink); color: var(--paper); text-align: center; }
-  .convergence::before { content: ""; position: absolute; top: -24px; left: 50%; width: 1px; height: 24px; background: var(--line-strong); }
-  .result-label { color: rgba(255,255,255,0.65); font-size: 10.5px; letter-spacing: 0.08em; }
-  .result-value { display: block; margin-top: 3px; font-family: var(--font-display); font-size: 27px; font-weight: 700; letter-spacing: -0.025em; }
-  .result-delta { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: #A7D2BC; font-family: var(--font-mono); font-size: 11px; }
-  .visual-caption { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; color: var(--ink-3); font-size: 10.5px; }
-  .method-legend { display: inline-flex; align-items: center; gap: 6px; }
-  .legend-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dv-green); }
+  /* ── 진입 밴드 (주식 지배 · 금리·포트폴리오 보조) ── */
+  .entry-section { padding-block: clamp(20px, 3vw, 34px) clamp(64px, 8vw, 104px); }
+  .entry-band { display: grid; grid-template-columns: 1.32fr 1fr; grid-template-rows: auto auto; gap: 16px; }
+  .ent { position: relative; overflow: hidden; display: flex; flex-direction: column; padding: 26px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--paper); text-decoration: none; transition: transform var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out), border-color var(--dur-med) var(--ease-out); }
+  .ent:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--line-strong); text-decoration: none; }
+  .ent .no { position: absolute; top: 24px; right: 24px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-4); }
+  .ent .ico { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: var(--paper-2); color: var(--ink-2); }
+  .ent h3 { margin: 22px 0 0; font-family: var(--font-display); font-size: 22px; letter-spacing: -0.025em; }
+  .ent p { margin: 10px 0 0; color: var(--ink-2); font-size: 13px; line-height: 1.7; word-break: keep-all; }
+  .ent .link { margin-top: auto; padding-top: 18px; display: inline-flex; align-items: center; gap: 7px; color: var(--ink); font-size: 12.5px; font-weight: 700; }
+  .ent .link svg { color: var(--spine-ink); }
 
-  .proof-wrap { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  .proof-row { display: grid; grid-template-columns: repeat(4, 1fr); }
-  .proof-item { min-width: 0; margin: 0; padding: 23px 26px; border-left: 1px solid var(--line); }
-  .proof-item:first-child { padding-left: 0; border-left: 0; }
-  .proof-item dt { color: var(--ink-3); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; }
-  .proof-item dd { margin: 6px 0 0; font-size: 13px; font-weight: 700; line-height: 1.45; }
+  /* 주식 = 지배적 패널 : 밝은 종이 + 웜톤(골드→브라운) 액센트 · 잉크 CTA */
+  .ent.lead { grid-row: 1 / span 2; justify-content: space-between; background: linear-gradient(157deg, var(--paper) 0%, var(--paper-2) 100%); border: 1.5px solid var(--line-strong); box-shadow: var(--shadow-lg); }
+  .ent.lead::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--dv-gold), color-mix(in srgb, var(--dv-gold) 45%, var(--spine-ink))); }
+  .ent.lead .ico { width: 52px; height: 52px; background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .ent.lead h3 { margin-top: 24px; font-size: 31px; }
+  .ent.lead p { color: var(--ink-2); font-size: 14px; max-width: 34ch; }
+  .ent.lead .no { top: 22px; }
+  .ent.lead .no { color: var(--spine-ink); font-weight: 700; }
+  .lead-badge { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 2px; padding: 4px 11px; border-radius: var(--radius-pill); background: var(--paper-3); border: 1px solid var(--line-strong); font-size: 10.5px; letter-spacing: 0.04em; font-weight: 700; color: var(--spine-ink); }
+  .lead-badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--dv-gold); }
+  .lead-cta { margin-top: 22px; align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: var(--radius-md); background: var(--cta); color: var(--cta-ink); font-size: 13.5px; font-weight: 700; box-shadow: var(--shadow-sm); transition: background var(--dur-med) var(--ease-out); }
+  .ent.lead:hover .lead-cta { background: var(--cta-hover); }
 
-  .tools { padding-block: clamp(70px, 9vw, 112px); }
-  .section-head { display: flex; align-items: end; justify-content: space-between; gap: 32px; }
-  .section-title { margin: 12px 0 0; font-family: var(--font-display); font-size: clamp(29px, 3.2vw, 40px); letter-spacing: -0.035em; line-height: 1.2; }
-  .section-copy { max-width: 440px; margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.75; word-break: keep-all; }
-  .tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 34px; }
-  .tool-card { position: relative; min-height: 338px; display: flex; flex-direction: column; overflow: hidden; padding: 25px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--paper); text-decoration: none; transition: border-color var(--dur-med) var(--ease-out), box-shadow var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out); }
-  .tool-card:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); text-decoration: none; transform: translateY(-3px); }
-  .tool-card::after { content: ""; position: absolute; right: -40px; bottom: -45px; width: 140px; height: 140px; border: 1px solid var(--line); border-radius: 50%; opacity: 0; transition: opacity var(--dur-med) var(--ease-out); }
-  .tool-card:hover::after { opacity: 0.8; }
-  .card-top { display: flex; align-items: center; justify-content: space-between; }
-  .tool-icon { width: 43px; height: 43px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--paper-2); color: var(--ink-2); }
-  .card-no { color: var(--ink-4); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; }
-  .tool-card h3 { margin: 29px 0 0; font-family: var(--font-display); font-size: 22px; letter-spacing: -0.025em; }
-  .tool-card p { margin: 12px 0 22px; color: var(--ink-2); font-size: 13px; line-height: 1.75; word-break: keep-all; }
-  .tool-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 18px; border-top: 1px solid var(--line); }
-  .tool-meta span { color: var(--ink-3); font-size: 10.5px; }
-  .tool-meta span + span::before { content: "·"; margin-right: 6px; }
-  .tool-link { display: inline-flex; align-items: center; gap: 7px; margin-top: 17px; color: var(--dv-navy); font-size: 12.5px; font-weight: 700; }
+  /* 보조 카드(금리·포트폴리오) : 같은 카드·액센트 언어이되 한 단계 낮춰 시선이 덜 가게 */
+  .ent.sub { box-shadow: var(--shadow-sm); }
+  .ent.sub::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--spine); }
 
-  .profile-section { padding-bottom: clamp(76px, 9vw, 114px); }
-  .profile-banner { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: clamp(22px, 4vw, 44px); overflow: hidden; padding: clamp(28px, 4vw, 44px); border-radius: var(--radius-lg); background: var(--green); color: var(--green-ink); }
-  .profile-banner::before, .profile-banner::after { content: ""; position: absolute; border: 1px solid var(--green-line); border-radius: 50%; pointer-events: none; }
-  .profile-banner::before { width: 230px; height: 230px; top: -150px; right: 18%; }
-  .profile-banner::after { width: 130px; height: 130px; right: -40px; bottom: -65px; }
-  .profile-icon { position: relative; z-index: 1; width: 72px; height: 72px; display: grid; place-items: center; border: 1px solid var(--green-line); border-radius: 50%; background: rgba(255,255,255,0.035); color: var(--green-ink); }
-  .profile-content { position: relative; z-index: 1; }
-  .profile-kicker { color: var(--green-muted); }
-  .profile-content h2 { margin: 8px 0 0; font-family: var(--font-display); font-size: clamp(23px, 2.7vw, 31px); letter-spacing: -0.03em; line-height: 1.3; }
-  .profile-content p { max-width: 680px; margin: 10px 0 0; color: var(--green-muted); font-size: 13px; line-height: 1.7; word-break: keep-all; }
-  .profile-action { position: relative; z-index: 1; min-width: 142px; background: var(--paper); color: var(--green); }
-  .profile-action:hover { background: var(--paper-3); color: var(--green); text-decoration: none; }
+  /* 투자성향 : 라이트 스트립 + 그린 액센트(위험 프로파일 정체성 유지, 카드 패밀리와 통일) */
+  .risk-strip { position: relative; overflow: hidden; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px; margin-top: 16px; padding: 18px 22px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--paper); box-shadow: var(--shadow-sm); text-decoration: none; }
+  .risk-strip:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); text-decoration: none; }
+  .risk-strip::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--dv-green); }
+  .risk-ico { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--dv-green) 40%, var(--line)); background: color-mix(in srgb, var(--dv-green) 8%, var(--paper)); color: var(--dv-green); }
+  .risk-copy { color: var(--ink-2); font-size: 13px; line-height: 1.55; }
+  .risk-copy b { color: var(--ink); }
+  .risk-go { flex: none; align-self: center; display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: var(--radius-md); background: var(--dv-green); color: #fff; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
 
+  /* ── 푸터 ── */
   .site-footer { margin-top: auto; border-top: 1px solid var(--line); background: var(--paper-2); }
   .footer-inner { display: grid; grid-template-columns: minmax(240px, 0.65fr) minmax(340px, 1.35fr); gap: 52px; padding-block: 27px 34px; }
   .footer-title { color: var(--ink-2); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
@@ -139,56 +113,27 @@
     .brand { margin-left: var(--page-pad); }
     .header-guide { margin-right: var(--page-pad); }
     .nav-link:first-child { margin-left: calc(var(--page-pad) - 10px); }
-    .hero { grid-template-columns: 1fr; min-height: auto; gap: 54px; }
-    .hero-copy { max-width: 720px; }
-    .hero h1 { max-width: 12ch; }
-    .valuation-card { max-width: 720px; }
-    .proof-item { padding-inline: 18px; }
-    .section-head { align-items: start; flex-direction: column; gap: 16px; }
-    .tool-card { min-height: 360px; }
   }
-
+  @media (max-width: 860px) {
+    .entry-band { grid-template-columns: 1fr; grid-template-rows: none; }
+    .ent.lead { grid-row: auto; }
+    .ent.lead p { max-width: none; }
+  }
   @media (max-width: 740px) {
     .beta, .header-guide span { display: none; }
     .header-guide { width: 38px; height: 38px; justify-content: center; border: 1px solid var(--line); border-radius: 50%; }
-    .hero { padding-top: 52px; }
-    .hero h1 { font-size: clamp(39px, 11vw, 54px); }
+    .hero h1 { font-size: clamp(37px, 10.5vw, 52px); }
     .search-row { grid-template-columns: auto minmax(0, 1fr); }
     .search-button { grid-column: 1 / -1; width: 100%; }
-    .search-meta { align-items: flex-start; flex-direction: column; }
-    .search-hint { display: none; }
-    .valuation-card { padding: 22px 18px; }
-    .valuation-card::before { display: none; }
-    .source-list { grid-template-columns: 1fr; }
-    .source-list::after { right: auto; bottom: -23px; left: 50%; width: 1px; height: 24px; border: 0; border-left: 1px solid var(--line-strong); }
-    .valuation-source { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; padding: 11px 12px; }
-    .source-name, .source-value { margin: 0; }
-    .source-value { text-align: right; }
-    .convergence { width: 78%; }
-    .visual-caption { align-items: flex-start; flex-direction: column; }
-    .proof-row { grid-template-columns: 1fr 1fr; }
-    .proof-item { padding: 18px 14px; border-top: 1px solid var(--line); }
-    .proof-item:nth-child(2n + 1) { padding-left: 0; border-left: 0; }
-    .proof-item:nth-child(-n + 2) { border-top: 0; }
-    .tool-grid { grid-template-columns: 1fr; }
-    .tool-card { min-height: 0; }
-    .profile-banner { grid-template-columns: auto 1fr; }
-    .profile-action { grid-column: 1 / -1; width: 100%; }
+    .risk-strip { grid-template-columns: auto 1fr; }
+    .risk-go { grid-column: 1 / -1; justify-content: center; }
     .footer-inner { grid-template-columns: 1fr; gap: 20px; }
   }
-
   @media (max-width: 430px) {
-    .brand-mark { width: 27px; height: 27px; }
     .brand-name { font-size: 18px; }
-    .hero { gap: 42px; }
     .market-options label { min-width: 42px; padding-inline: 9px; }
     .hero-search-input { font-size: 13px; }
-    .quote-value { font-size: 16px; }
-    .valuation-source { grid-template-columns: auto minmax(0, 1fr); }
-    .source-value { grid-column: 2; text-align: left; }
-    .convergence { width: 92%; }
-    .profile-banner { grid-template-columns: 1fr; }
-    .profile-icon { width: 58px; height: 58px; }
+    .ent.lead h3 { font-size: 27px; }
   }
 </style>
 </head>
@@ -210,7 +155,9 @@
       <nav class="site-nav" aria-label="주요 메뉴">
         <a class="nav-link" href="home.html" aria-current="page">홈</a>
         <a class="nav-link" href="stock.html">주식 가치평가</a>
-        <a class="nav-link" href="bond.html">금리</a>
+        <a class="nav-link" href="bond.html">채권</a>
+        <a class="nav-link" href="portfolio.html">포트폴리오</a>
+        <a class="nav-link" href="test.html">위험 프로파일</a>
       </nav>
 
       <a class="header-guide" href="guide.html" target="_blank" rel="noopener" title="사용설명서를 새 탭으로 엽니다">
@@ -224,182 +171,78 @@
 
   <main id="main">
     <section class="hero container" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <div class="kick hero-kicker">Fundamental research workspace</div>
-        <h1 id="hero-title">가격보다 먼저,<br>가치의 범위를 봅니다.</h1>
-        <p class="hero-lede">한국과 미국 종목을 검색하면 재무·시장·업종 데이터를 연결해 <strong>네 가지 가치평가 결과를 한 화면에서 비교</strong>합니다. 숫자 하나를 정답처럼 제시하기보다, 판단의 범위와 근거를 함께 보여드립니다.</p>
+      <div class="kick hero-kicker">가격을 넘어, 가치의 범위를 보다</div>
+      <h1 id="hero-title">이 주가는 지금 적정한가?<br>근거와 함께 답합니다.</h1>
+      <p class="hero-lede">한국·미국 종목 하나를 넣으면 재무·시장·업종 데이터를 모아 <strong>적정가 범위를 네 가지 방법으로 추정</strong>하고, 현재가가 그 범위 어디에 있는지 — 그리고 왜 그렇게 판단했는지 — 를 보여드립니다.</p>
 
-        <form class="search-panel" id="heroSearch" role="search" novalidate>
-          <div class="search-row">
-            <fieldset class="market-switch">
-              <legend class="sr-only">시장 선택</legend>
-              <div class="market-options">
-                <input type="radio" name="market" id="marketKR" value="KR" checked>
-                <label for="marketKR">한국</label>
-                <input type="radio" name="market" id="marketUS" value="US">
-                <label for="marketUS">미국</label>
-              </div>
-            </fieldset>
-            <div class="search-input-wrap">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7.5"/><path d="m20 20-3.7-3.7"/>
-              </svg>
-              <label class="sr-only" for="heroSearchInput">종목 코드 또는 이름</label>
-              <input class="hero-search-input" id="heroSearchInput" name="q" type="search" inputmode="search" autocomplete="off" placeholder="종목 코드 또는 이름을 입력하세요" required>
+      <form class="search-panel" id="heroSearch" role="search" novalidate>
+        <div class="search-row">
+          <fieldset class="market-switch">
+            <legend class="sr-only">시장 선택</legend>
+            <div class="market-options">
+              <input type="radio" name="market" id="marketKR" value="KR" checked>
+              <label for="marketKR">한국</label>
+              <input type="radio" name="market" id="marketUS" value="US">
+              <label for="marketUS">미국</label>
             </div>
-            <button class="btn btn-primary search-button" type="submit">
-              분석 시작
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            </button>
+          </fieldset>
+          <div class="search-input-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7.5"/><path d="m20 20-3.7-3.7"/>
+            </svg>
+            <label class="sr-only" for="heroSearchInput">종목 코드 또는 이름</label>
+            <input class="hero-search-input" id="heroSearchInput" name="q" type="search" inputmode="search" autocomplete="off" placeholder="종목 코드 또는 이름을 입력하세요" required>
           </div>
-          <div class="search-meta">
-            <div class="quick-examples" aria-label="예시 종목">
-              <span class="quick-label">바로 보기</span>
-              <a class="example-link" href="stock.html?market=KR&amp;q=005930">삼성전자 005930</a>
-              <a class="example-link" href="stock.html?market=KR&amp;q=035420">NAVER 035420</a>
-              <a class="example-link" href="stock.html?market=US&amp;q=AAPL">Apple AAPL</a>
-            </div>
-            <span class="search-hint">Enter ↵</span>
-          </div>
-        </form>
-      </div>
+          <button class="btn btn-primary search-button" type="submit">
+            분석 시작
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="quick-examples" aria-label="예시 종목">
+          <span class="quick-label">바로 보기</span>
+          <a class="example-link" href="stock.html?market=KR&amp;q=005930">삼성전자 005930</a>
+          <a class="example-link" href="stock.html?market=KR&amp;q=035420">NAVER 035420</a>
+          <a class="example-link" href="stock.html?market=US&amp;q=AAPL">Apple AAPL</a>
+        </div>
+      </form>
+    </section>
 
-      <figure class="valuation-card" aria-labelledby="valuation-title">
-        <div class="visual-head">
+    <section class="entry-section container" aria-labelledby="entry-title">
+      <h2 id="entry-title" class="sr-only">분석 도구 — 주식 가치평가, 금리 시나리오, 포트폴리오 진단</h2>
+      <div class="entry-band">
+        <a class="ent lead" href="stock.html">
           <div>
-            <div class="visual-eyebrow">Valuation convergence</div>
-            <div class="visual-title" id="valuation-title">세 관점이 만나는 가격</div>
+            <span class="lead-badge">가장 먼저</span>
+            <span class="ico" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V9m5 9V6m5 12v-5m5 5V4"/><path d="M2.5 20h19"/></svg></span>
+            <h3>주식 가치평가</h3>
+            <p>업종 상대가치·역사적 밴드·RIM·컨센서스 선행 이익을 삼각측량해 "지금 주가가 적정한가"를 판정하고, 재무·자본비용·백테스트까지 근거를 단계별로 공개합니다.</p>
           </div>
-          <div class="quote">
-            <span class="quote-label">현재가 · 예시</span>
-            <span class="quote-value">₩72,800</span>
-          </div>
-        </div>
-
-        <div class="valuation-map" aria-label="업종 비교, 5년 밴드, RIM 평가가 적정가 78,100원으로 수렴하는 예시">
-          <div class="source-list">
-            <div class="valuation-source">
-              <span class="source-icon" aria-hidden="true">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 18V9m6 9V5m6 13v-7m4 7H2"/></svg>
-              </span>
-              <span class="source-name">업종 비교</span>
-              <strong class="source-value">₩78,200</strong>
-            </div>
-            <div class="valuation-source">
-              <span class="source-icon" aria-hidden="true">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16.5 7.5 12l3 2.5L16 8l5 3"/><path d="M3 20h18"/></svg>
-              </span>
-              <span class="source-name">5년 밴드</span>
-              <strong class="source-value">₩74,600</strong>
-            </div>
-            <div class="valuation-source">
-              <span class="source-icon" aria-hidden="true">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M6 16V8l6-4 6 4v8M9 16v-5h6v5"/></svg>
-              </span>
-              <span class="source-name">RIM</span>
-              <strong class="source-value">₩81,400</strong>
-            </div>
-          </div>
-          <div class="convergence">
-            <span class="result-label">모형 종합 적정가</span>
-            <strong class="result-value">₩78,100</strong>
-            <span class="result-delta">현재가 대비 +7.3%</span>
-          </div>
-        </div>
-
-        <figcaption class="visual-caption">
-          <span>화면 구성 예시 · 실제 결과는 데이터와 가정에 따라 달라집니다.</span>
-          <span class="method-legend"><span class="legend-dot"></span>근거별 결과 공개</span>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section class="proof-wrap" aria-label="서비스 특징">
-      <div class="proof-row container">
-        <dl class="proof-item">
-          <dt>Coverage</dt>
-          <dd>한국 · 미국 주식</dd>
-        </dl>
-        <dl class="proof-item">
-          <dt>Valuation</dt>
-          <dd>3개 모형 교차 검토</dd>
-        </dl>
-        <dl class="proof-item">
-          <dt>Evidence</dt>
-          <dd>공시 · 시장 데이터 연결</dd>
-        </dl>
-        <dl class="proof-item">
-          <dt>Transparency</dt>
-          <dd>계산 근거와 가정 공개</dd>
-        </dl>
-      </div>
-    </section>
-
-    <section class="tools container" aria-labelledby="tools-title">
-      <div class="section-head">
-        <div>
-          <div class="kick">Research toolkit</div>
-          <h2 class="section-title" id="tools-title">분석은 연결될수록<br>더 선명해집니다.</h2>
-        </div>
-        <p class="section-copy">개별 자산의 가치에서 금리 변화의 영향, 전체 자산배분의 균형까지. 서로 다른 분석을 하나의 투자 판단 흐름으로 이어보세요.</p>
-      </div>
-
-      <div class="tool-grid">
-        <a class="tool-card" href="stock.html">
-          <div class="card-top">
-            <span class="tool-icon" aria-hidden="true">
-              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V9m5 9V6m5 12v-5m5 5V4"/><path d="M2.5 20h19"/></svg>
-            </span>
-            <span class="card-no">01</span>
-          </div>
-          <h3>주식 가치평가</h3>
-          <p>업종 멀티플, 과거 밴드, RIM을 교차 비교하고 재무·자본비용·백테스트까지 근거를 단계별로 확인합니다.</p>
-          <div class="tool-meta"><span>적정가 범위</span><span>재무 진단</span><span>AI 해석</span></div>
-          <span class="tool-link">종목 분석하기 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></span>
+          <span class="lead-cta">종목 분석 시작하기 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></span>
+          <span class="no">01</span>
         </a>
 
-        <a class="tool-card" href="bond.html">
-          <div class="card-top">
-            <span class="tool-icon" aria-hidden="true">
-              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18L12 4 3 9Z"/><path d="M5 10v7m4-7v7m6-7v7m4-7v7M3 20h18M2 17h20"/></svg>
-            </span>
-            <span class="card-no">02</span>
-          </div>
+        <a class="ent sub" href="bond.html">
+          <span class="ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M5 6v12M19 6v12M9 6v12M15 6v12M3 18h18"/></svg></span>
           <h3>금리 시나리오</h3>
-          <p>한·미 국채 수익률곡선을 읽고 금리 변화가 채권 가격에 미치는 영향을 듀레이션과 볼록성으로 계산합니다.</p>
-          <div class="tool-meta"><span>수익률곡선</span><span>듀레이션</span><span>금리 충격</span></div>
-          <span class="tool-link">금리 분석하기 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></span>
+          <p>국채 수익률곡선을 읽고, 금리 변화가 채권 가격에 주는 충격을 듀레이션·볼록성으로 계산합니다.</p>
+          <span class="link">금리 분석하기 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></span>
+          <span class="no">02</span>
         </a>
 
-        <a class="tool-card" href="portfolio.html">
-          <div class="card-top">
-            <span class="tool-icon" aria-hidden="true">
-              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l6.5 4.5"/><path d="M12 12 6.2 17.5"/></svg>
-            </span>
-            <span class="card-no">03</span>
-          </div>
+        <a class="ent sub" href="portfolio.html">
+          <span class="ico" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 4v8l6.5 4.5"/></svg></span>
           <h3>포트폴리오 진단</h3>
-          <p>주식·채권·대체자산을 함께 놓고 위험과 기대수익, 분산효과와 성과지표를 같은 기준에서 점검합니다.</p>
-          <div class="tool-meta"><span>위험·수익</span><span>자산배분</span><span>성과지표</span></div>
-          <span class="tool-link">구성 점검하기 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></span>
+          <p>주식·채권을 함께 놓고 위험·기대수익 평면과 분산효과, 성과지표를 같은 기준에서 점검합니다.</p>
+          <span class="link">구성 점검하기 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></span>
+          <span class="no">03</span>
         </a>
       </div>
-    </section>
 
-    <section class="profile-section container" aria-labelledby="profile-title">
-      <div class="profile-banner">
-        <div class="profile-icon" aria-hidden="true">
-          <svg width="34" height="34" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m24 6 14 10-5.5 17H15.5L10 16 24 6Z"/><path d="m24 13 7.5 5.5-3 9h-9l-3-9L24 13Z"/><path d="M24 6v7m14 3-6.5 2.5M32.5 33l-4-5.5m-13 5.5 4-5.5M10 16l6.5 2.5"/>
-          </svg>
-        </div>
-        <div class="profile-content">
-          <div class="kick profile-kicker">Risk profile</div>
-          <h2 id="profile-title">수익 기대보다 먼저, 감당할 수 있는 위험을 확인하세요.</h2>
-          <p>8개 질문으로 손실 감당 여력·경험과 이해도·변동성 수용도·목표의 적극성을 나누어 살펴보고, 내 기준에 맞는 운용 원칙과 자산배분 참고 범위를 확인합니다.</p>
-        </div>
-        <a class="btn profile-action" href="test.html">2분 진단 시작 <span aria-hidden="true">→</span></a>
-      </div>
+      <a class="risk-strip" href="test.html">
+        <span class="risk-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 5-3 10H7L4 8l8-5Z"/></svg></span>
+        <span class="risk-copy"><b>투자성향 테스트</b> — 수익 기대보다 먼저, 감당할 수 있는 위험을 8문항으로 확인하세요. (교육용 자가진단)</span>
+        <span class="risk-go">2분 진단 시작 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></span>
+      </a>
     </section>
   </main>
 

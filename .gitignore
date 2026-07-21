@@ -12,6 +12,18 @@ __pycache__/
 # 디자인 핸드오프 원본(대용량 바이너리) — 저장소에 넣지 않음
 *.zip
 
+# 로컬 가상환경
+.venv/
+
+# 세션 프리뷰 임시 산출물(디자인 검증용) — 스테이징하지 않음
+/*.png
+.edge-*/
+web/preview-*.html
+server.*.log
+
+# 개인 기획 문서 등 루트 PDF — 공개 저장소에 올리지 않음 (docs/ 스크린샷·문서는 별도)
+/*.pdf
+
 # OS
 Thumbs.db
 .DS_Store

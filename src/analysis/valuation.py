@@ -65,6 +65,7 @@ class ValuationResult:
     fair_mid_equal: float | None = None  # 동일가중 종합(민감도 비교용)
     gap_equal: float | None = None       # 동일가중 괴리율
     verdict_equal: str | None = None     # 동일가중 판정
+    dispersion: float | None = None      # 방법 간 중심값 변동계수(σ/|μ|) — 신뢰도 산출 근거
     per_band: pd.DataFrame | None = None   # 밴드 차트용 (price + 분위선)
     pbr_band: pd.DataFrame | None = None
     per_percentile: float | None = None    # 현재 PER의 5년 내 백분위
@@ -349,6 +350,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
                 "참고로만 보세요.")
         if len(mids) >= 2 and res.fair_mid:
             disp = float(np.std(mids) / abs(np.mean(mids)))
+            res.dispersion = disp
             res.confidence = "높음" if disp < 0.15 else "중간" if disp < 0.35 else "낮음"
             if res.confidence == "낮음":
                 res.notes.append(f"평가 방법 간 편차가 큽니다(±{disp:.0%}). "
