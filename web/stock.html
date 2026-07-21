@@ -80,8 +80,9 @@
   /* 데스크톱: 헤더·사이드바 고정, 본문만 스크롤 — 스크롤해도 시장·종목 입력이 따라 내려가지 않는다 */
   @media (min-width: 901px) {
     .app-layout { flex: none !important; height: calc(100vh - 58px); min-height: 0; }
-    .app-main { min-height: 0; }
-    .app-content { overflow-y: auto; }
+    /* 본문만 스크롤 — 스크롤바는 폭이 넓은 main의 오른쪽 끝(창 가장자리)에 두어
+       콘텐츠(최대폭 제한) 옆에 스크롤바가 떠 보이지 않게 한다 */
+    .app-main { min-height: 0; overflow-y: auto; }
   }
   /* 테이블 공통(데이터 렌더) */
   .tbl { border-top: 1px solid var(--line-strong); }
