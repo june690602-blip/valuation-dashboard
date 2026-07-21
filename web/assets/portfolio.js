@@ -297,7 +297,8 @@
     var head = '<div class="row head" style="grid-template-columns:' + cols + '"><span class="col-label">자산</span><span class="col-label r">비중</span><span class="col-label r">기대수익(연)</span><span class="col-label r">변동성 σ(연)</span></div>';
     var body = d.assets.map(function (a, i) { var last = i === d.assets.length - 1; return '<div class="row" style="grid-template-columns:' + cols + ';font-family:var(--font-mono);font-size:12.5px' + (last ? ';border-bottom:none' : '') + '"><span style="font-family:var(--font-sans)">' + esc(a.name) + '</span><span class="r">' + (a.weight * 100).toFixed(0) + '%</span><span class="r" style="color:' + (a.mu >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + pctS(a.mu) + '</span><span class="r">' + pct(a.sigma) + '</span></div>'; }).join('');
     $('statsTable').innerHTML = head + body;
-    $('statsCaption').innerHTML = '표본 ' + d.n_months + '개월 · 달러 자산은 환율 변화 포함(환노출) · 기대수익은 과거 실측 연율화라 <b>추정 오차가 큽니다</b>.';
+    $('statsCaption').innerHTML = '표본 ' + d.n_months + '개월 · 달러 자산은 환율 변화 포함(환노출) · 기대수익은 과거 실측 연율화라 <b>추정 오차가 큽니다</b> — '
+      + '기대수익 추정은 위험(σ)·상관 추정보다 통계적으로 훨씬 부정확하므로, 이 페이지는 <b>σ·상관 중심으로</b> 읽고 기대수익 숫자는 참고값으로만 보세요.';
     // 히트맵
     $('heatmap').innerHTML = heatmap(d.labels, d.corr);
     // 두 자산 결합 곡선
