@@ -77,12 +77,12 @@
   .chev.open { transform: rotate(180deg); }
   .aside-wrap { flex: none; overflow: hidden; border-right: 1px solid var(--line); transition: width .28s var(--ease-out); width: 279px; }
   .aside-wrap.collapsed { width: 0; }
-  /* 데스크톱: 헤더·사이드바 고정, 본문만 스크롤 — 스크롤해도 시장·종목 입력이 따라 내려가지 않는다 */
+  /* 데스크톱: 사이드바(시장·종목)를 position:sticky로 고정 — 페이지는 평소처럼 스크롤한다.
+     내부 스크롤 컨테이너를 두지 않으므로 콘텐츠 옆에 의미 없는 스크롤바가 생기지 않는다. */
   @media (min-width: 901px) {
-    .app-layout { flex: none !important; height: calc(100vh - 58px); min-height: 0; }
-    /* 본문만 스크롤 — 스크롤바는 폭이 넓은 main의 오른쪽 끝(창 가장자리)에 두어
-       콘텐츠(최대폭 제한) 옆에 스크롤바가 떠 보이지 않게 한다 */
-    .app-main { min-height: 0; overflow-y: auto; }
+    .aside-wrap { position: sticky; top: 58px; align-self: flex-start; height: calc(100vh - 58px); }
+    /* 인라인 position:absolute·top:16px를 이겨야 하므로 !important — 스크롤해도 접기 버튼이 따라온다 */
+    #sidebarToggle { position: fixed !important; top: 74px !important; }
   }
   /* 테이블 공통(데이터 렌더) */
   .tbl { border-top: 1px solid var(--line-strong); }
