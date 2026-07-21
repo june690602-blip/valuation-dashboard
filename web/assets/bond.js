@@ -46,6 +46,8 @@
   // mkts: 다중 선택 — 한국만/미국만/둘 다 (둘 다면 곡선·추이를 한 차트에 겹쳐 그림)
   var state = { mkts: { KR: true, US: true }, histTenor: 10, scMkt: 'KR', scTenor: 10, scFreq: 2 };
   var BOND = null;
+  // 차트 hover 툴팁용 렌더 컨텍스트(마지막으로 그린 차트의 데이터·스케일)
+  var HIST_CTX = null, CURVE_CTX = null;
 
   function activeMkts() { return ['KR', 'US'].filter(function (m) { return state.mkts[m]; }); }
   function histTenorList() {
@@ -73,13 +75,16 @@
     var els = [];
     for (var g = 0; g <= 3; g++) { var yy = top + g / 3 * plotH, val = ymax - (ymax - ymin) * g / 3; els.push(el('line', { x1: padL, x2: padL + xw, y1: yy, y2: yy, stroke: 'var(--line)', strokeWidth: 1 })); els.push(el('text', { x: padL - 8, y: yy + 4, fontSize: 11.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, val.toFixed(2) + '%')); }
     tvals.forEach(function (t) { els.push(el('text', { x: X(t), y: top + plotH + 18, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, t + 'Y')); });
+    var ctxSeries = [];
     series.forEach(function (s) {
       var col = colorOf(s.name);
       var pairs = s.c.tenors.map(function (t, i) { return [t, s.c.yields[i]]; }).filter(function (p) { return p[1] != null; }).sort(function (a, b) { return a[0] - b[0]; });
+      ctxSeries.push({ name: s.name, col: col, pairs: pairs });
       var p = ''; pairs.forEach(function (pr, i) { p += (i ? 'L' : 'M') + X(pr[0]).toFixed(1) + ' ' + Y(pr[1]).toFixed(1) + ' '; });
       els.push(el('path', { d: p, fill: 'none', stroke: col, strokeWidth: 2.2 }));
       pairs.forEach(function (pr) { els.push(el('circle', { cx: X(pr[0]), cy: Y(pr[1]), r: 3.6, fill: col })); });
     });
+    CURVE_CTX = { series: ctxSeries, maxT: maxT, padL: padL, xw: xw, top: top, plotH: plotH, W: W, ymin: ymin, ymax: ymax };
     // 범례
     var lg = el('div', { style: { display: 'flex', gap: '18px', marginTop: '8px' } }, series.map(function (s) { return el('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '12.5px', color: 'var(--ink-2)' } }, el('span', { style: { width: '14px', height: '2px', background: colorOf(s.name), display: 'inline-block' } }), s.name); }).join(''));
     els.push(el('text', { x: padL + xw, y: top + plotH + 34, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '만기 →'));
@@ -92,7 +97,7 @@
     var pts = series.map(function (s) {
       var t = [], y = [];
       (s.h.dates || []).forEach(function (d, i) { var ts = Date.parse(d), v = s.h.yields[i]; if (!isNaN(ts) && v != null) { t.push(ts); y.push(v); } });
-      return { mkt: s.mkt, label: s.h.label, t: t, y: y };
+      return { mkt: s.mkt, label: s.h.label, t: t, y: y, col: COLOR[s.mkt] || 'var(--dv-navy)' };
     }).filter(function (p) { return p.t.length > 1; });
     if (!pts.length) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px', padding: '20px 0' } }, '이 만기의 시계열을 가져오지 못했습니다.');
     var tmin = Infinity, tmax = -Infinity, ymin = Infinity, ymax = -Infinity;
@@ -123,6 +128,7 @@
         el('span', { style: { width: '14px', height: '2px', background: COLOR[pnt.mkt] || 'var(--dv-navy)', display: 'inline-block' } }),
         esc(pnt.label) + ' · 현재 ' + last.toFixed(2) + '%');
     }).join(''));
+    HIST_CTX = { pts: pts, tmin: tmin, tmax: tmax, ymin: ymin, ymax: ymax, W: W, padL: padL, xw: xw, top: top, plotH: plotH };
     return el('div', {}, el('svg', { viewBox: '0 0 ' + W + ' ' + (top + plotH + 24), style: { width: '100%', height: 'auto', display: 'block' } }, els), lg);
   }
 
@@ -148,6 +154,64 @@
     return el('div', {}, el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els), lg);
   }
 
+  /* ── 차트 hover 툴팁 (삽입된 SVG에 십자선+말풍선을 얹는다) ── */
+  function attachChartHover(boxId, W, resolve) {
+    var box = $(boxId); if (!box) return; var svg = box.querySelector('svg'); if (!svg) return;
+    box.style.position = 'relative';
+    var NS = 'http://www.w3.org/2000/svg';
+    var g = document.createElementNS(NS, 'g'); g.setAttribute('pointer-events', 'none'); g.style.display = 'none'; svg.appendChild(g);
+    var tip = document.createElement('div');
+    tip.style.cssText = 'position:absolute;pointer-events:none;display:none;background:var(--paper);border:1px solid var(--line-strong);border-radius:6px;padding:6px 9px;font-size:11.5px;color:var(--ink);box-shadow:0 3px 10px rgba(30,25,18,.12);white-space:nowrap;z-index:6';
+    box.appendChild(tip);
+    svg.addEventListener('mousemove', function (e) {
+      var rect = svg.getBoundingClientRect(); if (!rect.width) return;
+      var vbX = (e.clientX - rect.left) / rect.width * W;
+      var r = resolve(vbX);
+      if (!r) { g.style.display = 'none'; tip.style.display = 'none'; return; }
+      var parts = '<line x1="' + r.cx.toFixed(1) + '" x2="' + r.cx.toFixed(1) + '" y1="' + r.y1 + '" y2="' + r.y2 + '" stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="3 3"/>';
+      r.dots.forEach(function (d) { parts += '<circle cx="' + d.x.toFixed(1) + '" cy="' + d.y.toFixed(1) + '" r="3.8" fill="' + d.col + '" stroke="var(--paper)" stroke-width="1.5"/>'; });
+      g.innerHTML = parts; g.style.display = '';
+      tip.innerHTML = '<div style="color:var(--ink-3);margin-bottom:3px">' + esc(r.title) + '</div>' + r.rows.map(function (row) {
+        return '<div style="display:flex;gap:7px;align-items:center;margin-top:2px"><span style="width:8px;height:8px;border-radius:50%;background:' + row.col + ';display:inline-block"></span>' + esc(row.label) + ' <b class="mono">' + row.v + '</b></div>';
+      }).join('');
+      var bx = box.getBoundingClientRect(); tip.style.display = 'block';
+      var left = e.clientX - bx.left + 14; if (left + tip.offsetWidth > bx.width) left = e.clientX - bx.left - tip.offsetWidth - 14; if (left < 0) left = 2;
+      var topPx = e.clientY - bx.top + 12; if (topPx + tip.offsetHeight > bx.height) topPx = e.clientY - bx.top - tip.offsetHeight - 12; if (topPx < 0) topPx = 2;
+      tip.style.left = left + 'px'; tip.style.top = topPx + 'px';
+    });
+    svg.addEventListener('mouseleave', function () { g.style.display = 'none'; tip.style.display = 'none'; });
+  }
+  function wireHistHover() {
+    var c = HIST_CTX; if (!c) return;
+    var Xf = function (t) { return c.padL + (c.tmax <= c.tmin ? 0 : (t - c.tmin) / (c.tmax - c.tmin) * c.xw); };
+    var Yf = function (v) { return c.top + (1 - (v - c.ymin) / (c.ymax - c.ymin)) * c.plotH; };
+    function near(arr, t) { var lo = 0, hi = arr.length - 1; while (lo < hi) { var m = (lo + hi) >> 1; if (arr[m] < t) lo = m + 1; else hi = m; } if (lo > 0 && Math.abs(arr[lo - 1] - t) < Math.abs(arr[lo] - t)) lo--; return lo; }
+    attachChartHover('histChart', c.W, function (vbX) {
+      var frac = (vbX - c.padL) / c.xw; if (frac < 0) frac = 0; if (frac > 1) frac = 1;
+      var tt = c.tmin + frac * (c.tmax - c.tmin), anchor = null, dots = [], rows = [];
+      c.pts.forEach(function (p) { if (!p.t.length) return; var i = near(p.t, tt), pt = p.t[i], pv = p.y[i]; dots.push({ x: Xf(pt), y: Yf(pv), col: p.col }); rows.push({ label: p.label.replace(/ ·.*/, ''), v: pv.toFixed(2) + '%', col: p.col }); if (anchor == null || Math.abs(pt - tt) < Math.abs(anchor - tt)) anchor = pt; });
+      if (anchor == null) return null;
+      var d = new Date(anchor);
+      return { cx: Xf(anchor), y1: c.top, y2: c.top + c.plotH, dots: dots, title: d.getFullYear() + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + ('0' + d.getDate()).slice(-2), rows: rows };
+    });
+  }
+  function wireCurveHover() {
+    var c = CURVE_CTX; if (!c) return;
+    var Xf = function (t) { return c.padL + Math.sqrt(t / c.maxT) * c.xw; };
+    var Yf = function (v) { return c.top + (1 - (v - c.ymin) / (c.ymax - c.ymin)) * c.plotH; };
+    attachChartHover('curveChart', c.W, function (vbX) {
+      var fr = (vbX - c.padL) / c.xw; if (fr < 0) fr = 0; if (fr > 1) fr = 1;
+      var tt = c.maxT * fr * fr, best = null, bd = 1e9;
+      c.series.forEach(function (s) { s.pairs.forEach(function (pr) { var d = Math.abs(pr[0] - tt); if (d < bd) { bd = d; best = pr[0]; } }); });
+      if (best == null) return null;
+      var dots = [], rows = [];
+      c.series.forEach(function (s) { var m = null; s.pairs.forEach(function (pr) { if (Math.abs(pr[0] - best) < 0.01) m = pr[1]; }); if (m != null) { dots.push({ x: Xf(best), y: Yf(m), col: s.col }); rows.push({ label: s.name, v: m.toFixed(2) + '%', col: s.col }); } });
+      if (!rows.length) return null;
+      var lbl = best < 1 ? Math.round(best * 12) + '개월' : best + '년';
+      return { cx: Xf(best), y1: c.top, y2: c.top + c.plotH, dots: dots, title: '만기 ' + lbl, rows: rows };
+    });
+  }
+
   /* ══════════ 렌더 ══════════ */
   function tiles(container, items) { container.innerHTML = items.map(function (t, i) { return '<div class="tile" style="padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="v">' + t[1] + '</div></div>'; }).join(''); }
 
@@ -171,6 +235,7 @@
     }
     tiles($('rateTiles'), tileItems);
     $('curveChart').innerHTML = yieldCurveChart(curves);
+    wireCurveHover();
     var asof = (BOND.kr && BOND.kr.asof) || (BOND.us && BOND.us.asof) || '';
     $('curveNote').innerHTML = (notes.join(' · ') + (asof ? '  |  기준일 ' + asof : '')) || '';
     $('asof').textContent = asof ? '기준일 ' + asof : '';
@@ -192,6 +257,7 @@
       hs.forEach(function (h, i) { if (h && !h.error && h.yields && h.yields.length > 1) series.push({ mkt: ms[i], h: h }); });
       if (!series.length) { $('histChart').innerHTML = '<div style="color:var(--ink-3);font-size:12.5px">불러오기 실패.</div>'; $('histNote').textContent = ''; return; }
       $('histChart').innerHTML = yieldHistoryChartMulti(series);
+      wireHistHover();
       $('histNote').innerHTML = series.map(function (s) {
         var h = s.h;
         return h.change_bp != null

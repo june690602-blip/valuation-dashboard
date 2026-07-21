@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import io
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 import requests
@@ -88,9 +89,12 @@ def _fred_series(series_id: str) -> pd.Series | None:
         return None
 
 
-@file_cache("bond_history", ttl_hours=6)
-def fetch_yield_history(market: str, tenor_years: int, days: int = 500) -> pd.DataFrame:
-    """일별 금리 시계열(오름차순): columns=[yield]. KR=네이버 페이지 루프, US=FRED."""
+@file_cache("bond_history_v2", ttl_hours=6)  # v2: 3년 창(days=780)으로 확장 — 옛 500일 캐시 무시
+def fetch_yield_history(market: str, tenor_years: int, days: int = 780) -> pd.DataFrame:
+    """일별 금리 시계열(오름차순): columns=[yield]. KR=네이버 페이지 병렬, US=FRED.
+
+    days 기본 780 ≈ 3년(거래일). 한·미를 같은 창으로 tail해 대칭 비교가 되게 한다.
+    """
     if market == "US":
         sid = FRED_SERIES.get(tenor_years)
         s = _fred_series(sid) if sid else None
@@ -101,18 +105,19 @@ def fetch_yield_history(market: str, tenor_years: int, days: int = 500) -> pd.Da
     code = dict((y, c) for y, c in KR_TENORS).get(tenor_years)
     if not code:
         return pd.DataFrame(columns=["yield"])
+    # 네이버는 pageSize 요청과 무관하게 **페이지당 10건**만 준다(실측). days건을 채우려면
+    # 약 days/10 페이지가 필요해 순차로는 느리다 → 페이지를 병렬로 받는다. KR 국고채 이력은
+    # 약 85페이지(≈3.3년)까지 존재하며, 그 너머 페이지는 빈 응답이라 무해하다.
+    max_pages = min(days // 10 + 6, 90)
     recs: list[tuple] = []
-    for page in range(1, 30):  # 페이지당 최대 100건 → 여유 있게
-        items = _naver_prices(code, page=page)
-        if not items:
-            break
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        pages = ex.map(lambda pg: _naver_prices(code, page=pg), range(1, max_pages + 1))
+    for items in pages:
         for it in items:
             try:
                 recs.append((str(it["localTradedAt"])[:10], float(it["closePrice"])))
             except (KeyError, ValueError, TypeError):
                 continue
-        if len(recs) >= days:
-            break
     if not recs:
         return pd.DataFrame(columns=["yield"])
     df = pd.DataFrame(recs, columns=["date", "yield"]).drop_duplicates("date")

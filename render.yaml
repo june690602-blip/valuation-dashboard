@@ -1,0 +1,25 @@
+# Render 배포 청사진(Blueprint). Render 대시보드에서 이 리포를 연결하면 자동 인식된다.
+# 문서: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: valuation-dashboard
+    runtime: python
+    # starter = 항상 켜짐($7/월, 채용담당자 첫인상용 권장). free 로 바꾸면 무료지만 15분 방치 시 잠들어
+    # 첫 방문자가 콜드스타트(~50초)를 겪는다.
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    healthCheckPath: /
+    envVars:
+      # 외부에서 접속하려면 반드시 0.0.0.0 바인딩(server.py 기본은 로컬 보안상 127.0.0.1)
+      - key: HOST
+        value: 0.0.0.0
+      # Render가 설치할 파이썬 버전(로컬 3.14와 무관; 3.12는 numpy/pandas 휠이 안정적).
+      # 빌드가 실패하면 대시보드에서 3.11 또는 3.13으로 조정.
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      # 아래 두 키는 비밀값 — 커밋 금지. Render 대시보드 Environment에서 직접 입력한다.
+      - key: OPENDART_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
