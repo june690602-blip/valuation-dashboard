@@ -1,6 +1,7 @@
 """미국 시장 provider — yfinance 단일 소스, 피어는 S&P500 GICS 분류 기반."""
 from __future__ import annotations
 
+import pandas as pd
 import yfinance as yf
 
 from .base import (DataProvider, build_peer_table, extract_financials,
@@ -50,7 +51,8 @@ class USProvider(DataProvider):
         raise ValueError(f"'{query}'에 해당하는 미국 종목을 찾지 못했습니다. "
                          "티커(예: AAPL) 또는 회사명을 입력하세요.")
 
-    def load(self, query: str, peer_count: int = 10) -> CompanyData:
+    def load(self, query: str, peer_count: int = 10,
+             exclude: tuple = (), extra: tuple = ()) -> CompanyData:
         meta = self.resolve(query)
         sym = meta["yahoo_ticker"]
         warnings: list[str] = []
@@ -100,8 +102,33 @@ class USProvider(DataProvider):
             cands, basis = peers_us_by_sector(sym, sector, n=peer_count)
             if basis is None:
                 warnings.append("S&P500 밖 종목이라 업종 피어를 구성하지 못했습니다.")
-        peers = build_peer_table(cands[: peer_count + 8], sym, labels=None)
-        peers = trim_peers(peers, sym, peer_count)
+        # 사용자 피어 편집 — 제외는 다운로드 전에 심볼로 거르고, 추가 심볼은 뒤에 붙인다.
+        cands = cands[: peer_count + 8]
+        added_syms: list[str] = []
+        if exclude:
+            ex = {str(e).strip().upper() for e in exclude if str(e).strip()}
+            cands = [s for s in cands if s == sym or s.upper() not in ex]
+        if extra:
+            for q2 in extra:
+                s2 = str(q2).strip().upper()
+                if s2 and s2 != sym and s2 not in cands:
+                    cands.append(s2)
+                    added_syms.append(s2)
+        added = len(added_syms)
+        if (exclude or added) and basis:
+            basis += f" · 사용자 편집(제외 {len(exclude)}·추가 {added})"
+
+        peers_full = build_peer_table(cands, sym, labels=None)
+        peers = trim_peers(peers_full, sym, peer_count + added)
+        # 사용자가 추가한 피어는 시총 컷에 잘리지 않게 고정(핀). 심볼 오타 등으로
+        # 데이터가 아예 없으면 표에 못 실리므로 경고로 알린다.
+        if added:
+            back = [s for s in added_syms if s in peers_full.index and s not in peers.index]
+            if back:
+                peers = pd.concat([peers, peers_full.loc[back]])
+            for s in added_syms:
+                if s not in peers_full.index:
+                    warnings.append(f"피어 추가 실패: '{s}' — 데이터를 찾지 못했습니다(심볼 확인).")
         peers = fill_self_from_financials(peers, sym, financials, mcap)
         if basis:
             warnings.append(f"피어 기준: {basis}, {len(peers)}개 종목")

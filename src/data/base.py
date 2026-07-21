@@ -274,13 +274,21 @@ def build_peer_table(yahoo_tickers: list[str], self_ticker: str,
 
     각 피어의 info 조회는 독립적인 네트워크 호출이라 **스레드풀로 동시 다운로드**한다
     (순차 30초대 → 병렬 6~8초대). file_cache가 피어마다 다른 키 파일에 쓰므로 안전하다.
+    진행은 progress.report()로 알린다(리포터가 없으면 no-op).
     """
+    from .progress import report
+
     rows = {}
     uniq = list(dict.fromkeys(t for t in yahoo_tickers if t))  # 중복 제거·순서 보존
+    total = len(uniq)
     if uniq:
+        report("피어 수집", 0, total)
         with ThreadPoolExecutor(max_workers=min(PEER_FETCH_WORKERS, len(uniq))) as ex:
             futures = {ex.submit(fetch_info_metrics, t): t for t in uniq}
+            done = 0
             for fut in as_completed(futures):
+                done += 1
+                report("피어 수집", done, total)
                 try:
                     rows[futures[fut]] = fut.result()
                 except Exception:
