@@ -116,6 +116,28 @@ python scripts/check_bond.py && python scripts/check_portfolio.py
 
 같은 검증이 PR·main 푸시마다 GitHub Actions `Quality` 워크플로로 돕니다.
 
+## 배포하기 (Render + Cloudflare)
+
+살아있는 파이썬 백엔드(`/api/*`)가 있어 정적 호스팅(GitHub Pages 등)으로는 안 되고,
+Render·Railway 같은 PaaS가 맞습니다. `server.py`는 `PORT`·`HOST` 환경변수를 읽어 **배포 준비 완료** 상태입니다.
+
+리포에 포함된 준비물:
+- **`render.yaml`** — 빌드·시작 명령과 `HOST=0.0.0.0`을 담은 Render 청사진(연결하면 자동 인식)
+- **`.env.example`** — 필요한 키 템플릿(`OPENDART_API_KEY`·`GEMINI_API_KEY`)
+- **`scripts/prewarm_cache.py`** — 배포 후 쇼케이스 종목·금리 캐시를 미리 데워 첫 방문 속도를 높임
+
+클릭 순서:
+1. [Render](https://render.com) 가입 → **New → Blueprint** → 이 GitHub 리포 연결(`render.yaml` 자동 감지).
+2. **Environment**에 비밀 키 입력: `OPENDART_API_KEY`, `GEMINI_API_KEY` (그리고 `HOST=0.0.0.0` — render.yaml에 이미 있음).
+3. 배포 완료 후 Shell(또는 로컬)에서 `python scripts/prewarm_cache.py` 1회 실행.
+4. 도메인: [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/)에서 도메인 구매 → DNS에서 Render 주소로 **CNAME** → Cloudflare 프록시로 무료 SSL·캐싱.
+
+> 무료로 쓰려면 `render.yaml`의 `plan: starter`를 `free`로 바꾸면 되지만, 15분 방치 시 잠들어
+> 첫 방문자가 콜드스타트(~50초)를 겪습니다. 상시 링크라면 항상 켜짐(starter, 월 $7)을 권장합니다.
+>
+> 데이터 주의: yfinance·네이버 스크래핑은 데이터센터 IP에서 더 자주 막힙니다. 위 프리워밍으로
+> 쇼케이스 종목을 미리 채워두면 첫인상에서 실패를 피할 수 있습니다(OpenDART는 정식 키 API라 안정적).
+
 ## 폴더 구조
 
 ```
