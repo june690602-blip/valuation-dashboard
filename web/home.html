@@ -23,7 +23,6 @@
   .brand:hover { text-decoration: none; }
   .brand-mark { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: var(--paper); }
   .brand-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.025em; }
-  .beta { margin-left: -3px; padding: 2px 5px; border: 1px solid var(--line-strong); border-radius: 2px; color: var(--ink-3); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; }
   .site-nav { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
   .nav-link { position: relative; padding: 8px 10px; color: var(--ink-3); font-size: 13px; font-weight: 500; text-decoration: none; }
   .nav-link:hover { color: var(--ink); text-decoration: none; }
@@ -120,7 +119,7 @@
     .ent.lead p { max-width: none; }
   }
   @media (max-width: 740px) {
-    .beta, .header-guide span { display: none; }
+    .header-guide span { display: none; }
     .header-guide { width: 38px; height: 38px; justify-content: center; border: 1px solid var(--line); border-radius: 50%; }
     .hero h1 { font-size: clamp(37px, 10.5vw, 52px); }
     .search-row { grid-template-columns: auto minmax(0, 1fr); }
@@ -149,7 +148,6 @@
           </svg>
         </span>
         <span class="brand-name">투자지표</span>
-        <span class="beta">BETA</span>
       </a>
 
       <nav class="site-nav" aria-label="주요 메뉴" style="display:flex;gap:2px;align-items:center;white-space:nowrap;overflow-x:auto;scrollbar-width:none">
