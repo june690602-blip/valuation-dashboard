@@ -605,6 +605,57 @@
     return el('svg', { viewBox: '0 0 ' + W + ' ' + (H + 8), style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
 
+  /* ── 종목 자동완성(타입어헤드) — 증권사 검색창처럼 타이핑에 맞는 종목을 밑에 띄운다 ── */
+  function attachAutocomplete(input, onPick) {
+    if (!input) return;
+    var box = document.createElement('div');
+    box.className = 'ac-drop';
+    box.style.display = 'none';
+    input.parentNode.appendChild(box);   // 부모 form이 position:relative
+    var items = [], sel = -1, seq = 0, timer = null, lastQ = null;
+
+    function close() { box.style.display = 'none'; items = []; sel = -1; }
+    function render() {
+      if (!items.length) { close(); return; }
+      box.innerHTML = items.map(function (it, i) {
+        return '<div class="ac-item' + (i === sel ? ' on' : '') + '" data-i="' + i + '">' +
+          '<span class="ac-name">' + esc(it.name) + '</span>' +
+          '<span class="ac-code">' + esc(it.code) + '</span>' +
+          '<span class="ac-sub">' + esc(it.sub || '') + '</span></div>';
+      }).join('');
+      box.style.display = 'block';
+    }
+    function pick(i) { var it = items[i]; if (!it) return; close(); onPick(it); }
+    function fetchSuggest(q) {
+      var my = ++seq;
+      fetch('api/suggest?market=' + encodeURIComponent(state.market) + '&q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (my !== seq || input !== document.activeElement) return; // 최신 입력·포커스 유지 시만
+          items = (d && d.items) || []; sel = -1; render();
+        }).catch(function () { /* 자동완성 실패는 조용히 무시 — 직접 입력은 계속 가능 */ });
+    }
+    input.addEventListener('input', function () {
+      var q = input.value.trim();
+      if (q === lastQ) return; lastQ = q;
+      clearTimeout(timer);
+      if (q.length < 1) { close(); return; }
+      timer = setTimeout(function () { fetchSuggest(q); }, 140);
+    });
+    input.addEventListener('keydown', function (e) {
+      if (box.style.display === 'none' || !items.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); sel = (sel + 1) % items.length; render(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); sel = (sel - 1 + items.length) % items.length; render(); }
+      else if (e.key === 'Enter') { if (sel >= 0) { e.preventDefault(); pick(sel); } }   // 미선택 시 form 제출(직접 입력)
+      else if (e.key === 'Escape') { close(); }
+    });
+    // mousedown은 preventDefault로 input blur만 막고, 실제 선택은 click에서 — 표준 패턴
+    box.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    box.addEventListener('click', function (e) { var t = e.target.closest('.ac-item'); if (!t) return; pick(+t.getAttribute('data-i')); });
+    input.addEventListener('blur', function () { setTimeout(close, 120); });
+    input.addEventListener('focus', function () { var q = input.value.trim(); if (q && box.style.display === 'none') fetchSuggest(q); });
+  }
+
   /* 점·표 클릭 → 재검색, 점 hover ↔ 좌측 피어표 행 상호 하이라이트 */
   function _searchTo(q) { if (!q) return; state.query = q; var ti = $('tickerInput'); if (ti) ti.value = q; state.hover = null; load(); }
   function _setLinked(key, on) {
@@ -1095,8 +1146,10 @@
     var f = D.financials;
     if (!f || f.error) { $('finGrowth').innerHTML = '<div style="color:var(--ink-3);font-size:13px">재무 데이터를 불러오지 못했습니다.</div>'; return; }
     var unit = f.unit;
-    $('finGrowthUnit').textContent = ('단위 · ' + unit + '원').replace('B원', 'B');
-    $('finCashUnit').textContent = ('단위 · ' + unit + '원').replace('B원', 'B');
+    // 단위 설명 — KR은 조원, US의 B는 '10억 달러'임을 명시(모르는 사용자 배려)
+    var unitLabel = unit === 'B' ? 'B (10억 달러)' : unit + '원';
+    $('finGrowthUnit').textContent = '단위 · ' + unitLabel;
+    $('finCashUnit').textContent = '단위 · ' + unitLabel;
     $('finGrowth').innerHTML = barGroups(f.years, [
       { name: '매출액', color: 'var(--dv-navy)', data: f.revenue }, { name: '영업이익', color: 'var(--dv-teal)', data: f.operating_income }, { name: '순이익', color: 'var(--dv-gold)', data: f.net_income }
     ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 230 });
@@ -1120,11 +1173,12 @@
     ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 210 });
     // 표
     var tb = f.table, cols = '1.4fr repeat(' + tb.years.length + ',1fr)';
-    var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + unit + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
+    var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + (unit === 'B' ? '10억 달러' : unit + '원') + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
     var body = Object.keys(tb.rows).map(function (name, ri) {
-      var isEps = name === 'EPS';
-      var cells = tb.rows[name].map(function (v) { return '<span style="text-align:right">' + (v == null ? '—' : isEps ? Math.round(v).toLocaleString('en-US') : v.toFixed(2)) + '</span>'; }).join('');
-      return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 0;' + (ri < 3 ? 'border-bottom:1px solid var(--line);' : '') + 'font-family:var(--font-mono);font-size:12.5px"><span style="font-family:var(--font-sans)">' + name + (isEps ? '(원)' : '') + '</span>' + cells + '</div>';
+      var isEps = name === 'EPS', krw = CUR === 'KRW';
+      // EPS는 통화 원단위(스케일 무관) — KR은 원(정수), US는 달러(센트까지)
+      var cells = tb.rows[name].map(function (v) { return '<span style="text-align:right">' + (v == null ? '—' : isEps ? (krw ? Math.round(v).toLocaleString('en-US') : v.toFixed(2)) : v.toFixed(2)) + '</span>'; }).join('');
+      return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 0;' + (ri < 3 ? 'border-bottom:1px solid var(--line);' : '') + 'font-family:var(--font-mono);font-size:12.5px"><span style="font-family:var(--font-sans)">' + name + (isEps ? (krw ? '(원)' : '($)') : '') + '</span>' + cells + '</div>';
     }).join('');
     $('finTableBody').innerHTML = head + body;
   }
@@ -1371,6 +1425,9 @@
     // 종목 입력
     $('tickerForm').addEventListener('submit', function (e) { e.preventDefault(); var q = $('tickerInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; load(); } });
     $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; $('tickerInput').value = q; load(); } });
+    // 자동완성 — 헤더 검색창과 사이드바 티커 입력 둘 다. 선택 시 그 종목으로 바로 분석.
+    attachAutocomplete($('navSearchInput'), function (it) { state.query = it.code; $('tickerInput').value = it.code; $('navSearchInput').value = ''; load(); });
+    attachAutocomplete($('tickerInput'), function (it) { state.query = it.code; $('tickerInput').value = it.code; load(); });
     $('examples').addEventListener('click', function (e) { var s = e.target.closest('[data-code]'); if (!s) return; state.query = s.getAttribute('data-code'); $('tickerInput').value = state.query; load(); });
     // 주가 컨트롤
     wireSeg('priceModeSeg', function (v) { state.priceMode = v; state.hover = null; var showAbs = v === 'abs'; $('maToggles').style.display = showAbs ? 'inline-flex' : 'none'; var cts = $('chartTypeSeg'); if (cts) cts.style.display = showAbs ? '' : 'none'; if (D) renderPrice(); });

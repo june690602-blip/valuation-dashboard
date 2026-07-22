@@ -25,6 +25,15 @@ ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web"
 sys.path.insert(0, str(ROOT))
 
+# Windows 콘솔(cp949)이 못 그리는 문자(—·이모지 등)가 로그 print에서 예외를 던지면
+# 요청 핸들러가 응답도 못 보내고 죽는다 → 인코딩 불가 문자는 '?'로 대체해 로그는 계속 흐르게.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(errors="replace")
+        except Exception:
+            pass
+
 _CACHE: dict = {}
 _AI_CACHE: dict = {}
 _LOCK = threading.Lock()
@@ -120,6 +129,9 @@ class Handler(SimpleHTTPRequestHandler):
                 data = cached_analyze(market, query, peer_count, include_news, exclude, extra)
                 print(f"[api] {market} {query} → {data['meta']['name']} ({time.time() - t0:.1f}s)")
                 return self._send_json(data)
+            except ValueError as e:  # 종목 미탐색 등 사용자 입력 오류 — 안내 문구를 그대로 전달(서버 오류 아님)
+                print(f"[api] {market} {query} → 입력 오류: {e}")
+                return self._send_json({"error": str(e)}, 400)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
                 return self._send_json({"error": _ERR_MSG}, 500)
@@ -192,6 +204,20 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
                 return self._send_json({"error": _ERR_MSG}, 500)
+        if u.path == "/api/suggest":
+            # 종목 자동완성 — 타이핑마다 호출되므로 (market,q)로 짧게 캐시. 실패해도 빈 목록.
+            q = parse_qs(u.query)
+            market = (q.get("market", ["KR"])[0] or "KR").upper()
+            term = (q.get("q", [""])[0] or "").strip()
+            if not term:
+                return self._send_json({"items": []})
+            try:
+                from src.web.serialize import suggest
+                items = cached_generic(f"sug:{market}:{term.lower()}",
+                                       lambda: suggest(market, term), ttl=300)
+                return self._send_json({"items": items})
+            except Exception:  # noqa: BLE001
+                return self._send_json({"items": []})
         if u.path in ("/", "/index.html"):
             self.path = "/home.html"   # 진입점 = 홈(랜딩). 주식 페이지는 nav·예시카드로 이동.
         return super().do_GET()

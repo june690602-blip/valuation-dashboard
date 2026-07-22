@@ -248,8 +248,9 @@
   }
   function loadHistory() {
     var ms = activeMkts();
-    $('histChart').innerHTML = '<div style="color:var(--ink-3);font-size:12.5px;padding:20px 0">금리 시계열 불러오는 중…</div>';
-    Promise.all(ms.map(function (m) {
+    var names = ms.map(function (m) { return m === 'KR' ? '한국 국고채' : '미국 국채'; }).join(' · ');
+    $('histChart').innerHTML = '<div class="hist-loading"><span class="mini-spin"></span>최근 3년 일별 금리를 수집하는 중 — ' + esc(names) + ' ' + state.histTenor + '년 · 네이버 시장지표</div>';
+    return Promise.all(ms.map(function (m) {
       return fetch('api/bond_history?market=' + m + '&tenor=' + state.histTenor)
         .then(function (r) { return r.json(); }).catch(function () { return { error: 1 }; });
     })).then(function (hs) {
@@ -349,17 +350,34 @@
       $('addBondNote').innerHTML = '🧺 담았습니다: <b>' + esc(proxy.name) + '</b> — 포트폴리오 페이지에서 비중을 정하세요.';
     });
 
-    // 데이터 로드
+    // 데이터 로드 — 곡선·뉴스(api/bond)와 3년 시계열(api/bond_history)을 병렬로 시작한다.
+    // 시계열은 BOND에 의존하지 않으므로(초기 만기=10·한·미) 먼저 띄워 대기 시간을 겹친다.
+    // 오버레이는 두 요청의 '실제 완료'에 맞춰 단계를 체크하고, 둘 다 끝나면 닫힌다(가짜 진행률 없음).
     $('status').classList.add('on');
+    var t0 = Date.now();
+    var timer = setInterval(function () {
+      var f = $('ldFoot'); if (!f) return;
+      var s = Math.round((Date.now() - t0) / 1000);
+      f.innerHTML = '네이버 시장지표에서 직접 받는 중 · <span class="mono">' + s + '초</span><br>처음 열 때만 몇 초 걸립니다 — 다음부터는 캐시로 즉시 열려요.';
+    }, 300);
+    function markDone(id) { var r = $(id); if (r) r.classList.add('done'); }
+    function maybeHide() {
+      if ($('ldBond').classList.contains('done') && $('ldHist').classList.contains('done')) {
+        clearInterval(timer); $('status').classList.remove('on');
+      }
+    }
+
+    renderHistTenorSeg();
+    loadHistory().then(function () { markDone('ldHist'); maybeHide(); });
+
     fetch('api/bond').then(function (r) { return r.json(); }).then(function (d) {
-      $('status').classList.remove('on');
+      markDone('ldBond'); maybeHide();
       if (d.error) { $('curveChart').innerHTML = '<div style="color:var(--danger);font-size:13px">금리 데이터를 불러오지 못했습니다: ' + esc(d.error) + '</div>'; return; }
       BOND = d;
       renderRates();
-      renderHistTenorSeg(); loadHistory();
       renderScTenorSeg(); prefillYtm(); renderScenario();
       renderNews();
-    }).catch(function (e) { $('status').classList.remove('on'); $('curveChart').innerHTML = '<div style="color:var(--danger);font-size:13px">서버 연결 실패: ' + esc(e.message) + '</div>'; });
+    }).catch(function (e) { markDone('ldBond'); maybeHide(); $('curveChart').innerHTML = '<div style="color:var(--danger);font-size:13px">서버 연결 실패: ' + esc(e.message) + '</div>'; });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

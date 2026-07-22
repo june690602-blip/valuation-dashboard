@@ -57,6 +57,52 @@ def _load(market: str, query: str, peer_count: int,
     return USProvider().load(query, peer_count, exclude=exclude, extra=extra)
 
 
+def suggest(market: str, q: str, limit: int = 8) -> list[dict]:
+    """종목 자동완성 후보 — 증권사 검색창처럼 타이핑에 맞는 종목을 골라 준다.
+
+    코드/심볼 prefix 또는 종목명 부분일치를 찾아, 시총(있으면)순으로 상위 limit개를
+    [{"code", "name", "sub"}]로 반환한다(sub=KOSPI/KOSDAQ 또는 GICS 섹터).
+    분석 파이프라인과 분리된 가벼운 조회 — 짧은 입력·실패 시 빈 목록(절대 예외 전파 안 함).
+    """
+    q = (q or "").strip()
+    if not q:
+        return []
+    market = (market or "KR").upper()
+    try:
+        if market == "KR":
+            from src.data.universe import get_kr_listing
+            listing = get_kr_listing()
+            if q.isdigit():
+                m = listing[listing["Code"].astype(str).str.startswith(q)]
+            else:
+                m = listing[listing["Name"].str.contains(q, case=False, na=False, regex=False)]
+            if "Marcap" in m.columns:
+                m = m.sort_values("Marcap", ascending=False)
+            out = []
+            for _, r in m.head(limit).iterrows():
+                mkt = str(r.get("Market", "") or "").upper()
+                out.append({"code": str(r["Code"]), "name": str(r["Name"]),
+                            "sub": "KOSDAQ" if mkt.startswith("KOSDAQ") else "KOSPI"})
+            return out
+        from src.data.universe import get_sp500
+        sp = get_sp500()
+        pref = sp[sp["Symbol"].str.upper().str.startswith(q.upper())]
+        byname = sp[sp["Name"].str.contains(q, case=False, na=False, regex=False)]
+        seen, out = set(), []
+        for _, r in pd.concat([pref, byname]).iterrows():
+            sym = str(r["Symbol"])
+            if sym in seen:
+                continue
+            seen.add(sym)
+            out.append({"code": sym, "name": str(r["Name"]),
+                        "sub": str(r.get("Sector", "") or "S&P 500")})
+            if len(out) >= limit:
+                break
+        return out
+    except Exception:
+        return []
+
+
 def _defaults(market: str):
     """시장별 기본 R_f·MRP (analyze·AI 헬퍼가 같은 값을 써야 파이프라인 캐시가 적중)."""
     market = (market or "KR").upper()
