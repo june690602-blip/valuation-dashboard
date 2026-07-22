@@ -70,25 +70,6 @@ def find_kr(query: str) -> pd.DataFrame:
     return part.sort_values("Marcap", ascending=False) if "Marcap" in part.columns else part
 
 
-@file_cache("kr_etf", ttl_hours=24 * 7)
-def get_kr_etf() -> pd.DataFrame:
-    """국내 ETF 목록: Code, Name, MarCap(억원). 검색 자동완성용. 실패 시 빈 DF.
-
-    주식 밸류에이션 대상은 아니지만(재무제표 없음) 검색에는 노출해, 고르면 포트폴리오로 안내한다.
-    """
-    import FinanceDataReader as fdr
-
-    try:
-        e = fdr.StockListing("ETF/KR")
-    except Exception:
-        return pd.DataFrame(columns=["Code", "Name", "MarCap"])
-    e = e.rename(columns={"Symbol": "Code"})
-    keep = [c for c in ["Code", "Name", "MarCap"] if c in e.columns]
-    e = e[keep].dropna(subset=["Code", "Name"]).copy()
-    e["Code"] = e["Code"].astype(str).str.zfill(6)
-    return e.reset_index(drop=True)
-
-
 def select_peers_kr(code: str, n: int = 10) -> list[str]:
     """같은 섹터에서 시총 상위 n개 (자기 자신 포함, 보통주만)."""
     listing = get_kr_listing()
@@ -153,52 +134,6 @@ def find_us(query: str) -> pd.DataFrame:
     if len(exact) > 0:
         return exact
     return sp[sp["Name"].str.contains(q, case=False, na=False, regex=False)]
-
-
-# 대표 미국 ETF(심볼, 이름) — 검색 자동완성용 큐레이션. 전체 목록(fdr ETF/US)은 콜드 수집이
-# 수십 초라 라이브에서 자동완성을 막으므로, 거래대금 상위·대표 상품만 정적으로 둔다(네트워크 0).
-US_ETFS: tuple = (
-    ("SPY", "SPDR S&P 500 ETF"), ("VOO", "Vanguard S&P 500 ETF"), ("IVV", "iShares Core S&P 500 ETF"),
-    ("VTI", "Vanguard Total Stock Market ETF"), ("QQQ", "Invesco QQQ Trust (Nasdaq 100)"),
-    ("QQQM", "Invesco Nasdaq 100 ETF"), ("DIA", "SPDR Dow Jones Industrial Average ETF"),
-    ("IWM", "iShares Russell 2000 ETF"), ("VUG", "Vanguard Growth ETF"), ("VTV", "Vanguard Value ETF"),
-    ("SCHD", "Schwab US Dividend Equity ETF"), ("VYM", "Vanguard High Dividend Yield ETF"),
-    ("VIG", "Vanguard Dividend Appreciation ETF"), ("DGRO", "iShares Core Dividend Growth ETF"),
-    ("DVY", "iShares Select Dividend ETF"), ("HDV", "iShares Core High Dividend ETF"),
-    ("JEPI", "JPMorgan Equity Premium Income ETF"), ("JEPQ", "JPMorgan Nasdaq Equity Premium Income ETF"),
-    ("SCHG", "Schwab US Large-Cap Growth ETF"), ("SCHX", "Schwab US Large-Cap ETF"),
-    ("VGT", "Vanguard Information Technology ETF"), ("XLK", "Technology Select Sector SPDR"),
-    ("XLF", "Financial Select Sector SPDR"), ("XLE", "Energy Select Sector SPDR"),
-    ("XLV", "Health Care Select Sector SPDR"), ("XLY", "Consumer Discretionary Select Sector SPDR"),
-    ("XLP", "Consumer Staples Select Sector SPDR"), ("XLI", "Industrial Select Sector SPDR"),
-    ("XLU", "Utilities Select Sector SPDR"), ("XLB", "Materials Select Sector SPDR"),
-    ("XLRE", "Real Estate Select Sector SPDR"), ("XLC", "Communication Services Select Sector SPDR"),
-    ("SMH", "VanEck Semiconductor ETF"), ("SOXX", "iShares Semiconductor ETF"),
-    ("VEA", "Vanguard FTSE Developed Markets ETF"), ("VWO", "Vanguard FTSE Emerging Markets ETF"),
-    ("VXUS", "Vanguard Total International Stock ETF"), ("EFA", "iShares MSCI EAFE ETF"),
-    ("IEMG", "iShares Core MSCI Emerging Markets ETF"), ("EEM", "iShares MSCI Emerging Markets ETF"),
-    ("BND", "Vanguard Total Bond Market ETF"), ("AGG", "iShares Core US Aggregate Bond ETF"),
-    ("TLT", "iShares 20+ Year Treasury Bond ETF"), ("IEF", "iShares 7-10 Year Treasury Bond ETF"),
-    ("SHY", "iShares 1-3 Year Treasury Bond ETF"), ("LQD", "iShares Investment Grade Corporate Bond ETF"),
-    ("HYG", "iShares High Yield Corporate Bond ETF"), ("TIP", "iShares TIPS Bond ETF"),
-    ("BIL", "SPDR 1-3 Month T-Bill ETF"), ("GLD", "SPDR Gold Shares"), ("IAU", "iShares Gold Trust"),
-    ("SLV", "iShares Silver Trust"), ("USO", "United States Oil Fund"),
-    ("ARKK", "ARK Innovation ETF"), ("VNQ", "Vanguard Real Estate ETF"),
-    ("SCHF", "Schwab International Equity ETF"), ("SCHB", "Schwab US Broad Market ETF"),
-    ("SPLG", "SPDR Portfolio S&P 500 ETF"), ("SPYG", "SPDR Portfolio S&P 500 Growth ETF"),
-    ("SPYD", "SPDR Portfolio S&P 500 High Dividend ETF"), ("RSP", "Invesco S&P 500 Equal Weight ETF"),
-    ("TQQQ", "ProShares UltraPro QQQ (3x)"), ("SQQQ", "ProShares UltraPro Short QQQ (3x)"),
-    ("SOXL", "Direxion Daily Semiconductor Bull 3x"), ("UPRO", "ProShares UltraPro S&P500 (3x)"),
-    ("BITO", "ProShares Bitcoin Strategy ETF"), ("IBIT", "iShares Bitcoin Trust"),
-    ("MOAT", "VanEck Morningstar Wide Moat ETF"), ("QUAL", "iShares MSCI USA Quality Factor ETF"),
-    ("MTUM", "iShares MSCI USA Momentum Factor ETF"), ("USMV", "iShares MSCI USA Min Vol Factor ETF"),
-)
-
-
-@file_cache("us_etf", ttl_hours=24 * 7)
-def get_us_etf() -> pd.DataFrame:
-    """대표 미국 ETF 목록: Symbol, Name (정적 큐레이션 → 즉시). 검색 자동완성용."""
-    return pd.DataFrame(list(US_ETFS), columns=["Symbol", "Name"])
 
 
 def select_peers_us(symbol: str, n: int = 10) -> tuple[list[str], str | None]:

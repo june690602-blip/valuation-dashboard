@@ -64,30 +64,12 @@ def merge_financials(dart: pd.DataFrame, yf_fin: pd.DataFrame) -> pd.DataFrame:
     return merged.sort_index()
 
 
-def _kr_etf_name(query: str) -> str | None:
-    """질의가 국내 ETF(6자리 코드 또는 정확한 이름)면 그 이름, 아니면 None. 실패해도 None."""
-    try:
-        from .universe import get_kr_etf
-        etfs = get_kr_etf()
-        if not len(etfs):
-            return None
-        q = query.strip()
-        m = etfs[etfs["Code"] == q.zfill(6)] if q.isdigit() else etfs[etfs["Name"].str.upper() == q.upper()]
-        return str(m.iloc[0]["Name"]) if len(m) else None
-    except Exception:
-        return None
-
-
 class KRProvider(DataProvider):
     market = "KR"
 
     def resolve(self, query: str) -> dict:
         hits = find_kr(query)
         if hits.empty:
-            etf_name = _kr_etf_name(query)
-            if etf_name:  # ETF는 재무제표가 없어 밸류에이션 불가 — 일반 '못 찾음'과 구분해 안내
-                raise ValueError(f"'{etf_name}'은(는) ETF예요 — 이 페이지는 기업 재무 기반 밸류에이션이라 "
-                                 "ETF는 분석하지 않습니다. 검색에서 ETF를 선택하면 포트폴리오에 담아드려요.")
             raise ValueError(f"'{query}'에 해당하는 한국 종목을 찾지 못했습니다. "
                              "6자리 코드(예: 005930) 또는 정확한 종목명을 입력하세요.")
         row = hits.iloc[0]
