@@ -621,7 +621,7 @@
         return '<div class="ac-item' + (i === sel ? ' on' : '') + '" data-i="' + i + '">' +
           '<span class="ac-name">' + esc(it.name) + '</span>' +
           '<span class="ac-code">' + esc(it.code) + '</span>' +
-          '<span class="ac-sub">' + esc(it.sub || '') + '</span></div>';
+          '<span class="ac-sub' + (it.kind === 'etf' ? ' ac-etf' : '') + '">' + esc(it.sub || '') + '</span></div>';
       }).join('');
       box.style.display = 'block';
     }
@@ -654,6 +654,49 @@
     box.addEventListener('click', function (e) { var t = e.target.closest('.ac-item'); if (!t) return; pick(+t.getAttribute('data-i')); });
     input.addEventListener('blur', function () { setTimeout(close, 120); });
     input.addEventListener('focus', function () { var q = input.value.trim(); if (q && box.style.display === 'none') fetchSuggest(q); });
+  }
+
+  // 자동완성 선택 처리 — 주식은 분석, ETF는 밸류에이션 대상이 아니라 포트폴리오로 담아 안내.
+  function pickTicker(it) {
+    if (it && it.kind === 'etf') { $('tickerInput').value = state.query; etfToPortfolio(it); return; }
+    state.query = it.code; $('tickerInput').value = it.code; load();
+  }
+  function etfToPortfolio(it) {
+    var b; try { b = JSON.parse(localStorage.getItem('invportfolio') || '{}'); } catch (e) { b = {}; }
+    var kr = state.market === 'KR', yahoo = kr ? it.code + '.KS' : it.code;
+    b[yahoo] = { name: it.name, yahoo: yahoo, ticker: it.code,
+      type: kr ? '국내기타ETF' : '해외ETF', currency: kr ? 'KRW' : 'USD', 'class': 'ETF' };
+    localStorage.setItem('invportfolio', JSON.stringify(b));
+    showToast('🧺 <b>' + esc(it.name) + '</b>는 ETF예요 — 이 페이지는 기업 밸류에이션용이라, 대신 <b>포트폴리오</b>에 담았어요. <a href="portfolio.html">포트폴리오에서 보기 →</a>');
+  }
+  // Enter로 직접 제출한 질의도 ETF(코드/심볼/이름 정확 일치)면 클릭과 동일하게 포트폴리오로.
+  // 그 외에는 기존대로 분석 — suggest는 서버 캐시라 추가 왕복 비용이 거의 없다.
+  function submitQuery(q) {
+    if (!q) return;
+    var qq = q.toUpperCase();
+    fetch('api/suggest?market=' + encodeURIComponent(state.market) + '&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var items = (d && d.items) || [], etf = null;
+        for (var i = 0; i < items.length; i++) {
+          var it = items[i];
+          if (it.kind === 'etf' && (String(it.code).toUpperCase() === qq || String(it.name).toUpperCase() === qq)) { etf = it; break; }
+        }
+        if (etf) { $('tickerInput').value = state.query; etfToPortfolio(etf); return; }
+        state.query = q; $('tickerInput').value = q; load();
+      })
+      .catch(function () { state.query = q; $('tickerInput').value = q; load(); });
+  }
+  var _toastT = null;
+  function showToast(html) {
+    var t = $('etfToast');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'etfToast'; t.className = 'etf-toast';
+      document.body.appendChild(t);
+      t.addEventListener('click', function (e) { if (e.target.tagName !== 'A') t.classList.remove('on'); });
+    }
+    t.innerHTML = html; t.classList.add('on');
+    clearTimeout(_toastT); _toastT = setTimeout(function () { t.classList.remove('on'); }, 8000);
   }
 
   /* 점·표 클릭 → 재검색, 점 hover ↔ 좌측 피어표 행 상호 하이라이트 */
@@ -1423,11 +1466,11 @@
     // 방법별 표의 ①②③ 방법명 → 해당 재료 탭으로 이동
     $('methodsTable').addEventListener('click', function (e) { var g = e.target.closest('.methods-goto'); if (!g) return; switchTab(g.getAttribute('data-goto')); $('tabBar').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     // 종목 입력
-    $('tickerForm').addEventListener('submit', function (e) { e.preventDefault(); var q = $('tickerInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; load(); } });
-    $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; $('tickerInput').value = q; load(); } });
-    // 자동완성 — 헤더 검색창과 사이드바 티커 입력 둘 다. 선택 시 그 종목으로 바로 분석.
-    attachAutocomplete($('navSearchInput'), function (it) { state.query = it.code; $('tickerInput').value = it.code; $('navSearchInput').value = ''; load(); });
-    attachAutocomplete($('tickerInput'), function (it) { state.query = it.code; $('tickerInput').value = it.code; load(); });
+    $('tickerForm').addEventListener('submit', function (e) { e.preventDefault(); var q = $('tickerInput').value.trim().split(/\s+/)[0]; if (q) submitQuery(q); });
+    $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) submitQuery(q); });
+    // 자동완성 — 헤더 검색창과 사이드바 티커 입력 둘 다. 주식은 바로 분석, ETF는 포트폴리오로 담아 안내.
+    attachAutocomplete($('navSearchInput'), function (it) { $('navSearchInput').value = ''; pickTicker(it); });
+    attachAutocomplete($('tickerInput'), function (it) { pickTicker(it); });
     $('examples').addEventListener('click', function (e) { var s = e.target.closest('[data-code]'); if (!s) return; state.query = s.getAttribute('data-code'); $('tickerInput').value = state.query; load(); });
     // 주가 컨트롤
     wireSeg('priceModeSeg', function (v) { state.priceMode = v; state.hover = null; var showAbs = v === 'abs'; $('maToggles').style.display = showAbs ? 'inline-flex' : 'none'; var cts = $('chartTypeSeg'); if (cts) cts.style.display = showAbs ? '' : 'none'; if (D) renderPrice(); });

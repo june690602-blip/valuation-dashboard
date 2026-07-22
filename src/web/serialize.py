@@ -70,35 +70,48 @@ def suggest(market: str, q: str, limit: int = 8) -> list[dict]:
     market = (market or "KR").upper()
     try:
         if market == "KR":
-            from src.data.universe import get_kr_listing
-            listing = get_kr_listing()
+            from src.data.universe import get_kr_etf, get_kr_listing
+            listing, etfs = get_kr_listing(), get_kr_etf()
             if q.isdigit():
-                m = listing[listing["Code"].astype(str).str.startswith(q)]
+                s = listing[listing["Code"].astype(str).str.startswith(q)]
+                e = etfs[etfs["Code"].astype(str).str.startswith(q)] if len(etfs) else etfs
             else:
-                m = listing[listing["Name"].str.contains(q, case=False, na=False, regex=False)]
-            if "Marcap" in m.columns:
-                m = m.sort_values("Marcap", ascending=False)
+                s = listing[listing["Name"].str.contains(q, case=False, na=False, regex=False)]
+                e = etfs[etfs["Name"].str.contains(q, case=False, na=False, regex=False)] if len(etfs) else etfs
+            if "Marcap" in s.columns:
+                s = s.sort_values("Marcap", ascending=False)
+            if len(e) and "MarCap" in e.columns:
+                e = e.sort_values("MarCap", ascending=False)
             out = []
-            for _, r in m.head(limit).iterrows():
+            for _, r in s.iterrows():
                 mkt = str(r.get("Market", "") or "").upper()
                 out.append({"code": str(r["Code"]), "name": str(r["Name"]),
-                            "sub": "KOSDAQ" if mkt.startswith("KOSDAQ") else "KOSPI"})
-            return out
-        from src.data.universe import get_sp500
-        sp = get_sp500()
-        pref = sp[sp["Symbol"].str.upper().str.startswith(q.upper())]
-        byname = sp[sp["Name"].str.contains(q, case=False, na=False, regex=False)]
+                            "sub": "KOSDAQ" if mkt.startswith("KOSDAQ") else "KOSPI", "kind": "stock"})
+            for _, r in e.iterrows():
+                out.append({"code": str(r["Code"]), "name": str(r["Name"]), "sub": "ETF", "kind": "etf"})
+            return out[:limit]
+        from src.data.universe import get_sp500, get_us_etf
+        sp, etfs = get_sp500(), get_us_etf()
+        qu = q.upper()
         seen, out = set(), []
-        for _, r in pd.concat([pref, byname]).iterrows():
+        stock_hits = pd.concat([sp[sp["Symbol"].str.upper().str.startswith(qu)],
+                                sp[sp["Name"].str.contains(q, case=False, na=False, regex=False)]])
+        for _, r in stock_hits.iterrows():
             sym = str(r["Symbol"])
             if sym in seen:
                 continue
             seen.add(sym)
             out.append({"code": sym, "name": str(r["Name"]),
-                        "sub": str(r.get("Sector", "") or "S&P 500")})
-            if len(out) >= limit:
-                break
-        return out
+                        "sub": str(r.get("Sector", "") or "S&P 500"), "kind": "stock"})
+        etf_hits = pd.concat([etfs[etfs["Symbol"].str.upper().str.startswith(qu)],
+                              etfs[etfs["Name"].str.contains(q, case=False, na=False, regex=False)]]) if len(etfs) else etfs
+        for _, r in (etf_hits.iterrows() if len(etf_hits) else []):
+            sym = str(r["Symbol"])
+            if sym in seen:
+                continue
+            seen.add(sym)
+            out.append({"code": sym, "name": str(r["Name"]), "sub": "ETF", "kind": "etf"})
+        return out[:limit]
     except Exception:
         return []
 
