@@ -53,6 +53,15 @@
   .hero-search-input:focus-visible { border-radius: var(--radius-sm); box-shadow: inset 0 0 0 2px var(--ink); }
   .hero-search-input::placeholder { color: var(--ink-4); }
   .hero-search-input[aria-invalid="true"]::placeholder { color: var(--danger); }
+  /* 종목 자동완성 드롭다운 (stock 페이지와 동일 규약) */
+  .ac-drop { position: absolute; left: 0; right: 0; top: calc(100% + 8px); background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius-md); box-shadow: 0 14px 34px rgba(20,19,15,0.14); z-index: 60; max-height: 350px; overflow-y: auto; text-align: left; }
+  .ac-item { display: flex; align-items: baseline; gap: 9px; padding: 10px 13px; cursor: pointer; border-bottom: 1px solid var(--line); }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item.on, .ac-item:hover { background: var(--paper-2); }
+  .ac-name { font-size: 13.5px; color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-code { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); flex: none; }
+  .ac-sub { margin-left: auto; font-size: 10px; color: var(--ink-3); border: 1px solid var(--line); border-radius: 2px; padding: 1px 5px; flex: none; white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+  .ac-sub.ac-etf { color: var(--paper); background: var(--ink); border-color: var(--ink); font-weight: 600; letter-spacing: 0.04em; }
   .search-button { height: 42px; gap: 8px; padding-inline: 18px; }
   .search-button:hover { color: var(--paper); text-decoration: none; }
   .quick-examples { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px; margin-top: 15px; }
@@ -256,10 +265,67 @@
     var form = document.getElementById('heroSearch');
     var input = document.getElementById('heroSearchInput');
 
+    function market() { return form.querySelector('input[name="market"]:checked').value; }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
+    function goStock(code) { location.href = 'stock.html?market=' + encodeURIComponent(market()) + '&q=' + encodeURIComponent(code); }
+    function goEtf(it) {
+      // ETF는 기업 재무가 없어 밸류에이션 대상이 아님 — 포트폴리오 바스켓에 담아 바로 이동
+      var b; try { b = JSON.parse(localStorage.getItem('invportfolio') || '{}'); } catch (e) { b = {}; }
+      var kr = market() === 'KR', yahoo = kr ? it.code + '.KS' : it.code;
+      b[yahoo] = { name: it.name, yahoo: yahoo, ticker: it.code, type: kr ? '국내기타ETF' : '해외ETF', currency: kr ? 'KRW' : 'USD', 'class': 'ETF' };
+      localStorage.setItem('invportfolio', JSON.stringify(b));
+      location.href = 'portfolio.html';
+    }
+    function pickItem(it) { if (it && it.kind === 'etf') goEtf(it); else if (it) goStock(it.code); }
+
+    /* ── 자동완성 (stock 페이지와 동일 규약) ── */
+    var box = document.createElement('div'); box.className = 'ac-drop'; box.style.display = 'none';
+    input.parentNode.appendChild(box);   // .search-input-wrap 이 position:relative
+    var items = [], sel = -1, seq = 0, timer = null, lastQ = null;
+    function close() { box.style.display = 'none'; items = []; sel = -1; }
+    function render() {
+      if (!items.length) { close(); return; }
+      box.innerHTML = items.map(function (it, i) {
+        return '<div class="ac-item' + (i === sel ? ' on' : '') + '" data-i="' + i + '"><span class="ac-name">' + esc(it.name) + '</span><span class="ac-code">' + esc(it.code) + '</span><span class="ac-sub' + (it.kind === 'etf' ? ' ac-etf' : '') + '">' + esc(it.sub || '') + '</span></div>';
+      }).join('');
+      box.style.display = 'block';
+    }
+    function fetchSuggest(q) {
+      var my = ++seq;
+      fetch('api/suggest?market=' + encodeURIComponent(market()) + '&q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (my !== seq || input !== document.activeElement) return; items = (d && d.items) || []; sel = -1; render(); })
+        .catch(function () { /* 자동완성 실패는 조용히 — 직접 입력은 계속 가능 */ });
+    }
+    input.addEventListener('input', function () {
+      input.removeAttribute('aria-invalid');
+      input.placeholder = '종목 코드 또는 이름을 입력하세요';
+      var q = input.value.trim();
+      if (q === lastQ) return; lastQ = q;
+      clearTimeout(timer);
+      if (!q) { close(); return; }
+      timer = setTimeout(function () { fetchSuggest(q); }, 140);
+    });
+    input.addEventListener('keydown', function (e) {
+      if (box.style.display === 'none' || !items.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); sel = (sel + 1) % items.length; render(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); sel = (sel - 1 + items.length) % items.length; render(); }
+      else if (e.key === 'Enter') { if (sel >= 0) { e.preventDefault(); pickItem(items[sel]); } }
+      else if (e.key === 'Escape') { close(); }
+    });
+    // mousedown은 preventDefault로 input blur만 막고, 실제 선택은 click에서 — 표준 패턴
+    box.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    box.addEventListener('click', function (e) { var t = e.target.closest('.ac-item'); if (!t) return; pickItem(items[+t.getAttribute('data-i')]); });
+    input.addEventListener('blur', function () { setTimeout(close, 120); });
+    input.addEventListener('focus', function () { var q = input.value.trim(); if (q && box.style.display === 'none') fetchSuggest(q); });
+    // 시장(KR/US) 전환 시 현재 입력으로 다시 제안
+    form.querySelectorAll('input[name="market"]').forEach(function (r) {
+      r.addEventListener('change', function () { lastQ = null; var q = input.value.trim(); if (q) { fetchSuggest(q); input.focus(); } });
+    });
+
     form.addEventListener('submit', function (event) {
       event.preventDefault();
       var query = input.value.trim();
-      var market = form.querySelector('input[name="market"]:checked').value;
 
       if (!query) {
         input.setAttribute('aria-invalid', 'true');
@@ -268,12 +334,19 @@
         return;
       }
 
-      location.href = 'stock.html?market=' + encodeURIComponent(market) + '&q=' + encodeURIComponent(query);
-    });
-
-    input.addEventListener('input', function () {
-      input.removeAttribute('aria-invalid');
-      input.placeholder = '종목 코드 또는 이름을 입력하세요';
+      // Enter 직접 제출도 ETF(코드/이름 정확 일치)면 클릭과 동일하게 포트폴리오로
+      var qq = query.toUpperCase();
+      fetch('api/suggest?market=' + encodeURIComponent(market()) + '&q=' + encodeURIComponent(query))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var its = (d && d.items) || [];
+          for (var i = 0; i < its.length; i++) {
+            var it = its[i];
+            if (it.kind === 'etf' && (String(it.code).toUpperCase() === qq || String(it.name).toUpperCase() === qq)) { goEtf(it); return; }
+          }
+          goStock(query);
+        })
+        .catch(function () { goStock(query); });
     });
   })();
 </script>

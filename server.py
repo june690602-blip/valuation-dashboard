@@ -25,6 +25,15 @@ ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web"
 sys.path.insert(0, str(ROOT))
 
+# Windows 콘솔(cp949)이 못 그리는 문자(—·이모지 등)가 로그 print에서 예외를 던지면
+# 요청 핸들러가 응답도 못 보내고 죽는다 → 인코딩 불가 문자는 '?'로 대체해 로그는 계속 흐르게.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(errors="replace")
+        except Exception:
+            pass
+
 _CACHE: dict = {}
 _AI_CACHE: dict = {}
 _LOCK = threading.Lock()

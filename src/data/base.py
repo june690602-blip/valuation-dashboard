@@ -75,7 +75,8 @@ def extract_financials(tk: yf.Ticker) -> tuple[pd.DataFrame, list[str]]:
     warnings: list[str] = []
     inc, bs, cf = tk.income_stmt, tk.balance_sheet, tk.cashflow
     if inc is None or inc.empty:
-        raise ValueError("연간 손익계산서를 가져오지 못했습니다 (yfinance 응답 없음)")
+        raise ValueError("연간 손익계산서를 가져오지 못했습니다 — ETF·펀드처럼 재무제표가 없는 "
+                         "상품이거나, 데이터 원천(yfinance)이 일시적으로 응답하지 않았을 수 있어요.")
 
     periods = sorted(inc.columns)  # Timestamp 목록
     rows = {}

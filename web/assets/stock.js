@@ -649,9 +649,11 @@
       else if (e.key === 'Enter') { if (sel >= 0) { e.preventDefault(); pick(sel); } }   // 미선택 시 form 제출(직접 입력)
       else if (e.key === 'Escape') { close(); }
     });
-    // mousedown(클릭 전 blur보다 먼저) — 항목 선택이 blur로 닫히기 전에 처리
-    box.addEventListener('mousedown', function (e) { var t = e.target.closest('.ac-item'); if (!t) return; e.preventDefault(); pick(+t.getAttribute('data-i')); });
+    // mousedown은 preventDefault로 input blur만 막고, 실제 선택은 click에서 — 표준 패턴
+    box.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    box.addEventListener('click', function (e) { var t = e.target.closest('.ac-item'); if (!t) return; pick(+t.getAttribute('data-i')); });
     input.addEventListener('blur', function () { setTimeout(close, 120); });
+    input.addEventListener('focus', function () { var q = input.value.trim(); if (q && box.style.display === 'none') fetchSuggest(q); });
   }
 
   // 자동완성 선택 처리 — 주식은 분석, ETF는 밸류에이션 대상이 아니라 포트폴리오로 담아 안내.
@@ -666,6 +668,24 @@
       type: kr ? '국내기타ETF' : '해외ETF', currency: kr ? 'KRW' : 'USD', 'class': 'ETF' };
     localStorage.setItem('invportfolio', JSON.stringify(b));
     showToast('🧺 <b>' + esc(it.name) + '</b>는 ETF예요 — 이 페이지는 기업 밸류에이션용이라, 대신 <b>포트폴리오</b>에 담았어요. <a href="portfolio.html">포트폴리오에서 보기 →</a>');
+  }
+  // Enter로 직접 제출한 질의도 ETF(코드/심볼/이름 정확 일치)면 클릭과 동일하게 포트폴리오로.
+  // 그 외에는 기존대로 분석 — suggest는 서버 캐시라 추가 왕복 비용이 거의 없다.
+  function submitQuery(q) {
+    if (!q) return;
+    var qq = q.toUpperCase();
+    fetch('api/suggest?market=' + encodeURIComponent(state.market) + '&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var items = (d && d.items) || [], etf = null;
+        for (var i = 0; i < items.length; i++) {
+          var it = items[i];
+          if (it.kind === 'etf' && (String(it.code).toUpperCase() === qq || String(it.name).toUpperCase() === qq)) { etf = it; break; }
+        }
+        if (etf) { $('tickerInput').value = state.query; etfToPortfolio(etf); return; }
+        state.query = q; $('tickerInput').value = q; load();
+      })
+      .catch(function () { state.query = q; $('tickerInput').value = q; load(); });
   }
   var _toastT = null;
   function showToast(html) {
@@ -1169,8 +1189,10 @@
     var f = D.financials;
     if (!f || f.error) { $('finGrowth').innerHTML = '<div style="color:var(--ink-3);font-size:13px">재무 데이터를 불러오지 못했습니다.</div>'; return; }
     var unit = f.unit;
-    $('finGrowthUnit').textContent = ('단위 · ' + unit + '원').replace('B원', 'B');
-    $('finCashUnit').textContent = ('단위 · ' + unit + '원').replace('B원', 'B');
+    // 단위 설명 — KR은 조원, US의 B는 '10억 달러'임을 명시(모르는 사용자 배려)
+    var unitLabel = unit === 'B' ? 'B (10억 달러)' : unit + '원';
+    $('finGrowthUnit').textContent = '단위 · ' + unitLabel;
+    $('finCashUnit').textContent = '단위 · ' + unitLabel;
     $('finGrowth').innerHTML = barGroups(f.years, [
       { name: '매출액', color: 'var(--dv-navy)', data: f.revenue }, { name: '영업이익', color: 'var(--dv-teal)', data: f.operating_income }, { name: '순이익', color: 'var(--dv-gold)', data: f.net_income }
     ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 230 });
@@ -1194,11 +1216,12 @@
     ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 210 });
     // 표
     var tb = f.table, cols = '1.4fr repeat(' + tb.years.length + ',1fr)';
-    var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + unit + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
+    var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + (unit === 'B' ? '10억 달러' : unit + '원') + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
     var body = Object.keys(tb.rows).map(function (name, ri) {
-      var isEps = name === 'EPS';
-      var cells = tb.rows[name].map(function (v) { return '<span style="text-align:right">' + (v == null ? '—' : isEps ? Math.round(v).toLocaleString('en-US') : v.toFixed(2)) + '</span>'; }).join('');
-      return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 0;' + (ri < 3 ? 'border-bottom:1px solid var(--line);' : '') + 'font-family:var(--font-mono);font-size:12.5px"><span style="font-family:var(--font-sans)">' + name + (isEps ? '(원)' : '') + '</span>' + cells + '</div>';
+      var isEps = name === 'EPS', krw = CUR === 'KRW';
+      // EPS는 통화 원단위(스케일 무관) — KR은 원(정수), US는 달러(센트까지)
+      var cells = tb.rows[name].map(function (v) { return '<span style="text-align:right">' + (v == null ? '—' : isEps ? (krw ? Math.round(v).toLocaleString('en-US') : v.toFixed(2)) : v.toFixed(2)) + '</span>'; }).join('');
+      return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 0;' + (ri < 3 ? 'border-bottom:1px solid var(--line);' : '') + 'font-family:var(--font-mono);font-size:12.5px"><span style="font-family:var(--font-sans)">' + name + (isEps ? (krw ? '(원)' : '($)') : '') + '</span>' + cells + '</div>';
     }).join('');
     $('finTableBody').innerHTML = head + body;
   }
@@ -1443,8 +1466,8 @@
     // 방법별 표의 ①②③ 방법명 → 해당 재료 탭으로 이동
     $('methodsTable').addEventListener('click', function (e) { var g = e.target.closest('.methods-goto'); if (!g) return; switchTab(g.getAttribute('data-goto')); $('tabBar').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     // 종목 입력
-    $('tickerForm').addEventListener('submit', function (e) { e.preventDefault(); var q = $('tickerInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; load(); } });
-    $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) { state.query = q; $('tickerInput').value = q; load(); } });
+    $('tickerForm').addEventListener('submit', function (e) { e.preventDefault(); var q = $('tickerInput').value.trim().split(/\s+/)[0]; if (q) submitQuery(q); });
+    $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) submitQuery(q); });
     // 자동완성 — 헤더 검색창과 사이드바 티커 입력 둘 다. 주식은 바로 분석, ETF는 포트폴리오로 담아 안내.
     attachAutocomplete($('navSearchInput'), function (it) { $('navSearchInput').value = ''; pickTicker(it); });
     attachAutocomplete($('tickerInput'), function (it) { pickTicker(it); });
