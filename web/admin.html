@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>투자지표 — 방문자 관리</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/meridian.css">
+<style>
+  .sec { padding: 34px 0; border-bottom: 1px solid var(--line); }
+  .tile { flex: 1; min-width: 150px; }
+  .tile .v { font-family: var(--font-mono); font-size: 24px; font-weight: 500; margin-top: 6px; }
+  .tile .s { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+  .tbl { border-top: 1px solid var(--line-strong); margin-top: 12px; }
+  .tbl .row { display: grid; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+  .tbl .row.head span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .tbl .mono { font-family: var(--font-mono); }
+  .tbl .r { text-align: right; }
+  .num { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 9px 12px; font-family: var(--font-mono); font-size: 14px; color: var(--ink); background: var(--paper); outline: none; }
+  .num:focus { border-color: var(--ink); }
+  .note { font-size: 12px; color: var(--ink-3); line-height: 1.65; }
+  .warn { border: 1px solid var(--line-strong); background: var(--paper-2); border-radius: var(--radius-md); padding: 14px 16px; font-size: 13px; color: var(--ink-2); line-height: 1.7; }
+  .linkbtns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .bar { height: 8px; background: var(--paper-3); border-radius: 2px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--dv-navy); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; gap: 24px; } }
+</style>
+</head>
+<body>
+<div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
+
+  <header style="height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:26px;padding:0 26px;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
+    <div style="display:flex;align-items:baseline;gap:8px;flex:none;white-space:nowrap">
+      <span style="font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-0.01em">투자지표</span>
+      <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--ink-3);letter-spacing:0.1em;border:1px solid var(--line);padding:1px 5px;border-radius:2px">ADMIN</span>
+    </div>
+    <nav style="display:flex;gap:2px;align-items:center;white-space:nowrap">
+      <a href="home.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">← 사이트로</a>
+    </nav>
+    <div style="margin-left:auto"><button id="refreshBtn" class="btn btn-secondary btn-sm" style="display:none">↺ 새로고침</button></div>
+  </header>
+
+  <main style="flex:1;width:100%;max-width:var(--content-max);margin:0 auto;padding:0 30px">
+
+    <section style="padding:40px 0 6px">
+      <div class="kick section-spine" style="color:var(--dv-navy)">관리 · Analytics</div>
+      <h1 style="font-family:var(--font-display);font-weight:700;font-size:clamp(26px,4vw,38px);letter-spacing:-0.02em;margin:12px 0 0">방문자 대시보드</h1>
+      <p class="note" style="margin:10px 0 0;max-width:70ch">Google Analytics(추이·유입·페이지)와 Microsoft Clarity(행동 품질) 데이터를 이 페이지에서 봅니다. 히트맵·세션 녹화 <b>영상</b>은 보안상 임베드가 막혀 있어, 아래 버튼으로 Clarity에서 열립니다.</p>
+    </section>
+
+    <!-- 토큰 게이트 -->
+    <section class="sec" id="gate">
+      <span class="kick section-spine">접근 토큰</span>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px">
+        <input class="num" id="tokenInput" type="password" placeholder="관리 토큰(ADMIN_TOKEN)" style="width:min(320px,80vw)">
+        <button id="loadBtn" class="btn btn-primary btn-sm">열기</button>
+        <span id="gateMsg" class="note"></span>
+      </div>
+      <div class="note" style="margin-top:10px">토큰은 이 브라우저에만 저장됩니다. 서버 환경변수 <b>ADMIN_TOKEN</b>과 같아야 해요.</div>
+    </section>
+
+    <div id="dash" style="display:none">
+
+      <!-- 설정 현황 (미설정일 때만 표시) -->
+      <section class="sec" id="setupSec" style="display:none">
+        <span class="kick section-spine">설정 필요</span>
+        <div class="warn" style="margin-top:14px" id="setupBody"></div>
+      </section>
+
+      <!-- KPI -->
+      <section class="sec">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+          <span class="kick section-spine">한눈에 — 최근 28일</span>
+          <span class="note" id="asofNote"></span>
+        </div>
+        <div id="kpiTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:14px"></div>
+      </section>
+
+      <!-- 일별 추이 -->
+      <section class="sec" id="dailySec">
+        <span class="kick section-spine">일별 방문 추이 — 사용자 · 세션</span>
+        <div id="dailyChart" style="margin-top:16px;min-height:200px"></div>
+      </section>
+
+      <!-- 유입 · 페이지 -->
+      <section class="sec">
+        <div class="grid2">
+          <div>
+            <span class="kick section-spine">어디서 왔나 — 유입 출처</span>
+            <div id="srcTable" class="tbl"></div>
+            <div class="note" style="margin-top:8px">(direct)·(none)은 주소 직접 입력·북마크 등 출처가 없는 방문입니다.</div>
+          </div>
+          <div>
+            <span class="kick section-spine">무엇을 봤나 — 인기 페이지</span>
+            <div id="pageTable" class="tbl"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 국가 · 기기 -->
+      <section class="sec">
+        <div class="grid2">
+          <div>
+            <span class="kick section-spine">국가</span>
+            <div id="countryTable" class="tbl"></div>
+          </div>
+          <div>
+            <span class="kick section-spine">기기</span>
+            <div id="deviceTable" class="tbl"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Clarity 행동 품질 -->
+      <section class="sec">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+          <span class="kick section-spine">행동 품질 (Clarity · 최근 3일)</span>
+          <span class="note">Clarity 무료 API는 최근 1~3일 집계만 제공 · 6시간마다 갱신</span>
+        </div>
+        <div id="clarityTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:14px"></div>
+        <div id="clarityNote" class="note" style="margin-top:10px"></div>
+      </section>
+
+      <!-- 딥링크 -->
+      <section class="sec">
+        <span class="kick section-spine">더 깊이 — 외부 대시보드</span>
+        <div class="linkbtns" style="margin-top:14px" id="deepLinks"></div>
+        <div class="note" style="margin-top:10px">🔥 히트맵(클릭·스크롤 지도)과 🎬 세션 녹화 영상은 Clarity 로그인 후 볼 수 있어요. 위 숫자 데이터는 전부 이 페이지에서 갱신됩니다.<br>본인 방문을 통계에서 빼려면 아무 페이지나 주소 뒤에 <b class="mono">?notrack=1</b>을 붙여 한 번 접속하세요(해제는 <b class="mono">?track=1</b>).</div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer style="border-top:1px solid var(--line);background:var(--paper-2);padding:18px 30px">
+    <div style="max-width:var(--content-max);margin:0 auto" class="note">ⓘ 이 페이지는 검색엔진에 노출되지 않으며(noindex), 데이터 조회에는 관리 토큰이 필요합니다. 토큰은 아는 사람에게만 공유하세요.</div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
+  function n(v) { var x = Number(v); return isNaN(x) ? 0 : x; }
+  function fmt(v) { return n(v).toLocaleString('en-US'); }
+
+  function tiles(el, items) {
+    el.innerHTML = items.map(function (t, i) {
+      return '<div class="tile" style="padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + esc(t[0]) + '</div><div class="v">' + t[1] + '</div>' + (t[2] ? '<div class="s">' + esc(t[2]) + '</div>' : '') + '</div>';
+    }).join('');
+  }
+  function barTable(el, headA, headB, rows) {
+    // rows: [label, value] — 최대값 기준 가로 막대
+    if (!rows.length) { el.innerHTML = '<div class="note" style="padding:14px 0">데이터가 아직 없습니다.</div>'; return; }
+    var max = Math.max.apply(null, rows.map(function (r) { return r[1]; })) || 1;
+    var head = '<div class="row head" style="grid-template-columns:1.3fr 70px 1fr"><span>' + esc(headA) + '</span><span class="r">' + esc(headB) + '</span><span></span></div>';
+    el.innerHTML = head + rows.map(function (r) {
+      return '<div class="row" style="grid-template-columns:1.3fr 70px 1fr"><span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r[0]) + '</span><span class="mono r" style="font-size:12.5px">' + fmt(r[1]) + '</span><div class="bar"><i style="width:' + (r[1] / max * 100).toFixed(1) + '%"></i></div></div>';
+    }).join('');
+  }
+
+  function dailyChart(daily) {
+    // daily: [[YYYYMMDD, users, sessions, pageviews], …]
+    var box = $('dailyChart');
+    if (!daily || daily.length < 2) { box.innerHTML = '<div class="note" style="padding:16px 0">이틀 이상 데이터가 쌓이면 추이가 그려집니다.</div>'; return; }
+    var W = 900, H = 210, padL = 40, padR = 14, top = 12, plotH = H - 50, xw = W - padL - padR;
+    var us = daily.map(function (d) { return n(d[1]); }), ss = daily.map(function (d) { return n(d[2]); });
+    var ymax = Math.max.apply(null, us.concat(ss, [1]));
+    var X = function (i) { return padL + i / (daily.length - 1) * xw; };
+    var Y = function (v) { return top + (1 - v / ymax) * plotH; };
+    var els = '';
+    for (var g = 0; g <= 3; g++) {
+      var yy = top + g / 3 * plotH, val = ymax * (1 - g / 3);
+      els += '<line x1="' + padL + '" x2="' + (padL + xw) + '" y1="' + yy + '" y2="' + yy + '" stroke="var(--line)" stroke-width="1"/>';
+      els += '<text x="' + (padL - 8) + '" y="' + (yy + 4) + '" font-size="11" fill="var(--ink-3)" font-family="var(--font-mono)" text-anchor="end">' + Math.round(val) + '</text>';
+    }
+    function line(arr, col, w) { var p = ''; arr.forEach(function (v, i) { p += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' '; }); return '<path d="' + p + '" fill="none" stroke="' + col + '" stroke-width="' + w + '"/>'; }
+    els += line(ss, 'var(--dv-slate)', 1.7) + line(us, 'var(--dv-navy)', 2.2);
+    var lastI = daily.length - 1;
+    els += '<circle cx="' + X(lastI) + '" cy="' + Y(us[lastI]) + '" r="3.4" fill="var(--dv-navy)"/>';
+    [0, Math.floor(lastI / 2), lastI].forEach(function (i) {
+      var d = String(daily[i][0]);
+      els += '<text x="' + X(i) + '" y="' + (top + plotH + 18) + '" font-size="10.5" fill="var(--ink-3)" font-family="var(--font-mono)" text-anchor="middle">' + d.slice(4, 6) + '.' + d.slice(6, 8) + '</text>';
+    });
+    box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block">' + els + '</svg>' +
+      '<div style="display:flex;gap:18px;margin-top:8px" class="note"><span><span style="display:inline-block;width:14px;height:2px;background:var(--dv-navy);vertical-align:middle;margin-right:6px"></span>사용자</span><span><span style="display:inline-block;width:14px;height:2px;background:var(--dv-slate);vertical-align:middle;margin-right:6px"></span>세션</span></div>';
+  }
+
+  /* Clarity live-insights 응답에서 아는 지표만 골라 타일로 */
+  function renderClarity(cl) {
+    var tilesEl = $('clarityTiles'), noteEl = $('clarityNote');
+    if (!cl || cl.error) { tilesEl.innerHTML = ''; noteEl.innerHTML = '<b>Clarity API:</b> ' + esc((cl && cl.error) || '데이터 없음'); return; }
+    var byName = {};
+    (cl.metrics || []).forEach(function (m) { byName[m.metricName] = (m.information && m.information[0]) || {}; });
+    var t = byName.Traffic || {};
+    var items = [];
+    if (t.totalSessionCount != null) items.push(['세션 (3일)', fmt(t.totalSessionCount), t.totalBotSessionCount != null ? '봇 ' + fmt(t.totalBotSessionCount) + ' 제외 전' : '']);
+    if (t.distinctUserCount != null) items.push(['순 방문자', fmt(t.distinctUserCount), '']);
+    var eng = byName.EngagementTime || {};
+    if (eng.activeTime != null) items.push(['활성 이용 시간', Math.round(n(eng.activeTime)) + '초', '세션 평균']);
+    var sd = byName.ScrollDepth || {};
+    if (sd.averageScrollDepth != null) items.push(['평균 스크롤 깊이', n(sd.averageScrollDepth).toFixed(0) + '%', '페이지를 얼마나 내려봤나']);
+    function pct(name, label, help) {
+      var m = byName[name] || {};
+      var v = m.sessionsWithMetricPercentage;
+      if (v != null) items.push([label, n(v).toFixed(1) + '%', help]);
+    }
+    pct('DeadClickCount', '데드 클릭', '눌러도 반응 없던 세션 비율');
+    pct('RageClickCount', '분노 클릭', '같은 곳 연타 — 답답함 신호');
+    pct('QuickbackClick', '즉시 이탈 클릭', '눌렀다 바로 되돌아감');
+    pct('ScriptErrorCount', 'JS 오류 세션', '스크립트 오류를 만난 세션');
+    if (!items.length) { noteEl.innerHTML = 'Clarity 응답을 받았지만 표시할 지표가 없습니다(방문이 쌓이면 나타납니다).'; return; }
+    tiles(tilesEl, items);
+    noteEl.textContent = '';
+  }
+
+  function renderSetup(cfg) {
+    var missing = (cfg && cfg.missing) || [];
+    var relevant = missing.filter(function (k) { return k !== 'ADMIN_TOKEN'; });
+    if (!relevant.length) { $('setupSec').style.display = 'none'; return; }
+    var GUIDE = {
+      GA_MEASUREMENT_ID: '방문 추적(GA) — analytics.google.com에서 속성 만들고 측정 ID(G-…)',
+      CLARITY_PROJECT_ID: '히트맵 추적(Clarity) — clarity.microsoft.com에서 프로젝트 만들고 프로젝트 ID',
+      CLARITY_API_TOKEN: '이 페이지의 Clarity 숫자 — Clarity Settings → Data Export에서 토큰 발급',
+      GA_PROPERTY_ID: '이 페이지의 GA 숫자 — GA 관리 → 속성 설정의 숫자 ID',
+      GA_SA_KEY_JSON: '이 페이지의 GA 숫자 — GCP 서비스계정 JSON 키 전문'
+    };
+    $('setupSec').style.display = '';
+    $('setupBody').innerHTML = '아직 설정되지 않은 키가 있어요 (서버 환경변수 또는 secrets.toml):<br>' +
+      relevant.map(function (k) { return '· <b class="mono">' + esc(k) + '</b> — ' + esc(GUIDE[k] || ''); }).join('<br>') +
+      '<br><span class="note">자세한 순서는 리포의 <b>docs/analytics-setup.md</b>를 보세요.</span>';
+  }
+
+  function render(d) {
+    renderSetup(d.configured);
+    // KPI
+    var ga = d.ga || {}, k = [];
+    if (!ga.error && ga.daily && ga.daily.length) {
+      var tu = 0, ts = 0, tp = 0;
+      ga.daily.forEach(function (r) { tu += n(r[1]); ts += n(r[2]); tp += n(r[3]); });
+      k.push(['사용자 (28일)', fmt(tu), '']);
+      k.push(['세션 (28일)', fmt(ts), '']);
+      k.push(['페이지뷰 (28일)', fmt(tp), '']);
+    } else {
+      k.push(['사용자 (28일)', '—', ga.error || 'GA 미설정']);
+    }
+    var rt = d.realtime || {};
+    k.push(['지금 접속', rt.error ? '—' : fmt(rt.active_users), rt.error ? '' : '최근 30분 · 5분마다 갱신']);
+    tiles($('kpiTiles'), k);
+    $('asofNote').textContent = '갱신 ' + new Date().toLocaleString('ko-KR');
+
+    dailyChart(ga.daily);
+    barTable($('srcTable'), '출처 / 매체', '세션', (ga.sources || []).map(function (r) { return [r[0] + ' / ' + r[1], n(r[2])]; }));
+    barTable($('pageTable'), '페이지', '조회', (ga.pages || []).map(function (r) { return [r[0], n(r[1])]; }));
+    barTable($('countryTable'), '국가', '사용자', (ga.countries || []).map(function (r) { return [r[0], n(r[1])]; }));
+    barTable($('deviceTable'), '기기', '사용자', (ga.devices || []).map(function (r) { return [r[0], n(r[1])]; }));
+    renderClarity(d.clarity);
+
+    var L = d.links || {}, btns = [];
+    if (L.clarity_heatmaps) btns.push('<a class="btn btn-primary btn-sm" target="_blank" rel="noopener" href="' + esc(L.clarity_heatmaps) + '">🔥 히트맵 열기 (Clarity)</a>');
+    if (L.clarity_recordings) btns.push('<a class="btn btn-secondary btn-sm" target="_blank" rel="noopener" href="' + esc(L.clarity_recordings) + '">🎬 세션 녹화 (Clarity)</a>');
+    if (L.clarity_dashboard) btns.push('<a class="btn btn-secondary btn-sm" target="_blank" rel="noopener" href="' + esc(L.clarity_dashboard) + '">Clarity 대시보드</a>');
+    if (L.ga_home) btns.push('<a class="btn btn-secondary btn-sm" target="_blank" rel="noopener" href="' + esc(L.ga_home) + '">GA 대시보드</a>');
+    $('deepLinks').innerHTML = btns.join('') || '<span class="note">추적 ID를 설정하면 딥링크가 나타납니다.</span>';
+  }
+
+  function load() {
+    var token = $('tokenInput').value.trim();
+    if (!token) { $('gateMsg').textContent = '토큰을 입력하세요.'; return; }
+    $('gateMsg').textContent = '불러오는 중…';
+    fetch('api/admin/stats?token=' + encodeURIComponent(token))
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok || res.j.error) { $('gateMsg').innerHTML = '<span style="color:var(--danger)">' + esc(res.j.error || '불러오기 실패') + '</span>'; return; }
+        localStorage.setItem('vd_admin_token', token);
+        $('gateMsg').textContent = '';
+        $('gate').style.display = 'none';
+        $('dash').style.display = '';
+        $('refreshBtn').style.display = '';
+        render(res.j);
+      })
+      .catch(function (e) { $('gateMsg').innerHTML = '<span style="color:var(--danger)">서버 연결 실패: ' + esc(e.message) + '</span>'; });
+  }
+
+  $('loadBtn').addEventListener('click', load);
+  $('tokenInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') load(); });
+  $('refreshBtn').addEventListener('click', load);
+  var saved = localStorage.getItem('vd_admin_token');
+  if (saved) { $('tokenInput').value = saved; load(); }
+})();
+</script>
+</body>
+</html>
