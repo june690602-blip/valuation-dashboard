@@ -204,6 +204,37 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
                 return self._send_json({"error": _ERR_MSG}, 500)
+        if u.path == "/api/analytics-config":
+            # 추적 스니펫용 공개 ID(GA 측정 ID·Clarity 프로젝트 ID) — 원래 페이지에 공개되는 값
+            try:
+                from src.data.analytics import tracking_config
+                return self._send_json(cached_generic("anacfg", tracking_config, ttl=600))
+            except Exception:  # noqa: BLE001
+                return self._send_json({"ga": None, "clarity": None})
+        if u.path == "/api/admin/stats":
+            # 관리 페이지 통계 — ADMIN_TOKEN 필수(미설정이면 잠금). 키·토큰은 서버 밖으로 안 나간다.
+            import hmac
+            q = parse_qs(u.query)
+            supplied = (q.get("token", [""])[0] or self.headers.get("X-Admin-Token", "")).strip()
+            expected = (os.environ.get("ADMIN_TOKEN", "") or "").strip()
+            if not expected:
+                try:
+                    from src.data.analytics import _secret
+                    expected = (_secret("ADMIN_TOKEN") or "").strip()
+                except Exception:  # noqa: BLE001
+                    expected = ""
+            if not expected:
+                return self._send_json({"error": "ADMIN_TOKEN이 설정되지 않아 관리 페이지가 잠겨 있습니다. "
+                                                 "서버 환경변수(또는 secrets.toml)에 ADMIN_TOKEN을 넣어 주세요."}, 403)
+            if not supplied or not hmac.compare_digest(supplied, expected):
+                return self._send_json({"error": "관리 토큰이 올바르지 않습니다."}, 401)
+            try:
+                from src.data.analytics import admin_stats
+                # 인프로세스 5분 캐시 — 새로고침 연타가 외부 API(특히 Clarity 10회/일)를 때리지 않게
+                return self._send_json(cached_generic("adminstats", admin_stats, ttl=300))
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+                return self._send_json({"error": _ERR_MSG}, 500)
         if u.path == "/api/suggest":
             # 종목 자동완성 — 타이핑마다 호출되므로 (market,q)로 짧게 캐시. 실패해도 빈 목록.
             q = parse_qs(u.query)
