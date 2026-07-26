@@ -45,6 +45,14 @@ PEER_COLUMNS = [
 ]
 
 
+class IsETFError(ValueError):
+    """기업 분석 질의가 사실은 ETF였을 때.
+
+    '못 찾음'과 구분하려고 따로 둔다 — 호출부(서버·프런트)가 이걸 보고 오류를 띄우는 대신
+    ETF 분석(3축)으로 자동 전환한다. kind=etf가 안 붙은 옛 링크·직접 입력 URL 대비.
+    """
+
+
 def recomm_label(score: float | None) -> str | None:
     """투자의견 점수(1~5, 5=적극매수 통일 척도) → 한국어 라벨."""
     if score is None:

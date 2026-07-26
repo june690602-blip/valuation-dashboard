@@ -146,8 +146,12 @@ class Handler(SimpleHTTPRequestHandler):
                 print(f"[api] {market} {query} → {data['meta']['name']} ({time.time() - t0:.1f}s)")
                 return self._send_json(data)
             except ValueError as e:  # 종목 미탐색 등 사용자 입력 오류 — 안내 문구를 그대로 전달(서버 오류 아님)
+                from src.data.models import IsETFError
                 print(f"[api] {market} {query} → 입력 오류: {e}")
-                return self._send_json({"error": str(e)}, 400)
+                payload = {"error": str(e)}
+                if isinstance(e, IsETFError):
+                    payload["kind"] = "etf"   # 프런트가 이걸 보고 ETF 분석으로 자동 재요청
+                return self._send_json(payload, 400)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
                 return self._send_json({"error": _ERR_MSG}, 500)

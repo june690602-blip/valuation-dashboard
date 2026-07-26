@@ -621,7 +621,7 @@
         return '<div class="ac-item' + (i === sel ? ' on' : '') + '" data-i="' + i + '">' +
           '<span class="ac-name">' + esc(it.name) + '</span>' +
           '<span class="ac-code">' + esc(it.code) + '</span>' +
-          '<span class="ac-sub">' + esc(it.sub || '') + '</span></div>';
+          '<span class="ac-sub' + (it.kind === 'etf' ? ' ac-etf' : '') + '">' + esc(it.sub || '') + '</span></div>';
       }).join('');
       box.style.display = 'block';
     }
@@ -656,6 +656,32 @@
     input.addEventListener('focus', function () { var q = input.value.trim(); if (q && box.style.display === 'none') fetchSuggest(q); });
   }
 
+  // 자동완성 선택 처리 — 주식은 9탭 기업분석, ETF는 3축 ETF 분석으로 간다.
+  // (같은 페이지에서 kind만 갈아끼운다 — load()가 kind를 보고 엔드포인트를 고른다.)
+  function pickTicker(it) {
+    if (!it) return;
+    state.kind = it.kind === 'etf' ? 'etf' : 'stock';
+    state.query = it.code; $('tickerInput').value = it.code; load();
+  }
+  // Enter로 직접 친 질의도 ETF(코드·심볼·이름 정확 일치)면 ETF 분석으로 보낸다 —
+  // 안 그러면 '연간 손익계산서를 못 찾았습니다' 같은 엉뚱한 오류를 보게 된다.
+  // suggest는 서버 캐시라 이 한 번의 왕복 비용이 거의 없다.
+  function submitQuery(q) {
+    if (!q) return;
+    var qq = q.toUpperCase();
+    function go(kind) { state.kind = kind; state.query = q; $('tickerInput').value = q; load(); }
+    fetch('api/suggest?market=' + encodeURIComponent(state.market) + '&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var items = (d && d.items) || [];
+        for (var i = 0; i < items.length; i++) {
+          var it = items[i];
+          if (it.kind === 'etf' && (String(it.code).toUpperCase() === qq || String(it.name).toUpperCase() === qq)) { go('etf'); return; }
+        }
+        go('stock');
+      })
+      .catch(function () { go('stock'); });   // 자동완성이 죽어도 분석 자체는 막지 않는다
+  }
   /* 점·표 클릭 → 재검색, 점 hover ↔ 좌측 피어표 행 상호 하이라이트 */
   function _searchTo(q) { if (!q) return; state.query = q; var ti = $('tickerInput'); if (ti) ti.value = q; state.hover = null; load(); }
   function _setLinked(key, on) {
@@ -1357,7 +1383,10 @@
   }
   function addEtfToBasket() {
     var b; try { b = JSON.parse(localStorage.getItem('invportfolio') || '{}'); } catch (e) { b = {}; }
-    b[D.symbol] = { name: D.name, yahoo: D.symbol, ticker: D.symbol, type: '해외ETF', currency: D.currency, 'class': 'ETF' };
+    // 포트폴리오는 야후 티커를 키로 쓴다 — 국내 ETF는 6자리 코드에 .KS를 붙여야 시세가 붙는다.
+    var kr = D.currency === 'KRW', yahoo = kr ? D.symbol + '.KS' : D.symbol;
+    b[yahoo] = { name: D.name, yahoo: yahoo, ticker: D.symbol,
+      type: kr ? '국내기타ETF' : '해외ETF', currency: D.currency, 'class': 'ETF' };
     localStorage.setItem('invportfolio', JSON.stringify(b));
     var btn = $('etfBasketBtn'); if (btn) { btn.textContent = '✓ 담았어요 — 🧺 포트폴리오에서 확인'; setTimeout(function () { btn.textContent = '＋ 포트폴리오에 담기'; }, 1800); }
   }
@@ -1465,6 +1494,15 @@
       return '<span style="font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px 11px">' + esc(a.label) + ' <b class="mono">' + (a.weight * 100).toFixed(1) + '%</b></span>';
     }).join('') + '</div>';
   }
+  // 국가 비중 — 한국(네이버)에서만 온다. 해외형이 실제로 어디에 투자하는지 확인용.
+  function etfCountries() {
+    var cs = (D.countries || []).filter(function (c) { return c.weight > 0.0005; });
+    if (!cs.length) return '';
+    return '<div style="margin-top:14px"><div class="kick" style="margin-bottom:6px">투자 국가</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px">' + cs.map(function (c) {
+        return '<span style="font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px 11px">' + esc(c.label) + ' <b class="mono">' + (c.weight * 100).toFixed(1) + '%</b></span>';
+      }).join('') + '</div></div>';
+  }
   function etfPanelHoldings() {
     var h = D.holdings || [], secs = D.sectors || [];
     if (!h.length && !secs.length) {
@@ -1473,11 +1511,16 @@
     }
     var maxW = h.length ? (h[0].weight || 1) : 1;
     var holdRows = h.map(function (x, i) {
-      var w = x.weight || 0;
+      // 비중이 없는 경우(국내 상장 해외 ETF는 네이버가 구성비를 '-'로 준다)는 0%가 아니라 '—'.
+      // 0%로 그리면 '거의 안 담았다'는 반대 뜻으로 읽힌다.
+      var w = x.weight, has = w != null;
+      var bar = has
+        ? '<span style="width:52px;height:6px;background:var(--paper-3);border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:' + (w / maxW * 100).toFixed(0) + '%;background:var(--dv-navy)"></span></span><b class="mono" style="font-size:12px">' + (w * 100).toFixed(1) + '%</b>'
+        : '<span class="na" tabindex="0" data-tip="운용사가 구성 비중을 공개하지 않아 순서만 표시합니다." style="font-size:12px">—</span>';
       return '<div style="display:grid;grid-template-columns:22px 1fr 96px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">' +
         '<span class="mono" style="font-size:11.5px;color:var(--ink-3)">' + (i + 1) + '</span>' +
-        '<span style="min-width:0"><b style="font-family:' + EMONO + ';font-size:12px">' + esc(x.symbol) + '</b> <span style="font-size:12.5px;color:var(--ink-2)">' + esc(x.name) + '</span></span>' +
-        '<span style="display:flex;align-items:center;gap:7px;justify-content:flex-end"><span style="width:52px;height:6px;background:var(--paper-3);border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:' + (w / maxW * 100).toFixed(0) + '%;background:var(--dv-navy)"></span></span><b class="mono" style="font-size:12px">' + (w * 100).toFixed(1) + '%</b></span></div>';
+        '<span style="min-width:0">' + (x.symbol ? '<b style="font-family:' + EMONO + ';font-size:12px">' + esc(x.symbol) + '</b> ' : '') + '<span style="font-size:12.5px;color:var(--ink-2)">' + esc(x.name) + '</span></span>' +
+        '<span style="display:flex;align-items:center;gap:7px;justify-content:flex-end">' + bar + '</span></div>';
     }).join('');
     var maxS = secs.length ? Math.max.apply(null, secs.map(function (s) { return s.weight; })) : 1;
     var secRows = secs.map(function (s) {
@@ -1491,7 +1534,8 @@
         '<div class="analysis-section-body">' + (holdRows || '<span style="color:var(--ink-3)">보유 종목 데이터가 없습니다.</span>') + '</div></div>' +
       '<div style="flex:1;min-width:300px">' + etfSectionHead('02', '섹터 비중', '어느 산업에 얼마나 노출돼 있는지입니다.', null) +
         '<div class="analysis-section-body">' + (secRows || '<span style="color:var(--ink-3)">섹터 데이터가 없습니다.</span>') +
-        '<div style="margin-top:14px"><div class="kick" style="margin-bottom:6px">자산군</div>' + etfAssetClasses() + '</div></div></div></div>';
+        '<div style="margin-top:14px"><div class="kick" style="margin-bottom:6px">자산군</div>' + etfAssetClasses() + '</div>' +
+        etfCountries() + '</div></div></div>';
   }
   // ③ 성과·추이 — 벤치마크 대비 오버레이 + 수익률표
   function etfRelChart() {
@@ -1537,13 +1581,25 @@
     }).join('') + '</div>';
   }
   function etfPanelCost() {
-    var mt = D.metrics || {};
+    var mt = D.metrics || {}, fi = D.fundInfo || {};
     var teTip = D.trackingErrorNote || '';
+    // 추적오차는 같은 이름이라도 출처에 따라 뜻이 다르다 — 한국은 운용사가 낸 기초지수 복제오차,
+    // 미국은 우리가 대용 벤치마크로 낸 추정치. 부제목도 그에 맞춰 갈라 준다.
+    var pub = !!fi.base_index && D.trackingError != null;
+    var teSub = pub ? '기초지수 복제 정확도 (운용사 공시)' : '벤치마크 대비 상대 변동성 (추정)';
     var rows = [
-      ['총보수(연)', mt.expense_ratio != null ? fmtPct(mt.expense_ratio, 2) : na('운용사 총보수(expense ratio) 데이터를 무료 소스에서 받지 못했습니다.'), '펀드 운용 수수료'],
-      ['추적오차', D.trackingError != null ? '<span class="na" tabindex="0" data-tip="' + esc(teTip) + '">' + fmtPct(D.trackingError, 2) + ' ⓘ</span>' : na('벤치마크가 없어 계산하지 못했습니다.'), '벤치마크 대비 상대 변동성'],
+      // 국내 ETF 보수 인하 경쟁으로 0.0068% 같은 값이 흔하다 — 2자리로 자르면 0.01%로 뭉개져
+      // 비교가 안 되므로, 아주 낮은 구간에서만 소수 자리를 늘린다.
+      ['총보수(연)', mt.expense_ratio != null ? fmtPct(mt.expense_ratio, mt.expense_ratio < 0.0005 ? 4 : 2) : na('운용사 총보수(expense ratio) 데이터를 무료 소스에서 받지 못했습니다.'), '펀드 운용 수수료'],
+      ['추적오차', D.trackingError != null ? '<span class="na" tabindex="0" data-tip="' + esc(teTip) + '">' + fmtPct(D.trackingError, 2) + ' ⓘ</span>' : na('벤치마크가 없어 계산하지 못했습니다.'), teSub],
       ['순자산(AUM)', mt.aum != null ? fmtMoney(mt.aum) : na('순자산 데이터가 없습니다.'), '펀드 규모'],
       ['비교 벤치마크', esc(mt.bench_label || '—'), '상대 비교 기준']];
+    // 아래 네 줄은 한국(네이버)에서만 오는 값 — 미국은 없으므로 행 자체를 만들지 않는다.
+    if (fi.base_index) rows.push(['기초지수', esc(fi.base_index), '이 ETF가 따라가기로 한 지수']);
+    if (fi.issuer) rows.push(['운용사', esc(fi.issuer), '펀드를 만들고 운용하는 회사']);
+    if (fi.listed_date && fi.listed_date.length === 8) {
+      rows.push(['상장일', fi.listed_date.slice(0, 4) + '.' + fi.listed_date.slice(4, 6) + '.' + fi.listed_date.slice(6, 8), '거래가 시작된 날']);
+    }
     var rowHtml = rows.map(function (r) {
       return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)"><div><div style="font-size:13.5px;color:var(--ink);font-weight:600">' + r[0] + '</div><div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">' + r[2] + '</div></div><div class="mono" style="font-size:16px;text-align:right">' + r[1] + '</div></div>';
     }).join('');
@@ -1657,6 +1713,8 @@
       .then(function (res) {
         if (seq !== _reqSeq) return; // 최신 요청만 반영
         stopProgress();
+        // kind 없이 들어온 링크가 사실 ETF였다면(서버가 kind:'etf'로 알려 줌) 오류 대신 ETF 분석으로.
+        if (!res.ok && res.j && res.j.kind === 'etf') { state.kind = 'etf'; load(); return; }
         if (!res.ok || res.j.error) { setStatus(true, res.j.error || '분석에 실패했습니다.', true); return; }
         D = res.j; state.hover = null; renderAll(); setStatus(false);
       })
@@ -1694,11 +1752,13 @@
     // 방법별 표의 ①②③ 방법명 → 해당 재료 탭으로 이동
     $('methodsTable').addEventListener('click', function (e) { var g = e.target.closest('.methods-goto'); if (!g) return; switchTab(g.getAttribute('data-goto')); $('tabBar').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
     // 종목 입력
-    $('tickerForm').addEventListener('submit', function (e) { e.preventDefault(); var q = $('tickerInput').value.trim().split(/\s+/)[0]; if (q) { state.kind = 'stock'; state.query = q; load(); } });
-    $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) { state.kind = 'stock'; state.query = q; $('tickerInput').value = q; load(); } });
-    // 자동완성 — 헤더 검색창과 사이드바 티커 입력 둘 다. ETF면 ETF 분석, 주식이면 9탭 분석.
-    attachAutocomplete($('navSearchInput'), function (it) { state.kind = it.kind === 'etf' ? 'etf' : 'stock'; state.query = it.code; $('tickerInput').value = it.code; $('navSearchInput').value = ''; load(); });
-    attachAutocomplete($('tickerInput'), function (it) { state.kind = it.kind === 'etf' ? 'etf' : 'stock'; state.query = it.code; $('tickerInput').value = it.code; load(); });
+    // Enter 직접 제출은 submitQuery가 ETF 여부를 먼저 확인하고 알맞은 분석으로 보낸다.
+    $('tickerForm').addEventListener('submit', function (e) { e.preventDefault(); var q = $('tickerInput').value.trim().split(/\s+/)[0]; if (q) submitQuery(q); });
+    $('navSearch').addEventListener('submit', function (e) { e.preventDefault(); var q = $('navSearchInput').value.trim().split(/\s+/)[0]; if (q) submitQuery(q); });
+    // 자동완성 — 헤더 검색창과 사이드바 티커 입력 둘 다. ETF면 3축 ETF 분석, 주식이면 9탭 분석.
+    attachAutocomplete($('navSearchInput'), function (it) { $('navSearchInput').value = ''; pickTicker(it); });
+    attachAutocomplete($('tickerInput'), function (it) { pickTicker(it); });
+    // 예시 칩은 모두 기업 종목이라 kind를 주식으로 되돌린다(ETF 보다가 눌러도 9탭으로).
     $('examples').addEventListener('click', function (e) { var s = e.target.closest('[data-code]'); if (!s) return; state.kind = 'stock'; state.query = s.getAttribute('data-code'); $('tickerInput').value = state.query; load(); });
     // 주가 컨트롤
     wireSeg('priceModeSeg', function (v) { state.priceMode = v; state.hover = null; var showAbs = v === 'abs'; $('maToggles').style.display = showAbs ? 'inline-flex' : 'none'; var cts = $('chartTypeSeg'); if (cts) cts.style.display = showAbs ? '' : 'none'; if (D) renderPrice(); });

@@ -31,6 +31,17 @@ def _ai_classify_us(name: str, hint_industry: str):
     return c.get("sector"), c.get("industry"), syms
 
 
+def _us_etf_name(query: str) -> str | None:
+    """질의가 대표 미국 ETF(심볼 정확 일치)면 그 이름, 아니면 None. 실패해도 None."""
+    try:
+        from .universe import get_us_etf
+        etfs = get_us_etf()
+        m = etfs[etfs["Symbol"].str.upper() == query.upper()] if len(etfs) else etfs
+        return str(m.iloc[0]["Name"]) if len(m) else None
+    except Exception:
+        return None
+
+
 class USProvider(DataProvider):
     market = "US"
     benchmark_name = "S&P 500"
@@ -43,6 +54,13 @@ class USProvider(DataProvider):
             return {"ticker": row["Symbol"], "yahoo_ticker": row["Symbol"],
                     "name": row["Name"], "sector": row["Sector"],
                     "sub_industry": row["SubIndustry"], "in_sp500": True}
+        # ETF는 재무제표가 없어 기업 밸류에이션 불가 — 아래 '직접 티커' 폴백으로 넘어가
+        # 손익계산서 오류를 내기 전에 여기서 잡아 ETF 3축 분석으로 넘긴다.
+        etf_name = _us_etf_name(q)
+        if etf_name:
+            from .models import IsETFError
+            raise IsETFError(f"'{etf_name}({q.upper()})'은(는) ETF예요 — 기업 재무 대신 "
+                             "ETF 분석(괴리·바스켓·배당밴드)으로 보여드릴게요.")
         # S&P500 밖이어도 심볼 형식이면 직접 조회 허용
         if q.replace("-", "").replace(".", "").isalnum() and len(q) <= 6:
             sym = q.upper().replace(".", "-")

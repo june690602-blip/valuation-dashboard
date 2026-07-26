@@ -166,6 +166,33 @@ def _infer_category(name: str, asset_classes: dict, countries: dict) -> str:
     return "Foreign Equity" if any(k in nm for k in _FOREIGN_KW) else "Korea Equity"
 
 
+# 해외형 벤치마크 후보 — (검색 키워드, 야후 심볼, 이름, 한국어 라벨). 위에서부터 먼저 맞는 것.
+_BENCH_RULES = (
+    (("나스닥", "nasdaq", "ndx"), "^IXIC", "NASDAQ", "나스닥 종합"),
+    (("s&p 500", "s&p500", "sp500", "미국"), "^GSPC", "S&P 500", "S&P 500"),
+    (("니케이", "nikkei", "일본"), "^N225", "NIKKEI", "닛케이 225"),
+    (("항셍", "hang seng", "홍콩"), "^HSI", "HSI", "항셍지수"),
+    (("차이나", "중국", "csi"), "000300.SS", "CSI300", "CSI 300"),
+)
+
+
+def _benchmark_for(category: str, name: str, base_index: str | None):
+    """(야후 심볼, benchmark_name, 한국어 라벨) 또는 None(=비교 대상 없음).
+
+    기초지수명을 먼저 보고(운용사 공시라 가장 정확), 없으면 ETF 이름으로 추정한다.
+    채권·원자재·레버리지는 견줄 지수가 마땅치 않아 비교하지 않는다.
+    """
+    if category == "Korea Equity":
+        return "^KS11", "KOSPI", "코스피(KOSPI)"
+    if category != "Foreign Equity":
+        return None
+    hay = f"{base_index or ''} {name or ''}".lower()
+    for keys, sym, bname, label in _BENCH_RULES:
+        if any(k in hay for k in keys):
+            return sym, bname, label
+    return None
+
+
 def _perf_map(raw: list | None) -> dict:
     """returnPerformanceList → {기간코드: 소수수익률}. 원본은 퍼센트(4.54 = 4.54%).
 
@@ -314,16 +341,24 @@ def fetch_kr_etf(code: str) -> ETFData:
 
     category = _infer_category(name, asset_classes, countries)
 
-    # 벤치마크: 주식형(국내·해외)은 코스피 비교, 그 외(채권·원자재·레버리지)는 비교 대상이
-    # 부적절해 자기 시세로 대체(미국판 etf_provider.py의 '벤치마크 없음' 관례와 동일).
+    # 벤치마크: 그 ETF가 실제로 따라가는 시장을 골라야 상대성과가 뜻을 갖는다. 국내형은
+    # 코스피, 해외형은 기초지수·이름으로 추정한다(미국 S&P500 ETF를 코스피와 견주면 무의미).
+    # 마땅한 지수를 못 고르면 자기 시세로 두어 비교 자체를 숨긴다(미국판과 같은 관례).
     benchmark_name = bench_label = ""
     index_prices = prices
-    if category in ("Korea Equity", "Foreign Equity"):
+    bench = _benchmark_for(category, name, base_index)
+    if bench:
+        sym, bname, blabel = bench
         try:
-            index_prices = fetch_index_prices("^KS11")
-            benchmark_name, bench_label = "KOSPI", "코스피(KOSPI)"
+            index_prices = fetch_index_prices(sym)
         except Exception:
-            warnings.append("코스피 지수 시세를 가져오지 못해 상대성과를 계산하지 않습니다.")
+            warnings.append(f"{blabel} 지수 시세를 가져오지 못해 상대성과를 계산하지 않습니다.")
+        else:
+            benchmark_name, bench_label = bname, blabel
+            # 원화로 사는 해외 ETF를 현지 통화 지수와 견주면 환율 등락이 성과 차이에 섞인다.
+            if category == "Foreign Equity":
+                warnings.append("원화로 거래되는 해외 ETF라, 지수 대비 성과에는 환율 변동 효과가 "
+                                "함께 반영돼 있습니다.")
 
     basket_pe = basket_pb = basket_note = None
     if category == "Korea Equity":
