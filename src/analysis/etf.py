@@ -89,6 +89,10 @@ def classify(d: ETFData) -> tuple[str, str]:
         return "foreign_equity", "해외 주식형"
     if "growth" in cat:
         return "growth_equity", "성장 주식형"
+    # 한국 국내주식형 — 무료 소스에 바스켓 PER가 없어 아래 basket_pe 조건에 걸리지 않으므로
+    # provider가 넣어 준 category로 직접 판정한다(미국은 yfinance category가 그 역할).
+    if "korea equity" in cat:
+        return "equity", "국내 주식형"
     if d.basket_pe and d.basket_pe > 0:
         return "equity", "주식형"
     return "other", "기타"
@@ -96,6 +100,14 @@ def classify(d: ETFData) -> tuple[str, str]:
 
 # ── ① 괴리 (현재가 vs NAV) ───────────────────────────────────────────
 def _premium(d: ETFData) -> float | None:
+    """(현재가 − NAV) / NAV. +면 NAV보다 비싸게(프리미엄) 거래되는 중.
+
+    공시 괴리율이 있으면(한국) 그쪽을 쓴다 — 거래소·운용사가 같은 시점 기준으로 낸 값이라,
+    시세와 NAV 스냅샷의 시점이 어긋나 생기는 가짜 괴리가 없다. (실측: 시점이 하루 어긋난
+    NAV로 계산하면 KODEX 200이 −6%로 나오지만 실제 공시 괴리율은 −0.13%다.)
+    """
+    if d.deviation_rate is not None:
+        return float(d.deviation_rate)
     if d.nav and d.nav > 0 and d.price and d.price > 0:
         return d.price / d.nav - 1.0
     return None
@@ -146,7 +158,12 @@ def _tracking_error(d: ETFData) -> float | None:
     운용·복제 품질 지표 — 낮을수록 지수를 잘 따라간다. 벤치마크가 자기 자신으로
     폴백된 경우(benchmark_name 없음)는 의미가 없어 None. 인덱스 ETF는 보통 수%
     이내이고, 레버리지·해외·액티브형일수록 커진다.
+
+    공시 추적오차율이 있으면(한국) 그 값을 그대로 쓴다 — 실제 추종지수 대비 공시값이라,
+    대용 벤치마크로 우리가 추정한 아래 값보다 정확하다(미국은 추종지수 시세를 못 구해 추정).
     """
+    if d.tracking_error_pub is not None:
+        return float(d.tracking_error_pub)
     if not d.benchmark_name or d.index_prices is None or d.prices is None:
         return None
     df = pd.concat([d.prices.rename("e"), d.index_prices.rename("b")], axis=1).dropna()
@@ -220,16 +237,25 @@ def compute_etf(d: ETFData) -> ETFResult:
                               "NAV(순자산가치)를 받지 못했습니다.", available=False))
 
     # ② 바스켓 상대
+    # basket_note는 '이 PER를 어떻게 구했나'(예: 상위 10종목 가중평균 추정)를 밝히는 문구다 —
+    # 숫자와 떨어져 있으면 펀드 전체 PER로 오해하므로 축 설명에 항상 붙여 보낸다.
+    how = f" {d.basket_note}." if d.basket_note else ""
     if fund_type in ("bond", "commodity"):
         r.masked.append(("바스켓 PER", "채권·원자재는 이익 기반 배수가 무의미해 마스킹"))
     elif d.basket_pe and d.bench_pe and d.bench_pe > 0:
         r.pe_vs_bench = d.basket_pe / d.bench_pe - 1
         r.axes.append(ETFAxis("relative", "② 펀더멘털 · 바스켓 상대",
                               f"PER {d.basket_pe:.1f} ({r.bench_label} 대비 {r.pe_vs_bench:+.0%})",
-                              "성장형은 시장보다 높은 PER가 정상입니다(프리미엄)."))
+                              "성장형은 시장보다 높은 PER가 정상입니다(프리미엄)." + how))
     elif d.basket_pe:
         r.axes.append(ETFAxis("relative", "② 펀더멘털 · 바스켓 상대",
-                              f"PER {d.basket_pe:.1f}", "벤치마크 지표가 없어 절대값만 표시."))
+                              f"PER {d.basket_pe:.1f}", "벤치마크 지표가 없어 절대값만 표시." + how))
+    else:
+        # 해외·혼합형은 구성종목이 해외 티커라 무료 소스로 이익 지표를 모을 수 없다.
+        # 축을 조용히 빼면 '계산해 봤더니 이상 없음'으로 읽히므로, 사유를 남긴 채 비활성으로 둔다.
+        r.axes.append(ETFAxis("relative", "② 펀더멘털 · 바스켓 상대", "N/A",
+                              "구성종목의 이익 지표를 무료 데이터로 모으지 못해 바스켓 "
+                              "PER·PBR을 계산하지 못했습니다.", available=False))
 
     # ③ 배당수익률 역사밴드
     cur, pct, med, gap = _dividend_band(d)

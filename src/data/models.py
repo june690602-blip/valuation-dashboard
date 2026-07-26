@@ -171,4 +171,17 @@ class ETFData:
     ret_3y: float | None = None                         # 3년 연율화
     ret_5y: float | None = None                         # 5년 연율화
 
+    # 아래는 한국 ETF(네이버)에서만 채워지는 값 — 미국(yfinance)은 제공하지 않아 None으로 둔다.
+    # 미국은 괴리·추적오차를 우리가 시세로 '추정'하지만, 한국은 운용사 공시값이 그대로 나와
+    # 더 정확하다. 값이 있으면 분석 계층이 추정치 대신 이 공시값을 우선 쓴다.
+    deviation_rate: float | None = None     # 공시 괴리율(비율, 예 -0.0013 = -0.13%)
+    tracking_error_pub: float | None = None  # 공시 추적오차율(비율, 예 0.0039 = 0.39%)
+    base_index: str | None = None            # 기초지수명 (예: '코스피 200')
+    issuer: str | None = None                # 운용사
+    listed_date: str | None = None           # 상장일 'YYYYMMDD'
+    summary: str | None = None               # 운용사 제공 ETF 설명
+    countries: dict = field(default_factory=dict)   # {국가코드: 비중}  예: {'KR': 0.9894}
+    net_inflow: dict = field(default_factory=dict)  # 기간별 누적 순유입 {'1m': '5,265억', ...}
+    basket_note: str | None = None           # 바스켓 지표 산출 근거(예: 상위10 가중평균) — 추정치일 때 표기
+
     warnings: list = field(default_factory=list)

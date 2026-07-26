@@ -159,5 +159,91 @@ class EmptyDataRobustnessTests(unittest.TestCase):
         self.assertIsNone(r.w52_pos)
 
 
+class KoreanETFTests(unittest.TestCase):
+    """한국 ETF 전용 — 운용사 공시값(괴리율·추적오차)이 우리 추정치보다 우선해야 한다."""
+
+    def test_published_deviation_beats_stale_nav(self):
+        """공시 괴리율이 있으면 NAV 계산값을 무시해야 한다.
+
+        네이버 etfAnalysis의 NAV는 하루 뒤처져 현재가와 짝지으면 괴리가 -6%로 왜곡된다
+        (실측: KODEX 200). 공시 괴리율 -0.13%가 그대로 쓰여야 한다.
+        """
+        px = _price_series()
+        d = _etf_data(
+            name="KODEX 200", market="KR", currency="KRW", category="Korea Equity",
+            prices=px, index_prices=px, price=106365.0, nav=113375.0,   # 시점 어긋난 NAV
+            deviation_rate=-0.0013,
+        )
+        r = compute_etf(d)
+        self.assertAlmostEqual(r.premium, -0.0013, places=6)   # NAV로 계산했다면 -0.06
+        self.assertEqual(r.type_label, "국내 주식형")
+
+    def test_published_tracking_error_beats_estimate(self):
+        """공시 추적오차율이 있으면 벤치마크 대용 추정을 건너뛴다."""
+        bench = _price_series()
+        rng = np.random.default_rng(11)
+        noise = np.cumprod(1.0 + rng.normal(0, 0.02, size=len(bench)))
+        etf_px = bench * pd.Series(noise, index=bench.index)     # 추정하면 수% 나올 시세
+        d = _etf_data(name="KODEX 200", market="KR", currency="KRW",
+                      prices=etf_px, index_prices=bench, benchmark_name="KOSPI",
+                      tracking_error_pub=0.0039)
+        r = compute_etf(d)
+        self.assertAlmostEqual(r.tracking_error, 0.0039, places=6)
+
+    def test_basket_note_travels_with_pe(self):
+        """바스켓 PER는 상위 보유종목 기준 추정치라, 산출 근거가 축 설명에 함께 나가야 한다."""
+        px = _price_series()
+        note = "상위 10종목(비중 합 72.2%) 가중평균 — 펀드 전체가 아닌 상위 보유종목 기준 추정치"
+        d = _etf_data(name="KODEX 200", market="KR", currency="KRW", category="Korea Equity",
+                      prices=px, index_prices=px, basket_pe=21.1, basket_note=note)
+        r = compute_etf(d)
+        rel = next(a for a in r.axes if a.key == "relative")
+        self.assertIn("상위 10종목", rel.note)
+
+    def test_foreign_equity_without_basket_marks_axis_unavailable(self):
+        """해외형은 구성종목이 해외 티커라 바스켓 PER를 못 만든다 — 축을 숨기지 말고 사유를 남긴다."""
+        px = _price_series()
+        divs = _dividends_on(px.index, amount=0.2)
+        d = _etf_data(name="TIGER 미국S&P500", market="KR", currency="KRW",
+                      category="Foreign Equity", prices=px, dividends=divs, index_prices=px,
+                      basket_pe=None, bench_pe=None)
+        r = compute_etf(d)
+        self.assertEqual(r.fund_type, "foreign_equity")
+        rel = next(a for a in r.axes if a.key == "relative")
+        self.assertFalse(rel.available)
+        self.assertEqual(rel.value, "N/A")
+
+
+class KoreanCategoryTests(unittest.TestCase):
+    """이름 기반 유형 추정(_infer_category) — 네트워크 없이 문자열만 검증."""
+
+    def test_finance_and_bank_are_not_commodity(self):
+        """'금융'·'은행'이 원자재로 새지 않아야 한다(한 글자 '금'·'은' 매칭 금지)."""
+        from src.data.kr_etf_provider import _infer_category
+        eq, kr = {"EQUITY": 0.99}, {"KR": 0.99}
+        self.assertEqual(_infer_category("KODEX 은행", eq, kr), "Korea Equity")
+        self.assertEqual(_infer_category("TIGER 금융", eq, kr), "Korea Equity")
+        # 금광 '주식'을 담는 ETF도 원자재가 아니다.
+        self.assertEqual(_infer_category("HANARO 글로벌금채굴기업",
+                                         eq, {"KR": 0.02}), "Foreign Equity")
+
+    def test_real_commodity_names_detected(self):
+        from src.data.kr_etf_provider import _infer_category
+        for nm in ("KODEX 골드선물(H)", "ACE KRX금현물", "KODEX WTI원유선물(H)"):
+            self.assertEqual(_infer_category(nm, {}, {}), "Commodity", nm)
+
+    def test_name_fallback_when_country_weights_missing(self):
+        """상세 조회 실패로 국가 비중이 없을 때는 이름으로 국내/해외를 가른다."""
+        from src.data.kr_etf_provider import _infer_category
+        self.assertEqual(_infer_category("TIGER 미국S&P500", {}, {}), "Foreign Equity")
+        self.assertEqual(_infer_category("KODEX 200", {}, {}), "Korea Equity")
+
+    def test_bond_weight_wins_over_name(self):
+        """채권 비중이 과반이면 이름과 무관하게 채권형."""
+        from src.data.kr_etf_provider import _infer_category
+        self.assertEqual(_infer_category("KODEX 미국채10년선물",
+                                         {"BOND": 0.96}, {"US": 0.96}), "Bond")
+
+
 if __name__ == "__main__":
     unittest.main()

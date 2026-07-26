@@ -31,15 +31,34 @@ MULTIPLE_LABELS = {"per": "PER", "pbr": "PBR", "psr": "PSR", "ev_ebitda": "EV/EB
 CAT_ORDER = ["밸류에이션", "수익성", "성장성", "재무 안정성", "현금흐름"]
 
 # ETF 섹터·자산군 키(yfinance funds_data 표준 키) → 한국어 라벨
+# 섹터·자산군 코드는 출처마다 표기가 달라(미국 yfinance=소문자 스네이크, 한국 네이버=대문자
+# GICS 코드) 한 사전에 둘 다 담는다 — 없는 코드는 영어가 그대로 새어나가므로 추가 시 주의.
 ETF_SECTOR_LABELS = {
+    # 미국(yfinance)
     "technology": "정보기술", "financial_services": "금융", "healthcare": "헬스케어",
     "consumer_cyclical": "경기소비재", "communication_services": "커뮤니케이션",
     "industrials": "산업재", "consumer_defensive": "필수소비재", "energy": "에너지",
     "utilities": "유틸리티", "realestate": "부동산", "basic_materials": "소재",
+    # 한국(네이버)
+    "IT": "정보기술", "FINANCIALS": "금융", "HEALTH_CARE": "헬스케어",
+    "CONSUMER_DISCRETIONARY": "경기소비재", "COMMUNICATION": "커뮤니케이션",
+    "INDUSTRIALS": "산업재", "CONSUMER_STAPLES": "필수소비재", "ENERGY": "에너지",
+    "UTILITIES": "유틸리티", "REAL_ESTATE": "부동산", "MATERIALS": "소재",
+    "UNCLASSIFIED": "기타·미분류",
 }
 ETF_ASSET_CLASS_LABELS = {
+    # 미국(yfinance)
     "stockPosition": "주식", "bondPosition": "채권", "cashPosition": "현금",
     "preferredPosition": "우선주", "convertiblePosition": "전환사채", "otherPosition": "기타",
+    # 한국(네이버)
+    "EQUITY": "주식", "BOND": "채권", "CASH": "현금",
+    "DERIVATIVES": "파생상품", "OTHERS": "기타",
+}
+# 국가 비중(한국 전용) — 네이버가 ISO 코드로 주고, MISC는 소액 다국가 합산.
+ETF_COUNTRY_LABELS = {
+    "KR": "한국", "US": "미국", "JP": "일본", "CN": "중국", "HK": "홍콩", "TW": "대만",
+    "IN": "인도", "VN": "베트남", "GB": "영국", "DE": "독일", "FR": "프랑스",
+    "CA": "캐나다", "BR": "브라질", "MISC": "기타 국가",
 }
 
 
@@ -757,7 +776,8 @@ def _etf_news(d) -> list:
         from src.analysis.ai_analysis import keyword_classify_news
         from src.data.news import fetch_topic_news
         query = d.name or d.ticker
-        items = fetch_topic_news(query, market="US", limit=12)
+        # 검색 언어·지역이 시장을 따라가야 한다 — 'KODEX 200'을 미국 구글뉴스에 물으면 빈 결과.
+        items = fetch_topic_news(query, market=(d.market or "US"), limit=12)
         classified = keyword_classify_news(query, "", items)
         return [{"title": it.get("title"), "link": it.get("link"),
                 "source": it.get("source"), "date": it.get("date"),
@@ -768,20 +788,24 @@ def _etf_news(d) -> list:
 
 
 def analyze_etf(market: str, query: str) -> dict:
-    """ETF 하나 → 웹 프런트가 그릴 ETF 적정가 분석 JSON 사전. 현재는 미국 ETF만 지원한다.
+    """ETF 하나 → 웹 프런트가 그릴 ETF 적정가 분석 JSON 사전 (한국·미국).
 
     기업(analyze())과 달리 재무제표·피어가 없어 세 축(괴리·상대·배당밴드) 요약만 돌려준다
-    (src/analysis/etf.py 참고). 한국 ETF는 아직 준비 중이라 안내 문구만 반환한다.
+    (src/analysis/etf.py 참고). 시장 차이는 수집기가 흡수하므로 아래 조립은 공통이고,
+    출처 표기와 추적오차 설명만 시장에 따라 갈린다(한국은 공시값, 미국은 추정치).
     """
     market = (market or "US").upper()
     query = (query or "").strip()
     if not query:
         return {"error": "ETF 티커를 입력하세요."}
+    # 시장별로 수집기만 다르고 분석 엔진(compute_etf)은 같다 — 미국은 yfinance 한 소스로
+    # 충분하지만, 한국은 야후가 ETF 지표(NAV·보수·구성)를 주지 않아 네이버를 섞어 쓴다.
     if market == "KR":
-        return {"error": "한국 ETF 분석은 준비 중입니다. 미국 ETF를 검색해 주세요."}
-
-    from src.data.etf_provider import fetch_etf  # 지연 임포트(서버 기동을 빠르게)
-    d = fetch_etf(query)
+        from src.data.kr_etf_provider import fetch_kr_etf  # 지연 임포트(서버 기동을 빠르게)
+        d = fetch_kr_etf(query)
+    else:
+        from src.data.etf_provider import fetch_etf
+        d = fetch_etf(query)
     r = compute_etf(d)
 
     asof = (d.prices.index[-1].strftime("%Y-%m-%d") if len(d.prices)
@@ -816,13 +840,30 @@ def analyze_etf(market: str, query: str) -> dict:
         "assetClasses": _etf_asset_classes(d),
         "returns": {"ytd": num(d.ret_ytd), "y3": num(d.ret_3y), "y5": num(d.ret_5y)},
         "trackingError": num(r.tracking_error),
-        "trackingErrorNote": "이 ETF와 비교 벤치마크(예: 미국 전체시장 VTI)의 일간 수익률 차이를 "
-                             "연율화한 값입니다. 펀드가 자기 기초지수를 복제하는 오차가 아니라, "
-                             "비교 벤치마크 대비 상대 변동성입니다.",
+        # 같은 '추적오차'라도 출처가 달라 의미가 다르다 — 한국은 운용사 공시값(진짜 복제오차),
+        # 미국은 기초지수 시세를 못 구해 대용 벤치마크로 낸 추정치다. 오해 없게 문구를 분리한다.
+        "trackingErrorNote": (
+            "운용사가 공시한 추적오차율입니다 — 이 ETF가 실제로 따라가기로 한 기초지수를 "
+            "얼마나 정확히 복제했는지를 뜻합니다. 낮을수록 잘 따라간 것입니다."
+            if d.tracking_error_pub is not None else
+            "이 ETF와 비교 벤치마크(예: 미국 전체시장 VTI)의 일간 수익률 차이를 "
+            "연율화한 값입니다. 펀드가 자기 기초지수를 복제하는 오차가 아니라, "
+            "비교 벤치마크 대비 상대 변동성입니다."),
         "relSeries": _etf_rel_series(d),
         "distributions": _etf_distributions(d),
         "news": _etf_news(d),
-        "sources": ["Yahoo Finance"],
+        # 한국 전용 항목 — 미국(yfinance)은 주지 않아 None/빈 값으로 나가고 화면에서 숨는다.
+        "fundInfo": {
+            "base_index": d.base_index, "issuer": d.issuer,
+            "listed_date": d.listed_date, "summary": d.summary,
+            "basket_note": d.basket_note,
+        },
+        "countries": sorted(
+            [{"label": ETF_COUNTRY_LABELS.get(k, k), "weight": num(v)}
+             for k, v in (d.countries or {}).items() if num(v) and num(v) > 0],
+            key=lambda x: x["weight"], reverse=True),
+        "netInflow": dict(d.net_inflow or {}),
+        "sources": (["네이버 금융", "Yahoo Finance"] if market == "KR" else ["Yahoo Finance"]),
     }
 
 
