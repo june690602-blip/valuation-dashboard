@@ -20,6 +20,7 @@ import pandas as pd
 from src.analysis.backtest import HORIZONS, run_backtest
 from src.analysis.capital_cost import compute_capital_cost
 from src.analysis.commentary import build_commentary
+from src.analysis.etf import compute_etf
 from src.analysis.indicators import compute_indicators
 from src.analysis.scoring import (comparable_peers, peer_median,
                                    rank_peers_cheapness, sanitize_peer_frame)
@@ -28,6 +29,18 @@ from src.analysis.valuation import compute_valuation
 MULTIPLE_LABELS = {"per": "PER", "pbr": "PBR", "psr": "PSR", "ev_ebitda": "EV/EBITDA",
                    "p_fcf": "P/FCF", "div_yield": "배당수익률", "peg": "PEG"}
 CAT_ORDER = ["밸류에이션", "수익성", "성장성", "재무 안정성", "현금흐름"]
+
+# ETF 섹터·자산군 키(yfinance funds_data 표준 키) → 한국어 라벨
+ETF_SECTOR_LABELS = {
+    "technology": "정보기술", "financial_services": "금융", "healthcare": "헬스케어",
+    "consumer_cyclical": "경기소비재", "communication_services": "커뮤니케이션",
+    "industrials": "산업재", "consumer_defensive": "필수소비재", "energy": "에너지",
+    "utilities": "유틸리티", "realestate": "부동산", "basic_materials": "소재",
+}
+ETF_ASSET_CLASS_LABELS = {
+    "stockPosition": "주식", "bondPosition": "채권", "cashPosition": "현금",
+    "preferredPosition": "우선주", "convertiblePosition": "전환사채", "otherPosition": "기타",
+}
 
 
 # ── 숫자·시리즈 정리 ────────────────────────────────────────────────
@@ -648,6 +661,169 @@ def analyze(market: str, query: str, peer_count: int = 9,
     else:
         payload["news"] = []
     return payload
+
+
+# ── ETF 적정가 ──────────────────────────────────────────────────────
+def _etf_price_series(d) -> dict:
+    """ETF 5년 종가를 라인차트용으로 다운샘플(~250포인트, 결측 제거)."""
+    px = d.prices.dropna() if d.prices is not None else pd.Series(dtype=float)
+    if len(px) == 0:
+        return {"x": [], "y": []}
+    step = max(1, len(px) // 250)
+    px = px.iloc[::step]
+    return {"x": [t.strftime("%Y-%m-%d") for t in px.index], "y": [num(v) for v in px.values]}
+
+
+def _etf_holdings(d) -> list:
+    """상위 보유종목(비중 내림차순, provider가 이미 정렬해 넘김) — 채권형 등은 빈 리스트."""
+    return [{"symbol": h.get("symbol"), "name": h.get("name"), "weight": num(h.get("weight"))}
+            for h in (d.top_holdings or [])]
+
+
+def _etf_sectors(d) -> list:
+    """섹터 비중을 한국어 라벨로 붙여 비중 내림차순 정렬(0 이하·결측 제외)."""
+    out = []
+    for key, w in (d.sectors or {}).items():
+        wv = num(w)
+        if wv is None or wv <= 0:
+            continue
+        label = ETF_SECTOR_LABELS.get(key, key.replace("_", " ").title())
+        out.append({"key": key, "label": label, "weight": wv})
+    out.sort(key=lambda x: x["weight"], reverse=True)
+    return out
+
+
+def _etf_asset_classes(d) -> list:
+    """자산군 비중(주식/채권/현금 등)을 한국어 라벨로 붙여 비중 내림차순 정렬."""
+    out = []
+    for key, w in (d.asset_classes or {}).items():
+        wv = num(w)
+        if wv is None or wv <= 0:
+            continue
+        out.append({"label": ETF_ASSET_CLASS_LABELS.get(key, key), "weight": wv})
+    out.sort(key=lambda x: x["weight"], reverse=True)
+    return out
+
+
+def _etf_rel_series(d) -> dict:
+    """ETF vs 벤치마크 누적성과 오버레이 — 공통 거래일만(내부조인) 남겨 첫날=100으로 정규화.
+
+    벤치마크가 자기 자신으로 폴백된 경우(benchmark_name 없음)는 비교 자체가 무의미해
+    빈 시리즈를 돌려준다 — 프런트는 이때 오버레이를 숨긴다.
+    """
+    empty = {"x": [], "etf": [], "bench": []}
+    if not d.benchmark_name:
+        return empty
+    e = d.prices.dropna() if d.prices is not None else pd.Series(dtype=float)
+    b = d.index_prices.dropna() if d.index_prices is not None else pd.Series(dtype=float)
+    df = pd.concat([e.rename("e"), b.rename("b")], axis=1).dropna()
+    if len(df) == 0:
+        return empty
+    step = max(1, len(df) // 250)
+    df = df.iloc[::step]
+    e0, b0 = float(df["e"].iloc[0]), float(df["b"].iloc[0])
+    if e0 == 0 or b0 == 0:
+        return empty
+    x = [t.strftime("%Y-%m-%d") if hasattr(t, "strftime") else str(t) for t in df.index]
+    return {"x": x, "etf": [num(v / e0 * 100.0) for v in df["e"].values],
+            "bench": [num(v / b0 * 100.0) for v in df["b"].values]}
+
+
+def _etf_distributions(d) -> list:
+    """연간 배당 합계 — 진행 중인 올해는 제외한 최근 6개 완전연도, 오름차순. 배당 없으면 빈 리스트."""
+    div = d.dividends
+    if div is None or len(div) == 0:
+        return []
+    idx = pd.to_datetime(div.index)
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    s = pd.Series(div.values, index=idx)
+    by_year = s.groupby(s.index.year).sum()
+    cur_year = datetime.now().year
+    by_year = by_year[by_year.index < cur_year]
+    if by_year.empty:
+        return []
+    by_year = by_year.sort_index().tail(6)
+    return [{"year": int(y), "amount": num(v)} for y, v in by_year.items()]
+
+
+def _etf_news(d) -> list:
+    """ETF명(티커 폴백)으로 최근 헤드라인을 모아 키워드 규칙으로 분류.
+
+    기업 뉴스(_news)와 동일한 아이템 모양(title/link/source/date/category/tags)을 맞춘다.
+    뉴스는 부가 정보라 실패해도 분석 자체를 막지 않게 예외를 삼킨다.
+    """
+    try:
+        from src.analysis.ai_analysis import keyword_classify_news
+        from src.data.news import fetch_topic_news
+        query = d.name or d.ticker
+        items = fetch_topic_news(query, market="US", limit=12)
+        classified = keyword_classify_news(query, "", items)
+        return [{"title": it.get("title"), "link": it.get("link"),
+                "source": it.get("source"), "date": it.get("date"),
+                "category": it.get("category"), "tags": it.get("tags", [])}
+                for it in classified]
+    except Exception:
+        return []
+
+
+def analyze_etf(market: str, query: str) -> dict:
+    """ETF 하나 → 웹 프런트가 그릴 ETF 적정가 분석 JSON 사전. 현재는 미국 ETF만 지원한다.
+
+    기업(analyze())과 달리 재무제표·피어가 없어 세 축(괴리·상대·배당밴드) 요약만 돌려준다
+    (src/analysis/etf.py 참고). 한국 ETF는 아직 준비 중이라 안내 문구만 반환한다.
+    """
+    market = (market or "US").upper()
+    query = (query or "").strip()
+    if not query:
+        return {"error": "ETF 티커를 입력하세요."}
+    if market == "KR":
+        return {"error": "한국 ETF 분석은 준비 중입니다. 미국 ETF를 검색해 주세요."}
+
+    from src.data.etf_provider import fetch_etf  # 지연 임포트(서버 기동을 빠르게)
+    d = fetch_etf(query)
+    r = compute_etf(d)
+
+    asof = (d.prices.index[-1].strftime("%Y-%m-%d") if len(d.prices)
+            else datetime.now().strftime("%Y-%m-%d"))
+
+    return {
+        "kind": "etf",
+        "symbol": r.symbol, "name": r.name, "currency": r.currency, "price": num(r.price),
+        "asOf": {"price": asof},
+        "fund_type": r.fund_type, "type_label": r.type_label,
+        "verdict": r.verdict, "gap": num(r.gap), "confidence": r.confidence, "primary": r.primary,
+        "nav": num(r.nav), "premium": num(r.premium),
+        "axes": [{"key": a.key, "title": a.title, "value": a.value, "note": a.note,
+                  "available": a.available} for a in r.axes],
+        "metrics": {
+            "basket_pe": num(r.basket_pe), "basket_pb": num(r.basket_pb),
+            "div_yield": num(r.div_yield), "div_pct": num(r.div_pct),
+            "div_median": num(r.div_median), "div_gap": num(r.div_gap),
+            "pe_vs_bench": num(r.pe_vs_bench), "bench_pe": num(r.bench_pe),
+            "bench_label": r.bench_label, "aum": num(r.aum),
+            "expense_ratio": num(r.expense_ratio),
+        },
+        "trend": {
+            "w52_low": num(r.w52_low), "w52_high": num(r.w52_high),
+            "w52_pos": num(r.w52_pos), "rel_1y": num(r.rel_1y),
+        },
+        "priceSeries": _etf_price_series(d),
+        "notes": list(r.notes),
+        "masked": [[label, reason] for label, reason in r.masked],
+        "holdings": _etf_holdings(d),
+        "sectors": _etf_sectors(d),
+        "assetClasses": _etf_asset_classes(d),
+        "returns": {"ytd": num(d.ret_ytd), "y3": num(d.ret_3y), "y5": num(d.ret_5y)},
+        "trackingError": num(r.tracking_error),
+        "trackingErrorNote": "이 ETF와 비교 벤치마크(예: 미국 전체시장 VTI)의 일간 수익률 차이를 "
+                             "연율화한 값입니다. 펀드가 자기 기초지수를 복제하는 오차가 아니라, "
+                             "비교 벤치마크 대비 상대 변동성입니다.",
+        "relSeries": _etf_rel_series(d),
+        "distributions": _etf_distributions(d),
+        "news": _etf_news(d),
+        "sources": ["Yahoo Finance"],
+    }
 
 
 # ── AI(Gemini) 헬퍼 — 버튼 클릭 시 별도 엔드포인트에서 호출 ──────────

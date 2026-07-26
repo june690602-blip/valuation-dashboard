@@ -127,3 +127,48 @@ class CompanyData:
         if col in self.financials.columns:
             return self.financials[col].dropna()
         return pd.Series(dtype=float)
+
+
+@dataclass
+class ETFData:
+    """ETF 하나의 분석에 필요한 원천 데이터 (기업 재무가 없어 CompanyData와 별도).
+
+    기업 밸류에이션(적정가 4방법)이 적용 불가하므로, ETF는 세 축으로 본다 —
+    ① 괴리(현재가 vs NAV) ② 바스켓 상대지표(vs 벤치마크) ③ 배당수익률 역사밴드.
+    무료 데이터(yfinance) 기준 결측이 흔하므로 대부분 None 허용.
+    """
+
+    ticker: str                 # 사용자 입력 (US: 심볼, KR: 6자리)
+    yahoo_ticker: str
+    name: str
+    market: str                 # 'KR' | 'US'
+    currency: str               # 'KRW' | 'USD'
+    price: float                # 현재가(최근 종가)
+
+    prices: pd.Series           # 최근 5년 일별 종가 (52주·추세·배당수익률밴드용)
+    dividends: pd.Series         # 배당 지급 이력 (index=지급일, value=주당배당) — 없으면 빈 시리즈
+    index_prices: pd.Series     # 벤치마크 지수/ETF 종가 (상대성과용)
+    benchmark_name: str = ""
+
+    nav: float | None = None            # 순자산가치(EOD NAV; US=navPrice, KR=iNAV)
+    category: str | None = None         # 예: 'Large Blend' / 'Long Government'
+    basket_pe: float | None = None      # 바스켓 PER (trailingPE) — 채권/원자재는 None/무의미
+    basket_pb: float | None = None      # 바스켓 PBR (priceToBook)
+    div_yield: float | None = None      # 현재 배당수익률 (0~1)
+    aum: float | None = None            # 순자산총액(totalAssets)
+    expense_ratio: float | None = None  # 총보수 (있을 때만)
+
+    # 벤치마크 ETF의 현재 지표 (횡단면 비교용) — provider가 유형에 맞는 벤치마크로 채움
+    bench_pe: float | None = None
+    bench_yield: float | None = None
+    bench_label: str = ""               # 예: '미국 전체시장(VTI)'
+
+    # 구성·성과 (탭 콘텐츠용, 결측 흔함)
+    top_holdings: list = field(default_factory=list)   # [{'symbol','name','weight'}] 비중 내림차순
+    sectors: dict = field(default_factory=dict)         # {sector_key: weight}  예: {'technology': 0.385}
+    asset_classes: dict = field(default_factory=dict)   # {class_key: weight}  예: {'bondPosition': 0.996}
+    ret_ytd: float | None = None                        # 연초대비 수익률
+    ret_3y: float | None = None                         # 3년 연율화
+    ret_5y: float | None = None                         # 5년 연율화
+
+    warnings: list = field(default_factory=list)

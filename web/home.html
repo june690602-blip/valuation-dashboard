@@ -266,8 +266,8 @@
 
     function market() { return form.querySelector('input[name="market"]:checked').value; }
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
-    function goStock(code) { location.href = 'stock.html?market=' + encodeURIComponent(market()) + '&q=' + encodeURIComponent(code); }
-    function pickItem(it) { if (it) goStock(it.code); }
+    function goStock(code, kind) { location.href = 'stock.html?market=' + encodeURIComponent(market()) + '&q=' + encodeURIComponent(code) + (kind === 'etf' ? '&kind=etf' : ''); }
+    function pickItem(it) { if (it) goStock(it.code, it.kind); }
 
     /* ── 자동완성 (stock 페이지와 동일 규약) ── */
     var box = document.createElement('div'); box.className = 'ac-drop'; box.style.display = 'none';
