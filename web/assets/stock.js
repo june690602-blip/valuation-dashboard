@@ -1585,13 +1585,16 @@
     var teTip = D.trackingErrorNote || '';
     // 추적오차는 같은 이름이라도 출처에 따라 뜻이 다르다 — 한국은 운용사가 낸 기초지수 복제오차,
     // 미국은 우리가 대용 벤치마크로 낸 추정치. 부제목도 그에 맞춰 갈라 준다.
+    // 이름까지 갈라 준다 — 미국의 추정값은 8~11%도 흔해서, 한국 공시값(0.4% 수준)과
+    // 같은 '추적오차'로 나란히 놓이면 미국 ETF가 형편없이 운용되는 것처럼 읽힌다.
     var pub = !!fi.base_index && D.trackingError != null;
-    var teSub = pub ? '기초지수 복제 정확도 (운용사 공시)' : '벤치마크 대비 상대 변동성 (추정)';
+    var teName = pub ? '추적오차' : '벤치마크 대비 변동성';
+    var teSub = pub ? '기초지수 복제 정확도 (운용사 공시)' : '비교 벤치마크와의 일간 수익률 차이 (추정)';
     var rows = [
       // 국내 ETF 보수 인하 경쟁으로 0.0068% 같은 값이 흔하다 — 2자리로 자르면 0.01%로 뭉개져
       // 비교가 안 되므로, 아주 낮은 구간에서만 소수 자리를 늘린다.
       ['총보수(연)', mt.expense_ratio != null ? fmtPct(mt.expense_ratio, mt.expense_ratio < 0.0005 ? 4 : 2) : na('운용사 총보수(expense ratio) 데이터를 무료 소스에서 받지 못했습니다.'), '펀드 운용 수수료'],
-      ['추적오차', D.trackingError != null ? '<span class="na" tabindex="0" data-tip="' + esc(teTip) + '">' + fmtPct(D.trackingError, 2) + ' ⓘ</span>' : na('벤치마크가 없어 계산하지 못했습니다.'), teSub],
+      [teName, D.trackingError != null ? '<span class="na" tabindex="0" data-tip="' + esc(teTip) + '">' + fmtPct(D.trackingError, 2) + ' ⓘ</span>' : na('벤치마크가 없어 계산하지 못했습니다.'), teSub],
       ['순자산(AUM)', mt.aum != null ? fmtMoney(mt.aum) : na('순자산 데이터가 없습니다.'), '펀드 규모'],
       ['비교 벤치마크', esc(mt.bench_label || '—'), '상대 비교 기준']];
     // 아래 네 줄은 한국(네이버)에서만 오는 값 — 미국은 없으므로 행 자체를 만들지 않는다.

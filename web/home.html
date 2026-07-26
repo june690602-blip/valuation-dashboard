@@ -328,7 +328,7 @@
         return;
       }
 
-      // Enter 직접 제출도 ETF(코드/이름 정확 일치)면 클릭과 동일하게 포트폴리오로
+      // Enter 직접 제출도 ETF(코드/이름 정확 일치)면 클릭과 동일하게 ETF 분석으로 보낸다.
       var qq = query.toUpperCase();
       fetch('api/suggest?market=' + encodeURIComponent(market()) + '&q=' + encodeURIComponent(query))
         .then(function (r) { return r.json(); })
@@ -336,11 +336,11 @@
           var its = (d && d.items) || [];
           for (var i = 0; i < its.length; i++) {
             var it = its[i];
-            if (it.kind === 'etf' && (String(it.code).toUpperCase() === qq || String(it.name).toUpperCase() === qq)) { goEtf(it); return; }
+            if (it.kind === 'etf' && (String(it.code).toUpperCase() === qq || String(it.name).toUpperCase() === qq)) { goStock(it.code, 'etf'); return; }
           }
           goStock(query);
         })
-        .catch(function () { goStock(query); });
+        .catch(function () { goStock(query); });   // 자동완성이 죽어도 이동 자체는 막지 않는다
     });
   })();
 </script>

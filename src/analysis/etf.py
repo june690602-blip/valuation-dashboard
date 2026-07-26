@@ -187,7 +187,9 @@ def _trend(d: ETFData):
     pos = (last - lo) / (hi - lo) * 100 if hi > lo else None
     rel = None
     ix = d.index_prices.dropna() if d.index_prices is not None else pd.Series(dtype=float)
-    if len(ix) >= 252 and len(px) >= 252:
+    # 벤치마크가 자기 자신으로 폴백된 경우(benchmark_name 없음)는 초과성과가 항상 정확히 0이라,
+    # '벤치마크를 완벽히 따라갔다'는 반대 뜻으로 읽힌다 — 비교 자체를 하지 않는다(_tracking_error와 동일).
+    if d.benchmark_name and len(ix) >= 252 and len(px) >= 252:
         try:
             r_etf = last / float(px.iloc[-252]) - 1
             r_ix = float(ix.iloc[-1]) / float(ix.iloc[-252]) - 1

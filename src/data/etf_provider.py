@@ -132,6 +132,25 @@ def fetch_etf(symbol: str) -> ETFData:
         except Exception:
             pass
 
+    # 총보수: yfinance가 info의 annualReportExpenseRatio를 없애서 두 곳을 순서대로 본다.
+    # funds_data 쪽은 우리와 같은 소수 단위(SPY 0.000945=0.0945%)이고,
+    # info의 netExpenseRatio는 퍼센트 단위(SPY 0.0945)라 /100이 필요하다.
+    expense_ratio = None
+    if fd is not None:
+        try:
+            ops = fd.fund_operations
+            v = ops.loc["Annual Report Expense Ratio", sym]
+            expense_ratio = float(v) if pd.notna(v) else None
+        except Exception:
+            pass
+    if expense_ratio is None and info.get("netExpenseRatio") is not None:
+        try:
+            expense_ratio = float(info["netExpenseRatio"]) / 100.0
+        except (TypeError, ValueError):
+            pass
+    if expense_ratio is None:
+        warnings.append("총보수(운용 수수료) 정보를 무료 소스에서 받지 못했습니다.")
+
     # 수익률: yfinance는 3y/5y는 소수(0.19=19%), ytdReturn만 % 단위(10.16=10.16%)로 준다
     # — 단위가 섞여 있어 ytd만 항상 /100. (가격으로 실측 교차검증: TLT 0.93=0.93%, SPY 10.16=~10%)
     ret_3y = info.get("threeYearAverageReturn")
@@ -147,7 +166,7 @@ def fetch_etf(symbol: str) -> ETFData:
         nav=info.get("navPrice"), category=category,
         basket_pe=info.get("trailingPE"), basket_pb=info.get("priceToBook"),
         div_yield=info.get("yield"), aum=info.get("totalAssets"),
-        expense_ratio=info.get("annualReportExpenseRatio"),
+        expense_ratio=expense_ratio,
         bench_pe=bench_pe, bench_yield=bench_yield, bench_label=bench_label,
         top_holdings=top_holdings, sectors=sectors, asset_classes=asset_classes,
         ret_ytd=ret_ytd, ret_3y=ret_3y, ret_5y=ret_5y,
