@@ -24,6 +24,10 @@ server.*.log
 # 개인 기획 문서 등 루트 PDF — 공개 저장소에 올리지 않음 (docs/ 스크린샷·문서는 별도)
 /*.pdf
 
+# docs/ 안의 개인 문서 — 나머지 공개 문서(스크린샷·설계 노트)는 그대로 추적한다
+docs/PORTFOLIO_SUPER_PLAN.md
+docs/*.pdf
+
 # OS
 Thumbs.db
 .DS_Store

@@ -6,6 +6,8 @@
 - 정적: web/ 폴더를 그대로 서빙 ('/' → stock.html)
 - API : GET /api/analyze?market=KR&query=035420[&peer_count=9&news=0]
         → src.web.serialize.analyze() 결과 JSON (인프로세스 캐시 30분)
+        GET /api/analyze_etf?market=US&query=SPY
+        → src.web.serialize.analyze_etf() 결과 JSON (인프로세스 캐시 30분, 미국 ETF만)
 
 Flask 등 추가 의존성 없음 — Streamlit 앱이 쓰는 패키지(pandas·yfinance…)만 있으면 된다.
 """
@@ -52,6 +54,20 @@ def cached_analyze(market: str, query: str, peer_count: int, include_news: bool,
     from src.web.serialize import analyze  # 지연 임포트(서버 기동을 빠르게)
     data = analyze(market, query, peer_count=peer_count, include_news=include_news,
                    exclude=exclude, extra=extra)
+    with _LOCK:
+        _CACHE[key] = (now, data)
+    return data
+
+
+def cached_analyze_etf(market: str, query: str) -> dict:
+    key = ("etf", market, query)
+    now = time.time()
+    with _LOCK:
+        hit = _CACHE.get(key)
+        if hit and now - hit[0] < _TTL:
+            return hit[1]
+    from src.web.serialize import analyze_etf  # 지연 임포트(서버 기동을 빠르게)
+    data = analyze_etf(market, query)
     with _LOCK:
         _CACHE[key] = (now, data)
     return data
@@ -130,7 +146,30 @@ class Handler(SimpleHTTPRequestHandler):
                 print(f"[api] {market} {query} → {data['meta']['name']} ({time.time() - t0:.1f}s)")
                 return self._send_json(data)
             except ValueError as e:  # 종목 미탐색 등 사용자 입력 오류 — 안내 문구를 그대로 전달(서버 오류 아님)
+                from src.data.models import IsETFError
                 print(f"[api] {market} {query} → 입력 오류: {e}")
+                payload = {"error": str(e)}
+                if isinstance(e, IsETFError):
+                    payload["kind"] = "etf"   # 프런트가 이걸 보고 ETF 분석으로 자동 재요청
+                return self._send_json(payload, 400)
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+                return self._send_json({"error": _ERR_MSG}, 500)
+        if u.path == "/api/analyze_etf":
+            q = parse_qs(u.query)
+            market = (q.get("market", ["US"])[0] or "US").upper()
+            query = (q.get("query", [""])[0] or "").strip()
+            if not query:
+                return self._send_json({"error": "ETF 티커를 입력하세요."}, 400)
+            try:
+                t0 = time.time()
+                data = cached_analyze_etf(market, query)
+                if isinstance(data, dict) and data.get("error"):
+                    return self._send_json(data, 400)
+                print(f"[api-etf] {market} {query} → {data.get('name')} ({time.time() - t0:.1f}s)")
+                return self._send_json(data)
+            except ValueError as e:  # 티커 미탐색 등 사용자 입력 오류 — 안내 문구를 그대로 전달
+                print(f"[api-etf] {market} {query} → 입력 오류: {e}")
                 return self._send_json({"error": str(e)}, 400)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()

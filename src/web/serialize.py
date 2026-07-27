@@ -20,6 +20,7 @@ import pandas as pd
 from src.analysis.backtest import HORIZONS, run_backtest
 from src.analysis.capital_cost import compute_capital_cost
 from src.analysis.commentary import build_commentary
+from src.analysis.etf import compute_etf
 from src.analysis.indicators import compute_indicators
 from src.analysis.scoring import (comparable_peers, peer_median,
                                    rank_peers_cheapness, sanitize_peer_frame)
@@ -28,6 +29,37 @@ from src.analysis.valuation import compute_valuation
 MULTIPLE_LABELS = {"per": "PER", "pbr": "PBR", "psr": "PSR", "ev_ebitda": "EV/EBITDA",
                    "p_fcf": "P/FCF", "div_yield": "배당수익률", "peg": "PEG"}
 CAT_ORDER = ["밸류에이션", "수익성", "성장성", "재무 안정성", "현금흐름"]
+
+# ETF 섹터·자산군 키(yfinance funds_data 표준 키) → 한국어 라벨
+# 섹터·자산군 코드는 출처마다 표기가 달라(미국 yfinance=소문자 스네이크, 한국 네이버=대문자
+# GICS 코드) 한 사전에 둘 다 담는다 — 없는 코드는 영어가 그대로 새어나가므로 추가 시 주의.
+ETF_SECTOR_LABELS = {
+    # 미국(yfinance)
+    "technology": "정보기술", "financial_services": "금융", "healthcare": "헬스케어",
+    "consumer_cyclical": "경기소비재", "communication_services": "커뮤니케이션",
+    "industrials": "산업재", "consumer_defensive": "필수소비재", "energy": "에너지",
+    "utilities": "유틸리티", "realestate": "부동산", "basic_materials": "소재",
+    # 한국(네이버)
+    "IT": "정보기술", "FINANCIALS": "금융", "HEALTHCARE": "헬스케어", "HEALTH_CARE": "헬스케어",
+    "CONSUMER_DISCRETIONARY": "경기소비재", "COMMUNICATION": "커뮤니케이션",
+    "INDUSTRIALS": "산업재", "CONSUMER_STAPLES": "필수소비재", "ENERGY": "에너지",
+    "UTILITIES": "유틸리티", "REAL_ESTATE": "부동산", "MATERIALS": "소재",
+    "UNCLASSIFIED": "기타·미분류",
+}
+ETF_ASSET_CLASS_LABELS = {
+    # 미국(yfinance)
+    "stockPosition": "주식", "bondPosition": "채권", "cashPosition": "현금",
+    "preferredPosition": "우선주", "convertiblePosition": "전환사채", "otherPosition": "기타",
+    # 한국(네이버)
+    "EQUITY": "주식", "BOND": "채권", "CASH": "현금",
+    "DERIVATIVES": "파생상품", "OTHERS": "기타",
+}
+# 국가 비중(한국 전용) — 네이버가 ISO 코드로 주고, MISC는 소액 다국가 합산.
+ETF_COUNTRY_LABELS = {
+    "KR": "한국", "US": "미국", "JP": "일본", "CN": "중국", "HK": "홍콩", "TW": "대만",
+    "IN": "인도", "VN": "베트남", "GB": "영국", "DE": "독일", "FR": "프랑스",
+    "CA": "캐나다", "BR": "브라질", "MISC": "기타 국가",
+}
 
 
 # ── 숫자·시리즈 정리 ────────────────────────────────────────────────
@@ -70,35 +102,48 @@ def suggest(market: str, q: str, limit: int = 8) -> list[dict]:
     market = (market or "KR").upper()
     try:
         if market == "KR":
-            from src.data.universe import get_kr_listing
-            listing = get_kr_listing()
+            from src.data.universe import get_kr_etf, get_kr_listing
+            listing, etfs = get_kr_listing(), get_kr_etf()
             if q.isdigit():
-                m = listing[listing["Code"].astype(str).str.startswith(q)]
+                s = listing[listing["Code"].astype(str).str.startswith(q)]
+                e = etfs[etfs["Code"].astype(str).str.startswith(q)] if len(etfs) else etfs
             else:
-                m = listing[listing["Name"].str.contains(q, case=False, na=False, regex=False)]
-            if "Marcap" in m.columns:
-                m = m.sort_values("Marcap", ascending=False)
+                s = listing[listing["Name"].str.contains(q, case=False, na=False, regex=False)]
+                e = etfs[etfs["Name"].str.contains(q, case=False, na=False, regex=False)] if len(etfs) else etfs
+            if "Marcap" in s.columns:
+                s = s.sort_values("Marcap", ascending=False)
+            if len(e) and "MarCap" in e.columns:
+                e = e.sort_values("MarCap", ascending=False)
             out = []
-            for _, r in m.head(limit).iterrows():
+            for _, r in s.iterrows():
                 mkt = str(r.get("Market", "") or "").upper()
                 out.append({"code": str(r["Code"]), "name": str(r["Name"]),
-                            "sub": "KOSDAQ" if mkt.startswith("KOSDAQ") else "KOSPI"})
-            return out
-        from src.data.universe import get_sp500
-        sp = get_sp500()
-        pref = sp[sp["Symbol"].str.upper().str.startswith(q.upper())]
-        byname = sp[sp["Name"].str.contains(q, case=False, na=False, regex=False)]
+                            "sub": "KOSDAQ" if mkt.startswith("KOSDAQ") else "KOSPI", "kind": "stock"})
+            for _, r in e.iterrows():
+                out.append({"code": str(r["Code"]), "name": str(r["Name"]), "sub": "ETF", "kind": "etf"})
+            return out[:limit]
+        from src.data.universe import get_sp500, get_us_etf
+        sp, etfs = get_sp500(), get_us_etf()
+        qu = q.upper()
         seen, out = set(), []
-        for _, r in pd.concat([pref, byname]).iterrows():
+        stock_hits = pd.concat([sp[sp["Symbol"].str.upper().str.startswith(qu)],
+                                sp[sp["Name"].str.contains(q, case=False, na=False, regex=False)]])
+        for _, r in stock_hits.iterrows():
             sym = str(r["Symbol"])
             if sym in seen:
                 continue
             seen.add(sym)
             out.append({"code": sym, "name": str(r["Name"]),
-                        "sub": str(r.get("Sector", "") or "S&P 500")})
-            if len(out) >= limit:
-                break
-        return out
+                        "sub": str(r.get("Sector", "") or "S&P 500"), "kind": "stock"})
+        etf_hits = pd.concat([etfs[etfs["Symbol"].str.upper().str.startswith(qu)],
+                              etfs[etfs["Name"].str.contains(q, case=False, na=False, regex=False)]]) if len(etfs) else etfs
+        for _, r in (etf_hits.iterrows() if len(etf_hits) else []):
+            sym = str(r["Symbol"])
+            if sym in seen:
+                continue
+            seen.add(sym)
+            out.append({"code": sym, "name": str(r["Name"]), "sub": "ETF", "kind": "etf"})
+        return out[:limit]
     except Exception:
         return []
 
@@ -648,6 +693,191 @@ def analyze(market: str, query: str, peer_count: int = 9,
     else:
         payload["news"] = []
     return payload
+
+
+# ── ETF 적정가 ──────────────────────────────────────────────────────
+def _etf_price_series(d) -> dict:
+    """ETF 5년 종가를 라인차트용으로 다운샘플(~250포인트, 결측 제거)."""
+    px = d.prices.dropna() if d.prices is not None else pd.Series(dtype=float)
+    if len(px) == 0:
+        return {"x": [], "y": []}
+    step = max(1, len(px) // 250)
+    px = px.iloc[::step]
+    return {"x": [t.strftime("%Y-%m-%d") for t in px.index], "y": [num(v) for v in px.values]}
+
+
+def _etf_holdings(d) -> list:
+    """상위 보유종목(비중 내림차순, provider가 이미 정렬해 넘김) — 채권형 등은 빈 리스트."""
+    return [{"symbol": h.get("symbol"), "name": h.get("name"), "weight": num(h.get("weight"))}
+            for h in (d.top_holdings or [])]
+
+
+def _etf_sectors(d) -> list:
+    """섹터 비중을 한국어 라벨로 붙여 비중 내림차순 정렬(0 이하·결측 제외)."""
+    out = []
+    for key, w in (d.sectors or {}).items():
+        wv = num(w)
+        if wv is None or wv <= 0:
+            continue
+        label = ETF_SECTOR_LABELS.get(key, key.replace("_", " ").title())
+        out.append({"key": key, "label": label, "weight": wv})
+    out.sort(key=lambda x: x["weight"], reverse=True)
+    return out
+
+
+def _etf_asset_classes(d) -> list:
+    """자산군 비중(주식/채권/현금 등)을 한국어 라벨로 붙여 비중 내림차순 정렬."""
+    out = []
+    for key, w in (d.asset_classes or {}).items():
+        wv = num(w)
+        if wv is None or wv <= 0:
+            continue
+        out.append({"label": ETF_ASSET_CLASS_LABELS.get(key, key), "weight": wv})
+    out.sort(key=lambda x: x["weight"], reverse=True)
+    return out
+
+
+def _etf_rel_series(d) -> dict:
+    """ETF vs 벤치마크 누적성과 오버레이 — 공통 거래일만(내부조인) 남겨 첫날=100으로 정규화.
+
+    벤치마크가 자기 자신으로 폴백된 경우(benchmark_name 없음)는 비교 자체가 무의미해
+    빈 시리즈를 돌려준다 — 프런트는 이때 오버레이를 숨긴다.
+    """
+    empty = {"x": [], "etf": [], "bench": []}
+    if not d.benchmark_name:
+        return empty
+    e = d.prices.dropna() if d.prices is not None else pd.Series(dtype=float)
+    b = d.index_prices.dropna() if d.index_prices is not None else pd.Series(dtype=float)
+    df = pd.concat([e.rename("e"), b.rename("b")], axis=1).dropna()
+    if len(df) == 0:
+        return empty
+    step = max(1, len(df) // 250)
+    df = df.iloc[::step]
+    e0, b0 = float(df["e"].iloc[0]), float(df["b"].iloc[0])
+    if e0 == 0 or b0 == 0:
+        return empty
+    x = [t.strftime("%Y-%m-%d") if hasattr(t, "strftime") else str(t) for t in df.index]
+    return {"x": x, "etf": [num(v / e0 * 100.0) for v in df["e"].values],
+            "bench": [num(v / b0 * 100.0) for v in df["b"].values]}
+
+
+def _etf_distributions(d) -> list:
+    """연간 배당 합계 — 진행 중인 올해는 제외한 최근 6개 완전연도, 오름차순. 배당 없으면 빈 리스트."""
+    div = d.dividends
+    if div is None or len(div) == 0:
+        return []
+    idx = pd.to_datetime(div.index)
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    s = pd.Series(div.values, index=idx)
+    by_year = s.groupby(s.index.year).sum()
+    cur_year = datetime.now().year
+    by_year = by_year[by_year.index < cur_year]
+    if by_year.empty:
+        return []
+    by_year = by_year.sort_index().tail(6)
+    return [{"year": int(y), "amount": num(v)} for y, v in by_year.items()]
+
+
+def _etf_news(d) -> list:
+    """ETF명(티커 폴백)으로 최근 헤드라인을 모아 키워드 규칙으로 분류.
+
+    기업 뉴스(_news)와 동일한 아이템 모양(title/link/source/date/category/tags)을 맞춘다.
+    뉴스는 부가 정보라 실패해도 분석 자체를 막지 않게 예외를 삼킨다.
+    """
+    try:
+        from src.analysis.ai_analysis import keyword_classify_news
+        from src.data.news import fetch_topic_news
+        query = d.name or d.ticker
+        # 검색 언어·지역이 시장을 따라가야 한다 — 'KODEX 200'을 미국 구글뉴스에 물으면 빈 결과.
+        items = fetch_topic_news(query, market=(d.market or "US"), limit=12)
+        classified = keyword_classify_news(query, "", items)
+        return [{"title": it.get("title"), "link": it.get("link"),
+                "source": it.get("source"), "date": it.get("date"),
+                "category": it.get("category"), "tags": it.get("tags", [])}
+                for it in classified]
+    except Exception:
+        return []
+
+
+def analyze_etf(market: str, query: str) -> dict:
+    """ETF 하나 → 웹 프런트가 그릴 ETF 적정가 분석 JSON 사전 (한국·미국).
+
+    기업(analyze())과 달리 재무제표·피어가 없어 세 축(괴리·상대·배당밴드) 요약만 돌려준다
+    (src/analysis/etf.py 참고). 시장 차이는 수집기가 흡수하므로 아래 조립은 공통이고,
+    출처 표기와 추적오차 설명만 시장에 따라 갈린다(한국은 공시값, 미국은 추정치).
+    """
+    market = (market or "US").upper()
+    query = (query or "").strip()
+    if not query:
+        return {"error": "ETF 티커를 입력하세요."}
+    # 시장별로 수집기만 다르고 분석 엔진(compute_etf)은 같다 — 미국은 yfinance 한 소스로
+    # 충분하지만, 한국은 야후가 ETF 지표(NAV·보수·구성)를 주지 않아 네이버를 섞어 쓴다.
+    if market == "KR":
+        from src.data.kr_etf_provider import fetch_kr_etf  # 지연 임포트(서버 기동을 빠르게)
+        d = fetch_kr_etf(query)
+    else:
+        from src.data.etf_provider import fetch_etf
+        d = fetch_etf(query)
+    r = compute_etf(d)
+
+    asof = (d.prices.index[-1].strftime("%Y-%m-%d") if len(d.prices)
+            else datetime.now().strftime("%Y-%m-%d"))
+
+    return {
+        "kind": "etf",
+        "symbol": r.symbol, "name": r.name, "currency": r.currency, "price": num(r.price),
+        "asOf": {"price": asof},
+        "fund_type": r.fund_type, "type_label": r.type_label,
+        "verdict": r.verdict, "gap": num(r.gap), "confidence": r.confidence, "primary": r.primary,
+        "nav": num(r.nav), "premium": num(r.premium),
+        "axes": [{"key": a.key, "title": a.title, "value": a.value, "note": a.note,
+                  "available": a.available} for a in r.axes],
+        "metrics": {
+            "basket_pe": num(r.basket_pe), "basket_pb": num(r.basket_pb),
+            "div_yield": num(r.div_yield), "div_pct": num(r.div_pct),
+            "div_median": num(r.div_median), "div_gap": num(r.div_gap),
+            "pe_vs_bench": num(r.pe_vs_bench), "bench_pe": num(r.bench_pe),
+            "bench_label": r.bench_label, "aum": num(r.aum),
+            "expense_ratio": num(r.expense_ratio),
+        },
+        "trend": {
+            "w52_low": num(r.w52_low), "w52_high": num(r.w52_high),
+            "w52_pos": num(r.w52_pos), "rel_1y": num(r.rel_1y),
+        },
+        "priceSeries": _etf_price_series(d),
+        "notes": list(r.notes),
+        "masked": [[label, reason] for label, reason in r.masked],
+        "holdings": _etf_holdings(d),
+        "sectors": _etf_sectors(d),
+        "assetClasses": _etf_asset_classes(d),
+        "returns": {"ytd": num(d.ret_ytd), "y3": num(d.ret_3y), "y5": num(d.ret_5y)},
+        "trackingError": num(r.tracking_error),
+        # 같은 '추적오차'라도 출처가 달라 의미가 다르다 — 한국은 운용사 공시값(진짜 복제오차),
+        # 미국은 기초지수 시세를 못 구해 대용 벤치마크로 낸 추정치다. 오해 없게 문구를 분리한다.
+        "trackingErrorNote": (
+            "운용사가 공시한 추적오차율입니다 — 이 ETF가 실제로 따라가기로 한 기초지수를 "
+            "얼마나 정확히 복제했는지를 뜻합니다. 낮을수록 잘 따라간 것입니다."
+            if d.tracking_error_pub is not None else
+            "이 ETF와 비교 벤치마크(예: 미국 전체시장 VTI)의 일간 수익률 차이를 "
+            "연율화한 값입니다. 펀드가 자기 기초지수를 복제하는 오차가 아니라, "
+            "비교 벤치마크 대비 상대 변동성입니다."),
+        "relSeries": _etf_rel_series(d),
+        "distributions": _etf_distributions(d),
+        "news": _etf_news(d),
+        # 한국 전용 항목 — 미국(yfinance)은 주지 않아 None/빈 값으로 나가고 화면에서 숨는다.
+        "fundInfo": {
+            "base_index": d.base_index, "issuer": d.issuer,
+            "listed_date": d.listed_date, "summary": d.summary,
+            "basket_note": d.basket_note,
+        },
+        "countries": sorted(
+            [{"label": ETF_COUNTRY_LABELS.get(k, k), "weight": num(v)}
+             for k, v in (d.countries or {}).items() if num(v) and num(v) > 0],
+            key=lambda x: x["weight"], reverse=True),
+        "netInflow": dict(d.net_inflow or {}),
+        "sources": (["네이버 금융", "Yahoo Finance"] if market == "KR" else ["Yahoo Finance"]),
+    }
 
 
 # ── AI(Gemini) 헬퍼 — 버튼 클릭 시 별도 엔드포인트에서 호출 ──────────
