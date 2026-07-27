@@ -819,7 +819,10 @@ def analyze_etf(market: str, query: str) -> dict:
     else:
         from src.data.etf_provider import fetch_etf
         d = fetch_etf(query)
-    r = compute_etf(d)
+    # 10년 국채금리 → ERP(금리 대비 이익수익률) 참고 축용. 실패 시 (None,"")면 축은 조용히 빠진다.
+    from src.data.bonds import current_riskfree
+    rf, rf_label = current_riskfree(market)
+    r = compute_etf(d, rf=rf)
 
     asof = (d.prices.index[-1].strftime("%Y-%m-%d") if len(d.prices)
             else datetime.now().strftime("%Y-%m-%d"))
@@ -831,8 +834,11 @@ def analyze_etf(market: str, query: str) -> dict:
         "fund_type": r.fund_type, "type_label": r.type_label,
         "verdict": r.verdict, "gap": num(r.gap), "confidence": r.confidence, "primary": r.primary,
         "nav": num(r.nav), "premium": num(r.premium),
+        # pos·lead·weak = 화면이 축을 게이지로 그리기 위한 정규화 값(0=싼 쪽·100=비싼 쪽).
         "axes": [{"key": a.key, "title": a.title, "value": a.value, "note": a.note,
-                  "available": a.available} for a in r.axes],
+                  "available": a.available, "pos": num(a.pos), "lead": a.lead,
+                  "weak": a.weak} for a in r.axes],
+        "signalCounts": dict(r.signal_counts),
         "metrics": {
             "basket_pe": num(r.basket_pe), "basket_pb": num(r.basket_pb),
             "div_yield": num(r.div_yield), "div_pct": num(r.div_pct),
@@ -840,11 +846,16 @@ def analyze_etf(market: str, query: str) -> dict:
             "pe_vs_bench": num(r.pe_vs_bench), "bench_pe": num(r.bench_pe),
             "bench_label": r.bench_label, "aum": num(r.aum),
             "expense_ratio": num(r.expense_ratio),
+            "earnings_yield": num(r.earnings_yield), "erp": num(r.erp),
+            "rf": num(rf), "rf_label": rf_label,
         },
         "trend": {
             "w52_low": num(r.w52_low), "w52_high": num(r.w52_high),
             "w52_pos": num(r.w52_pos), "rel_1y": num(r.rel_1y),
         },
+        # 상대·역사 위치 종합(판정 보류 주식형) — 적정가가 아니라 시장 대비 평균회귀 위치.
+        "relative": {"stance": r.stance, "pos": num(r.stance_pos),
+                     "ratioPct": num(r.rel_ratio_pct), "reasons": list(r.stance_reasons)},
         "priceSeries": _etf_price_series(d),
         "notes": list(r.notes),
         "masked": [[label, reason] for label, reason in r.masked],

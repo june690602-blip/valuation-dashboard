@@ -318,5 +318,240 @@ class KoreanCategoryTests(unittest.TestCase):
                                          {"BOND": 0.96}, {"US": 0.96}), "Bond")
 
 
+class ErpAxisTests(unittest.TestCase):
+    """④ 금리 대비 이익수익률(ERP) 보조 축 — rf를 넘기면 붙고, 판정은 바꾸지 않는다."""
+
+    def _erp_axis(self, r):
+        return next((a for a in r.axes if a.key == "erp"), None)
+
+    def test_erp_axis_added_when_rf_and_basket_pe(self):
+        """이익수익률(1/PER) − 국채금리가 축으로 붙고 부호가 맞아야 한다."""
+        d = _etf_data(name="Test Large Growth ETF", category="Large Growth",
+                      basket_pe=25.0, bench_pe=22.0, bench_label="미국 전체시장(VTI)")
+        r = compute_etf(d, rf=0.045)
+        ax = self._erp_axis(r)
+        self.assertIsNotNone(ax, "ERP 축이 없음")
+        self.assertTrue(ax.available)
+        self.assertAlmostEqual(r.earnings_yield, 1.0 / 25.0, places=6)
+        self.assertAlmostEqual(r.erp, 1.0 / 25.0 - 0.045, places=6)
+        self.assertLess(r.erp, 0)  # 이익수익률 4% < 국채 4.5% → 음수
+
+    def test_erp_absent_without_rf(self):
+        """rf가 없으면(기본값) ERP 축·값이 없어야 한다 — 기존 호출 호환."""
+        d = _etf_data(category="Large Growth", basket_pe=25.0, bench_pe=22.0)
+        r = compute_etf(d)  # rf 미전달
+        self.assertIsNone(self._erp_axis(r))
+        self.assertIsNone(r.erp)
+
+    def test_erp_absent_without_basket_pe(self):
+        """바스켓 PER가 없으면 rf가 있어도 ERP를 만들지 않고 크래시도 없어야 한다."""
+        d = _etf_data(category="Large Growth", basket_pe=None)
+        r = compute_etf(d, rf=0.045)
+        self.assertIsNone(self._erp_axis(r))
+        self.assertIsNone(r.erp)
+
+    def test_erp_skipped_for_bond(self):
+        """채권형은 이익 배수가 무의미 — basket_pe가 들어와도 ERP를 붙이지 않는다."""
+        d = _etf_data(name="Test Long Government Bond ETF", category="Long Government",
+                      basket_pe=12.0)
+        r = compute_etf(d, rf=0.045)
+        self.assertIsNone(self._erp_axis(r))
+
+    def test_erp_does_not_change_growth_verdict(self):
+        """참고 축만 — 성장형 판정은 rf 유무와 무관하게 여전히 보류(None)."""
+        px = _price_series()
+        divs = _dividends_on(px.index, amount=0.02)
+        kw = dict(name="Test Large Growth ETF", category="Large Growth",
+                  prices=px, dividends=divs, index_prices=px,
+                  basket_pe=30.0, bench_pe=22.0, bench_label="미국 전체시장(VTI)")
+        self.assertIsNone(compute_etf(_etf_data(**kw)).verdict)
+        self.assertIsNone(compute_etf(_etf_data(**kw), rf=0.045).verdict)
+
+
+class RelativeStanceTests(unittest.TestCase):
+    """상대·역사 위치 종합 — 판정 보류 성장/주식형에 '시장 대비 비싼/싼 편'을 붙인다.
+
+    핵심 수치는 (ETF/벤치) 총수익 가격비율의 5년 퍼센타일 — 적정가(펀더멘털)가 아니라
+    상대·평균회귀 위치이며, verdict(펀더멘털 판정)는 여전히 보류(None)여야 한다.
+    """
+
+    def _pair(self, etf_growth, idx_growth, n=1500):
+        idx = pd.date_range("2020-01-01", periods=n, freq="D")
+        etf = pd.Series(100.0 * (1.0 + etf_growth) ** np.arange(n), index=idx, dtype=float)
+        bench = pd.Series(100.0 * (1.0 + idx_growth) ** np.arange(n), index=idx, dtype=float)
+        return _etf_data(name="Test Large Growth ETF", category="Large Growth",
+                         prices=etf, index_prices=bench, benchmark_name="S&P 500",
+                         basket_pe=30.0, bench_pe=22.0, bench_label="미국 전체시장(VTI)")
+
+    def test_expensive_when_outperformed_market(self):
+        """시장보다 빨리 오른 성장 ETF → 가격비율 5년 상단 → '상대적으로 비싼 편'."""
+        r = compute_etf(self._pair(0.0006, 0.0001), rf=0.045)
+        self.assertIsNone(r.verdict)                     # 펀더멘털 판정은 여전히 보류
+        self.assertIsNotNone(r.rel_ratio_pct)
+        self.assertGreaterEqual(r.stance_pos, 65)
+        self.assertEqual(r.stance, "상대적으로 비싼 편")
+        self.assertTrue(any("상대적으로" in n and "적정가" in n for n in r.notes),
+                        f"상대 위치 종합 노트가 없음: {r.notes}")
+
+    def test_cheap_when_underperformed_market(self):
+        """시장보다 뒤처진 ETF → 가격비율 5년 하단 → '상대적으로 싼 편'."""
+        r = compute_etf(self._pair(0.0001, 0.0006), rf=0.045)
+        self.assertLessEqual(r.stance_pos, 35)
+        self.assertEqual(r.stance, "상대적으로 싼 편")
+        self.assertIsNone(r.verdict)
+
+    def test_no_stance_without_benchmark(self):
+        """벤치마크가 없으면(자기 폴백) 시장 대비 신호가 없어 stance를 만들지 않는다."""
+        d = self._pair(0.0006, 0.0001)
+        d.benchmark_name = ""
+        r = compute_etf(d, rf=0.045)
+        self.assertIsNone(r.rel_ratio_pct)
+        self.assertIsNone(r.stance)
+
+    def test_stance_not_for_dividend_verdict_type(self):
+        """배당형처럼 이미 펀더멘털 판정이 있는 유형엔 stance를 붙이지 않는다(verdict 우선)."""
+        px = _price_series()
+        divs = _dividends_on(px.index, amount=0.9)
+        bench = _price_series(growth=0.0001)
+        d = _etf_data(name="Test Dividend Equity ETF", category="Large Value",
+                      prices=px, dividends=divs, index_prices=bench, benchmark_name="S&P 500",
+                      basket_pe=15.0, bench_pe=22.0, bench_label="미국 전체시장(VTI)")
+        r = compute_etf(d, rf=0.045)
+        self.assertIsNotNone(r.verdict)      # 배당 기반 판정이 있음
+        self.assertIsNone(r.stance)          # → 상대 위치는 별도로 붙이지 않음
+
+
+class AxisSignalTests(unittest.TestCase):
+    """각 축은 '싼(0)↔비쌈(100)' 위치와 한 줄 결론을 함께 내려준다 — 화면이 게이지로 그린다."""
+
+    def _ax(self, r, key):
+        return next((a for a in r.axes if a.key == key), None)
+
+    def _growth(self, **over):
+        base = dict(name="Test Large Growth ETF", category="Large Growth",
+                    basket_pe=30.0, bench_pe=22.0, bench_label="미국 전체시장(VTI)")
+        base.update(over)
+        return _etf_data(**base)
+
+    def test_relative_axis_expensive_side(self):
+        """시장보다 높은 PER → 비싼 쪽(pos>50)이고 결론에 '비싸게'가 들어간다."""
+        ax = self._ax(compute_etf(self._growth(), rf=0.045), "relative")
+        self.assertGreater(ax.pos, 50)
+        self.assertIn("비싸게", ax.lead)
+
+    def test_relative_axis_cheap_side(self):
+        """시장보다 낮은 PER → 싼 쪽(pos<50)."""
+        ax = self._ax(compute_etf(self._growth(basket_pe=15.0), rf=0.045), "relative")
+        self.assertLess(ax.pos, 50)
+        self.assertIn("싸게", ax.lead)
+
+    def test_erp_negative_is_expensive_side(self):
+        """ERP가 음수(국채보다 이익보상 얇음) → 비싼 쪽."""
+        ax = self._ax(compute_etf(self._growth(), rf=0.045), "erp")
+        self.assertGreater(ax.pos, 50)
+        self.assertTrue(ax.lead)
+
+    def test_dividend_axis_weak_when_tiny_yield(self):
+        """배당이 1.5% 미만이면 신호 약함으로 표시해 게이지를 흐리게 그리도록 한다."""
+        px = _price_series()
+        divs = _dividends_on(px.index, amount=0.02)     # 미미한 배당
+        r = compute_etf(self._growth(prices=px, dividends=divs, index_prices=px), rf=0.045)
+        ax = self._ax(r, "dividend")
+        self.assertTrue(ax.weak)
+        self.assertIsNotNone(ax.pos)
+
+    def test_premium_noise_marked_weak(self):
+        """계산 괴리 2% 미만은 NAV 지연 노이즈 → weak 표시."""
+        d = self._growth()
+        d.nav = d.price / (1 - 0.004)
+        ax = self._ax(compute_etf(d, rf=0.045), "premium")
+        self.assertTrue(ax.weak)
+
+    def test_disclosed_small_premium_not_weak(self):
+        """공시 괴리율은 같은 시점이라 작아도 진짜 신호 — weak가 아니어야 한다."""
+        d = self._growth(deviation_rate=-0.006)
+        ax = self._ax(compute_etf(d, rf=0.045), "premium")
+        self.assertFalse(ax.weak)
+
+    def test_signal_counts_cover_every_scored_axis(self):
+        """점수가 매겨진 축은 빠짐없이 세 갈래(비쌈·쌈·중립) 중 하나로 집계된다."""
+        r = compute_etf(self._growth(), rf=0.045)
+        c = r.signal_counts
+        self.assertEqual(set(c), {"expensive", "cheap", "neutral"})
+        self.assertEqual(sum(c.values()), len([a for a in r.axes if a.pos is not None]))
+
+    def test_primary_axis_never_marked_weak(self):
+        """주 신호로 채택된 축은 '신호 약함'으로 표시하지 않는다.
+
+        저배당 블렌드형(SPY류)은 배당 축으로 판정을 내면서 같은 축을 화면에서 '약함'으로
+        깎아 서로 어긋났다 — 판정에 쓴 축은 방향을 그대로 보여주고, 약한 근거라는 사실은
+        신뢰도·노트로 말한다."""
+        px = _price_series()
+        divs = _dividends_on(px.index, amount=0.25)      # 연 ~1% 저배당
+        d = _etf_data(name="Test Blend ETF", category="Large Blend", prices=px,
+                      dividends=divs, index_prices=px, basket_pe=26.0, bench_pe=25.0)
+        r = compute_etf(d, rf=0.045)
+        self.assertEqual(r.primary, "dividend")
+        self.assertIsNotNone(r.verdict)
+        ax = self._ax(r, "dividend")
+        self.assertFalse(ax.weak)
+        self.assertNotIn("빼세요", ax.lead)              # '판단에서 빼라'와 판정이 모순
+        self.assertTrue(any("낮은 편" in n for n in r.notes))   # 약한 근거 경고는 유지
+
+    def test_non_primary_weak_axis_stays_weak(self):
+        """판정에 쓰이지 않은 저배당 축은 그대로 '약함' — 성장형(QQQ류)."""
+        px = _price_series()
+        divs = _dividends_on(px.index, amount=0.02)
+        r = compute_etf(self._growth(prices=px, dividends=divs, index_prices=px), rf=0.045)
+        self.assertNotEqual(r.primary, "dividend")
+        self.assertTrue(self._ax(r, "dividend").weak)
+
+    def test_signal_counts_expensive_side(self):
+        """확실히 비싼 입력(PER 40 · 국채 4.5%)이면 상대 PER·ERP 둘 다 비싼 쪽으로 센다.
+
+        임계(65) 바로 옆 값은 한쪽으로 몰리지 않으므로, 경계에서 떨어진 입력으로 의도를 검증한다."""
+        c = compute_etf(self._growth(basket_pe=40.0), rf=0.045).signal_counts
+        self.assertGreaterEqual(c["expensive"], 2)
+
+
+class PremiumNoiseTests(unittest.TestCase):
+    """계산 괴리(US, price/nav)는 NAV 지연 노이즈가 흔해 큰 괴리만 신호로 본다.
+    공시 괴리율(KR, 같은 시점)은 작아도 신호."""
+
+    def _growth(self):
+        idx = pd.date_range("2020-01-01", periods=1500, freq="D")
+        etf = pd.Series(100.0 * 1.0006 ** np.arange(1500), index=idx, dtype=float)
+        bench = pd.Series(100.0 * 1.0001 ** np.arange(1500), index=idx, dtype=float)
+        return _etf_data(name="Test Large Growth ETF", category="Large Growth",
+                         prices=etf, index_prices=bench, benchmark_name="S&P 500",
+                         basket_pe=30.0, bench_pe=22.0, bench_label="미국 전체시장(VTI)")
+
+    def test_small_computed_premium_is_noise(self):
+        """계산 괴리 ~-1.2%(공시값 없음)는 stale-NAV 노이즈 → 판정 몰지 않고 보류 유지."""
+        d = self._growth()
+        d.nav = d.price / (1 - 0.012)
+        r = compute_etf(d, rf=0.045)
+        self.assertAlmostEqual(r.premium, -0.012, places=3)
+        self.assertIsNone(r.verdict)
+        self.assertNotEqual(r.primary, "premium")
+        self.assertEqual(r.stance, "상대적으로 비싼 편")
+
+    def test_disclosed_small_premium_still_signals(self):
+        """공시 괴리율은 같은 시점이라 정확 — 0.5% 넘으면 작아도 신호로 쓴다."""
+        d = self._growth()
+        d.deviation_rate = -0.012
+        r = compute_etf(d, rf=0.045)
+        self.assertEqual(r.primary, "premium")
+        self.assertIsNotNone(r.verdict)
+
+    def test_large_computed_premium_still_signals(self):
+        """계산 괴리라도 2% 넘게 크게 벌어지면 실제 신호(해외·저유동)로 본다."""
+        d = self._growth()
+        d.nav = d.price / (1 - 0.05)
+        r = compute_etf(d, rf=0.045)
+        self.assertEqual(r.primary, "premium")
+        self.assertIsNotNone(r.verdict)
+
+
 if __name__ == "__main__":
     unittest.main()
