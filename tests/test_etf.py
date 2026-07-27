@@ -159,6 +159,79 @@ class EmptyDataRobustnessTests(unittest.TestCase):
         self.assertIsNone(r.w52_pos)
 
 
+class PriceBasisTests(unittest.TestCase):
+    """가격 기준 분리 — 밴드는 미조정(실제 거래가), 성과는 수정종가(총수익).
+
+    수정종가는 과거를 그 뒤 지급된 배당만큼 낮춰 잡는다. 그 값으로 배당수익률 밴드를
+    만들면 과거 수익률이 부풀려져 현재가 늘 '고평가' 쪽으로 밀린다(배당 많은 ETF일수록 심함).
+    """
+
+    @staticmethod
+    def _adjusted(raw: pd.Series, annual_yield: float) -> pd.Series:
+        """raw를 배당조정한 시리즈 — 과거일수록 더 많이 낮춘다(yfinance auto_adjust와 같은 방향)."""
+        n = len(raw)
+        years_back = (n - 1 - np.arange(n)) / 252.0
+        return raw * np.exp(-annual_yield * years_back)
+
+    def test_dividend_band_uses_raw_prices_when_available(self):
+        """미조정 시세가 있으면 배당밴드가 그걸 쓴다 — 수정종가로 계산한 값과 달라야 한다."""
+        raw = _price_series()
+        divs = _dividends_on(raw.index, amount=0.9)
+        adj = self._adjusted(raw, 0.036)
+        kw = dict(name="Test Bond-ish ETF", category="Long Government",
+                  dividends=divs, index_prices=adj)
+        with_raw = compute_etf(_etf_data(prices=adj, prices_raw=raw, **kw))
+        without = compute_etf(_etf_data(prices=adj, **kw))
+        # 조정가는 과거 수익률을 부풀려 중앙값을 높이므로, 미조정 기준 gap이 더 커야(=덜 비싸 보여야) 한다.
+        self.assertGreater(with_raw.div_gap, without.div_gap)
+        self.assertLess(with_raw.div_median, without.div_median)
+
+    def test_52w_band_uses_raw_prices(self):
+        """52주 밴드도 실제 거래가 기준 — 조정가는 저점을 실제보다 낮게 찍는다."""
+        raw = _price_series().copy()
+        # 최근 1년에 V자(하락 후 부분 회복)를 준다 — 저점이 '과거'에 있어야 조정 배율 차이가
+        # 드러나고, 현재가가 고점에 붙어 있지 않아야 밴드 내 위치 비교가 성립한다.
+        shape = np.interp(np.arange(252), [0, 90, 251], [1.0, 0.80, 0.88])
+        raw.iloc[-252:] = raw.iloc[-252:] * shape
+        adj = self._adjusted(raw, 0.05)
+        kw = dict(name="Test ETF", category="Large Blend", index_prices=adj)
+        with_raw = compute_etf(_etf_data(prices=adj, prices_raw=raw, **kw))
+        without = compute_etf(_etf_data(prices=adj, **kw))
+        self.assertGreater(with_raw.w52_low, without.w52_low)   # 저점이 덜 눌림
+        self.assertGreater(without.w52_pos, with_raw.w52_pos)   # 조정가는 위치를 위로 밀어 올림
+
+    def test_excess_return_stays_on_total_return_basis(self):
+        """초과성과는 총수익 비교라 미조정 시세를 섞으면 안 된다(수정종가끼리 계산)."""
+        raw = _price_series()
+        adj = self._adjusted(raw, 0.04)
+        d = _etf_data(name="Test ETF", prices=adj, prices_raw=raw,
+                      index_prices=adj, benchmark_name="VTI")
+        r = compute_etf(d)
+        # ETF와 벤치마크가 같은 시리즈 → 총수익 기준으로는 초과성과가 정확히 0.
+        # 미조정 가격이 섞여 들어가면 배당수익률만큼 0에서 벗어난다.
+        self.assertIsNotNone(r.rel_1y)
+        self.assertAlmostEqual(r.rel_1y, 0.0, places=9)
+
+    def test_missing_raw_prices_falls_back_without_crashing(self):
+        """미조정 시세를 못 받아도(=None) 수정종가로 계산해 동작은 유지한다."""
+        px = _price_series()
+        divs = _dividends_on(px.index, amount=0.9)
+        r = compute_etf(_etf_data(name="Test ETF", category="Large Value",
+                                  prices=px, prices_raw=None, dividends=divs, index_prices=px))
+        self.assertIsNotNone(r.div_gap)
+        self.assertIsNotNone(r.w52_pos)
+
+    def test_empty_raw_prices_falls_back(self):
+        """빈 시리즈가 들어와도 폴백해야 한다(길이 0을 그대로 쓰면 밴드가 통째로 사라진다)."""
+        px = _price_series()
+        divs = _dividends_on(px.index, amount=0.9)
+        r = compute_etf(_etf_data(name="Test ETF", category="Large Value", prices=px,
+                                  prices_raw=pd.Series(dtype=float), dividends=divs,
+                                  index_prices=px))
+        self.assertIsNotNone(r.div_gap)
+        self.assertIsNotNone(r.w52_pos)
+
+
 class KoreanETFTests(unittest.TestCase):
     """한국 ETF 전용 — 운용사 공시값(괴리율·추적오차)이 우리 추정치보다 우선해야 한다."""
 

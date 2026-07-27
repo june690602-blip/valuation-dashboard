@@ -153,10 +153,15 @@ class ETFData:
     currency: str               # 'KRW' | 'USD'
     price: float                # 현재가(최근 종가)
 
-    prices: pd.Series           # 최근 5년 일별 종가 (52주·추세·배당수익률밴드용)
+    prices: pd.Series           # 최근 5년 일별 수정종가 (추세·상대성과·추적오차 = 총수익 기준)
     dividends: pd.Series         # 배당 지급 이력 (index=지급일, value=주당배당) — 없으면 빈 시리즈
     index_prices: pd.Series     # 벤치마크 지수/ETF 종가 (상대성과용)
     benchmark_name: str = ""
+
+    # 미조정(실제 거래) 종가 — '그날 붙어 있던 가격'이 필요한 계산(배당수익률 밴드·52주
+    # 밴드) 전용. 수정종가는 과거를 배당만큼 낮춰 잡아 그 계산을 왜곡한다. 못 받으면
+    # None으로 두고 분석 계층이 prices로 폴백한다(정확도만 떨어지고 동작은 유지).
+    prices_raw: pd.Series | None = None
 
     nav: float | None = None            # 순자산가치(EOD NAV; US=navPrice, KR=iNAV)
     category: str | None = None         # 예: 'Large Blend' / 'Long Government'
