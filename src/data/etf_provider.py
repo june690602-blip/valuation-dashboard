@@ -10,7 +10,7 @@ from __future__ import annotations
 import pandas as pd
 import yfinance as yf
 
-from .base import fetch_index_prices, fetch_prices
+from .base import fetch_index_prices, fetch_prices, fetch_prices_raw
 from .models import ETFData
 
 # 벤치마크 선택 키워드 — category(예: 'Large Blend'/'Long Government') 우선,
@@ -65,6 +65,15 @@ def fetch_etf(symbol: str) -> ETFData:
     except Exception:
         raise ValueError(f"'{sym}' 시세를 찾을 수 없습니다 — 상장폐지·거래정지 상태이거나 "
                          "잘못된 ETF 티커일 수 있어요.")
+
+    # 미조정 종가 — 배당수익률·52주 밴드용(수정종가를 쓰면 과거가 배당만큼 부풀려진다).
+    # 실패해도 분석 계층이 수정종가로 폴백하므로 경고만 남기고 넘어간다.
+    try:
+        prices_raw = fetch_prices_raw(sym)
+    except Exception:
+        prices_raw = None
+        warnings.append("미조정 시세를 받지 못해 배당수익률·52주 밴드를 수정주가로 계산합니다 "
+                        "— 과거 구간이 다소 낙관적으로(현재가 비싸 보이게) 나올 수 있습니다.")
 
     try:
         divs = tk.dividends
@@ -161,7 +170,8 @@ def fetch_etf(symbol: str) -> ETFData:
 
     return ETFData(
         ticker=sym, yahoo_ticker=sym, name=name, market="US", currency="USD",
-        price=price, prices=prices, dividends=divs, index_prices=index_prices,
+        price=price, prices=prices, prices_raw=prices_raw,
+        dividends=divs, index_prices=index_prices,
         benchmark_name=bench_sym or "",
         nav=info.get("navPrice"), category=category,
         basket_pe=info.get("trailingPE"), basket_pb=info.get("priceToBook"),

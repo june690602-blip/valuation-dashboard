@@ -22,7 +22,7 @@ import pandas as pd
 import requests
 import yfinance as yf
 
-from .base import fetch_index_prices, fetch_prices
+from .base import fetch_index_prices, fetch_prices, fetch_prices_raw
 from .models import ETFData
 from .naver import fetch_naver_fundamental
 
@@ -278,6 +278,15 @@ def fetch_kr_etf(code: str) -> ETFData:
         raise ValueError(f"'{code}' 시세를 찾을 수 없습니다 — 상장폐지·거래정지 상태이거나 "
                          "잘못된 종목코드일 수 있어요.")
 
+    # 미조정 종가 — 배당수익률·52주 밴드용(수정종가를 쓰면 과거가 배당만큼 부풀려진다).
+    # 실패해도 분석 계층이 수정종가로 폴백하므로 경고만 남기고 넘어간다.
+    try:
+        prices_raw = fetch_prices_raw(yahoo_ticker)
+    except Exception:
+        prices_raw = None
+        warnings.append("미조정 시세를 받지 못해 배당수익률·52주 밴드를 수정주가로 계산합니다 "
+                        "— 과거 구간이 다소 낙관적으로(현재가 비싸 보이게) 나올 수 있습니다.")
+
     try:
         divs = tk.dividends
         if divs is None:
@@ -367,7 +376,8 @@ def fetch_kr_etf(code: str) -> ETFData:
 
     return ETFData(
         ticker=code, yahoo_ticker=yahoo_ticker, name=name, market="KR", currency="KRW",
-        price=price, prices=prices, dividends=divs, index_prices=index_prices,
+        price=price, prices=prices, prices_raw=prices_raw,
+        dividends=divs, index_prices=index_prices,
         benchmark_name=benchmark_name, bench_label=bench_label,
         nav=nav, category=category,
         basket_pe=basket_pe, basket_pb=basket_pb, basket_note=basket_note,

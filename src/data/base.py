@@ -172,6 +172,32 @@ def fetch_prices(yahoo_ticker: str, period: str = "5y") -> pd.Series:
     return s
 
 
+@file_cache("prices_raw", ttl_hours=12)
+def fetch_prices_raw_df(yahoo_ticker: str, period: str = "5y") -> pd.DataFrame:
+    """일별 **미조정** 종가 — 그날 실제로 화면에 찍혀 있던 가격 (tz 제거).
+
+    위 fetch_prices()의 수정종가는 과거 가격을 그 뒤 지급된 배당만큼 낮춰 잡는다.
+    총수익 기준 비교(추세·상대성과·추적오차)에는 그게 맞지만, '그때 이 가격에 사면
+    배당수익률이 몇 %였나' 같은 계산에 쓰면 과거 수익률이 배당 누적분만큼 부풀려진다
+    (실측: TLT 5년 최대 +18.7%, 국고채10년 +11.7%). 그런 계산은 이 함수를 쓴다.
+
+    액면분할은 auto_adjust와 무관하게 이미 반영돼 있어(실측: NVDA 10:1 분할 전 종가가
+    $1,150이 아니라 $115) 따로 처리하지 않는다.
+    """
+    h = yf.Ticker(yahoo_ticker).history(period=period, auto_adjust=False)
+    if h is None or h.empty:
+        raise ValueError(f"{yahoo_ticker} 시세를 가져오지 못했습니다")
+    s = h["Close"].dropna()
+    s.index = pd.to_datetime(s.index).tz_localize(None)
+    return s.to_frame("close")
+
+
+def fetch_prices_raw(yahoo_ticker: str, period: str = "5y") -> pd.Series:
+    s = fetch_prices_raw_df(yahoo_ticker, period)["close"]
+    s.name = yahoo_ticker
+    return s
+
+
 @file_cache("index_prices", ttl_hours=12)
 def fetch_index_prices_df(symbol: str, period: str = "5y") -> pd.DataFrame:
     return fetch_prices(symbol, period).to_frame("close")
