@@ -12,7 +12,8 @@ import yfinance as yf
 
 from .base import (DataProvider, build_peer_table, extract_financials,
                    fill_self_from_financials,
-                   extract_ttm, fetch_index_prices, fetch_prices, trim_peers)
+                   extract_ttm, fetch_index_prices, fetch_prices,
+                   fetch_prices_raw, trim_peers)
 from .models import FIN_COLUMNS, CompanyData, Consensus, recomm_label
 from .naver import fetch_naver_fundamental
 from .opendart import get_dart_financials
@@ -132,6 +133,14 @@ class KRProvider(DataProvider):
 
         prices = fetch_prices(yt)
         price = float(prices.iloc[-1])
+        # 미조정 종가 — 역사적 PER·PBR 밴드와 52주 범위용(수정종가는 과거를 배당만큼
+        # 낮춰 잡아 과거 배수가 실제보다 낮게 나온다). 실패해도 분석 계층이 폴백한다.
+        try:
+            prices_raw = fetch_prices_raw(yt)
+        except Exception:
+            prices_raw = None
+            warnings.append("미조정 시세를 받지 못해 역사적 밴드·52주 범위를 수정주가로 계산합니다 "
+                            "— 과거 배수가 다소 낮게(현재가 비싸 보이게) 나올 수 있습니다.")
 
         shares = meta["shares"]
         shares_source = "KRX 상장목록"
@@ -253,7 +262,7 @@ class KRProvider(DataProvider):
             ticker=code, yahoo_ticker=yt, name=meta["name"], market="KR",
             currency="KRW", sector=sector, industry=industry,
             price=price, market_cap=float(mcap), shares_outstanding=float(shares),
-            financials=financials, ttm=ttm, prices=prices,
+            financials=financials, ttm=ttm, prices=prices, prices_raw=prices_raw,
             index_prices=index_prices, benchmark_name=benchmark,
             peers=peers, official=official, warnings=warnings,
             is_financial=detect_financial(meta["sector"], meta["industry"], "KR"),

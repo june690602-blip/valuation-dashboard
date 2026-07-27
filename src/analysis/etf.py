@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from ..data.models import ETFData
+from ..data.models import ETFData, actual_prices
 
 
 @dataclass
@@ -113,29 +113,15 @@ def _premium(d: ETFData) -> float | None:
     return None
 
 
-# ── 가격 기준 선택 ───────────────────────────────────────────────────
-def _actual_prices(d: ETFData) -> pd.Series:
-    """'그날 실제로 붙어 있던 가격'이 필요한 계산용 — 미조정 종가, 없으면 수정종가로 폴백.
-
-    수정종가(prices)는 과거를 그 뒤 지급된 배당만큼 낮춰 잡는다. 총수익 비교에는 맞지만
-    배당수익률·52주 밴드에 쓰면 과거 값이 배당 누적분만큼 부풀려져(실측: TLT 5년 +18.7%)
-    현재가 늘 밴드 아래쪽(고평가)으로 밀린다 — 배당이 많은 ETF일수록 심하다.
-    """
-    raw = d.prices_raw
-    if raw is not None and len(raw) > 0:
-        return raw
-    return d.prices
-
-
 # ── ③ 배당수익률 역사밴드 ────────────────────────────────────────────
 def _dividend_band(d: ETFData):
     """(현재수익률, 백분위0~100, 5년중앙값, gap) — 배당이력·가격으로 TTM 배당수익률 시계열을 만든다.
 
     수익률이 자기 역사 대비 높으면(백분위↑) 가격이 상대적으로 싸다는 뜻.
-    분모는 반드시 미조정 가격 — 수정종가를 쓰면 과거 수익률이 부풀려진다(_actual_prices 참고).
+    분모는 반드시 미조정 가격 — 수정종가를 쓰면 과거 수익률이 부풀려진다(models.actual_prices 참고).
     """
     div = d.dividends
-    px = _actual_prices(d)
+    px = actual_prices(d)
     if div is None or len(div) == 0 or px is None or len(px) < 250:
         return None, None, None, None
     px = px.copy()
@@ -199,7 +185,7 @@ def _trend(d: ETFData):
     배당이 많은 ETF의 저점이 실제보다 낮게 찍혀 현재가가 밴드 위쪽에 있는 것처럼 보인다
     — 실측: TLT 16% → 3%). 반면 초과성과는 총수익 비교라 수정종가(prices)를 그대로 쓴다.
     """
-    band_px = _actual_prices(d)
+    band_px = actual_prices(d)
     px = band_px.dropna() if band_px is not None else pd.Series(dtype=float)
     if len(px) < 60:
         return None, None, None, None
