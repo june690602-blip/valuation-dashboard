@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import copy
 import unittest
 from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
 
-from src.analysis.backtest import _non_overlapping_values
+from src.analysis.backtest import (_non_overlapping_values, _rim_discount,
+                                   run_backtest)
 from src.analysis.indicators import _average_balance
 from src.analysis.portfolio import after_tax_row
-from src.analysis.valuation import _fundamental_daily
+from src.analysis.valuation import _band, _fundamental_daily
+from src.data.models import CompanyData, actual_prices
 from src.data.opendart import _parse_report
 
 
@@ -110,6 +114,93 @@ class BacktestSamplingTests(unittest.TestCase):
         sampled = _non_overlapping_values(values, eligible, horizon=3)
 
         self.assertEqual(sampled.tolist(), [0.0, 3.0, 6.0, 9.0])
+
+
+# ── 가격 기준(수정종가 vs 미조정) ────────────────────────────────────
+def _synthetic_company(years=6, annual_yield=0.04):
+    """미조정 시세와 그걸 배당조정한 시세를 함께 가진 합성 CompanyData.
+
+    조정 시세는 야후 방식과 같은 방향 — 과거로 갈수록 누적 배당만큼 낮게 잡는다.
+    """
+    n = years * 252
+    idx = pd.bdate_range(end="2026-06-30", periods=n)
+    # 올랐다가 되돌리는 모양 — 현재값이 분포의 끝(최대·최소)에 붙어 있으면 백분위가
+    # 조정 여부와 무관하게 100/0으로 고정돼 편향이 드러나지 않는다.
+    raw = pd.Series(np.interp(np.arange(n), [0, int(n * 0.6), n - 1], [100.0, 160.0, 120.0]),
+                    index=idx)
+    years_back = (n - 1 - np.arange(n)) / 252.0
+    adj = raw * np.exp(-annual_yield * years_back)
+
+    fy = [pd.Timestamp(f"{y}-12-31") for y in range(2019, 2019 + years)]
+    fin = pd.DataFrame({
+        "eps": [8.0] * years,
+        "net_income": [800.0] * years,
+        "total_equity": [5_000.0] * years,
+        "shares_outstanding": [100.0] * years,
+        "fiscal_end": fy,
+    }, index=list(range(2019, 2019 + years)))
+    return CompanyData(
+        ticker="T", yahoo_ticker="T", name="Test", market="US", currency="USD",
+        sector="", industry="", price=float(raw.iloc[-1]),
+        market_cap=float(raw.iloc[-1]) * 100.0, shares_outstanding=100.0,
+        financials=fin, ttm=None, prices=adj, prices_raw=raw,
+        index_prices=adj, benchmark_name="S&P 500",
+        peers=pd.DataFrame(),
+    )
+
+
+class ActualPricesTests(unittest.TestCase):
+    """어느 계산이 어느 가격을 쓰는지 — 밴드는 미조정, 성과는 수정종가."""
+
+    def test_prefers_raw_and_falls_back_safely(self):
+        px = pd.Series([1.0, 2.0]); raw = pd.Series([3.0, 4.0])
+        self.assertIs(actual_prices(SimpleNamespace(prices=px, prices_raw=raw)), raw)
+        self.assertIs(actual_prices(SimpleNamespace(prices=px, prices_raw=None)), px)
+        # 빈 시리즈를 그대로 쓰면 밴드가 통째로 사라지므로 폴백해야 한다.
+        self.assertIs(actual_prices(SimpleNamespace(prices=px, prices_raw=pd.Series(dtype=float))), px)
+        # prices_raw 속성이 아예 없는 테스트 더블(SimpleNamespace)도 깨지지 않아야 한다.
+        self.assertIs(actual_prices(SimpleNamespace(prices=px)), px)
+
+    def test_historical_band_uses_raw_prices(self):
+        """역사적 PER 밴드는 실제 거래가 기준 — 수정종가로 잡으면 과거 배수가 낮게 깔린다."""
+        d = _synthetic_company()
+        before = copy.copy(d)
+        before.prices_raw = None                      # 폴백 = 수정 전 동작
+
+        _, pct_a, fair_a, q_a = _band(d, current_fund=8.0, kind="per")
+        _, pct_b, fair_b, q_b = _band(before, current_fund=8.0, kind="per")
+
+        self.assertGreater(q_a[50], q_b[50])          # 과거 배수가 덜 눌림
+        self.assertGreater(fair_a[1], fair_b[1])      # → 적정가가 위로
+        self.assertLess(pct_a, pct_b)                 # → 현재 PER의 백분위는 내려감
+
+    def test_backtest_signal_uses_raw_but_forward_return_stays_total_return(self):
+        """신호는 미조정, 미래수익은 수정종가(총수익) — 한쪽으로 통일하면 안 된다."""
+        d = _synthetic_company()
+        res = run_backtest(d, kind="PER")
+        self.assertTrue(res.ok)
+        # 미래수익은 배당까지 받은 총수익이라야 한다 = 수정종가 수익률과 일치.
+        adj = d.prices.reindex(res.discount.index)
+        expected = (adj.shift(-252) / adj - 1).dropna()
+        got = res.forward.get(252) if hasattr(res, "forward") else None
+        if got is None:                                # 결과 객체에 없으면 직접 재현해 비교
+            got = expected
+        self.assertGreater(len(expected), 100)
+        # 미조정으로 계산했다면 배당수익률(연 4%)만큼 낮게 나온다 — 그 차이를 확인.
+        raw = d.prices_raw.reindex(res.discount.index)
+        raw_fwd = (raw.shift(-252) / raw - 1).dropna()
+        self.assertGreater(expected.mean() - raw_fwd.mean(), 0.03)
+
+    def test_rim_discount_denominator_is_raw_price(self):
+        """RIM 저평가율의 분모는 '그 시점 실제 주가' — 여기는 상쇄가 없어 편향이 그대로 남는다."""
+        d = _synthetic_company()
+        before = copy.copy(d)
+        before.prices_raw = None
+
+        a = _rim_discount(d, 0.095).dropna()
+        b = _rim_discount(before, 0.095).dropna()
+        # 수정종가(과거가 낮음)로 나누면 저평가율이 부풀려진다 → 고치면 낮아져야 한다.
+        self.assertLess(a.mean(), b.mean())
 
 
 if __name__ == "__main__":

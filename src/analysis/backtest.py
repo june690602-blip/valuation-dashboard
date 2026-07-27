@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from ..data.models import CompanyData
+from ..data.models import CompanyData, actual_prices
 from .valuation import METHOD_WEIGHTS, _fundamental_daily
 
 # 미래수익률 측정 구간 (거래일 기준)
@@ -120,7 +120,8 @@ def _rim_discount(d: CompanyData, r_equity: float) -> pd.Series | None:
     bps = bps.where(bps > 0)
     fair_pbr = 1.0 + (roe - r_equity) * 0.9 / (0.1 + r_equity)
     fair = (bps * fair_pbr).where((roe > 0) & bps.notna())
-    disc = (fair / d.prices.reindex(fair.index)) - 1.0
+    # 저평가율의 분모는 '그 시점에 실제로 내야 했던 값' = 미조정 주가.
+    disc = (fair / actual_prices(d).reindex(fair.index)) - 1.0
     return disc.where(fair > 0)
 
 
@@ -152,7 +153,9 @@ def run_backtest(d: CompanyData, kind: str = "PER", threshold: float = 0.30,
         return res
 
     daily = daily.where(daily > 0)
-    mult = (d.prices / daily).dropna()          # 일별 배수 (주가/펀더멘털)
+    # 신호(배수·저평가율)는 미조정 주가로 — 수정종가를 쓰면 과거 배수가 배당만큼 낮게 깔려
+    # 저평가 신호가 과소 발생한다(valuation._band와 같은 이유).
+    mult = (actual_prices(d) / daily).dropna()   # 일별 배수 (주가/펀더멘털)
     window = int(window_years * 252)
     minp = max(126, window // 2)
     if len(mult) < window + 126:
@@ -176,6 +179,8 @@ def run_backtest(d: CompanyData, kind: str = "PER", threshold: float = 0.30,
         res.warnings.append("RIM(③) 복원에 필요한 ROE·장부가가 부족해 역사적 밴드(②) 단독으로 "
                             "검증합니다. 종합 판정의 일부만 사후검증됨에 유의하세요.")
 
+    # price 컬럼은 아래 미래수익(fwd_*) 계산 전용이라 여기만 수정종가를 쓴다 — 신호는
+    # '그때 얼마였나'(미조정)지만, 성과는 배당까지 받은 총수익이라야 실제로 번 돈에 맞는다.
     df = pd.DataFrame({"price": d.prices.reindex(mult.index), "mult": mult,
                        "discount": discount}).dropna(subset=["discount", "price"])
     if df.empty:

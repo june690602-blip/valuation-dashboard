@@ -275,9 +275,11 @@ def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "",
             seg.append(f"애널리스트 {cons.n_analysts}명")
         if seg:
             lines.append("증권가 컨센서스: " + ", ".join(seg))
-    # 52주 범위 (현재 관찰을 재검토할 가격 기준)
+    # 52주 범위 (현재 관찰을 재검토할 가격 기준) — 신문·증권사와 같은 실제 거래가 기준.
+    # 수정종가로 잡으면 배당만큼 저점이 실제보다 낮게 찍힌다(models.actual_prices 참고).
     try:
-        c = d.prices.tail(252)
+        from ..data.models import actual_prices
+        c = actual_prices(d).tail(252)
         hi52, lo52 = float(c.max()), float(c.min())
         pos = (d.price - lo52) / (hi52 - lo52) * 100 if hi52 > lo52 else None
         lines.append(f"52주 최고/최저: {hi52:,.0f} / {lo52:,.0f} {cur}"
