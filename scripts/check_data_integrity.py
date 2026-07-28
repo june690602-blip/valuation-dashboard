@@ -210,34 +210,68 @@ def check_prices(d, label):
         say(OK, f"과거 조정폭 실측: {first.date()} 기준 {gap0:+.1f}%",
             "이 크기만큼 과거 배수가 낮게 깔린다 — 가격형 계산에 수정종가를 쓰면 그대로 편향이 된다")
 
-    # 52주 최고·최저를 두 계열로 각각 계산 → 화면 표시값이 어느 쪽인지 드러낸다
+    # 52주 최고·최저 — 두 계열이 얼마나 다른지(왜 중요한지)와, **화면에 나가는 값이 어느
+    # 쪽인지**를 나눠서 본다. 앞은 데이터의 성질이라 늘 다르고, 뒤가 실제 점검 대상이다.
     a52, r52 = adj.tail(252), raw.tail(252)
     if len(a52) > 100 and len(r52) > 100:
-        lo_gap = pct(a52.min(), r52.min())
-        hi_gap = pct(a52.max(), r52.max())
-        cur = float(raw.iloc[-1])
+        lo_gap, hi_gap = pct(a52.min(), r52.min()), pct(a52.max(), r52.max())
+        gaps = f"저점 {lo_gap:+.2f}% · 고점 {hi_gap:+.2f}%"
         pos_adj = (float(adj.iloc[-1]) - a52.min()) / (a52.max() - a52.min()) * 100
-        pos_raw = (cur - r52.min()) / (r52.max() - r52.min()) * 100
-        detail = (f"수정종가 기준 저/고 {a52.min():,.0f}/{a52.max():,.0f} (밴드 내 {pos_adj:.0f}%)\n"
-                  f"실거래가 기준 저/고 {r52.min():,.0f}/{r52.max():,.0f} (밴드 내 {pos_raw:.0f}%)\n"
-                  f"저점 괴리 {lo_gap:+.2f}% · 고점 괴리 {hi_gap:+.2f}% · 위치 차이 {pos_adj - pos_raw:+.1f}%p")
-        if abs(pos_adj - pos_raw) >= 1.0:
-            say(BAD, "52주 밴드가 두 계열에서 다르게 나온다", detail)
-        else:
-            say(OK, "52주 밴드는 두 계열 차이가 무시할 수준", detail)
+        pos_raw = (float(raw.iloc[-1]) - r52.min()) / (r52.max() - r52.min()) * 100
+        say(OK, f"두 계열의 52주 밴드 차이 실측: {gaps} · 위치 {pos_adj - pos_raw:+.1f}%p",
+            f"수정종가 기준 저/고 {a52.min():,.0f}/{a52.max():,.0f} (밴드 내 {pos_adj:.0f}%)\n"
+            f"실거래가 기준 저/고 {r52.min():,.0f}/{r52.max():,.0f} (밴드 내 {pos_raw:.0f}%)\n"
+            "어느 계열을 쓰느냐로 이만큼 달라진다 — 아래에서 화면 값이 어느 쪽인지 확인한다")
+        _check_screen_52w(d, r52, a52)
+
+
+def _check_screen_52w(d, r52, a52):
+    """화면(웹 API)에 실제로 나가는 52주 값이 실거래가 기준인지 직접 확인한다.
+
+    두 계열이 다르다는 사실만으로는 결론이 안 난다 — **어느 쪽이 화면에 나가는지**가
+    점검 대상이다. serialize._price()를 그대로 호출해 그 출력을 원본 계열과 대조한다.
+    """
+    try:
+        from src.web.serialize import _price
+        payload = _price(d)
+    except Exception as e:
+        say(NA, f"화면 직렬화(_price) 호출 실패: {type(e).__name__} — 화면 값 확인 불가")
+        return
+    lo, hi = payload.get("lo52"), payload.get("hi52")
+    if lo is None or hi is None:
+        say(NA, "화면 52주 값이 비어 있어 확인 불가")
+        return
+    near = lambda a, b: b not in (None, 0) and abs(a / b - 1) < 0.001   # noqa: E731
+    if near(lo, float(r52.min())) and near(hi, float(r52.max())):
+        say(OK, f"화면 52주 = 실거래가 기준 ({lo:,.0f} ~ {hi:,.0f})",
+            "신문·증권사와 같은 관례. 수정종가를 쓰면 저점이 배당 누적분만큼 낮게 찍힌다")
+    elif near(lo, float(a52.min())):
+        say(BAD, f"화면 52주가 수정종가 기준 ({lo:,.0f} ~ {hi:,.0f})",
+            f"실거래가 기준이면 {r52.min():,.0f} ~ {r52.max():,.0f} 이어야 한다")
+    else:
+        say(NA, f"화면 52주({lo:,.0f}~{hi:,.0f})가 어느 계열과도 일치하지 않음 — 확인 필요")
 
 
 def check_units(d, info, label):
     print(f"\n[{label}] B. 단위·통화")
     fin_ccy = (info or {}).get("financialCurrency")
-    if fin_ccy:
-        if str(fin_ccy).upper() == d.currency.upper():
-            say(OK, f"재무 통화 = 표시 통화 ({fin_ccy})")
-        else:
-            say(BAD, f"재무 통화({fin_ccy}) ≠ 표시 통화({d.currency})",
-                "EPS·BPS는 재무 통화, 주가는 표시 통화라 PER·PBR이 환율배만큼 틀어진다")
-    else:
+    if not fin_ccy:
         say(NA, "financialCurrency 미제공 — 재무 통화를 대조할 수 없음")
+    elif str(fin_ccy).upper() == d.currency.upper():
+        say(OK, f"재무 통화 = 표시 통화 ({fin_ccy})")
+    else:
+        # 통화가 갈리는 건 데이터의 사실이라 없앨 수 없다(환율 변환은 #56). 점검 대상은
+        # **그 사실을 알고 막고 있는가**다 — 막지 못하면 PER 0.93 같은 값이 화면에 나간다.
+        from src.analysis.indicators import compute_indicators
+        leaked = [k for k, v in compute_indicators(d).valuation.items()
+                  if k in ("per", "pbr", "psr", "ev_ebitda", "p_fcf", "peg") and v is not None]
+        if leaked:
+            say(BAD, f"재무 통화({fin_ccy}) ≠ 표시 통화({d.currency}) — 차단되지 않은 지표 있음",
+                f"{', '.join(leaked)}가 값을 내고 있다. 환율배만큼 틀어진 값이다")
+        else:
+            say(OK, f"재무 통화({fin_ccy}) ≠ 표시 통화({d.currency}) — 감지해 차단함",
+                "PER·PBR·PSR·EV/EBITDA·P/FCF·PEG 전부 N/A. 적정가 ①②③도 건너뛴다.\n"
+                "데이터 자체의 혼재는 남아 있고, 환율 변환은 #56")
 
     calc = d.shares_outstanding * d.price
     gap = pct(d.market_cap, calc)
@@ -291,6 +325,12 @@ def check_timing(d, label):
     else:
         say(NA, "fiscal_end 컬럼이 없어 재무 시점을 알 수 없음")
 
+    from src.data.models import currency_mismatch
+    if currency_mismatch(d):
+        say(NA, "통화가 갈려 자체 PER 교차검증 불가",
+            "재무 EPS와 주가의 통화가 달라 비교가 성립하지 않는다(#56). "
+            "화면에는 이미 차단돼 나가지 않는다")
+        return
     own_per = (d.price / d.latest("eps")) if d.latest("eps") else None
     off_per = (d.official or {}).get("PER")
     if own_per and off_per:
@@ -387,20 +427,44 @@ def _check_interest_expense(d, fin):
         dart, src = None, ""
     dart_ie = (dart["interest_expense"].dropna()
                if dart is not None and "interest_expense" in dart.columns else None)
-    if dart_ie is None or not len(dart_ie):
-        say(OK, "DART에 이자 항목이 없어 yfinance 손익 이자비용이 그대로 쓰임",
-            f"출처={src or 'Yahoo Finance'} · 최근값 {ie.iloc[-1]:,.0f}")
-        return
-
     debt = fin["total_debt"].dropna()
     avg_debt = float(debt.tail(2).mean()) if len(debt) else None
-    lines = [f"DART(현금흐름 '이자의지급') {dart_ie.iloc[-1]:,.0f}",
-             "→ merge_financials가 DART를 우선해 이 값이 k_d의 분자가 된다"]
-    if avg_debt:
-        lines.append(f"k_d = {dart_ie.iloc[-1] / avg_debt * 100:.2f}% "
-                     f"(평균차입금 {avg_debt:,.0f} 기준)")
-    say(BAD, "interest_expense가 손익의 '이자비용'이 아니라 현금흐름의 '이자지급'",
-        "\n".join(lines))
+    kd = f"k_d = {ie.iloc[-1] / avg_debt * 100:.2f}%" if avg_debt else "k_d 산출 불가"
+
+    if dart_ie is None or not len(dart_ie):
+        say(OK, "DART에 손익 이자비용 계정이 없어 yfinance 값이 그대로 쓰임",
+            f"출처={src or 'Yahoo Finance'} · 최근값 {ie.iloc[-1]:,.0f} · {kd}\n"
+            "비금융업은 손익에 이자비용을 따로 내지 않는 경우가 흔하다(정상 경로)")
+        return
+
+    # DART 값이 정말 '손익의 이자비용'인지 yfinance의 손익 항목과 대조한다. 예전에는
+    # 현금흐름표의 '이자의지급'을 읽어 이름표와 값이 어긋났다(발생주의 vs 현금주의).
+    try:
+        import yfinance as yf
+
+        from src.data.base import extract_financials
+        yf_fin, _ = extract_financials(yf.Ticker(d.yahoo_ticker))
+        yf_ie = (yf_fin["interest_expense"].dropna()
+                 if "interest_expense" in yf_fin.columns else None)
+    except Exception:
+        yf_ie = None
+    if yf_ie is None or not len(yf_ie):
+        say(NA, f"yfinance 손익 이자비용이 없어 DART 값({dart_ie.iloc[-1]:,.0f})을 대조할 수 없음")
+        return
+
+    common = sorted(set(dart_ie.index) & set(yf_ie.index))
+    if not common:
+        say(NA, "DART와 yfinance의 공통 연도가 없어 대조 불가")
+        return
+    yr = common[-1]
+    gap = pct(dart_ie.loc[yr], yf_ie.loc[yr])
+    detail = (f"{yr}년 · DART {dart_ie.loc[yr]:,.0f} vs yfinance 손익 {yf_ie.loc[yr]:,.0f} "
+              f"({gap:+.1f}%) · {kd}")
+    if gap is not None and abs(gap) <= 5.0:
+        say(OK, "DART interest_expense = 손익의 이자비용 (yfinance와 일치)", detail)
+    else:
+        say(BAD, "DART interest_expense가 yfinance 손익 항목과 크게 다름",
+            detail + "\n현금흐름표의 '이자의지급'을 읽고 있지 않은지 매핑을 확인해야 한다")
 
 
 def run_one(market: str, query: str):
