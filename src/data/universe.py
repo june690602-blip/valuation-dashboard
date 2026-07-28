@@ -189,15 +189,21 @@ US_ETFS: tuple = (
     ("SPYD", "SPDR Portfolio S&P 500 High Dividend ETF"), ("RSP", "Invesco S&P 500 Equal Weight ETF"),
     ("TQQQ", "ProShares UltraPro QQQ (3x)"), ("SQQQ", "ProShares UltraPro Short QQQ (3x)"),
     ("SOXL", "Direxion Daily Semiconductor Bull 3x"), ("UPRO", "ProShares UltraPro S&P500 (3x)"),
+    # 2배도 함께 — 3배만 있으면 "QLD는 왜 안 나오나" 같은 혼란이 생긴다.
+    ("QLD", "ProShares Ultra QQQ (2x)"), ("SSO", "ProShares Ultra S&P500 (2x)"),
     ("BITO", "ProShares Bitcoin Strategy ETF"), ("IBIT", "iShares Bitcoin Trust"),
     ("MOAT", "VanEck Morningstar Wide Moat ETF"), ("QUAL", "iShares MSCI USA Quality Factor ETF"),
     ("MTUM", "iShares MSCI USA Momentum Factor ETF"), ("USMV", "iShares MSCI USA Min Vol Factor ETF"),
 )
 
 
-@file_cache("us_etf", ttl_hours=24 * 7)
 def get_us_etf() -> pd.DataFrame:
-    """대표 미국 ETF 목록: Symbol, Name (정적 큐레이션 → 즉시). 검색 자동완성용."""
+    """대표 미국 ETF 목록: Symbol, Name (정적 큐레이션 → 즉시). 검색 자동완성용.
+
+    파일 캐시를 쓰지 않는다 — 소스 상수를 그대로 옮기는 즉시 연산이라 캐시할 게 없고,
+    캐시를 걸면 목록에 종목을 추가해도 만료 전까지 반영되지 않아 "분명 넣었는데 검색이
+    안 된다"가 된다(실측: QLD 추가 후 7일 캐시 때문에 옛 목록이 계속 나왔다).
+    """
     return pd.DataFrame(list(US_ETFS), columns=["Symbol", "Name"])
 
 
