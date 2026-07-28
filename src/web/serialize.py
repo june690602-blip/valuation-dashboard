@@ -25,6 +25,7 @@ from src.analysis.indicators import compute_indicators
 from src.analysis.scoring import (comparable_peers, peer_median,
                                    rank_peers_cheapness, sanitize_peer_frame)
 from src.analysis.valuation import compute_valuation
+from src.data.models import actual_prices
 
 MULTIPLE_LABELS = {"per": "PER", "pbr": "PBR", "psr": "PSR", "ev_ebitda": "EV/EBITDA",
                    "p_fcf": "P/FCF", "div_yield": "배당수익률", "peg": "PEG"}
@@ -286,14 +287,26 @@ def _price(d) -> dict:
     change_pct = (change / previous_close
                   if change is not None and previous_close not in (None, 0) else None)
 
-    trailing_52 = valid_close.tail(252)
+    # 52주 최고·최저는 신문·증권사와 같은 관례로 **실제 거래가격** 기준이다. 차트용
+    # close는 수정종가라 과거 저점이 배당 누적분만큼 낮게 찍히고, 그만큼 현재가가 밴드
+    # 위쪽에 있는 것처럼 보인다(실측 저점 괴리: KB금융 -3.13%, 코카콜라 -2.01%, 밴드 내
+    # 위치 최대 3.4%p 이동). ETF 쪽(analysis/etf.py:_trend)은 이미 실거래가를 쓴다.
+    band_close = valid_close
+    if getattr(d, "prices", None) is not None:
+        raw = actual_prices(d)
+        if raw is not None and len(raw.dropna()):
+            band_close = raw.dropna()
+    trailing_52 = band_close.tail(252)
     hi52 = num(trailing_52.max()) if len(trailing_52) else None
     lo52 = num(trailing_52.min()) if len(trailing_52) else None
-    ret1y = (latest_close / num(trailing_52.iloc[0]) - 1
+    band_cur = num(trailing_52.iloc[-1]) if len(trailing_52) else latest_close
+    # 1년 수익률은 반대로 총수익 기준이라 수정종가가 맞다(배당까지 받은 실제 성과).
+    adj_52 = valid_close.tail(252)
+    ret1y = (latest_close / num(adj_52.iloc[0]) - 1
              if len(valid_close) >= 252 and latest_close is not None
-             and num(trailing_52.iloc[0]) not in (None, 0) else None)
-    pos52 = ((latest_close - lo52) / (hi52 - lo52) * 100
-             if latest_close is not None and hi52 is not None and lo52 is not None
+             and num(adj_52.iloc[0]) not in (None, 0) else None)
+    pos52 = ((band_cur - lo52) / (hi52 - lo52) * 100
+             if band_cur is not None and hi52 is not None and lo52 is not None
              and hi52 > lo52 else None)
     asof = valid_close.index[-1].strftime("%Y-%m-%d") if len(valid_close) else None
 

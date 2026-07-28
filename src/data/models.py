@@ -62,6 +62,23 @@ def actual_prices(d) -> pd.Series:
     return d.prices
 
 
+def currency_mismatch(d) -> str | None:
+    """재무제표 통화가 주가 통화와 다르면 그 통화 코드, 같거나 알 수 없으면 None.
+
+    ADR(외국 기업의 미국 상장 증서)이 대표적이다 — TSMC는 재무를 대만달러로 공시하는데
+    주가는 달러다. 주가·시총을 재무 값으로 나눈 지표(PER·PBR·PSR·EV/EBITDA)는 그대로
+    **환율배만큼** 틀어진다(실측: TSMC 자체 PER 0.93 vs 야후 공시 35.60).
+    재무끼리의 비율(ROE·마진·성장률)은 통화가 약분돼 영향이 없다.
+
+    환율 시계열로 변환하면 제대로 고칠 수 있지만, ADR 비율(1 증서 = 보통주 몇 주)을
+    무료 소스가 주지 않아 주당 단위까지 맞추려면 별도 설계가 필요하다. 그때까지는
+    틀린 값을 그럴듯하게 보여주는 대신 N/A로 막는다.
+    """
+    fin_ccy = str(getattr(d, "financial_currency", None) or "").upper()
+    px_ccy = str(getattr(d, "currency", "") or "").upper()
+    return fin_ccy if fin_ccy and px_ccy and fin_ccy != px_ccy else None
+
+
 class IsETFError(ValueError):
     """기업 분석 질의가 사실은 ETF였을 때.
 
@@ -141,6 +158,10 @@ class CompanyData:
     warnings: list = field(default_factory=list)   # 데이터 품질 경고 문구
     is_financial: bool = False                     # 금융업 여부 (지표 마스킹용)
     consensus: Consensus | None = None             # 애널리스트 컨센서스 (없으면 None)
+
+    # 재무제표가 공시된 통화. 위 currency(주가 통화)와 다르면 ADR 등 통화 혼재 상황이라
+    # 주가÷재무 지표를 막아야 한다 — currency_mismatch() 참고. 모르면 None(=검사 안 함).
+    financial_currency: str | None = None
 
     def latest(self, col: str):
         """TTM 우선, 없으면 최근 연간 값."""

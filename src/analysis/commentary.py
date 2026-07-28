@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..data.models import CompanyData
+from ..data.models import CompanyData, currency_mismatch
 from .capital_cost import CapitalCost
 from .indicators import Indicators
 from .scoring import CategoryScores, peer_median, sanitize_peer_frame
@@ -51,6 +51,11 @@ def build_commentary(d: CompanyData, ind: Indicators, scores: CategoryScores,
         elif diff >= 0.25:
             out.append(Comment("bad", f"PER {_x(per)}로 업종 중앙값({_x(per_med)}) 대비 "
                                       f"{_pct(diff, 0)} 프리미엄에 거래되고 있습니다."))
+    elif per is None and currency_mismatch(d):
+        # PER가 없는 이유가 적자가 아니라 통화 혼재일 때 '적자'라고 말하면 오독이다.
+        out.append(Comment("warn", f"재무제표가 {currency_mismatch(d)}로 공시되고 주가는 "
+                                   f"{d.currency}라(ADR 등) PER·PBR을 계산하지 않았습니다 — "
+                                   "적자라서가 아닙니다."))
     elif per is None and not d.is_financial:
         out.append(Comment("warn", "순이익이 적자(또는 데이터 없음)라 PER를 계산할 수 없습니다. "
                                    "PSR·PBR 중심으로 판단해야 합니다."))

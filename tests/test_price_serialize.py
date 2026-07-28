@@ -13,14 +13,20 @@ from src.web.serialize import _price
 
 class PriceSerializationTests(unittest.TestCase):
     @staticmethod
-    def company(frame_price: float = 999.0, benchmark=None):
-        return SimpleNamespace(
+    def company(frame_price: float = 999.0, benchmark=None,
+                prices=None, prices_raw=None):
+        ns = SimpleNamespace(
             yahoo_ticker="TEST",
             price=frame_price,
             index_prices=benchmark,
             market="KR",
             currency="KRW",
         )
+        # 시세 계열이 없는 더블은 52주 계산이 차트 종가로 폴백해야 한다(기존 동작 유지).
+        if prices is not None:
+            ns.prices = prices
+            ns.prices_raw = prices_raw
+        return ns
 
     def test_serializes_full_five_year_contract_and_summary_metrics(self):
         dates = pd.bdate_range("2024-01-02", periods=300)
@@ -108,6 +114,47 @@ class PriceSerializationTests(unittest.TestCase):
         self.assertEqual(payload["pos52"], 100.0)
         self.assertTrue(all(value is None for value in payload["ma20"]))
         json.dumps(payload, ensure_ascii=False, allow_nan=False)
+
+    def test_52week_band_uses_unadjusted_prices_while_return_uses_adjusted(self):
+        """52주 밴드는 실거래가, 1년 수익률은 수정종가 — 기준이 서로 다르다.
+
+        수정종가는 과거를 배당만큼 낮춰 잡아 저점이 실제보다 낮게 찍힌다. 그러면 현재가가
+        밴드 위쪽에 있는 것처럼 보인다(실측 저점 괴리 KB금융 -3.13%). 반대로 1년 수익률은
+        배당까지 받은 총수익이라야 실제로 번 돈에 맞는다.
+        """
+        dates = pd.bdate_range("2025-08-01", periods=260)
+        adjusted = np.linspace(80.0, 200.0, 260)      # 배당만큼 과거가 눌린 계열
+        raw = np.linspace(100.0, 200.0, 260)          # 그날 실제로 붙어 있던 가격
+        frame = pd.DataFrame({"Close": adjusted}, index=dates)
+
+        with patch("src.data.base.fetch_ohlcv", return_value=frame):
+            payload = _price(self.company(
+                benchmark=None,
+                prices=pd.Series(adjusted, index=dates),
+                prices_raw=pd.Series(raw, index=dates)))
+
+        first = 260 - 252   # tail(252)의 첫 위치
+        self.assertAlmostEqual(payload["lo52"], raw[first:].min())   # 수정종가 저점이 아니다
+        self.assertAlmostEqual(payload["hi52"], raw[first:].max())
+        self.assertNotAlmostEqual(payload["lo52"], adjusted[first:].min())
+        self.assertAlmostEqual(payload["pos52"], 100.0)
+        # 1년 수익률만은 수정종가 계열 그대로다
+        self.assertAlmostEqual(payload["ret1y"], adjusted[-1] / adjusted[first] - 1.0)
+        json.dumps(payload, ensure_ascii=False, allow_nan=False)
+
+    def test_52week_band_falls_back_to_chart_close_without_unadjusted(self):
+        """미조정 시세를 못 받으면 차트 종가로 폴백한다 — 정확도만 떨어지고 동작은 유지."""
+        dates = pd.bdate_range("2025-08-01", periods=260)
+        adjusted = np.linspace(80.0, 200.0, 260)
+        frame = pd.DataFrame({"Close": adjusted}, index=dates)
+
+        with patch("src.data.base.fetch_ohlcv", return_value=frame):
+            payload = _price(self.company(
+                benchmark=None,
+                prices=pd.Series(adjusted, index=dates),
+                prices_raw=None))
+
+        self.assertAlmostEqual(payload["lo52"], adjusted[260 - 252:].min())
 
     def test_missing_close_preserves_parallel_rows_and_uses_price_fallback(self):
         dates = pd.bdate_range("2026-07-10", periods=2)
