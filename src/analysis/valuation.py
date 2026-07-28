@@ -7,6 +7,14 @@
 (0003이 0001의 '동일가중 산술평균'을 대체함). 동일가중 결과도 함께 계산해
 가중치가 결론을 좌우하지 않음을 화면에 병기한다(민감도 노출).
 컨센서스 '목표주가' 자체는 종합에 섞지 않고 외부 교차검증치로만 쓴다.
+
+**②와 ④는 서로 독립적인 관점이 아니다(R2 실측).** 둘은 같은 식이고 곱하는 EPS만 다르다 —
+  ② = 자기 5년 PER 중앙값 × TTM EPS,  ④ = 자기 5년 PER 중앙값 × 컨센서스 선행 EPS
+그래서 ④÷②는 항상 정확히 (선행EPS ÷ TTM EPS)다(10종목 패널 전부에서 확인).
+'네 관점의 삼각측량'에서 ②·④는 같은 관점의 과거판·미래판이고, 종합 적정가의 실효
+의존도는 명목 가중 0.60이 아니라 **중앙 76%**다(③이 꺼지면 더 오른다). 이 사실을 숨기면
+"방법들이 서로 동의했다"로 오독되므로 `shared_multiple_share`로 계산해 화면에 밝힌다.
+근거·실측은 docs/review/R2-가정적합성.md, 재현은 scripts/check_sensitivity.py.
 """
 from __future__ import annotations
 
@@ -34,7 +42,10 @@ def _verdict(gap: float) -> str:
 # 연구(Ohlson 모형 기반)도 이익>장부가 순위를 지지한다. 순위는 국제·국내 공통이나
 # 절대 수치(35/25/25/15)는 한국 데이터로 추정한 값이 아니라 순위의 정성적 인코딩이다.
 # ④는 국내 컨센서스 낙관편의(자본시장연구원 2025)에 노출되므로 '편향 없는 값'이 아니라
-# '시장기대 앵커'로 읽어야 한다(배수측 편향은 자기 5년 PER 중앙값 사용으로 차단).
+# '시장기대 앵커'로 읽어야 한다. 배수측은 애널리스트 목표주가의 내재 배수를 쓰지 않아
+# **낙관편의가 직접 들어오지는 않지만**, R2 실측에서 자기 5년 PER 중앙값이 사이클 전환
+# 종목에서 목표가 내재배수보다 45~49% 높게 나왔다 — '차단'이 아니라 '다른 종류의 오차로
+# 바꾼 것'에 가깝다(_forward_value 도크스트링·이슈 #62).
 # 상세·대안·한계·인용은 docs/adr/0003. 사용 가능한 방법만으로 재정규화해 합이 1이 되게 쓴다.
 METHOD_WEIGHTS = {
     "선행 이익(컨센서스)": 0.35,
@@ -79,6 +90,10 @@ class ValuationResult:
     forward_growth: float | None = None    # 선행 EPS / TTM EPS - 1 (내재 성장률)
     weights: dict = field(default_factory=dict)   # 종합에 쓴 방법별 가중치 (재정규화)
     skipped: list = field(default_factory=list)   # [(방법명, 건너뛴 사유)] — 번호 자리 유지용
+    # ②·④가 함께 쓰는 '자기 5년 PER 중앙값' 하나에 종합 적정가가 실제로 얼마나 매달려 있나
+    # (0~1). 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한 실효 의존도**다 —
+    # 이 배수가 10% 틀리면 종합도 이 비율만큼 틀린다.
+    shared_multiple_share: float | None = None
     notes: list = field(default_factory=list)
 
 
@@ -237,8 +252,22 @@ def _forward_value(fwd_eps: float | None, peer_fwd_per: float | None,
 
     근거(실증): 11종목 횡단면 테스트(scripts/check_multiple_rules.py)에서 자기 5년
     중앙값이 |log(예측/현재가)| 최소(0.26)였고, 증권사 목표주가의 내재 멀티플과
-    중앙값 기준 +2% 이내로 일치했다. 피어 선행PER 중앙값은 AI 피어에 소형주가
-    섞이면 체계적으로 과소 추정된다(오차 0.65).
+    **중앙값 기준** +2% 이내로 일치했다. 피어 선행PER 중앙값은 AI 피어에 소형주가
+    섞이면 체계적으로 과소 추정된다(오차 0.65). 규칙 선택 자체는
+    2026-07-28 재실행에서도 유지됐다 — 가격오차 0.286으로 여전히 최소, 목표가 대비 +3.4%.
+
+    **다만 '+2% 이내'는 중앙값 이야기이고 종목별로는 성립하지 않는다(R2 실측).**
+    같은 재실행에서 종목별 배수 괴리(자기 5년 중앙 ÷ 목표가 내재배수 − 1)는
+    절대값 중앙 21.9%, 범위 −62%~+49%였다. 어긋나는 방향에는 규칙이 있다 —
+    **이익이 크게 움직이는 사이클 전환 종목에서 배수가 과대**하다. 이익이 눌려 있던
+    기간은 PER이 높게 깔리는데(분모가 작아서), 그 배수를 회복된 선행 EPS에 곱하면
+    한 번의 회복을 두 번 센다. 실측: 삼성전자 16.0배 vs 목표가 내재 11.0배(+45.6%),
+    SK하이닉스 17.1배 vs 11.5배(+48.7%) — 둘 다 ④가 증권가 목표주가보다 높게 나온다.
+    반대로 이익이 줄어드는 종목은 배수가 과소하다(현대차 −62.3%).
+
+    근본 해결(정규화 이익 또는 배수·이익의 국면 맞추기)은 새 가정을 얹는 일이라 이슈 #62로
+    분리했다. 여기서는 값을 그대로 두고 compute_valuation()이 위상 불일치를 화면에 경고한다.
+    실측·재현은 docs/review/R2-가정적합성.md, scripts/check_sensitivity.py.
     """
     if not fwd_eps or fwd_eps <= 0:
         return None
@@ -364,6 +393,21 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
                     f"선행 이익 방법은 컨센서스 12개월 EPS(현 TTM 대비 "
                     f"{res.forward_growth:+.0%})를 사용합니다 — 시장의 실적 전망이 "
                     "빗나가면 함께 빗나갑니다.")
+                # 이익이 크게 움직이면 배수와 이익이 서로 다른 국면을 보게 된다. 이익이
+                # 눌려 있던 기간은 PER이 높게 깔리는데(분모가 작아서), 그 배수를 회복된
+                # 이익에 곱하면 한 번의 회복을 두 번 센다. 임계 ±50%는 R2 패널 실측에서
+                # 온 값이다 — 이 선을 넘은 두 종목(삼성전자 +227%·SK하이닉스 +199%)이
+                # 배수 괴리 +45.6%·+48.7%로 목표가 내재배수를 크게 웃돌았고, 그 아래
+                # 종목(J&J +47% 이하)은 배수 괴리가 10% 안쪽이었다. 근본 해결은 #62.
+                if abs(res.forward_growth) >= 0.5:
+                    updown = "늘어나는" if res.forward_growth > 0 else "줄어드는"
+                    res.notes.append(
+                        f"주의 · 이익이 크게 {updown} 국면입니다(선행 EPS가 TTM 대비 "
+                        f"{res.forward_growth:+.0%}). 곱하는 배수는 '지난 5년 PER의 "
+                        "중앙값'이라 이익이 지금과 다르던 시기에서 나온 값입니다 — 두 값의 "
+                        "국면이 어긋나 선행 이익 방법이 실제보다 낙관적(이익 증가 국면)이거나 "
+                        "비관적(감소 국면)으로 나올 수 있습니다. 아래 컨센서스 목표주가와 "
+                        "반드시 함께 보세요.")
         else:
             res.skipped.append(("선행 이익(컨센서스)", "밴드·피어 멀티플 부족"))
 
@@ -389,6 +433,22 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
                 f"가중 방식에 따라 판정이 갈립니다(가중 '{res.verdict}' vs "
                 f"동일가중 '{res.verdict_equal}'). 가중치는 순위 근거의 정성적 인코딩이니 "
                 "참고로만 보세요.")
+        # ②와 ④는 같은 식(자기 5년 PER 중앙값 × EPS)이라 이 배수 하나가 틀리면 둘이
+        # 같은 방향으로 함께 틀린다. 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한
+        # 실효 의존도**를 계산해 화면에 밝힌다 — 배수가 10% 틀리면 종합도 이만큼 틀린다.
+        shared = [(m, w) for m, w in res.weights.items()
+                  if m in ("역사적 밴드", "선행 이익(컨센서스)")]
+        if len(shared) == 2 and res.fair_mid:
+            mid_of = {e.method: e.mid for e in res.estimates}
+            res.shared_multiple_share = float(
+                sum(w * mid_of[m] for m, w in shared) / res.fair_mid)
+            res.notes.append(
+                f"② 역사적 밴드와 ④ 선행 이익은 같은 배수(자기 5년 PER 중앙값)에 각각 "
+                f"TTM EPS와 컨센서스 EPS를 곱한 값입니다 — 서로 다른 관점이 아니라 같은 "
+                f"관점의 과거판·미래판입니다. 그래서 종합 적정가의 "
+                f"{res.shared_multiple_share:.0%}가 이 배수 하나에 의존합니다. 두 방법이 "
+                "비슷하게 나와도 '독립적으로 합의했다'는 뜻이 아닙니다.")
+
         if len(mids) >= 2 and res.fair_mid:
             disp = float(np.std(mids) / abs(np.mean(mids)))
             res.dispersion = disp
