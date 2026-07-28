@@ -10,11 +10,16 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from ..data.models import CompanyData
+from ..data.models import CompanyData, currency_mismatch
 
 # 금융업(은행·보험·증권)에서 의미 없는 지표
 FINANCIAL_MASK = ["psr", "ev_ebitda", "p_fcf", "debt_ratio", "current_ratio",
                   "interest_coverage", "net_debt_ebitda", "fcf_yield", "ocf_ni"]
+
+# 재무 통화 ≠ 주가 통화(ADR 등)일 때 성립하지 않는 지표 — 분자가 주가·시총(표시 통화),
+# 분모가 재무값(본국 통화)이라 환율배만큼 틀어진다. peg는 per에서 파생돼 함께 막는다.
+CURRENCY_MASK = ["per", "pbr", "psr", "ev_ebitda", "p_fcf", "peg",
+                 "div_yield", "fcf_yield"]
 
 
 @dataclass
@@ -189,4 +194,17 @@ def compute_indicators(d: CompanyData) -> Indicators:
                     cat[k] = None
         ind.masked = [k for k in FINANCIAL_MASK]
         ind.series.pop("roic", None)  # 투하자본 개념 부적합
+
+    # ── 통화 혼재 마스킹 (ADR 등) ─────────────────────────────────
+    # 재무 통화 ≠ 주가 통화면 '주가·시총 ÷ 재무값' 지표가 환율배만큼 틀어진다.
+    # 재무끼리의 비율(ROE·마진·성장률·부채비율)은 통화가 약분돼 그대로 둔다.
+    if currency_mismatch(d):
+        for cat in (ind.valuation, ind.cashflow):
+            for k in list(cat):
+                if k in CURRENCY_MASK:
+                    cat[k] = None
+        # 배당수익률은 야후가 계산해 준 값(official)이면 통화가 맞으므로 살린다.
+        if d.official.get("DIV") is not None:
+            ind.valuation["div_yield"] = d.official.get("DIV")
+        ind.masked = sorted(set(ind.masked) | set(CURRENCY_MASK))
     return ind

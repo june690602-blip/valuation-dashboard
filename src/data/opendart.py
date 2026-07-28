@@ -41,17 +41,38 @@ DART_MAP: dict[str, tuple] = {
                     ["법인세비용"]),
     "eps": (("IS", "CIS"), ["ifrs-full_BasicEarningsLossPerShare"],
             ["기본주당이익", "기본주당순이익", "주당순이익"]),
-    "interest_expense": (("CF",), ["ifrs-full_InterestPaidClassifiedAsOperatingActivities"],
-                         ["이자의지급", "이자지급"]),
+    # 이자비용은 **손익(IS/CIS)의 발생주의 비용**이다. 예전에는 현금흐름표의 '이자의지급'
+    # (InterestPaidClassifiedAsOperatingActivities)을 읽었는데, 그건 그해 실제로 나간 현금이라
+    # 이름표와 값이 어긋났다. merge_financials가 DART를 우선하므로 yfinance의 손익 항목까지
+    # 덮어써, capital_cost._cost_of_debt의 k_d가 현금주의로 계산됐다
+    # (실측: 삼성전자 2025년 DART 0.47조 vs 손익 0.61조 → k_d 2.11% vs 2.72%).
+    # 손익에 이자비용 계정이 없으면(비금융업에 흔함) 채우지 않고 yfinance 값에 맡긴다.
+    # ifrs-full_FinanceCosts('금융비용')는 쓰지 않는다 — 외환차손·파생상품손실까지 묶인
+    # 넓은 계정이라 이자비용이 아니다(실측: 삼성전자 2025년 금융비용 11.7조 vs 이자비용 0.61조).
+    "interest_expense": (("IS", "CIS"), ["ifrs-full_InterestExpense"], ["이자비용"]),
     "total_assets": (("BS",), ["ifrs-full_Assets"], ["자산총계"]),
     "total_equity": (("BS",), ["ifrs-full_EquityAttributableToOwnersOfParent",
                                "ifrs-full_Equity"], ["지배기업의소유주에게귀속되는자본", "자본총계"]),
     "total_liabilities": (("BS",), ["ifrs-full_Liabilities"], ["부채총계"]),
     "current_assets": (("BS",), ["ifrs-full_CurrentAssets"], ["유동자산"]),
     "current_liabilities": (("BS",), ["ifrs-full_CurrentLiabilities"], ["유동부채"]),
+    # 표준 컬럼 cash의 이름표는 '현금및현금성자산(+단기금융)'이고 yfinance도 단기금융을
+    # 포함한 값을 준다. DART에서 현금및현금성자산만 읽으면 순현금이 과소 잡히고 EV가 그만큼
+    # 과대해져 EV/EBITDA가 고평가 쪽으로 치우친다(실측: 삼성전자 2025년 57.9조 vs 125.8조,
+    # 순현금 68조 차이 = 시총의 5.3%). 단기금융상품은 별도 계정이라 아래 _sum_rows로 합산한다.
     "cash": (("BS",), ["ifrs-full_CashAndCashEquivalents"], ["현금및현금성자산"]),
     "ocf": (("CF",), ["ifrs-full_CashFlowsFromUsedInOperatingActivities"],
             ["영업활동현금흐름", "영업활동으로인한현금흐름"]),
+}
+
+# 표준 컬럼에 **더해야** 이름표와 값이 맞는 항목. DART는 계정을 잘게 나눠 공시하는데
+# yfinance는 묶어서 주기 때문에, 한쪽만 읽으면 같은 컬럼이 시장마다 다른 값을 갖게 된다.
+# (cash 이름표 = '현금및현금성자산(+단기금융)'. 삼성전자 2025년 현금 57.9조 + 단기금융 68.0조
+#  = 125.9조로, yfinance의 125.8조와 맞는다. 더하지 않으면 EV가 68조 과대해진다.)
+DART_ADDONS: dict[str, tuple] = {
+    "cash": (("BS",),
+             ["ifrs-full_ShorttermDepositsNotClassifiedAsCashEquivalents"],
+             ["단기금융상품"]),
 }
 
 
@@ -113,15 +134,23 @@ def get_corp_code_map() -> pd.DataFrame:
 
 
 def _find_row(rows: list[dict], sj_set: set, ids: list[str], keywords: list[str]) -> dict | None:
-    """account_id 우선 → 한글명 키워드 순으로 첫 매칭 행."""
+    """account_id 우선 → 한글명 **완전일치** → 한글명 부분일치 순으로 첫 매칭 행.
+
+    부분일치 전에 완전일치를 한 번 도는 이유: 계정명이 서로를 포함하는 경우가 있어
+    부분일치만 쓰면 엉뚱한 행을 잡는다(예: '보험금융이자비용'이 '이자비용'을 포함한다).
+    """
     for aid in ids:
         for r in rows:
             if r.get("sj_div") in sj_set and r.get("account_id") == aid:
                 return r
-    for kw in keywords:
-        for r in rows:
-            if r.get("sj_div") in sj_set and kw in (r.get("account_nm") or "").replace(" ", ""):
-                return r
+    for exact in (True, False):
+        for kw in keywords:
+            for r in rows:
+                if r.get("sj_div") not in sj_set:
+                    continue
+                nm = (r.get("account_nm") or "").replace(" ", "")
+                if (nm == kw) if exact else (kw in nm):
+                    return r
     return None
 
 
@@ -153,13 +182,25 @@ def _parse_report(j: dict, base: int) -> dict[int, dict]:
             if dates:
                 out[year]["fiscal_end"] = pd.to_datetime(dates[-1].replace(".", "-"))
                 break
+    amounts = ((base, "thstrm_amount"), (base - 1, "frmtrm_amount"),
+               (base - 2, "bfefrmtrm_amount"))
     for col, (sj, ids, kws) in DART_MAP.items():
         row = _find_row(rows, set(sj), ids, [k.replace(" ", "") for k in kws])
         if not row:
             continue
-        out[base][col] = _num(row.get("thstrm_amount"))
-        out[base - 1][col] = _num(row.get("frmtrm_amount"))
-        out[base - 2][col] = _num(row.get("bfefrmtrm_amount"))
+        for year, field in amounts:
+            out[year][col] = _num(row.get(field))
+
+    # 더해야 이름표와 맞는 항목(단기금융상품 등). 본 계정이 없으면 더하지 않는다 —
+    # 단기금융상품만 있는 값을 '현금'이라고 부르면 그게 다시 이름표 불일치가 된다.
+    for col, (sj, ids, kws) in DART_ADDONS.items():
+        row = _find_row(rows, set(sj), ids, [k.replace(" ", "") for k in kws])
+        if not row:
+            continue
+        for year, field in amounts:
+            base_val, add_val = out[year].get(col), _num(row.get(field))
+            if base_val is not None and not pd.isna(base_val) and not pd.isna(add_val):
+                out[year][col] = base_val + add_val
     return out
 
 

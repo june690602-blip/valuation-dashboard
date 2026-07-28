@@ -161,62 +161,86 @@ def extract_ttm(tk: yf.Ticker, shares: float | None) -> tuple[pd.Series | None, 
     return ttm, warnings
 
 
-def fetch_prices(yahoo_ticker: str, period: str = "5y") -> pd.Series:
-    """일별 수정종가 (tz 제거)."""
-    h = yf.Ticker(yahoo_ticker).history(period=period, auto_adjust=True)
-    if h is None or h.empty:
-        raise ValueError(f"{yahoo_ticker} 시세를 가져오지 못했습니다")
-    s = h["Close"].dropna()
-    s.index = pd.to_datetime(s.index).tz_localize(None)
-    s.name = yahoo_ticker
-    return s
+# 시세 캐시 수명. 마지막 행은 장중이면 **아직 안 끝난 봉**이라 '종가'가 아니다.
+# 12시간이면 오전에 받은 장중가가 장 마감 뒤까지 종가 행세를 하므로 1시간으로 둔다.
+# (예전엔 fetch_prices만 캐시가 없어 매 분석마다 5년치를 다시 받았다 — 1시간 캐시는
+#  일관성뿐 아니라 호출 수에서도 이득이다.)
+PRICE_TTL_HOURS = 1
 
 
-@file_cache("prices_raw", ttl_hours=12)
-def fetch_prices_raw_df(yahoo_ticker: str, period: str = "5y") -> pd.DataFrame:
-    """일별 **미조정** 종가 — 그날 실제로 화면에 찍혀 있던 가격 (tz 제거).
+@file_cache("price_frame", ttl_hours=PRICE_TTL_HOURS)
+def fetch_price_frame(yahoo_ticker: str, period: str = "5y") -> pd.DataFrame:
+    """미조정·수정 종가와 OHLCV를 **한 번의 조회로** 받아 하나의 스냅샷으로 캐시한다.
 
-    위 fetch_prices()의 수정종가는 과거 가격을 그 뒤 지급된 배당만큼 낮춰 잡는다.
-    총수익 기준 비교(추세·상대성과·추적오차)에는 그게 맞지만, '그때 이 가격에 사면
-    배당수익률이 몇 %였나' 같은 계산에 쓰면 과거 수익률이 배당 누적분만큼 부풀려진다
-    (실측: TLT 5년 최대 +18.7%, 국고채10년 +11.7%). 그런 계산은 이 함수를 쓴다.
+    예전에는 수정종가(fetch_prices, 캐시 없음)와 미조정(fetch_prices_raw, 12시간 캐시)이
+    따로 조회·캐시됐다. 그래서 장중에 미조정 캐시가 채워지면 **같은 날짜에 두 개의 가격**이
+    생겼다 — 실측(2026-07-28 15:31): 삼성전자 수정 219,500 vs 미조정 230,000(-4.57%).
+    화면의 현재가와 밴드가 쓰는 주가가 서로 달랐다는 뜻이다.
 
-    액면분할은 auto_adjust와 무관하게 이미 반영돼 있어(실측: NVDA 10:1 분할 전 종가가
-    $1,150이 아니라 $115) 따로 처리하지 않는다.
+    yfinance는 auto_adjust=False 한 번에 미조정 종가(Close)와 수정종가(Adj Close)를 함께
+    준다. 둘을 한 프레임으로 받아 같이 캐시하면 계열 간 어긋남이 구조적으로 불가능해진다.
+    (실측 확인: Adj Close는 auto_adjust=True의 Close와 소수점 이하까지 일치하고,
+     OHLC는 adj/close 비율을 곱하면 정확히 같다. 거래량은 auto_adjust가 건드리지 않는다.)
     """
     h = yf.Ticker(yahoo_ticker).history(period=period, auto_adjust=False)
     if h is None or h.empty:
         raise ValueError(f"{yahoo_ticker} 시세를 가져오지 못했습니다")
-    s = h["Close"].dropna()
-    s.index = pd.to_datetime(s.index).tz_localize(None)
-    return s.to_frame("close")
+    h = h.dropna(subset=["Close"]).copy()
+    h.index = pd.to_datetime(h.index).tz_localize(None)
+    h.index.name = "date"
+    adj = h["Adj Close"] if "Adj Close" in h.columns else h["Close"]
+    out = pd.DataFrame({
+        "close": h["Close"],          # 미조정 — 그날 실제로 붙어 있던 가격
+        "adj_close": pd.to_numeric(adj, errors="coerce"),   # 수정종가
+        "open": h.get("Open"), "high": h.get("High"), "low": h.get("Low"),
+        "volume": h.get("Volume"),
+    }, index=h.index)
+    return out.dropna(subset=["close", "adj_close"])
 
 
-def fetch_prices_raw(yahoo_ticker: str, period: str = "5y") -> pd.Series:
-    s = fetch_prices_raw_df(yahoo_ticker, period)["close"]
+def fetch_prices(yahoo_ticker: str, period: str = "5y") -> pd.Series:
+    """일별 **수정종가** — 배당 재투자 기준. 수익률·베타·상대성과·추적오차용."""
+    s = fetch_price_frame(yahoo_ticker, period)["adj_close"]
     s.name = yahoo_ticker
     return s
 
 
-@file_cache("index_prices", ttl_hours=12)
-def fetch_index_prices_df(symbol: str, period: str = "5y") -> pd.DataFrame:
-    return fetch_prices(symbol, period).to_frame("close")
+def fetch_prices_raw(yahoo_ticker: str, period: str = "5y") -> pd.Series:
+    """일별 **미조정** 종가 — 그날 실제로 화면에 찍혀 있던 가격.
+
+    수정종가는 과거 가격을 그 뒤 지급된 배당만큼 낮춰 잡는다. 총수익 기준 비교에는 그게
+    맞지만, '그때 이 가격이면 PER가 몇 배였나 / 배당수익률이 몇 %였나'를 묻는 계산에 쓰면
+    과거 값이 배당 누적분만큼 왜곡된다(실측: TLT 5년 최대 +18.7%, KB금융 5년 -21.0%).
+    그런 계산은 이 함수를 쓴다.
+
+    액면분할은 auto_adjust와 무관하게 이미 반영돼 있어(실측: NVDA 10:1 분할 전 종가가
+    $1,150이 아니라 $115) 따로 처리하지 않는다.
+    """
+    s = fetch_price_frame(yahoo_ticker, period)["close"]
+    s.name = yahoo_ticker
+    return s
 
 
 def fetch_index_prices(symbol: str, period: str = "5y") -> pd.Series:
-    return fetch_index_prices_df(symbol, period)["close"]
+    """벤치마크 지수 종가 — 상대성과·베타용이라 수정종가 계열."""
+    return fetch_prices(symbol, period)
 
 
-@file_cache("ohlcv", ttl_hours=12)
 def fetch_ohlcv(yahoo_ticker: str, period: str = "5y") -> pd.DataFrame:
-    """일별 OHLCV (수정주가, tz 제거) — 주가차트용."""
-    h = yf.Ticker(yahoo_ticker).history(period=period, auto_adjust=True)
-    if h is None or h.empty:
-        raise ValueError(f"{yahoo_ticker} 시세를 가져오지 못했습니다")
-    h = h[["Open", "High", "Low", "Close", "Volume"]].dropna(subset=["Close"]).copy()
-    h.index = pd.to_datetime(h.index).tz_localize(None)
-    h.index.name = "date"
-    return h
+    """일별 OHLCV (수정주가, tz 제거) — 주가차트용.
+
+    fetch_price_frame의 같은 스냅샷에서 만든다. 미조정 OHLC에 adj_close/close 비율을
+    곱한 값은 yfinance auto_adjust=True의 결과와 소수점까지 일치한다(실측). 거래량은
+    auto_adjust가 조정하지 않으므로 그대로 둔다.
+    """
+    f = fetch_price_frame(yahoo_ticker, period)
+    ratio = (f["adj_close"] / f["close"]).replace([np.inf, -np.inf], np.nan).fillna(1.0)
+    out = pd.DataFrame({
+        "Open": f["open"] * ratio, "High": f["high"] * ratio,
+        "Low": f["low"] * ratio, "Close": f["adj_close"], "Volume": f["volume"],
+    }, index=f.index)
+    out.index.name = "date"
+    return out
 
 
 # ── 피어 지표 (yfinance info 기반, 종목·일 단위 캐시) ────────────────────
@@ -254,7 +278,7 @@ def _info_has_substance(m: dict) -> bool:
         m.get(k) is not None for k in ("market_cap", "price", "per", "pbr"))
 
 
-@file_cache("peer_info_v2", ttl_hours=24, validate=_info_has_substance)
+@file_cache("peer_info_v3", ttl_hours=24, validate=_info_has_substance)
 def fetch_info_metrics(yahoo_ticker: str) -> dict:
     """한 종목의 info 기반 비교 지표 (json 캐시). 빈 응답은 캐시하지 않는다."""
     info = yf.Ticker(yahoo_ticker).info or {}
@@ -292,7 +316,39 @@ def fetch_info_metrics(yahoo_ticker: str) -> dict:
         "industry": g("industry"),
         "shares": g("sharesOutstanding"),
         "price": g("currentPrice") or g("regularMarketPrice") or g("previousClose"),
+        # 재무제표 공시 통화. 주가 통화와 다르면(ADR) 주가÷재무 지표가 환율배만큼
+        # 틀어진다 — models.currency_mismatch()가 이 값을 본다. v3로 올린 건
+        # 이 키가 없는 옛 캐시를 통화 일치로 오인하지 않기 위해서다.
+        "financial_currency": g("financialCurrency"),
+        "currency": g("currency"),
     }
+
+
+# 재무 통화 ≠ 주가 통화(ADR)인 종목에서 야후가 **직접 계산해 주는 값도 이미 틀려 있는**
+# 지표들. 분자는 시총·주가(표시 통화)인데 분모가 재무값(본국 통화)이라 환율배만큼 어긋난다.
+# 실측(TSM, 재무 TWD·주가 USD): pbr 83.2배 · psr 0.47 · ev_ebitda 4.43 — 전부 비현실적.
+# trailingPE·dividendYield는 야후가 주가 통화로 환산해 주므로 남긴다(TSM per 35.6 = 정상).
+_FX_MIXED_PEER_COLS = ["pbr", "psr", "ev_ebitda", "fcf_yield", "ocf_yield"]
+
+
+def _mask_fx_mixed_peers(df: pd.DataFrame) -> pd.DataFrame:
+    """ADR 등 통화가 섞인 행의 오염된 배수를 결측 처리한다.
+
+    자사뿐 아니라 **피어로 섞여 들어온 ADR**도 막아야 한다 — 하나만 남아도 업종 중앙값이
+    그쪽으로 끌려가고, 그 중앙값이 적정가 ①의 입력이 된다.
+    """
+    if df.empty or "financial_currency" not in df.columns:
+        return df
+    fc = df["financial_currency"].astype("string").str.upper()
+    pc = df["currency"].astype("string").str.upper() if "currency" in df.columns else None
+    if pc is None:
+        return df
+    mixed = fc.notna() & pc.notna() & (fc != pc)
+    if mixed.any():
+        for col in _FX_MIXED_PEER_COLS:
+            if col in df.columns:
+                df.loc[mixed, col] = np.nan
+    return df
 
 
 def build_peer_table(yahoo_tickers: list[str], self_ticker: str,
@@ -323,6 +379,7 @@ def build_peer_table(yahoo_tickers: list[str], self_ticker: str,
     df = pd.DataFrame.from_dict(rows, orient="index")
     if df.empty:
         return pd.DataFrame(columns=PEER_COLUMNS)
+    df = _mask_fx_mixed_peers(df)
     df["is_self"] = df.index == self_ticker
     if labels:
         for t, name in labels.items():
@@ -340,7 +397,8 @@ def build_peer_table(yahoo_tickers: list[str], self_ticker: str,
 
 
 def fill_self_from_financials(peers: pd.DataFrame, self_ticker: str,
-                              fin: pd.DataFrame, market_cap) -> pd.DataFrame:
+                              fin: pd.DataFrame, market_cap,
+                              fx_mixed: bool = False) -> pd.DataFrame:
     """야후 info에 없는 자사 성장률·안정성·현금흐름 지표를 자사 연간 재무제표로 보완.
 
     일부 종목(특히 코스닥)은 야후가 revenueGrowth·debtToEquity·freeCashflow를
@@ -383,8 +441,10 @@ def fill_self_from_financials(peers: pd.DataFrame, self_ticker: str,
         "earnings_growth": _growth("net_income"),
         "debt_to_equity": _ratio("total_debt", "total_equity", 100.0),  # yfinance % 관례
         "current_ratio": _ratio("current_assets", "current_liabilities"),
-        "fcf_yield": _yield("fcf"),
-        "ocf_yield": _yield("ocf"),
+        # 아래 둘만 분모가 시가총액(표시 통화)이라, 재무 통화가 다르면 환율배만큼 틀어진다.
+        # 위 넷은 재무끼리의 비율이라 통화가 약분돼 통화 혼재와 무관하다.
+        "fcf_yield": None if fx_mixed else _yield("fcf"),
+        "ocf_yield": None if fx_mixed else _yield("ocf"),
     }
     for col, val in fills.items():
         if val is None:

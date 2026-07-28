@@ -113,6 +113,17 @@ class USProvider(DataProvider):
         ttm, w = extract_ttm(tk, shares)
         warnings += w
 
+        # ADR은 재무를 본국 통화로 공시하는데 주가는 달러다. 그대로 나누면 지표가 환율배만큼
+        # 틀어지므로(실측: TSMC 자체 PER 0.93, 야후 공시 35.60) 분석 계층이 해당 지표를
+        # 막을 수 있게 통화를 실어 보낸다. 환율 변환은 ADR 비율(1 증서 = 보통주 몇 주)이
+        # 무료 소스에 없어 별도 설계가 필요하다.
+        fin_ccy = self_info.get("financial_currency")
+        if fin_ccy and str(fin_ccy).upper() != "USD":
+            warnings.append(
+                f"재무제표가 {fin_ccy}로 공시되는데 주가는 USD입니다(ADR 등) — 주가를 재무 값으로 "
+                "나누는 지표(PER·PBR·PSR·EV/EBITDA)와 적정가 ①②③은 환율만큼 어긋나 "
+                "N/A 처리합니다. 컨센서스 선행이익 방법만 사용합니다.")
+
         index_prices = fetch_index_prices("^GSPC")
 
         # 피어 선정: (1순위) AI 업종분류 → (폴백) S&P500 GICS 세부산업/섹터
@@ -155,7 +166,8 @@ class USProvider(DataProvider):
             for s in added_syms:
                 if s not in peers_full.index:
                     warnings.append(f"피어 추가 실패: '{s}' — 데이터를 찾지 못했습니다(심볼 확인).")
-        peers = fill_self_from_financials(peers, sym, financials, mcap)
+        peers = fill_self_from_financials(peers, sym, financials, mcap,
+                                          fx_mixed=bool(fin_ccy and str(fin_ccy).upper() != "USD"))
         if basis:
             warnings.append(f"피어 기준: {basis}, {len(peers)}개 종목")
         if len(peers) < 4:
@@ -202,5 +214,5 @@ class USProvider(DataProvider):
             index_prices=index_prices, benchmark_name="S&P 500",
             peers=peers, official=official, warnings=warnings,
             is_financial=detect_financial(sector, industry, "US"),
-            consensus=consensus,
+            consensus=consensus, financial_currency=fin_ccy,
         )
