@@ -31,15 +31,43 @@ def _ai_classify_us(name: str, hint_industry: str):
     return c.get("sector"), c.get("industry"), syms
 
 
+def _yf_fund_info(symbol: str) -> tuple[str | None, str | None]:
+    """(quoteType, 이름) — yfinance가 알려주는 상품 종류. 실패하면 (None, None).
+
+    quoteType은 'ETF' | 'MUTUALFUND' | 'EQUITY' … 로 온다. 두 값을 한 번에 돌려주는 건
+    info 조회가 네트워크 왕복이라 종류 확인과 이름 조회를 나눠 부르면 두 번 나가기 때문이다.
+    """
+    try:
+        import yfinance as yf
+        info = yf.Ticker(symbol).info or {}
+        name = info.get("shortName") or info.get("longName")
+        return info.get("quoteType"), (str(name) if name else None)
+    except Exception:
+        return None, None
+
+
 def _us_etf_name(query: str) -> str | None:
-    """질의가 대표 미국 ETF(심볼 정확 일치)면 그 이름, 아니면 None. 실패해도 None."""
+    """질의가 미국 ETF·펀드면 그 이름, 아니면 None. 실패해도 None(기업 경로로 넘어감).
+
+    1) 큐레이션 목록(US_ETFS)에서 심볼 정확 일치 — 네트워크 없이 즉시.
+    2) 목록에 없으면 yfinance quoteType으로 확인.
+
+    2단계가 없으면 목록(71개) 밖의 ETF가 전부 '기업'으로 취급돼 재무제표를 찾다가
+    "연간 손익계산서를 가져오지 못했습니다" 오류로 끝난다 — 화면에서 볼 방법이 사라진다
+    (실측: QLD·SSO). 목록은 자동완성용이라 인기 종목만 담기므로 판별까지 맡기면 안 된다.
+    """
     try:
         from .universe import get_us_etf
         etfs = get_us_etf()
         m = etfs[etfs["Symbol"].str.upper() == query.upper()] if len(etfs) else etfs
-        return str(m.iloc[0]["Name"]) if len(m) else None
+        if len(m):
+            return str(m.iloc[0]["Name"])
     except Exception:
-        return None
+        pass
+    quote_type, name = _yf_fund_info(query)
+    if quote_type in ("ETF", "MUTUALFUND"):
+        return name or query.upper()
+    return None
 
 
 class USProvider(DataProvider):
