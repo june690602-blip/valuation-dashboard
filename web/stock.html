@@ -95,7 +95,7 @@
   .tbl .r { text-align: right; }
   .tbl .c { text-align: center; }
   .tbl .col-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
-  .cmt { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 15px 17px; display: flex; gap: 12px; }
+  .cmt { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 15px 17px; display: flex; gap: 12px; box-shadow: var(--shadow-card); }
   .cmt.key { border-color: var(--dv-navy); background: var(--paper-2); }
   /* 업종비교: 클릭-검색 행 hover + 점↔행 상호 하이라이트(절제) */
   .tbl .row[data-q]:hover { background: var(--paper-3); }
@@ -157,7 +157,9 @@
   .peer-reset { color: var(--ink-3); }
   .peer-addinput { display: none; min-width: 210px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--paper); padding: 6px 9px; font: 12.5px var(--font-sans); color: var(--ink); outline: none; }
   .peer-addinput:focus { border-color: var(--dv-navy); }
-  .analysis-details { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius-md); }
+  .analysis-details { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-card); }
+  /* 판정 히어로·경고 박스는 JS가 채우는 컨테이너라 자식 div에 건다 */
+  #hv-B > div, #warnWrap > div { box-shadow: var(--shadow-card); }
   .analysis-details summary::-webkit-details-marker { display: none; }
   .analysis-details[open] summary .chev { transform: rotate(180deg); }
   /* 로딩/에러 오버레이 */
