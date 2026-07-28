@@ -278,7 +278,7 @@ def _info_has_substance(m: dict) -> bool:
         m.get(k) is not None for k in ("market_cap", "price", "per", "pbr"))
 
 
-@file_cache("peer_info_v2", ttl_hours=24, validate=_info_has_substance)
+@file_cache("peer_info_v3", ttl_hours=24, validate=_info_has_substance)
 def fetch_info_metrics(yahoo_ticker: str) -> dict:
     """한 종목의 info 기반 비교 지표 (json 캐시). 빈 응답은 캐시하지 않는다."""
     info = yf.Ticker(yahoo_ticker).info or {}
@@ -316,7 +316,39 @@ def fetch_info_metrics(yahoo_ticker: str) -> dict:
         "industry": g("industry"),
         "shares": g("sharesOutstanding"),
         "price": g("currentPrice") or g("regularMarketPrice") or g("previousClose"),
+        # 재무제표 공시 통화. 주가 통화와 다르면(ADR) 주가÷재무 지표가 환율배만큼
+        # 틀어진다 — models.currency_mismatch()가 이 값을 본다. v3로 올린 건
+        # 이 키가 없는 옛 캐시를 통화 일치로 오인하지 않기 위해서다.
+        "financial_currency": g("financialCurrency"),
+        "currency": g("currency"),
     }
+
+
+# 재무 통화 ≠ 주가 통화(ADR)인 종목에서 야후가 **직접 계산해 주는 값도 이미 틀려 있는**
+# 지표들. 분자는 시총·주가(표시 통화)인데 분모가 재무값(본국 통화)이라 환율배만큼 어긋난다.
+# 실측(TSM, 재무 TWD·주가 USD): pbr 83.2배 · psr 0.47 · ev_ebitda 4.43 — 전부 비현실적.
+# trailingPE·dividendYield는 야후가 주가 통화로 환산해 주므로 남긴다(TSM per 35.6 = 정상).
+_FX_MIXED_PEER_COLS = ["pbr", "psr", "ev_ebitda", "fcf_yield", "ocf_yield"]
+
+
+def _mask_fx_mixed_peers(df: pd.DataFrame) -> pd.DataFrame:
+    """ADR 등 통화가 섞인 행의 오염된 배수를 결측 처리한다.
+
+    자사뿐 아니라 **피어로 섞여 들어온 ADR**도 막아야 한다 — 하나만 남아도 업종 중앙값이
+    그쪽으로 끌려가고, 그 중앙값이 적정가 ①의 입력이 된다.
+    """
+    if df.empty or "financial_currency" not in df.columns:
+        return df
+    fc = df["financial_currency"].astype("string").str.upper()
+    pc = df["currency"].astype("string").str.upper() if "currency" in df.columns else None
+    if pc is None:
+        return df
+    mixed = fc.notna() & pc.notna() & (fc != pc)
+    if mixed.any():
+        for col in _FX_MIXED_PEER_COLS:
+            if col in df.columns:
+                df.loc[mixed, col] = np.nan
+    return df
 
 
 def build_peer_table(yahoo_tickers: list[str], self_ticker: str,
@@ -347,6 +379,7 @@ def build_peer_table(yahoo_tickers: list[str], self_ticker: str,
     df = pd.DataFrame.from_dict(rows, orient="index")
     if df.empty:
         return pd.DataFrame(columns=PEER_COLUMNS)
+    df = _mask_fx_mixed_peers(df)
     df["is_self"] = df.index == self_ticker
     if labels:
         for t, name in labels.items():
@@ -364,7 +397,8 @@ def build_peer_table(yahoo_tickers: list[str], self_ticker: str,
 
 
 def fill_self_from_financials(peers: pd.DataFrame, self_ticker: str,
-                              fin: pd.DataFrame, market_cap) -> pd.DataFrame:
+                              fin: pd.DataFrame, market_cap,
+                              fx_mixed: bool = False) -> pd.DataFrame:
     """야후 info에 없는 자사 성장률·안정성·현금흐름 지표를 자사 연간 재무제표로 보완.
 
     일부 종목(특히 코스닥)은 야후가 revenueGrowth·debtToEquity·freeCashflow를
@@ -407,8 +441,10 @@ def fill_self_from_financials(peers: pd.DataFrame, self_ticker: str,
         "earnings_growth": _growth("net_income"),
         "debt_to_equity": _ratio("total_debt", "total_equity", 100.0),  # yfinance % 관례
         "current_ratio": _ratio("current_assets", "current_liabilities"),
-        "fcf_yield": _yield("fcf"),
-        "ocf_yield": _yield("ocf"),
+        # 아래 둘만 분모가 시가총액(표시 통화)이라, 재무 통화가 다르면 환율배만큼 틀어진다.
+        # 위 넷은 재무끼리의 비율이라 통화가 약분돼 통화 혼재와 무관하다.
+        "fcf_yield": None if fx_mixed else _yield("fcf"),
+        "ocf_yield": None if fx_mixed else _yield("ocf"),
     }
     for col, val in fills.items():
         if val is None:

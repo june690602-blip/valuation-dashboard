@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from ..data.models import CompanyData, actual_prices
+from ..data.models import CompanyData, actual_prices, currency_mismatch
 from .scoring import comparable_peers, peer_median, sanitize_peer_frame
 
 VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
@@ -263,6 +263,18 @@ def _forward_value(fwd_eps: float | None, peer_fwd_per: float | None,
 def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     """ind: Indicators, r_equity: RIM 요구수익률(기본 CAPM k_e)."""
     res = ValuationResult()
+
+    # 재무 통화 ≠ 주가 통화(ADR 등)면 ①②③은 모두 '주가 ÷ 재무값' 비교라 성립하지 않는다
+    # (실측: TSMC 재무 TWD·주가 USD → 자체 PER 0.93, 야후 공시 35.60). ④ 컨센서스 선행이익은
+    # 야후가 주가 통화로 집계해 주므로 살아남는다. 틀린 값을 그럴듯하게 보여주느니 건너뛴다.
+    mismatch = currency_mismatch(d)
+    ccy_reason = f"재무 통화({mismatch}) ≠ 주가 통화({d.currency})" if mismatch else ""
+    if mismatch:
+        res.notes.append(
+            f"재무제표는 {mismatch}로 공시되는데 주가는 {d.currency}입니다(ADR 등). 주가를 재무 값으로 "
+            "나누는 평가(업종 상대가치·역사적 밴드·RIM)는 환율만큼 어긋나 건너뜁니다 — 컨센서스 "
+            "선행이익 방법만 사용하므로 판정 신뢰도가 낮습니다.")
+
     shares = d.shares_outstanding
     eps = d.latest("eps")
     equity = d.latest("total_equity")
@@ -275,19 +287,27 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     # ① 상대가치
     revenue = d.latest("revenue")
     revenue_ps = revenue / shares if revenue else None
-    fv = _relative_value(d, eps, bps, ebitda_ps, debt_ps, cash_ps, revenue_ps)
+    fv = None if mismatch else _relative_value(
+        d, eps, bps, ebitda_ps, debt_ps, cash_ps, revenue_ps)
     if fv:
         res.estimates.append(fv)
+    elif mismatch:
+        res.skipped.append(("업종 상대가치", ccy_reason))
     else:
         res.skipped.append(("업종 상대가치", "피어 표본 부족"))
         res.notes.append("피어 표본이 부족해 상대가치 평가를 건너뜁니다.")
 
     # ② 역사적 밴드 (PER 우선, 적자면 PBR)
-    res.per_band, res.per_percentile, per_fair, res.per_q = _band(
-        d, eps if eps and eps > 0 else None, "per")
-    res.pbr_band, res.pbr_percentile, pbr_fair, res.pbr_q = _band(d, bps, "pbr")
+    # 통화가 섞이면 밴드 자체가 무의미하므로 계산하지 않는다 — 차트에도 그려지면 안 된다.
+    per_fair = pbr_fair = None
+    if not mismatch:
+        res.per_band, res.per_percentile, per_fair, res.per_q = _band(
+            d, eps if eps and eps > 0 else None, "per")
+        res.pbr_band, res.pbr_percentile, pbr_fair, res.pbr_q = _band(d, bps, "pbr")
     fair = per_fair or pbr_fair
-    if fair:
+    if mismatch:
+        res.skipped.append(("역사적 밴드", ccy_reason))
+    elif fair:
         basis = "PER" if per_fair else "PBR(적자로 대체)"
         res.estimates.append(FairValue("역사적 밴드", fair[0], fair[1], fair[2],
                                        note=f"5년 {basis} 25~75분위 × 현재 펀더멘털"))
@@ -307,7 +327,10 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     # 다만 그 경우 RIM을 빼도 나머지 세 방법이 남고, 틀린 값을 15% 가중으로 섞는 것보다 낫다.
     book_distorted = (roe_raw is not None and roe_raw > 0.6) or \
                      (pbr_actual is not None and pbr_actual > 5) or pbr_actual is None
-    if book_distorted:
+    if mismatch:
+        res.skipped.append(("수익가치(RIM)", ccy_reason))
+        res.rim_r = r_equity
+    elif book_distorted:
         res.skipped.append(("수익가치(RIM)", "장부가가 실제 가치를 담지 못함(무형자산·자사주)"))
         res.notes.append("무형자산이 장부에 잡히지 않거나 자사주 매입으로 장부자본이 작아 "
                          "RIM(장부가치 기반) 평가를 건너뜁니다 — 나머지 방법으로 판정합니다.")
@@ -333,7 +356,9 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         if fv4:
             res.estimates.append(fv4)
             res.forward_eps = cons.forward_eps
-            if eps and eps > 0:
+            # 컨센서스 선행 EPS는 주가 통화, 재무의 TTM EPS는 본국 통화라 통화가 섞이면
+            # 둘의 비율이 환율배만큼 틀어진다(실측: TSM -95%로 표시됐다). 아예 내지 않는다.
+            if eps and eps > 0 and not mismatch:
                 res.forward_growth = cons.forward_eps / eps - 1
                 res.notes.append(
                     f"선행 이익 방법은 컨센서스 12개월 EPS(현 TTM 대비 "
