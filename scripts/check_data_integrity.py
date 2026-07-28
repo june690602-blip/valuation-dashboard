@@ -395,7 +395,7 @@ def _check_interest_expense(d, fin):
     debt = fin["total_debt"].dropna()
     avg_debt = float(debt.tail(2).mean()) if len(debt) else None
     lines = [f"DART(현금흐름 '이자의지급') {dart_ie.iloc[-1]:,.0f}",
-             f"→ merge_financials가 DART를 우선해 이 값이 k_d의 분자가 된다"]
+             "→ merge_financials가 DART를 우선해 이 값이 k_d의 분자가 된다"]
     if avg_debt:
         lines.append(f"k_d = {dart_ie.iloc[-1] / avg_debt * 100:.2f}% "
                      f"(평균차입금 {avg_debt:,.0f} 기준)")
