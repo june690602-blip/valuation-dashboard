@@ -7,3 +7,4 @@ numpy>=1.26
 pyarrow>=17.0
 lxml>=5.0
 requests>=2.31
+google-auth>=2.30   # 관리 페이지의 GA4 Data API 조회(서비스계정 토큰)

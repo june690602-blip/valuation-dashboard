@@ -18,8 +18,24 @@ services:
       # 빌드가 실패하면 대시보드에서 3.11 또는 3.13으로 조정.
       - key: PYTHON_VERSION
         value: "3.12.7"
-      # 아래 두 키는 비밀값 — 커밋 금지. Render 대시보드 Environment에서 직접 입력한다.
+      # 아래 키는 비밀값 — 커밋 금지. Render 대시보드 Environment에서 직접 입력한다.
       - key: OPENDART_API_KEY
         sync: false
       - key: GEMINI_API_KEY
+        sync: false
+      # ── 방문자 분석 (docs/analytics-setup.md 참고) ──
+      # 추적용 공개 ID — GA 측정 ID(G-…), Clarity 프로젝트 ID
+      - key: GA_MEASUREMENT_ID
+        sync: false
+      - key: CLARITY_PROJECT_ID
+        sync: false
+      # 관리 페이지(/admin.html) 조회용 — Clarity Data Export 토큰, GA 속성 숫자 ID,
+      # GCP 서비스계정 JSON 키 전문, 관리 페이지 접근 토큰(아무 긴 문자열)
+      - key: CLARITY_API_TOKEN
+        sync: false
+      - key: GA_PROPERTY_ID
+        sync: false
+      - key: GA_SA_KEY_JSON
+        sync: false
+      - key: ADMIN_TOKEN
         sync: false
