@@ -35,7 +35,7 @@ class ETFAxis:
     value: str                  # 사람이 읽는 대표값 (예: 'NAV 대비 -0.2%')
     note: str = ""
     available: bool = True
-    pos: float | None = None    # 0=싼 쪽 · 100=비싼 쪽 (게이지 마커 위치)
+    pos: float | None = None    # 0=싼 구간 · 100=비싼 구간 (게이지 마커 위치)
     lead: str = ""              # 한 줄 결론 (숫자를 읽지 않아도 방향을 알게)
     weak: bool = False          # 신호가 약해 판단에 넣지 말아야 함(저배당·NAV 지연 등)
 
@@ -65,8 +65,8 @@ class ETFResult:
     earnings_yield: float | None = None  # 1/바스켓PER (후행 이익수익률)
     erp: float | None = None            # 이익수익률 − 무위험이자율(10년 국채) = 금리 대비 초과 이익보상
     rel_ratio_pct: float | None = None  # (ETF/벤치) 총수익 가격비율의 5년 퍼센타일(높을수록 시장 대비 비쌈)
-    stance: str | None = None           # 상대·역사 위치 ('상대적으로 비싼/싼 편'|'중립') — 적정가 아님
-    stance_pos: float | None = None     # 0~100 (높을수록 비싼 쪽) = rel_ratio_pct
+    stance: str | None = None           # 상대·역사 위치 ('5년 기준 비싼/싼/보통 구간입니다') — 적정가 아님
+    stance_pos: float | None = None     # 0~100 (높을수록 비싼 구간) = rel_ratio_pct
     stance_reasons: list = field(default_factory=list)   # 상대 위치 근거 문구들
     signal_counts: dict = field(default_factory=dict)    # {'expensive'|'cheap'|'neutral': 축 개수}
 
@@ -268,8 +268,8 @@ def _verdict_premium(disc: float) -> str:
 
 def _dividend_lead(pct: float) -> str:
     """배당 밴드 위치(0~100 퍼센타일) → 한 줄 결론. 수익률이 높을수록 싼 구간."""
-    return ("배당수익률이 역사적으로 높은 구간 — 싼 편" if pct >= 65 else
-            "배당수익률이 역사적으로 낮은 구간 — 비싼 편" if pct <= 35 else
+    return ("배당수익률이 역사적으로 높은 구간 — 싼 구간" if pct >= 65 else
+            "배당수익률이 역사적으로 낮은 구간 — 비싼 구간" if pct <= 35 else
             "배당수익률이 역사 평균 수준")
 
 
@@ -339,8 +339,8 @@ def compute_etf(d: ETFData, rf: float | None = None) -> ETFResult:
     r.div_yield = cur if cur is not None else d.div_yield
     r.div_pct, r.div_median, r.div_gap = pct, med, gap
     if pct is not None:
-        band = ("상단(수익률↑·싼 쪽)" if pct >= 65 else
-                "하단(수익률↓·비싼 쪽)" if pct <= 35 else "중간")
+        band = ("상단(수익률↑·싼 구간)" if pct >= 65 else
+                "하단(수익률↓·비싼 구간)" if pct <= 35 else "중간")
         weak3 = cur < 0.015
         lead3 = (f"배당이 {cur:.2%}로 미미해 이 축은 판단에서 빼세요" if weak3
                  else _dividend_lead(pct))
@@ -439,7 +439,7 @@ def compute_etf(d: ETFData, rf: float | None = None) -> ETFResult:
 
     # ── 상대·역사 위치 종합 (판정 보류 주식형) ──
     # 펀더멘털 적정가는 못 내도, 자기참조 신호(시장 대비 가격비율의 5년 위치)로 "역사·시장 대비
-    # 상대적으로 비싼/싼 편"까지는 정직하게 말할 수 있다. verdict(펀더멘털)는 그대로 두고 stance를
+    # 비싼/싼 구간"까지는 정직하게 말할 수 있다. verdict(펀더멘털)는 그대로 두고 stance를
     # 따로 둔다 — 적정가가 아니라 평균회귀 관점임을 노트에 명시한다. 유형·데이터 기준이라 모든
     # 성장/무배당 주식형 ETF에 자동 적용된다.
     # 주 신호로 채택된 축은 '약함' 표시를 해제한다 — 그 축으로 판정을 내놓고 화면에서 같은 축을
@@ -451,7 +451,7 @@ def compute_etf(d: ETFData, rf: float | None = None) -> ETFResult:
                 if a.key == "dividend" and r.div_pct is not None:
                     a.lead = _dividend_lead(r.div_pct)
 
-    # 축 신호 집계 — 화면 종합 한 줄("N개 지표가 비싼 쪽")용. 신호가 약한 축은 중립으로 센다.
+    # 축 신호 집계 — 화면 종합 한 줄("N개가 비싼 구간")용. 신호가 약한 축은 중립으로 센다.
     counts = {"expensive": 0, "cheap": 0, "neutral": 0}
     for a in r.axes:
         if a.pos is None:
@@ -467,8 +467,14 @@ def compute_etf(d: ETFData, rf: float | None = None) -> ETFResult:
             and r.rel_ratio_pct is not None):
         p = r.rel_ratio_pct
         r.stance_pos = p
-        r.stance = ("상대적으로 비싼 편" if p >= 65 else
-                    "상대적으로 싼 편" if p <= 35 else "중립")
+        # 헤드라인은 완결된 문장으로 — "~한 편"처럼 얼버무리면 판단을 유보한 게 아니라
+        # 말끝을 흐린 것으로 읽힌다. 무엇과 견줬는지(5년)를 문장 앞에 두어 오해를 막는다.
+        # '싸다/비싸다'(관찰된 가격 수준)는 '저평가/고평가'(내재가치 대비 판단)와 다른 말이라,
+        # 적정가 판정을 보류한 이 자리에서는 오히려 전자가 정확하다.
+        r.stance = ("5년 기준 비싼 구간입니다" if p >= 65 else
+                    "5년 기준 싼 구간입니다" if p <= 35 else
+                    "5년 기준 보통 구간입니다")
+        stance_short = "비싼 구간" if p >= 65 else "싼 구간" if p <= 35 else "보통 구간"
         band = "상단" if p >= 65 else "하단" if p <= 35 else "중간"
         reasons = [f"시장({r.bench_label or '벤치마크'}) 대비 가격비율 5년 {band}(퍼센타일 {p:.0f})"]
         if r.w52_pos is not None:
@@ -477,7 +483,7 @@ def compute_etf(d: ETFData, rf: float | None = None) -> ETFResult:
             reasons.append(f"금리 대비 이익보상(ERP) {r.erp:+.1%}p")
         r.stance_reasons = reasons
         r.notes.append(
-            f"종합 · 시장·역사 대비 {r.stance} — {' / '.join(reasons)}. 이건 적정가(펀더멘털)가 "
+            f"종합 · 시장·역사 대비 {stance_short} — {' / '.join(reasons)}. 이건 적정가(펀더멘털)가 "
             "아니라 상대·평균회귀 위치입니다 — 성장 우위가 구조적이면 이 신호는 약할 수 있어 방향 "
             "참고로만 보세요.")
 
