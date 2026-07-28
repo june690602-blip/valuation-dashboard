@@ -7,7 +7,7 @@ import yfinance as yf
 from .base import (DataProvider, build_peer_table, extract_financials,
                    fill_self_from_financials,
                    extract_ttm, fetch_index_prices, fetch_info_metrics,
-                   fetch_prices, trim_peers)
+                   fetch_prices, fetch_prices_raw, trim_peers)
 from .models import CompanyData, Consensus, recomm_label
 from .universe import detect_financial, find_us, peers_us_by_sector, select_peers_us
 
@@ -85,6 +85,14 @@ class USProvider(DataProvider):
                 f"'{sym}' 시세·재무 데이터를 찾을 수 없습니다 — 상장폐지·거래정지 상태이거나 "
                 "잘못된 티커일 수 있어요. (파산·폐지된 종목은 Yahoo Finance에 데이터가 남지 않아 "
                 "분석할 수 없습니다.)")
+        # 미조정 종가 — 역사적 PER·PBR 밴드와 52주 범위용(수정종가는 과거를 배당만큼
+        # 낮춰 잡아 과거 배수가 실제보다 낮게 나온다). 실패해도 분석 계층이 폴백한다.
+        try:
+            prices_raw = fetch_prices_raw(sym)
+        except Exception:
+            prices_raw = None
+            warnings.append("미조정 시세를 받지 못해 역사적 밴드·52주 범위를 수정주가로 계산합니다 "
+                            "— 과거 배수가 다소 낮게(현재가 비싸 보이게) 나올 수 있습니다.")
 
         financials, w = extract_financials(tk)
         warnings += w
@@ -190,7 +198,7 @@ class USProvider(DataProvider):
             ticker=meta["ticker"], yahoo_ticker=sym, name=name, market="US",
             currency="USD", sector=sector, industry=industry,
             price=price, market_cap=float(mcap), shares_outstanding=float(shares),
-            financials=financials, ttm=ttm, prices=prices,
+            financials=financials, ttm=ttm, prices=prices, prices_raw=prices_raw,
             index_prices=index_prices, benchmark_name="S&P 500",
             peers=peers, official=official, warnings=warnings,
             is_financial=detect_financial(sector, industry, "US"),

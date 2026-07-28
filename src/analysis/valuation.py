@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from ..data.models import CompanyData
+from ..data.models import CompanyData, actual_prices
 from .scoring import comparable_peers, peer_median, sanitize_peer_frame
 
 VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
@@ -154,7 +154,7 @@ def _fundamental_daily(d: CompanyData, col: str, per_share: bool = True) -> pd.S
         values.values,
         index=pd.to_datetime(vals["fiscal_end"]) + pd.Timedelta(days=90),
     ).sort_index()
-    daily = steps.reindex(d.prices.index, method="ffill")
+    daily = steps.reindex(d.prices.index, method="ffill")   # 거래일 축 정렬(값 자체는 무관)
     return daily
 
 
@@ -166,14 +166,18 @@ def _band(d: CompanyData, current_fund: float | None, kind: str):
     if daily is None:
         return None, None, None, None
     daily = daily.where(daily > 0)
-    mult = (d.prices / daily).dropna()
+    # 과거 배수는 '그날 실제 주가 ÷ 그날 펀더멘털'이라 미조정 종가를 써야 한다. 수정종가는
+    # 과거를 그 뒤 지급된 배당만큼 낮춰 잡아 과거 PER·PBR이 실제보다 낮게 깔리고, 그만큼
+    # 적정가(분위 배수 × 현재 펀더멘털)가 낮아져 현재가가 늘 비싸 보인다. 고배당일수록 심하다.
+    px = actual_prices(d)
+    mult = (px / daily).dropna()
     if len(mult) < 200:
         return None, None, None, None
     q = mult.quantile([0.10, 0.25, 0.50, 0.75, 0.90])
     qdict = {int(p * 100): float(v) for p, v in q.items()}
     qdict["current"] = float(mult.iloc[-1])
     pct = float((mult < mult.iloc[-1]).mean() * 100)
-    band = pd.DataFrame({"price": d.prices})
+    band = pd.DataFrame({"price": px})   # 밴드와 같은 기준이어야 차트에서 위치가 맞는다
     for p, v in q.items():
         band[f"q{int(p * 100)}"] = daily * v
     band = band.dropna(subset=["price"])
