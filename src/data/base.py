@@ -161,62 +161,86 @@ def extract_ttm(tk: yf.Ticker, shares: float | None) -> tuple[pd.Series | None, 
     return ttm, warnings
 
 
-def fetch_prices(yahoo_ticker: str, period: str = "5y") -> pd.Series:
-    """일별 수정종가 (tz 제거)."""
-    h = yf.Ticker(yahoo_ticker).history(period=period, auto_adjust=True)
-    if h is None or h.empty:
-        raise ValueError(f"{yahoo_ticker} 시세를 가져오지 못했습니다")
-    s = h["Close"].dropna()
-    s.index = pd.to_datetime(s.index).tz_localize(None)
-    s.name = yahoo_ticker
-    return s
+# 시세 캐시 수명. 마지막 행은 장중이면 **아직 안 끝난 봉**이라 '종가'가 아니다.
+# 12시간이면 오전에 받은 장중가가 장 마감 뒤까지 종가 행세를 하므로 1시간으로 둔다.
+# (예전엔 fetch_prices만 캐시가 없어 매 분석마다 5년치를 다시 받았다 — 1시간 캐시는
+#  일관성뿐 아니라 호출 수에서도 이득이다.)
+PRICE_TTL_HOURS = 1
 
 
-@file_cache("prices_raw", ttl_hours=12)
-def fetch_prices_raw_df(yahoo_ticker: str, period: str = "5y") -> pd.DataFrame:
-    """일별 **미조정** 종가 — 그날 실제로 화면에 찍혀 있던 가격 (tz 제거).
+@file_cache("price_frame", ttl_hours=PRICE_TTL_HOURS)
+def fetch_price_frame(yahoo_ticker: str, period: str = "5y") -> pd.DataFrame:
+    """미조정·수정 종가와 OHLCV를 **한 번의 조회로** 받아 하나의 스냅샷으로 캐시한다.
 
-    위 fetch_prices()의 수정종가는 과거 가격을 그 뒤 지급된 배당만큼 낮춰 잡는다.
-    총수익 기준 비교(추세·상대성과·추적오차)에는 그게 맞지만, '그때 이 가격에 사면
-    배당수익률이 몇 %였나' 같은 계산에 쓰면 과거 수익률이 배당 누적분만큼 부풀려진다
-    (실측: TLT 5년 최대 +18.7%, 국고채10년 +11.7%). 그런 계산은 이 함수를 쓴다.
+    예전에는 수정종가(fetch_prices, 캐시 없음)와 미조정(fetch_prices_raw, 12시간 캐시)이
+    따로 조회·캐시됐다. 그래서 장중에 미조정 캐시가 채워지면 **같은 날짜에 두 개의 가격**이
+    생겼다 — 실측(2026-07-28 15:31): 삼성전자 수정 219,500 vs 미조정 230,000(-4.57%).
+    화면의 현재가와 밴드가 쓰는 주가가 서로 달랐다는 뜻이다.
 
-    액면분할은 auto_adjust와 무관하게 이미 반영돼 있어(실측: NVDA 10:1 분할 전 종가가
-    $1,150이 아니라 $115) 따로 처리하지 않는다.
+    yfinance는 auto_adjust=False 한 번에 미조정 종가(Close)와 수정종가(Adj Close)를 함께
+    준다. 둘을 한 프레임으로 받아 같이 캐시하면 계열 간 어긋남이 구조적으로 불가능해진다.
+    (실측 확인: Adj Close는 auto_adjust=True의 Close와 소수점 이하까지 일치하고,
+     OHLC는 adj/close 비율을 곱하면 정확히 같다. 거래량은 auto_adjust가 건드리지 않는다.)
     """
     h = yf.Ticker(yahoo_ticker).history(period=period, auto_adjust=False)
     if h is None or h.empty:
         raise ValueError(f"{yahoo_ticker} 시세를 가져오지 못했습니다")
-    s = h["Close"].dropna()
-    s.index = pd.to_datetime(s.index).tz_localize(None)
-    return s.to_frame("close")
+    h = h.dropna(subset=["Close"]).copy()
+    h.index = pd.to_datetime(h.index).tz_localize(None)
+    h.index.name = "date"
+    adj = h["Adj Close"] if "Adj Close" in h.columns else h["Close"]
+    out = pd.DataFrame({
+        "close": h["Close"],          # 미조정 — 그날 실제로 붙어 있던 가격
+        "adj_close": pd.to_numeric(adj, errors="coerce"),   # 수정종가
+        "open": h.get("Open"), "high": h.get("High"), "low": h.get("Low"),
+        "volume": h.get("Volume"),
+    }, index=h.index)
+    return out.dropna(subset=["close", "adj_close"])
 
 
-def fetch_prices_raw(yahoo_ticker: str, period: str = "5y") -> pd.Series:
-    s = fetch_prices_raw_df(yahoo_ticker, period)["close"]
+def fetch_prices(yahoo_ticker: str, period: str = "5y") -> pd.Series:
+    """일별 **수정종가** — 배당 재투자 기준. 수익률·베타·상대성과·추적오차용."""
+    s = fetch_price_frame(yahoo_ticker, period)["adj_close"]
     s.name = yahoo_ticker
     return s
 
 
-@file_cache("index_prices", ttl_hours=12)
-def fetch_index_prices_df(symbol: str, period: str = "5y") -> pd.DataFrame:
-    return fetch_prices(symbol, period).to_frame("close")
+def fetch_prices_raw(yahoo_ticker: str, period: str = "5y") -> pd.Series:
+    """일별 **미조정** 종가 — 그날 실제로 화면에 찍혀 있던 가격.
+
+    수정종가는 과거 가격을 그 뒤 지급된 배당만큼 낮춰 잡는다. 총수익 기준 비교에는 그게
+    맞지만, '그때 이 가격이면 PER가 몇 배였나 / 배당수익률이 몇 %였나'를 묻는 계산에 쓰면
+    과거 값이 배당 누적분만큼 왜곡된다(실측: TLT 5년 최대 +18.7%, KB금융 5년 -21.0%).
+    그런 계산은 이 함수를 쓴다.
+
+    액면분할은 auto_adjust와 무관하게 이미 반영돼 있어(실측: NVDA 10:1 분할 전 종가가
+    $1,150이 아니라 $115) 따로 처리하지 않는다.
+    """
+    s = fetch_price_frame(yahoo_ticker, period)["close"]
+    s.name = yahoo_ticker
+    return s
 
 
 def fetch_index_prices(symbol: str, period: str = "5y") -> pd.Series:
-    return fetch_index_prices_df(symbol, period)["close"]
+    """벤치마크 지수 종가 — 상대성과·베타용이라 수정종가 계열."""
+    return fetch_prices(symbol, period)
 
 
-@file_cache("ohlcv", ttl_hours=12)
 def fetch_ohlcv(yahoo_ticker: str, period: str = "5y") -> pd.DataFrame:
-    """일별 OHLCV (수정주가, tz 제거) — 주가차트용."""
-    h = yf.Ticker(yahoo_ticker).history(period=period, auto_adjust=True)
-    if h is None or h.empty:
-        raise ValueError(f"{yahoo_ticker} 시세를 가져오지 못했습니다")
-    h = h[["Open", "High", "Low", "Close", "Volume"]].dropna(subset=["Close"]).copy()
-    h.index = pd.to_datetime(h.index).tz_localize(None)
-    h.index.name = "date"
-    return h
+    """일별 OHLCV (수정주가, tz 제거) — 주가차트용.
+
+    fetch_price_frame의 같은 스냅샷에서 만든다. 미조정 OHLC에 adj_close/close 비율을
+    곱한 값은 yfinance auto_adjust=True의 결과와 소수점까지 일치한다(실측). 거래량은
+    auto_adjust가 조정하지 않으므로 그대로 둔다.
+    """
+    f = fetch_price_frame(yahoo_ticker, period)
+    ratio = (f["adj_close"] / f["close"]).replace([np.inf, -np.inf], np.nan).fillna(1.0)
+    out = pd.DataFrame({
+        "Open": f["open"] * ratio, "High": f["high"] * ratio,
+        "Low": f["low"] * ratio, "Close": f["adj_close"], "Volume": f["volume"],
+    }, index=f.index)
+    out.index.name = "date"
+    return out
 
 
 # ── 피어 지표 (yfinance info 기반, 종목·일 단위 캐시) ────────────────────
