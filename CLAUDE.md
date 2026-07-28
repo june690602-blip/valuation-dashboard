@@ -33,6 +33,21 @@ Streamlit(`app.py`). 두 프런트 모두 같은 분석 엔진(`src/analysis`)�
 - 차트 색은 `src/ui/components.py`의 검증된 팔레트만 사용(파랑=저평가·빨강=고평가는 판정 전용).
 - 새 파이썬 의존성을 추가하면 `requirements.txt`도 갱신.
 
+## 브랜치 · PR 규칙 (중요)
+
+로컬 작업과 GitHub의 `@claude`가 각자 브랜치를 만들다 보니, base(합쳐질 목적지)를 잘못 잡아
+**변경이 main에 닿지 못하고 사라지는 사고가 반복**됐다(#31·#36). 머지 버튼은 정상으로 보이고
+PR 상태도 MERGED가 되기 때문에 눈으로는 성공한 것처럼 보인다. 아래를 지킨다.
+
+- **브랜치는 항상 최신 main에서 딴다.** 작업 전 `git fetch origin` →
+  `git switch -c <새브랜치> origin/main`. 다른 작업 브랜치 위에서 그대로 파생하지 않는다.
+- **PR의 base는 언제나 `main`.** 다른 PR 브랜치를 base로 쓰지 않는다.
+- 불가피하게 스택을 쌓아야 하면 PR 본문 **첫 줄에** 의존 PR 번호와 머지 순서를 밝히고,
+  의존 PR이 머지되는 즉시 이 PR의 base를 `main`으로 되돌린다.
+- **내가 만들지 않은 브랜치는 force-push하지 않는다.** 자기 브랜치도 `--force-with-lease`만 쓴다.
+- 머지 뒤에는 반드시 실제 반영을 확인한다: `git fetch origin && git log --oneline origin/main -5`
+- 위 규칙은 `.github/workflows/pr-base-guard.yml`이 PR마다 자동 검사한다(죽은 base면 CI 실패).
+
 ## 보안 (중요)
 - **API 키를 절대 코드/커밋에 넣지 말 것.** 키는 `.streamlit/secrets.toml`(=`.gitignore`로 제외)
   또는 환경변수(`OPENDART_API_KEY`, `GEMINI_API_KEY`)로만 읽는다.

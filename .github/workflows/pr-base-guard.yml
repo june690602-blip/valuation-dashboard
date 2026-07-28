@@ -1,0 +1,62 @@
+name: PR base guard
+
+# PR의 base(합쳐질 목적지)가 올바른지 검사합니다.
+#
+# 왜 필요한가: base를 다른 PR 브랜치로 둔 채 그 브랜치가 먼저 머지되면, 이 PR을 머지해도
+# 이미 죽은 브랜치로 들어가 main에 닿지 않습니다. 그런데 머지 버튼은 정상으로 보이고 PR 상태도
+# MERGED가 되기 때문에 눈으로는 성공한 것처럼 보입니다 — #31·#36이 정확히 이렇게 유실됐습니다.
+# 사람이 매번 기억하지 못하므로 CI가 대신 막습니다.
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-base-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR base branch
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin --prune --quiet
+
+          if [ "$BASE" = "main" ]; then
+            echo "✅ base=main — 정상입니다."
+            exit 0
+          fi
+
+          if ! git rev-parse --verify --quiet "origin/$BASE" >/dev/null; then
+            echo "::error::base 브랜치 '$BASE'가 원격에 없습니다(이미 삭제됨). PR 페이지의 base 드롭다운에서 main으로 바꿔 주세요."
+            exit 1
+          fi
+
+          # base가 이미 main에 들어가 있다 = 그 브랜치는 역할이 끝난(죽은) 브랜치.
+          # 여기로 머지하면 변경이 main에 닿지 않는다.
+          if git merge-base --is-ancestor "origin/$BASE" origin/main; then
+            echo "::error::base '$BASE'는 이미 main에 머지된 브랜치입니다. 이대로 머지하면 PR 상태만 MERGED가 되고 변경은 main에 닿지 않습니다. PR 페이지 제목 아래 base 드롭다운에서 main으로 바꿔 주세요."
+            exit 1
+          fi
+
+          # 아직 살아있는 브랜치 위의 스택 PR — 정당한 경우가 있어 막지 않고 순서만 알린다.
+          echo "::warning::base가 main이 아닙니다('$BASE'). 스택 PR이라면 ① 의존 PR을 먼저 머지하고 ② 이 PR의 base를 main으로 바꾼 뒤 머지하세요. 순서가 바뀌면 변경이 main에 닿지 않습니다."
+
+      - name: Remind post-merge verification
+        if: always()
+        run: |
+          echo "머지 후에는 실제로 반영됐는지 확인하세요:"
+          echo "  git fetch origin && git log --oneline origin/main -5"
