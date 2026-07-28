@@ -4,6 +4,7 @@
 
 # 캐시·파생물
 data/cache/
+data/feedback.jsonl
 gemini_context.md
 __pycache__/
 *.pyc

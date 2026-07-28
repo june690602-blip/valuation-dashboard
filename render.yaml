@@ -18,8 +18,11 @@ services:
       # 빌드가 실패하면 대시보드에서 3.11 또는 3.13으로 조정.
       - key: PYTHON_VERSION
         value: "3.12.7"
-      # 아래 두 키는 비밀값 — 커밋 금지. Render 대시보드 Environment에서 직접 입력한다.
+      # 아래 키들은 비밀값 — 커밋 금지. Render 대시보드 Environment에서 직접 입력한다.
       - key: OPENDART_API_KEY
         sync: false
       - key: GEMINI_API_KEY
+        sync: false
+      # 사용자 의견을 운영자 메일로 중계할 폼 URL(가입 불필요 무료 서비스). 비워두면 서버 로그에만 남는다.
+      - key: FEEDBACK_ENDPOINT
         sync: false
