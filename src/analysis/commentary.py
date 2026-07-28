@@ -172,8 +172,10 @@ def build_commentary(d: CompanyData, ind: Indicators, scores: CategoryScores,
                                    "EV/EBITDA·부채비율·WACC 등은 표시하지 않습니다."))
 
     # 15) 판정 신뢰도·데이터 품질
+    # '주의 ·'로 시작하는 노트는 경고다(예: 배수와 이익의 국면 불일치). info로 두면
+    # 아래 정렬에서 맨 뒤로 밀려 정작 봐야 할 것이 묻힌다.
     for note in val.notes:
-        out.append(Comment("info", note))
+        out.append(Comment("warn" if note.startswith("주의 ·") else "info", note))
 
     # good → bad → warn → info 순으로 정렬해 읽기 쉽게
     order = {"good": 0, "bad": 1, "warn": 2, "info": 3}
