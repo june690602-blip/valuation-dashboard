@@ -16,6 +16,7 @@ Flask 등 추가 의존성 없음 — Streamlit 앱이 쓰는 패키지(pandas·
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import threading
@@ -43,6 +44,62 @@ _AI_CACHE: dict = {}
 _LOCK = threading.Lock()
 _TTL = 1800     # 30분
 _AI_TTL = 21600  # 6시간 (AI 결과는 헤드라인·펀더멘털이 크게 안 바뀌므로 길게 캐시)
+
+# ── 관리 페이지 무차별 대입 방어 ──────────────────────────────────────
+# 관리 토큰은 시도 제한이 없으면 길이만이 유일한 방어선이다. 실패를 IP별로 세어 잠그면
+# 자동 대입이 사실상 불가능해진다(초당 수천 번 → 분당 몇 번). 서버는 단일 프로세스라
+# 메모리 dict로 충분하고, 재시작하면 초기화된다.
+_ADMIN_FAILS: dict = {}          # {ip: (연속 실패 횟수, 마지막 실패 시각)}
+_ADMIN_LOCK = threading.Lock()
+_ADMIN_MAX_FAILS = 5             # 이 횟수까지는 허용(오타 여유)
+_ADMIN_LOCK_SEC = 60             # 넘으면 잠그는 시간(초)
+_ADMIN_PRUNE_MAX = 512           # 기록이 이보다 많아지면 만료분을 청소
+
+
+def _first_forwarded_ip(header: str | None) -> str | None:
+    """X-Forwarded-For에서 최초 클라이언트 IP만 뽑는다(Render 등 프록시 뒤 배포용)."""
+    if not header:
+        return None
+    first = header.split(",")[0].strip()
+    return first or None
+
+
+def _admin_reset_all() -> None:
+    """실패 기록 전체 삭제(테스트·재시작용)."""
+    with _ADMIN_LOCK:
+        _ADMIN_FAILS.clear()
+
+
+def _admin_lock_left(ip: str, now: float | None = None) -> int:
+    """이 IP가 잠겨 있으면 남은 초, 아니면 0."""
+    now = time.time() if now is None else now
+    with _ADMIN_LOCK:
+        fails, last = _ADMIN_FAILS.get(ip, (0, 0.0))
+    if fails < _ADMIN_MAX_FAILS:
+        return 0
+    left = _ADMIN_LOCK_SEC - (now - last)
+    return math.ceil(left) if left > 0 else 0
+
+
+def _admin_note_fail(ip: str, now: float | None = None) -> None:
+    """실패 1회 기록. 잠금이 이미 풀린 뒤의 실패는 1부터 다시 센다."""
+    now = time.time() if now is None else now
+    with _ADMIN_LOCK:
+        fails, last = _ADMIN_FAILS.get(ip, (0, 0.0))
+        if fails >= _ADMIN_MAX_FAILS and now - last > _ADMIN_LOCK_SEC:
+            fails = 0
+        _ADMIN_FAILS[ip] = (fails + 1, now)
+        # 만료된 기록 청소 — 실패 IP가 계속 쌓여 메모리를 먹지 않게.
+        if len(_ADMIN_FAILS) > _ADMIN_PRUNE_MAX:
+            for k in [k for k, (_f, t) in _ADMIN_FAILS.items()
+                      if now - t > _ADMIN_LOCK_SEC and k != ip]:
+                del _ADMIN_FAILS[k]
+
+
+def _admin_clear(ip: str) -> None:
+    """인증 성공 — 이 IP의 실패 기록을 지운다."""
+    with _ADMIN_LOCK:
+        _ADMIN_FAILS.pop(ip, None)
 
 
 def cached_analyze(market: str, query: str, peer_count: int, include_news: bool,
@@ -267,8 +324,17 @@ class Handler(SimpleHTTPRequestHandler):
             if not expected:
                 return self._send_json({"error": "ADMIN_TOKEN이 설정되지 않아 관리 페이지가 잠겨 있습니다. "
                                                  "서버 환경변수(또는 secrets.toml)에 ADMIN_TOKEN을 넣어 주세요."}, 403)
+            # 무차별 대입 방어 — 프록시(Render) 뒤에서는 X-Forwarded-For가 실제 방문자 IP다.
+            ip = (_first_forwarded_ip(self.headers.get("X-Forwarded-For"))
+                  or self.client_address[0])
+            left = _admin_lock_left(ip)
+            if left:
+                return self._send_json(
+                    {"error": f"로그인 시도가 너무 많습니다. {left}초 후 다시 시도해 주세요."}, 429)
             if not supplied or not hmac.compare_digest(supplied, expected):
+                _admin_note_fail(ip)
                 return self._send_json({"error": "관리 토큰이 올바르지 않습니다."}, 401)
+            _admin_clear(ip)
             try:
                 from src.data.analytics import admin_stats
                 # 인프로세스 5분 캐시 — 새로고침 연타가 외부 API(특히 Clarity 10회/일)를 때리지 않게
