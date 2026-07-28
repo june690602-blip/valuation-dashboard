@@ -45,6 +45,23 @@ PEER_COLUMNS = [
 ]
 
 
+def actual_prices(d) -> pd.Series:
+    """'그날 실제로 붙어 있던 가격'이 필요한 계산용 시세 — 미조정, 없으면 수정종가로 폴백.
+
+    CompanyData·ETFData 공용. 어느 필드를 읽을지 고르는 접근 로직이라(CompanyData.latest()와
+    같은 성격) 분석 계층이 아니라 여기 둔다.
+
+    prices(수정종가)는 과거 가격을 그 뒤 지급된 배당만큼 낮춰 잡는다. 수익률·베타처럼
+    총수익 기준 계산에는 그게 맞지만, '그때 그 가격이면 PER가 몇 배였나 / 배당수익률이
+    몇 %였나'를 묻는 계산에 쓰면 과거 값이 배당 누적분만큼 왜곡된다(실측: TLT 5년 18.7%,
+    KB금융 26.6%). 방향이 늘 같아서 '현재가가 비싸 보이는' 체계적 편향이 된다.
+    """
+    raw = getattr(d, "prices_raw", None)
+    if raw is not None and len(raw) > 0:
+        return raw
+    return d.prices
+
+
 class IsETFError(ValueError):
     """기업 분석 질의가 사실은 ETF였을 때.
 
@@ -109,11 +126,16 @@ class CompanyData:
 
     financials: pd.DataFrame    # 연간 재무 (FIN_COLUMNS, 과거→최신)
     ttm: pd.Series | None       # TTM (손익·현금흐름=최근4분기 합, 재무상태=최근분기)
-    prices: pd.Series           # 최근 5년 일별 수정종가
+    prices: pd.Series           # 최근 5년 일별 수정종가 (수익률·베타 등 총수익 기준 계산용)
     index_prices: pd.Series     # 벤치마크 지수 종가
     benchmark_name: str         # 'KOSPI' | 'KOSDAQ' | 'S&P 500'
 
     peers: pd.DataFrame         # PEER_COLUMNS, 자기 자신 포함(is_self=True)
+
+    # 미조정(실제 거래) 종가 — '그날 붙어 있던 가격'이 필요한 계산 전용(역사적 PER·PBR
+    # 밴드, 52주 범위). 수정종가는 과거를 배당만큼 낮춰 잡아 과거 배수를 실제보다 낮게
+    # 만들고, 그만큼 적정가가 낮아져 현재가가 비싸 보인다. 못 받으면 None → prices로 폴백.
+    prices_raw: pd.Series | None = None
 
     official: dict = field(default_factory=dict)   # 공식/참고 지표 (pykrx PER 등)
     warnings: list = field(default_factory=list)   # 데이터 품질 경고 문구
