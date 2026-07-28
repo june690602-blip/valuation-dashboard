@@ -1399,7 +1399,21 @@
     var held = D.verdict == null;
     var headline = held ? '판정 보류' : D.verdict;
     var primAxis = (D.axes || []).filter(function (a) { return a.key === D.primary; })[0];
-    var subline = held ? '이 유형은 이익·배당 기반 적정가가 어려워, 아래 참고 지표만 제공합니다.' : (primAxis ? primAxis.value : '');
+    // 판정 보류 유형이라도 상대 위치가 있으면 그걸 헤드라인으로 — "보류"만 크게 띄우면
+    // 쓸 정보가 없다는 인상만 남는다. 대신 '적정가 판정은 보류'를 작은 뱃지로 붙여 톤을 지킨다.
+    var rel = D.relative || {}, relHead = held && rel.stance && rel.pos != null;
+    if (relHead) {
+      headline = rel.stance;
+      tone = rel.pos >= 65 ? 'negative' : rel.pos <= 35 ? 'positive' : 'neutral';
+      vColor = tone === 'positive' ? 'var(--dv-positive)' : tone === 'negative' ? 'var(--dv-negative)' : 'var(--ink)';
+      mpos = rel.pos;
+    }
+    var subline = held
+      ? (relHead
+          ? '시장 대비 가격비율이 5년 분포의 ' + Math.round(rel.pos) + '번째 백분위입니다.'
+          : '이 유형은 이익·배당 기반 적정가가 어려워, 아래 참고 지표만 제공합니다.')
+      : (primAxis ? primAxis.value : '');
+    var holdBadge = relHead ? ' ' + badge('적정가 판정은 보류') : '';
     var confTip = 'ETF 판정 신뢰도 — 주 신호(' + esc(D.primary) + ')의 데이터 충실도와 유형 적합성 기준입니다.';
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
@@ -1410,7 +1424,7 @@
           '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(D.price) + '</div></div>' +
         '<div style="flex:1;min-width:320px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="kick">ETF 판정</span><span style="font-size:12px;color:var(--ink-3)">신뢰도 <b class="na" tabindex="0" data-tip="' + esc(confTip) + '" style="color:var(--ink-2)">' + esc(D.confidence || '—') + '</b></span></div>' +
           '<div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap">' +
-            '<span style="font-family:' + disp + ';font-weight:800;font-size:25px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(headline) + '</span>' +
+            '<span style="font-family:' + disp + ';font-weight:800;font-size:25px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(headline) + '</span>' + holdBadge +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + esc(subline) + '</span></div>' +
           '<div style="position:relative;margin-top:15px;padding-bottom:28px">' +
             '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:7px">' +
@@ -1423,7 +1437,7 @@
               ? '<div style="position:absolute;left:50%;top:25px;transform:translateX(-50%);white-space:nowrap;font-size:10.5px;color:var(--ink-3)">판정 보류 — 참고 지표만</div>'
               : '<div style="position:absolute;left:' + mpos + '%;top:26px;transform:translateX(-50%);width:2px;height:22px;background:var(--ink)"></div>' +
                 '<div style="position:absolute;left:' + mpos + '%;top:22px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:var(--ink);border:2px solid var(--paper);box-shadow:var(--shadow-sm)"></div>' +
-                '<div style="position:absolute;left:' + mpos + '%;top:51px;transform:translateX(-50%);white-space:nowrap;font-family:' + mono + ';font-size:10.5px;font-weight:700;color:var(--ink)">현재가</div>') +
+                '<div style="position:absolute;left:' + mpos + '%;top:51px;transform:translateX(-50%);white-space:nowrap;font-family:' + mono + ';font-size:10.5px;font-weight:700;color:' + (relHead ? vColor : 'var(--ink)') + '">' + (relHead ? '상대 위치(참고)' : '현재가') + '</div>') +
           '</div>' +
           '<div style="margin-top:9px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc((D.asOf && D.asOf.price) || '—') + ' · 벤치마크 ' + esc(D.metrics.bench_label || '—') + '</div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="etfBasketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button></div></div>';
@@ -1472,20 +1486,59 @@
       '<div><h3 class="analysis-section-title">' + title + '</h3>' + (desc ? '<p class="analysis-section-desc">' + desc + '</p>' : '') + '</div>' +
       (meta ? '<span class="analysis-section-meta">' + esc(meta) + '</span>' : '') + '</div>';
   }
-  // ① 판정 — 3축 카드 + 주의 노트
+  // 축 신호 → 색·라벨 (싼 0 ↔ 비쌈 100). 신호가 약한 축은 중립색으로 눌러 오독을 막는다.
+  function etfSigTone(pos, weak) {
+    if (pos == null) return { col: 'var(--ink-3)', label: '자료 없음', soft: true };
+    if (weak) return { col: 'var(--ink-3)', label: '신호 약함', soft: true };
+    if (pos >= 65) return { col: 'var(--dv-clay)', label: '비싼 쪽', soft: false };
+    if (pos <= 35) return { col: 'var(--dv-green)', label: '싼 쪽', soft: false };
+    return { col: 'var(--ink-3)', label: '중립', soft: true };
+  }
+  // 미니 게이지 — 서로 단위가 다른 축을 같은 자로 훑어보게 하는 핵심 장치
+  function etfGauge(pos, tone, showEnds) {
+    var track = '<div style="position:relative;height:6px;border-radius:99px;background:linear-gradient(90deg,rgba(47,125,91,.28),var(--paper-3) 45%,var(--paper-3) 55%,rgba(181,100,60,.28))">' +
+      (pos == null ? '' :
+        '<span style="position:absolute;left:' + pos.toFixed(0) + '%;top:-4px;transform:translateX(-50%);width:11px;height:14px;border-radius:3px;background:' + tone.col + ';border:2px solid var(--paper);box-shadow:var(--shadow-sm)' + (tone.soft ? ';opacity:.75' : '') + '"></span>') +
+      '</div>';
+    var ends = showEnds ? '<div style="display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:.02em;color:var(--ink-3);margin-top:5px"><span>싼 쪽</span><span>비싼 쪽</span></div>' : '';
+    return track + ends;
+  }
+  // ① 판정 — 종합 신호 한 줄 + 축별 게이지 행
   function etfPanelVerdict() {
-    var axes = (D.axes || []).map(function (a) {
-      var av = a.available;
-      return '<div style="flex:1;min-width:230px;border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px;background:var(--paper)' + (av ? '' : ';opacity:.62') + '">' +
-        '<div class="kick" style="color:' + (av ? 'var(--dv-navy)' : 'var(--ink-3)') + '">' + esc(a.title) + '</div>' +
-        '<div style="font-family:' + EMONO + ';font-size:17px;font-weight:600;margin:9px 0 8px;color:' + (av ? 'var(--ink)' : 'var(--ink-3)') + '">' + esc(a.value) + '</div>' +
-        '<div style="font-size:12px;color:var(--ink-2);line-height:1.6">' + esc(a.note) + '</div></div>';
+    var rel = D.relative || {}, sc = D.signalCounts || {};
+    var rows = (D.axes || []).map(function (a, i) {
+      var tone = etfSigTone(a.available ? a.pos : null, a.weak);
+      var lead = a.available ? (a.lead || a.note) : a.note;
+      var tip = a.note && a.lead ? ' <span class="na" tabindex="0" data-tip="' + esc(a.note) + '" style="color:var(--ink-3);cursor:help">ⓘ</span>' : '';
+      return '<div style="display:grid;grid-template-columns:186px minmax(190px,1fr) 180px 76px;gap:18px;align-items:center;padding:15px 0' + (i ? ';border-top:1px solid var(--line)' : '') + '">' +
+        '<div class="kick" style="color:' + (a.available ? 'var(--dv-navy)' : 'var(--ink-3)') + '">' + esc(a.title) + '</div>' +
+        '<div><div style="font-family:' + EMONO + ';font-size:16px;font-weight:600;color:' + (a.available ? 'var(--ink)' : 'var(--ink-3)') + '">' + esc(a.value) + '</div>' +
+          '<div style="font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.5">' + esc(lead) + tip + '</div></div>' +
+        '<div>' + etfGauge(a.available ? a.pos : null, tone, i === 0) + '</div>' +
+        '<div style="text-align:right"><span style="display:inline-block;padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:700;color:' + tone.col + ';background:' + (tone.soft ? 'var(--paper-3)' : (tone.col === 'var(--dv-clay)' ? 'rgba(181,100,60,.12)' : 'rgba(47,125,91,.12)')) + '">' + tone.label + '</span></div></div>';
     }).join('');
+
+    // 종합 — 판정 보류 유형에서도 "그래서 지금 어느 쪽인가"를 먼저 보여준다.
+    var summary = '';
+    if (rel.stance && rel.pos != null) {
+      var st = etfSigTone(rel.pos, false);
+      var parts = [];
+      if (sc.expensive) parts.push(sc.expensive + '개 지표가 비싼 쪽');
+      if (sc.cheap) parts.push(sc.cheap + '개가 싼 쪽');
+      if (sc.neutral) parts.push(sc.neutral + '개는 중립');
+      summary = '<div style="border-left:3px solid ' + st.col + ';padding:2px 0 2px 18px;margin-bottom:22px">' +
+        '<div class="kick" style="color:var(--ink-3)">종합 신호 · 시장·역사 대비 위치</div>' +
+        '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:7px">' +
+          '<span style="font-family:var(--font-display);font-weight:800;font-size:25px;letter-spacing:-0.01em;color:' + st.col + '">' + esc(rel.stance) + '</span>' +
+          '<span style="font-size:13px;color:var(--ink-2)">' + esc(parts.join(' · ')) + '</span></div>' +
+        '<div style="max-width:420px;margin-top:12px">' + etfGauge(rel.pos, st, true) + '</div>' +
+        '<div style="font-size:11.5px;color:var(--ink-3);margin-top:9px;line-height:1.6">적정가(펀더멘털) 판정이 아니라 <b>시장 대비 가격비율의 5년 위치</b>입니다 — 성장 우위가 구조적이면 약할 수 있어 방향 참고로만 보세요.</div></div>';
+    }
     var notesHtml = (D.notes || []).length
       ? '<div style="margin-top:18px;border-left:3px solid var(--dv-navy);background:var(--paper-2);border-radius:var(--radius-sm);padding:13px 16px;font-size:12.5px;color:var(--ink-2);line-height:1.7">' +
         (D.notes || []).map(function (n) { return '· ' + esc(n); }).join('<br/>') + '</div>' : '';
-    return '<div class="method-map"><span class="method-chip">ETF 적정가</span><span>기업 재무가 없는 ETF는 <b>세 축</b>으로 봅니다 — ①현재가 vs NAV(괴리) ②바스켓 지표(벤치마크 대비) ③배당수익률 역사밴드. 유형에 따라 주 신호를 자동으로 고릅니다.</span></div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:16px">' + axes + '</div>' + notesHtml;
+    return '<div class="method-map"><span class="method-chip">ETF 적정가</span><span>기업 재무가 없는 ETF는 여러 축을 <b>같은 자(싼 쪽 ↔ 비싼 쪽)</b>로 환산해 함께 봅니다 — ①NAV 괴리 ②바스켓 지표(벤치마크 대비) ③배당수익률 역사밴드 ④금리 대비 이익수익률(ERP).</span></div>' +
+      '<div style="margin-top:18px">' + summary + rows + '</div>' + notesHtml;
   }
   // ② 구성·보유 — 상위종목·섹터·자산군
   function etfAssetClasses() {
@@ -1517,9 +1570,20 @@
       var bar = has
         ? '<span style="width:52px;height:6px;background:var(--paper-3);border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:' + (w / maxW * 100).toFixed(0) + '%;background:var(--dv-navy)"></span></span><b class="mono" style="font-size:12px">' + (w * 100).toFixed(1) + '%</b>'
         : '<span class="na" tabindex="0" data-tip="운용사가 구성 비중을 공개하지 않아 순서만 표시합니다." style="font-size:12px">—</span>';
+      // 보유종목은 그 자체가 분석 가능한 기업이라 종목 페이지로 연결한다.
+      // 시장은 심볼 형태로 가른다 — 6자리 숫자=국내(005930), 알파벳=미국(NVDA).
+      // 심볼이 없으면(현금·기타) 링크하지 않는다.
+      var label = (x.symbol ? '<b style="font-family:' + EMONO + ';font-size:12px">' + esc(x.symbol) + '</b> ' : '') +
+        '<span style="font-size:12.5px;color:var(--ink-2)">' + esc(x.name) + '</span>';
+      var cell = label;
+      if (x.symbol) {
+        var mkt = /^\d{6}$/.test(x.symbol) ? 'KR' : 'US';
+        cell = '<a class="etf-hold-link" href="stock.html?market=' + mkt + '&q=' + encodeURIComponent(x.symbol) + '"' +
+          ' title="' + esc(x.name) + ' 분석 보기" style="display:inline-block;max-width:100%">' + label + '</a>';
+      }
       return '<div style="display:grid;grid-template-columns:22px 1fr 96px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">' +
         '<span class="mono" style="font-size:11.5px;color:var(--ink-3)">' + (i + 1) + '</span>' +
-        '<span style="min-width:0">' + (x.symbol ? '<b style="font-family:' + EMONO + ';font-size:12px">' + esc(x.symbol) + '</b> ' : '') + '<span style="font-size:12.5px;color:var(--ink-2)">' + esc(x.name) + '</span></span>' +
+        '<span style="min-width:0">' + cell + '</span>' +
         '<span style="display:flex;align-items:center;gap:7px;justify-content:flex-end">' + bar + '</span></div>';
     }).join('');
     var maxS = secs.length ? Math.max.apply(null, secs.map(function (s) { return s.weight; })) : 1;
@@ -1530,7 +1594,7 @@
         '<b class="mono" style="font-size:12px;text-align:right">' + (s.weight * 100).toFixed(1) + '%</b></div>';
     }).join('');
     return '<div style="display:flex;flex-wrap:wrap;gap:34px">' +
-      '<div style="flex:1;min-width:320px">' + etfSectionHead('01', '상위 보유 종목', '비중이 큰 순서입니다. 상위 종목이 성과를 좌우합니다.', '상위 ' + h.length + '개') +
+      '<div style="flex:1;min-width:320px">' + etfSectionHead('01', '상위 보유 종목', '비중이 큰 순서입니다. 상위 종목이 성과를 좌우합니다. 종목을 누르면 그 기업 분석으로 이동합니다.', '상위 ' + h.length + '개') +
         '<div class="analysis-section-body">' + (holdRows || '<span style="color:var(--ink-3)">보유 종목 데이터가 없습니다.</span>') + '</div></div>' +
       '<div style="flex:1;min-width:300px">' + etfSectionHead('02', '섹터 비중', '어느 산업에 얼마나 노출돼 있는지입니다.', null) +
         '<div class="analysis-section-body">' + (secRows || '<span style="color:var(--ink-3)">섹터 데이터가 없습니다.</span>') +
