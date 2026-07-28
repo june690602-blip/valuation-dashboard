@@ -369,7 +369,7 @@ class ErpAxisTests(unittest.TestCase):
 
 
 class RelativeStanceTests(unittest.TestCase):
-    """상대·역사 위치 종합 — 판정 보류 성장/주식형에 '시장 대비 비싼/싼 편'을 붙인다.
+    """상대·역사 위치 종합 — 판정 보류 성장/주식형에 '5년 기준 비싼/싼 구간'을 붙인다.
 
     핵심 수치는 (ETF/벤치) 총수익 가격비율의 5년 퍼센타일 — 적정가(펀더멘털)가 아니라
     상대·평균회귀 위치이며, verdict(펀더멘털 판정)는 여전히 보류(None)여야 한다.
@@ -384,20 +384,20 @@ class RelativeStanceTests(unittest.TestCase):
                          basket_pe=30.0, bench_pe=22.0, bench_label="미국 전체시장(VTI)")
 
     def test_expensive_when_outperformed_market(self):
-        """시장보다 빨리 오른 성장 ETF → 가격비율 5년 상단 → '상대적으로 비싼 편'."""
+        """시장보다 빨리 오른 성장 ETF → 가격비율 5년 상단 → '5년 기준 비싼 구간'."""
         r = compute_etf(self._pair(0.0006, 0.0001), rf=0.045)
         self.assertIsNone(r.verdict)                     # 펀더멘털 판정은 여전히 보류
         self.assertIsNotNone(r.rel_ratio_pct)
         self.assertGreaterEqual(r.stance_pos, 65)
-        self.assertEqual(r.stance, "상대적으로 비싼 편")
-        self.assertTrue(any("상대적으로" in n and "적정가" in n for n in r.notes),
+        self.assertEqual(r.stance, "5년 기준 비싼 구간입니다")
+        self.assertTrue(any("비싼 구간" in n and "적정가" in n for n in r.notes),
                         f"상대 위치 종합 노트가 없음: {r.notes}")
 
     def test_cheap_when_underperformed_market(self):
-        """시장보다 뒤처진 ETF → 가격비율 5년 하단 → '상대적으로 싼 편'."""
+        """시장보다 뒤처진 ETF → 가격비율 5년 하단 → '5년 기준 싼 구간'."""
         r = compute_etf(self._pair(0.0001, 0.0006), rf=0.045)
         self.assertLessEqual(r.stance_pos, 35)
-        self.assertEqual(r.stance, "상대적으로 싼 편")
+        self.assertEqual(r.stance, "5년 기준 싼 구간입니다")
         self.assertIsNone(r.verdict)
 
     def test_no_stance_without_benchmark(self):
@@ -534,7 +534,7 @@ class PremiumNoiseTests(unittest.TestCase):
         self.assertAlmostEqual(r.premium, -0.012, places=3)
         self.assertIsNone(r.verdict)
         self.assertNotEqual(r.primary, "premium")
-        self.assertEqual(r.stance, "상대적으로 비싼 편")
+        self.assertEqual(r.stance, "5년 기준 비싼 구간입니다")
 
     def test_disclosed_small_premium_still_signals(self):
         """공시 괴리율은 같은 시점이라 정확 — 0.5% 넘으면 작아도 신호로 쓴다."""

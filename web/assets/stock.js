@@ -1427,10 +1427,13 @@
             '<span style="font-family:' + disp + ';font-weight:800;font-size:25px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(headline) + '</span>' + holdBadge +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + esc(subline) + '</span></div>' +
           '<div style="position:relative;margin-top:15px;padding-bottom:28px">' +
+            // 적정가 판정을 보류한 ETF는 눈금도 적정가 눈금이면 안 된다 — 마커는 '상대 위치(참고)'인데
+            // 존만 저평가/고평가로 두면 '적정가 판정은 보류' 배지와 서로 어긋난다. 관찰된 가격 수준을
+            // 말하는 싼/비싼 구간으로 바꿔 단다(내재가치 대비 판단인 저평가/고평가와는 다른 층위의 말).
             '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:7px">' +
-              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--dv-positive);font-weight:700' : '') + '">저평가</span>' +
-              '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">적정</span>' +
-              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--dv-negative);font-weight:700' : '') + '">고평가</span></div>' +
+              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--dv-positive);font-weight:700' : '') + '">' + (relHead ? '싼 구간' : '저평가') + '</span>' +
+              '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">' + (relHead ? '보통' : '적정') + '</span>' +
+              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--dv-negative);font-weight:700' : '') + '">' + (relHead ? '비싼 구간' : '고평가') + '</span></div>' +
             '<div style="display:flex;height:13px;border-radius:var(--radius-pill);overflow:hidden">' +
               '<span style="flex:1;background:var(--dv-green);opacity:.82"></span><span style="flex:1;background:var(--dv-green);opacity:.45"></span><span style="flex:1;background:var(--paper-3)"></span><span style="flex:1;background:var(--dv-clay);opacity:.45"></span><span style="flex:1;background:var(--dv-clay);opacity:.82"></span></div>' +
             (mpos == null
@@ -1487,11 +1490,12 @@
       (meta ? '<span class="analysis-section-meta">' + esc(meta) + '</span>' : '') + '</div>';
   }
   // 축 신호 → 색·라벨 (싼 0 ↔ 비쌈 100). 신호가 약한 축은 중립색으로 눌러 오독을 막는다.
+  // 라벨은 '쪽'이 아니라 '구간' — '쪽'은 방향을 가리키는 구어체라 분석 화면 톤에서 겉돈다.
   function etfSigTone(pos, weak) {
     if (pos == null) return { col: 'var(--ink-3)', label: '자료 없음', soft: true };
     if (weak) return { col: 'var(--ink-3)', label: '신호 약함', soft: true };
-    if (pos >= 65) return { col: 'var(--dv-clay)', label: '비싼 쪽', soft: false };
-    if (pos <= 35) return { col: 'var(--dv-green)', label: '싼 쪽', soft: false };
+    if (pos >= 65) return { col: 'var(--dv-clay)', label: '비싼 구간', soft: false };
+    if (pos <= 35) return { col: 'var(--dv-green)', label: '싼 구간', soft: false };
     return { col: 'var(--ink-3)', label: '중립', soft: true };
   }
   // 미니 게이지 — 서로 단위가 다른 축을 같은 자로 훑어보게 하는 핵심 장치
@@ -1500,7 +1504,7 @@
       (pos == null ? '' :
         '<span style="position:absolute;left:' + pos.toFixed(0) + '%;top:-4px;transform:translateX(-50%);width:11px;height:14px;border-radius:3px;background:' + tone.col + ';border:2px solid var(--paper);box-shadow:var(--shadow-sm)' + (tone.soft ? ';opacity:.75' : '') + '"></span>') +
       '</div>';
-    var ends = showEnds ? '<div style="display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:.02em;color:var(--ink-3);margin-top:5px"><span>싼 쪽</span><span>비싼 쪽</span></div>' : '';
+    var ends = showEnds ? '<div style="display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:.02em;color:var(--ink-3);margin-top:5px"><span>싼 구간</span><span>비싼 구간</span></div>' : '';
     return track + ends;
   }
   // ① 판정 — 종합 신호 한 줄 + 축별 게이지 행
@@ -1523,21 +1527,23 @@
     if (rel.stance && rel.pos != null) {
       var st = etfSigTone(rel.pos, false);
       var parts = [];
-      if (sc.expensive) parts.push(sc.expensive + '개 지표가 비싼 쪽');
-      if (sc.cheap) parts.push(sc.cheap + '개가 싼 쪽');
+      // "지표 4개 중 2개가 비싼 구간, 2개는 중립입니다" — 조각 나열이 아니라 한 문장으로.
+      var total = (sc.expensive || 0) + (sc.cheap || 0) + (sc.neutral || 0);
+      if (sc.expensive) parts.push(sc.expensive + '개가 비싼 구간');
+      if (sc.cheap) parts.push(sc.cheap + '개가 싼 구간');
       if (sc.neutral) parts.push(sc.neutral + '개는 중립');
       summary = '<div style="border-left:3px solid ' + st.col + ';padding:2px 0 2px 18px;margin-bottom:22px">' +
         '<div class="kick" style="color:var(--ink-3)">종합 신호 · 시장·역사 대비 위치</div>' +
         '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:7px">' +
           '<span style="font-family:var(--font-display);font-weight:800;font-size:25px;letter-spacing:-0.01em;color:' + st.col + '">' + esc(rel.stance) + '</span>' +
-          '<span style="font-size:13px;color:var(--ink-2)">' + esc(parts.join(' · ')) + '</span></div>' +
+          '<span style="font-size:13px;color:var(--ink-2)">' + esc(total ? '지표 ' + total + '개 중 ' + parts.join(', ') + '입니다' : '') + '</span></div>' +
         '<div style="max-width:420px;margin-top:12px">' + etfGauge(rel.pos, st, true) + '</div>' +
         '<div style="font-size:11.5px;color:var(--ink-3);margin-top:9px;line-height:1.6">적정가(펀더멘털) 판정이 아니라 <b>시장 대비 가격비율의 5년 위치</b>입니다 — 성장 우위가 구조적이면 약할 수 있어 방향 참고로만 보세요.</div></div>';
     }
     var notesHtml = (D.notes || []).length
       ? '<div style="margin-top:18px;border-left:3px solid var(--dv-navy);background:var(--paper-2);border-radius:var(--radius-sm);padding:13px 16px;font-size:12.5px;color:var(--ink-2);line-height:1.7">' +
         (D.notes || []).map(function (n) { return '· ' + esc(n); }).join('<br/>') + '</div>' : '';
-    return '<div class="method-map"><span class="method-chip">ETF 적정가</span><span>기업 재무가 없는 ETF는 여러 축을 <b>같은 자(싼 쪽 ↔ 비싼 쪽)</b>로 환산해 함께 봅니다 — ①NAV 괴리 ②바스켓 지표(벤치마크 대비) ③배당수익률 역사밴드 ④금리 대비 이익수익률(ERP).</span></div>' +
+    return '<div class="method-map"><span class="method-chip">ETF 적정가</span><span>기업 재무가 없는 ETF는 여러 축을 <b>같은 자(싼 구간 ↔ 비싼 구간)</b>로 환산해 함께 봅니다 — ①NAV 괴리 ②바스켓 지표(벤치마크 대비) ③배당수익률 역사밴드 ④금리 대비 이익수익률(ERP).</span></div>' +
       '<div style="margin-top:18px">' + summary + rows + '</div>' + notesHtml;
   }
   // ② 구성·보유 — 상위종목·섹터·자산군

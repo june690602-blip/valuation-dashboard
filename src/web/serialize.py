@@ -834,7 +834,7 @@ def analyze_etf(market: str, query: str) -> dict:
         "fund_type": r.fund_type, "type_label": r.type_label,
         "verdict": r.verdict, "gap": num(r.gap), "confidence": r.confidence, "primary": r.primary,
         "nav": num(r.nav), "premium": num(r.premium),
-        # pos·lead·weak = 화면이 축을 게이지로 그리기 위한 정규화 값(0=싼 쪽·100=비싼 쪽).
+        # pos·lead·weak = 화면이 축을 게이지로 그리기 위한 정규화 값(0=싼 구간·100=비싼 구간).
         "axes": [{"key": a.key, "title": a.title, "value": a.value, "note": a.note,
                   "available": a.available, "pos": num(a.pos), "lead": a.lead,
                   "weak": a.weak} for a in r.axes],
