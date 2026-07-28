@@ -191,24 +191,30 @@ def _band(d: CompanyData, current_fund: float | None, kind: str):
 
 # ── ③ RIM (잔여이익모델 간이형) ──────────────────────────────────────
 def _rim(bps: float | None, roe: float | None, r: float):
-    """지속계수 w ∈ {0.8, 0.9, 1.0} 시나리오.
+    """지속계수 w ∈ {0.6, 0.8, 1.0} 시나리오, 중심 w=0.8.
 
     w=1: V = B·ROE/r (초과이익 영구 지속)
-    w<1: V = B + B·(ROE-r)·w / (1 + r - w) (초과이익이 매년 w배로 소멸)
+    w<1: V = B + B·(ROE-r)·w / (1 + r - w) (Ohlson α₁ — 초과이익이 매년 w배로 소멸)
+
+    w를 (0.8, 0.9, 1.0)에서 (0.6, 0.8, 1.0)으로 낮췄다. w는 '초과이익이 얼마나 오래
+    가는가'인데, 기존 하단(0.8)조차 공개된 실증 추정치(연구에 따라 0.27~0.73)보다
+    높아 범위 전체가 낙관 쪽에 있었다. 감도가 커서 이 하나로 적정가가 크게 달라진다 —
+    ROE 20%·r 10%면 w=0.6에서 112, w=0.9에서 145, w=1.0에서 200.
+    범위를 넓힌 건 '어느 값이 맞다'가 아니라 이 가정의 불확실성 자체를 드러내기 위해서다.
     """
     if not bps or bps <= 0 or roe is None or roe <= 0 or r <= 0:
         return None, None
     vals = {}
-    for w in (0.8, 0.9, 1.0):
+    for w in (0.6, 0.8, 1.0):
         if w >= 1.0:
             v = bps * roe / r
         else:
             v = bps + bps * (roe - r) * w / (1 + r - w)
         vals[w] = max(v, 0.0)
-    fair_pbr = (bps and vals[0.9] / bps) or None
+    fair_pbr = (bps and vals[0.8] / bps) or None
     lo, hi = min(vals.values()), max(vals.values())
-    return FairValue("수익가치(RIM)", lo, vals[0.9], hi,
-                     note=f"ROE {roe:.1%}, r {r:.1%}, 지속계수 0.8~1.0"), fair_pbr
+    return FairValue("수익가치(RIM)", lo, vals[0.8], hi,
+                     note=f"ROE {roe:.1%}, r {r:.1%}, 지속계수 0.6~1.0"), fair_pbr
 
 
 def _recent_roe(d: CompanyData, ttm_roe: float | None) -> float | None:
@@ -293,12 +299,18 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     ttm_roe = ind.profitability.get("roe")
     roe_raw = _recent_roe(d, ttm_roe)
     pbr_actual = d.market_cap / equity if equity and equity > 0 else None
+    # RIM은 장부가를 닻으로 삼는 모델이라, 장부가가 회사의 실제 가치를 못 담으면 성립하지 않는다.
+    # PBR이 높다는 건 그 신호다 — 브랜드·특허 같은 무형자산이 장부에 안 잡히거나, 자사주 매입으로
+    # 자본이 줄었거나. 임계를 12→5로 낮춘다: 12는 너무 느슨해 정작 걸러야 할 종목이 통과했다
+    # (실측: 코카콜라 PBR 10.5가 통과해 현재가의 1/4을, J&J PBR 7.6이 1/3을 적정가로 냈다).
+    # PBR은 완벽한 판별자가 아니다 — 성장 기대가 높아 PBR이 높은 정상 케이스도 걸러진다.
+    # 다만 그 경우 RIM을 빼도 나머지 세 방법이 남고, 틀린 값을 15% 가중으로 섞는 것보다 낫다.
     book_distorted = (roe_raw is not None and roe_raw > 0.6) or \
-                     (pbr_actual is not None and pbr_actual > 12) or pbr_actual is None
+                     (pbr_actual is not None and pbr_actual > 5) or pbr_actual is None
     if book_distorted:
-        res.skipped.append(("수익가치(RIM)", "자사주 매입 등 장부자본 왜곡"))
-        res.notes.append("자사주 매입 등으로 장부자본이 극단적으로 작아 "
-                         "RIM(장부가치 기반) 평가는 신뢰할 수 없어 건너뜁니다.")
+        res.skipped.append(("수익가치(RIM)", "장부가가 실제 가치를 담지 못함(무형자산·자사주)"))
+        res.notes.append("무형자산이 장부에 잡히지 않거나 자사주 매입으로 장부자본이 작아 "
+                         "RIM(장부가치 기반) 평가를 건너뜁니다 — 나머지 방법으로 판정합니다.")
         res.rim_r = r_equity
     else:
         roe_used = float(np.clip(roe_raw, -0.5, 0.6)) if roe_raw is not None else None
