@@ -8,6 +8,8 @@
         → src.web.serialize.analyze() 결과 JSON (인프로세스 캐시 30분)
         GET /api/analyze_etf?market=US&query=SPY
         → src.web.serialize.analyze_etf() 결과 JSON (인프로세스 캐시 30분, 미국 ETF만)
+        POST /api/feedback  {message, email?, page?}
+        → 사용자 의견 접수(로그인 불필요). src.web.feedback 참조
 
 Flask 등 추가 의존성 없음 — Streamlit 앱이 쓰는 패키지(pandas·yfinance…)만 있으면 된다.
 """
@@ -307,6 +309,29 @@ class Handler(SimpleHTTPRequestHandler):
                 from src.analysis.risk_profile import grade, profile_to_dict
                 return self._send_json(profile_to_dict(grade(answers)))
             except (ValueError, TypeError) as e:
+                return self._send_json({"error": str(e)}, 400)
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+                return self._send_json({"error": _ERR_MSG}, 500)
+        if u.path == "/api/feedback":
+            # 사용자 의견 접수 — 로그인 없이 누구나. 본문이 커도 서버가 흔들리지 않게 상한을 둔다.
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if length > 16384:
+                return self._send_json({"error": "내용이 너무 깁니다."}, 413)
+            try:
+                body = self.rfile.read(length).decode("utf-8", "replace") if length else "{}"
+                req = json.loads(body or "{}")
+            except Exception:  # noqa: BLE001
+                return self._send_json({"error": "잘못된 요청 형식입니다."}, 400)
+            from src.web.feedback import RateLimited, submit
+            try:
+                return self._send_json(submit(req, self.address_string()))
+            except RateLimited as e:
+                return self._send_json({"error": str(e)}, 429)
+            except ValueError as e:
                 return self._send_json({"error": str(e)}, 400)
             except Exception:  # noqa: BLE001
                 traceback.print_exc()
