@@ -80,6 +80,9 @@
   .step-card p { margin: 0; color: var(--ink-2); line-height: 1.7; font-size: 13px; }
   .callout { border: 1px solid var(--line); border-left: 3px solid var(--dv-navy); border-radius: var(--radius-md); padding: 15px 17px; color: var(--ink-2); line-height: 1.7; font-size: 13px; background: var(--paper-2); }
   .callout strong { color: var(--ink); }
+  /* 형광펜 — 각 절에서 '이것만은 가져가야 하는' 한 문장에만 쓴다. 남발하면 볼드처럼 묻힌다.
+     글자 아랫부분만 덮어(하단 45%) 가독성을 지키고, 색은 팔레트 골드를 살짝 밝힌 값. */
+  .hl { background-image: linear-gradient(to top, var(--hl-gold) 0, var(--hl-gold) 45%, transparent 45%); color: var(--ink); font-weight: 600; padding: 0 1px; }
   .flow { border-top: 1px solid var(--line-strong); }
   .flow-row { display: grid; grid-template-columns: 38px 190px minmax(0,1fr); gap: 14px; padding: 15px 0; align-items: start; border-bottom: 1px solid var(--line); }
   .flow-row:last-child { border-bottom: 0; }
@@ -229,12 +232,12 @@
         <div class="map-top-wrap"><span class="map-top">투자지표 홈</span></div>
         <div class="map-connect"></div>
         <div class="map-branch">
-          <a class="map-node primary" href="stock.html" target="_blank" rel="noopener">주식 가치평가<span>핵심 · 이 주가가 적정한가</span></a>
+          <a class="map-node primary" href="stock.html" target="_blank" rel="noopener">주식 가치평가<span>핵심 · 이 주가가 적정한가 (ETF 포함)</span></a>
           <a class="map-node" href="bond.html" target="_blank" rel="noopener">금리<span>금리 변화의 영향</span></a>
           <a class="map-node" href="portfolio.html" target="_blank" rel="noopener">포트폴리오<span>여러 자산의 분산·위험</span></a>
           <a class="map-node" href="test.html" target="_blank" rel="noopener">위험 프로파일<span>내 투자 성향 진단</span></a>
         </div>
-        <div class="map-strip-label">주식 가치평가 안에서 — 9개 탭이 ②요약·판정(결론)으로 모입니다</div>
+        <div class="map-strip-label">주식 가치평가 안에서 — 9개 탭이 ②요약·판정(결론)으로 모입니다 · ETF를 검색하면 전용 5개 탭으로 바뀝니다</div>
         <div class="map-strip">
           <span>① 기업·뉴스</span><span class="star">② 요약·판정 · 결론</span><span>③ 주가차트</span><span>④ 밸류에이션</span><span>⑤ 재무</span><span>⑥ 업종비교</span><span>⑦ 자본비용</span><span>⑧ 백테스트</span><span>⑨ 종합평가</span>
         </div>
@@ -255,7 +258,7 @@
             <b>제값(적정가)</b>에 비해 싼지 비싼지를 알려줍니다.</p>
           <p>제값보다 싸면 <span class="term">저평가</span>, 비슷하면 <span class="term">적정</span>, 비싸면 <span class="term">고평가</span> — 딱 이 세 가지로 판정합니다.</p>
         </div>
-        <div class="callout" style="margin-top:14px">이 도구는 "사라/팔아라"를 말하지 않습니다. <strong>판단의 재료</strong>를 정직하게 보여줄 뿐, 결정은 언제나 본인 몫이에요.</div>
+        <div class="callout" style="margin-top:14px">이 도구는 "사라/팔아라"를 말하지 않습니다. <span class="hl">판단의 재료를 보여줄 뿐, 결정은 본인 몫</span>이에요.</div>
       </section>
 
       <section class="section" id="b-core">
@@ -268,15 +271,15 @@
           <span class="anum" aria-hidden="true">01</span>
           <div>
             <h3>판정 바 — 온도계처럼 읽어요</h3>
-            <p>화면 맨 위의 색 막대는 <b>왼쪽(저평가) → 가운데(적정) → 오른쪽(고평가)</b> 온도계예요.
-              동그란 <b>현재가 마커</b>가 왼쪽에 있을수록 "지금 싸다"는 뜻. 옆에 "적정가보다 22% 낮음" 처럼 숫자로도 알려줘요.</p>
+            <p>화면 맨 위의 색 막대는 왼쪽이 저평가, 가운데가 적정, 오른쪽이 고평가예요.
+              동그란 현재가 마커가 <span class="hl">왼쪽에 있을수록 지금 싸다</span>는 뜻입니다. 옆에 "적정가보다 22% 낮음"처럼 숫자로도 알려줘요.</p>
           </div>
         </div>
         <div class="analogy">
           <span class="anum" aria-hidden="true">02</span>
           <div>
             <h3><span class="term">PER</span> — "몇 년 치 이익이면 본전인가"</h3>
-            <p>1년에 1만 원 버는 가게를 15만 원에 산다면 PER는 15예요(가격 ÷ 1년 이익). <b>숫자가 작을수록 싸 보입니다.</b>
+            <p>1년에 1만 원 버는 가게를 15만 원에 산다면 PER는 15예요(가격 ÷ 1년 이익). <span class="hl">숫자가 작을수록 싸 보입니다.</span>
               단, 유독 싸다면 "왜 싸지?"를 한 번 의심해 보는 게 좋아요.</p>
           </div>
         </div>
@@ -291,8 +294,8 @@
           <span class="anum" aria-hidden="true">04</span>
           <div>
             <h3><span class="term">신뢰도</span> — "여러 사람 의견이 얼마나 모였나"</h3>
-            <p>이 도구는 적정가를 <b>네 가지 방법</b>으로 따로 계산해요. 네 답이 서로 비슷하면 <b>신뢰도 높음</b>,
-              제각각이면 <b>낮음</b>. 낮음이면 "아직 애매하구나" 정도로 받아들이면 됩니다.</p>
+            <p>이 도구는 적정가를 네 가지 방법으로 따로 계산해요. <span class="hl">네 답이 비슷하면 신뢰도 높음, 제각각이면 낮음</span>입니다.
+              낮음이면 "아직 애매하구나" 정도로 받아들이면 됩니다.</p>
           </div>
         </div>
       </section>
@@ -309,26 +312,61 @@
         </div>
       </section>
 
+      <section class="section" id="b-etf">
+        <div class="section-head">
+          <div><div class="kick section-spine">04 · ETF</div><h2>ETF를 검색하면 화면이 달라져요</h2></div>
+          <p class="section-desc">"KODEX 200"이나 "SPY"처럼 ETF를 고르면 위와 다른 화면이 뜹니다. 놀라지 마세요 — 일부러 그렇습니다.</p>
+        </div>
+        <div class="analogy solo">
+          <h3>ETF는 회사가 아니라 "장바구니"예요</h3>
+          <p>ETF는 여러 종목을 한 바구니에 담아 파는 상품이에요. 회사가 아니니 <span class="hl">재무제표가 없고, 그래서 앞의 네 가지 방법을 쓸 수 없어요.</span></p>
+          <p>대신 ETF에 맞는 세 가지를 봅니다.</p>
+        </div>
+        <div class="analogy">
+          <span class="anum" aria-hidden="true">01</span>
+          <div>
+            <h3>제값에 사고 있나 <span class="term">괴리</span></h3>
+            <p>바구니에 담긴 것들의 실제 가치를 <b>NAV</b>라고 해요. 시장에서 붙은 값이 그보다 비싸면 웃돈을, 싸면 할인을 받는 셈입니다.
+              거래가 활발한 ETF는 보통 0에 가까워요.</p>
+          </div>
+        </div>
+        <div class="analogy">
+          <span class="anum" aria-hidden="true">02</span>
+          <div>
+            <h3>담긴 것들이 비싼가 <span class="term">바스켓</span></h3>
+            <p>바구니 안 종목들의 PER를 시장 평균과 견줍니다. ETF 자체가 아니라 <b>담고 있는 자산군이 비싼 상태인지</b>를 보는 거예요.</p>
+          </div>
+        </div>
+        <div class="analogy">
+          <span class="anum" aria-hidden="true">03</span>
+          <div>
+            <h3>자기 역사 대비 싼가 <span class="term">배당밴드</span></h3>
+            <p>같은 배당을 주는데 가격이 싸지면 배당수익률이 올라가죠. 그래서 <span class="hl">배당수익률이 과거 5년 중 높은 편이면 지금이 싼 구간</span>이라고 봅니다.</p>
+          </div>
+        </div>
+        <div class="callout" style="margin-top:14px">ETF 종류에 따라 <b>어느 것을 주로 볼지 자동으로 바뀝니다.</b> 배당을 많이 주는 ETF는 ③번을, 해외 자산을 담은 ETF는 ①번을 주로 봐요.
+          성장형·레버리지·금 같은 원자재는 <b>일부러 판정을 내리지 않고</b> 참고 지표만 보여줍니다 — 이런 유형은 적정가를 따지는 것 자체가 무리라서요.</div>
+      </section>
+
       <section class="section" id="b-skip">
         <div class="section-head">
-          <div><div class="kick section-spine">04 · 나머지는요?</div><h2>지금 몰라도 되는 것들</h2></div>
+          <div><div class="kick section-spine">05 · 나머지는요?</div><h2>지금 몰라도 되는 것들</h2></div>
           <p class="section-desc">화면엔 탭이 많지만, 처음부터 다 볼 필요는 없어요.</p>
         </div>
         <div class="skip-note">
-          <p style="margin:0 0 8px"><strong>밸류에이션 · 자본비용 · 백테스트</strong> 같은 탭은 조금 더 익숙해졌을 때 열어보면 됩니다.
-            지금 판정을 이해하는 데는 <strong>없어도 전혀 지장이 없어요.</strong> 이 설명서에서 일부러 다루지 않은 건
-            "당장 필요하지 않아서"일 뿐, 어렵거나 중요하지 않아서가 아닙니다.</p>
-          <p style="margin:0">더 깊이 알고 싶어지면 언제든 위에서 <strong>「익숙해요 · 심화」</strong>로 바꿔 보세요 —
-            9개 탭 전부와 화면(그래프) 읽는 법까지 자세히 설명해 둡니다.</p>
+          <p style="margin:0 0 8px"><strong>밸류에이션 · 자본비용 · 백테스트</strong> 같은 탭은 익숙해진 다음에 열어도 됩니다.
+            <span class="hl">판정을 이해하는 데는 없어도 지장이 없어요.</span> 여기서 다루지 않은 건 어려워서가 아니라, 당장 필요하지 않아서입니다.</p>
+          <p style="margin:0">더 알고 싶어지면 위에서 <strong>「익숙해요 · 심화」</strong>로 바꿔 보세요 —
+            9개 탭 전부와 그래프 읽는 법까지 설명해 둡니다.</p>
         </div>
       </section>
 
       <section class="section" id="b-care" style="border-bottom:0">
         <div class="section-head">
-          <div><div class="kick section-spine">05 · 기억할 것</div><h2>이것만은 꼭</h2></div>
+          <div><div class="kick section-spine">06 · 기억할 것</div><h2>이것만은 꼭</h2></div>
         </div>
         <div class="analogy solo" style="border-left-color:var(--dv-clay)">
-          <p style="margin:0"><b>투자 조언이 아니라 학습·분석 도구</b>예요. 무료 공개 데이터를 쓰기 때문에 값이 조금 틀리거나 비어 있을 수 있고(빈 칸은 <b>—</b>로 표시),
+          <p style="margin:0"><span class="hl">투자 조언이 아니라 학습·분석 도구</span>예요. 무료 공개 데이터를 쓰기 때문에 값이 조금 틀리거나 비어 있을 수 있고(빈 칸은 <b>—</b>로 표시),
             최종 판단과 책임은 언제나 본인에게 있습니다. 실제 결정 전에는 공식 공시·뉴스를 함께 확인하세요.</p>
         </div>
         <div class="bottom-actions">
@@ -344,6 +382,7 @@
       <nav class="toc" aria-label="사용설명서 목차">
         <a href="#p-flow">읽는 순서</a>
         <a href="#p-tabs">9개 탭 상세</a>
+        <a href="#p-etf">ETF 분석</a>
         <a href="#p-viz">화면 읽는 법</a>
         <a href="#p-other">다른 도구</a>
         <a href="#p-data">데이터·AI</a>
@@ -358,18 +397,18 @@
         </div>
         <div class="flow">
           <div class="flow-row"><span class="num">01</span><h3>종목 불러오기</h3><p>KR은 6자리 코드/종목명, US는 티커. 좌측 사이드바(시장·종목)는 스크롤해도 고정됩니다. 좌상단 로고로 홈 복귀.</p></div>
-          <div class="flow-row"><span class="num">02</span><h3>요약·판정 (결론)</h3><p>적정가 4방법 가중 종합 vs 현재가, 괴리율, 신뢰도를 먼저 봅니다. 괴리율 <strong>+</strong>는 적정가가 현재가보다 높음(상승 여력), <strong>−</strong>는 낮음. 증권가 <strong>컨센서스 목표주가·투자의견과의 교차검증</strong>도 여기서.</p></div>
+          <div class="flow-row"><span class="num">02</span><h3>요약·판정 (결론)</h3><p>적정가 4방법 가중 종합 vs 현재가, 괴리율, 신뢰도를 먼저 봅니다. <span class="hl">괴리율 +는 상승 여력(저평가), −는 고평가</span>입니다. 증권가 <strong>컨센서스 목표주가·투자의견과의 교차검증</strong>도 여기서.</p></div>
           <div class="flow-row"><span class="num">03</span><h3>밸류·재무·업종 (근거)</h3><p>업종·자기 역사·RIM·선행 이익의 방향이 일치하는지, 이익·현금흐름이 받쳐주는지, 경쟁사 대비 싼 이유가 있는지. 밸류에이션 탭의 <strong>시나리오·민감도</strong>로 가정을 바꿔 봅니다.</p></div>
-          <div class="flow-row"><span class="num">04</span><h3>자본비용·백테스트 (반대 근거)</h3><p>ROIC−WACC 스프레드, 백테스트 표본을 확인합니다. 백테스트는 <strong>역사적 밴드(②) 신호 하나만</strong> 점검하며 종합 판정 전체를 검증하지 않습니다.</p></div>
+          <div class="flow-row"><span class="num">04</span><h3>자본비용·백테스트 (반대 근거)</h3><p>ROIC−WACC 스프레드, 백테스트 표본을 확인합니다. <span class="hl">백테스트는 ②+③ 신호만 점검하며 종합 판정 전체를 검증하지 않습니다.</span> ①피어는 현재 목록의 소급 편향, ④컨센서스는 과거 시점값 부재로 검증 밖입니다.</p></div>
           <div class="flow-row"><span class="num">05</span><h3>공시·뉴스로 교차 확인</h3><p>최근 공시·뉴스 원문으로 핵심 가정을 검증합니다. AI 종합 평가는 참고용 서술이며 주문 기준이 아닙니다.</p></div>
         </div>
-        <div class="callout" style="margin-top:18px"><strong>신뢰도 = 평가 방법 간 합의 정도</strong>(방법 간 중심값 변동계수). 데이터 정확도나 수익 가능성을 보증하는 점수가 아닙니다. 낮으면 네 방법 중 어떤 값이 유독 다른지 먼저 확인하세요.</div>
+        <div class="callout" style="margin-top:18px"><span class="hl">신뢰도 = 평가 방법 간 합의 정도</span>(방법 간 중심값 변동계수). 데이터 정확도나 수익 가능성을 보증하는 점수가 아닙니다. 낮으면 네 방법 중 어떤 값이 유독 다른지 먼저 확인하세요.</div>
       </section>
 
       <section class="section" id="p-tabs">
         <div class="section-head">
           <div><div class="kick section-spine">02 · 9 tabs</div><h2>9개 탭, 각각 무엇을 보나</h2></div>
-          <p class="section-desc">탭마다 상단에 "이 탭이 적정가 지표의 어느 부품인지" 역할 라벨이 붙어 있습니다.</p>
+          <p class="section-desc">탭마다 상단에 "이 탭이 적정가 계산의 어느 재료인지"가 라벨로 붙어 있습니다.</p>
         </div>
         <div class="table-wrap" tabindex="0" role="region" aria-label="9개 주식 분석 탭 표, 가로로 스크롤할 수 있습니다">
           <table class="guide-table">
@@ -390,9 +429,47 @@
         </div>
       </section>
 
+      <section class="section" id="p-etf">
+        <div class="section-head">
+          <div><div class="kick section-spine">03 · ETF</div><h2>ETF는 다른 방식으로 봅니다</h2></div>
+          <p class="section-desc">검색에서 ETF를 고르면 9개 탭 대신 ETF 전용 5개 탭이 열립니다. 한국·미국 모두 지원합니다.</p>
+        </div>
+        <div class="callout" style="margin-bottom:14px"><span class="hl">ETF는 재무제표가 없어 적정가 4방법이 성립하지 않습니다.</span> 그래서 억지로 적용하지 않고, 시간 축이 다른 세 가지를 봅니다 —
+          ① 지금 제값인가(괴리) ② 담은 자산군이 비싼가(바스켓 상대) ③ 자기 역사 대비 싼가(배당수익률 밴드).</div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="ETF 분석 세 축과 유형별 주 신호 표, 가로로 스크롤할 수 있습니다">
+          <table class="guide-table">
+            <caption>세 축이 각각 무엇을 묻는지 — 그리고 ETF 유형에 따라 어느 축이 주 신호가 되는지</caption>
+            <thead><tr><th scope="col">축</th><th scope="col">질문</th><th scope="col">읽는 법</th></tr></thead>
+            <tbody>
+              <tr><td>① 실시간 · 괴리</td><td>제값(NAV)에 사고 있나</td><td>(현재가 − NAV) ÷ NAV. 유동 ETF는 0에 가깝고, <b>해외 자산·저유동일수록 벌어집니다.</b> 0.5% 넘게 벌어지면 유형과 무관하게 이 축이 최우선이 됩니다.</td></tr>
+              <tr><td>② 펀더멘털 · 바스켓 상대</td><td>담은 자산군이 비싼가</td><td>바스켓 PER·PBR을 벤치마크와 횡단면 비교. 무료 데이터로는 <b>상위 10종목 가중평균 추정</b>이라, 화면에 산출 근거를 함께 표시합니다.</td></tr>
+              <tr><td>③ 역사적 · 배당밴드</td><td>자기 역사 대비 싼가</td><td>TTM 배당수익률의 5년 분위. <b>수익률이 높을수록 가격이 싼 구간.</b> 과거 바스켓 PER 시계열은 무료로 구할 수 없어, 실제 계산되는 배당수익률로 역사밴드를 만듭니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="ETF 유형별 주 신호 표, 가로로 스크롤할 수 있습니다" style="margin-top:12px">
+          <table class="guide-table">
+            <caption>유형별 주 신호 — 화면이 자동으로 분기합니다</caption>
+            <thead><tr><th scope="col">유형</th><th scope="col">주 신호</th><th scope="col">왜</th></tr></thead>
+            <tbody>
+              <tr><td>배당·가치 주식형</td><td>③ 배당밴드</td><td>배당이 꾸준해 수익률 밴드가 실제 밸류에이션 신호로 작동합니다.</td></tr>
+              <tr><td>성장형(저배당)</td><td>② 상대 + 추세</td><td>배당이 적어 밴드가 약합니다 — <b>적정가를 단정하지 않고</b> 시장 대비 PER 프리미엄으로만 참고합니다.</td></tr>
+              <tr><td>채권형</td><td>③ 분배수익률</td><td>이익 기반 배수가 무의미해 <b>PER를 마스킹</b>합니다. 분배수익률과 듀레이션이 핵심.</td></tr>
+              <tr><td>해외 주식형</td><td>③ 배당밴드 (괴리 벌어지면 ①)</td><td>기초지수에 맞는 벤치마크를 고릅니다(S&amp;P 500·나스닥·닛케이 등). <b>원화로 사는 해외 ETF는 지수 대비 성과에 환율이 섞이므로</b> 화면에 안내가 뜹니다.</td></tr>
+              <tr><td>레버리지·인버스</td><td>판정 보류</td><td>일간 복리로 장기 추적오차가 커 <b>적정가 판정을 하지 않습니다.</b> 단기 괴리·추세로만.</td></tr>
+              <tr><td>원자재</td><td>판정 보류</td><td>이익·배당 기반 적정가 산정이 불가해 괴리와 추세만 보여줍니다.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout" style="margin-top:14px;border-left-color:var(--dv-green)"><strong>한국 ETF가 미국보다 정확한 지점</strong> — 괴리율과 추적오차는 한국이 <b>운용사 공시값</b>을 그대로 제공합니다.
+          미국(yfinance)은 추종지수 시세를 구할 수 없어 대용 벤치마크로 <b>추정</b>하므로, 같은 '추적오차'라도 뜻이 다릅니다.
+          그래서 화면에서도 이름을 나눠 표시합니다 — 한국은 「추적오차(운용사 공시)」, 미국은 「벤치마크 대비 변동성(추정)」.
+          한국은 기초지수·운용사·상장일·투자 국가 비중도 함께 나옵니다.</div>
+      </section>
+
       <section class="section" id="p-viz">
         <div class="section-head">
-          <div><div class="kick section-spine">03 · Read the visuals</div><h2>화면(그래프) 읽는 법</h2></div>
+          <div><div class="kick section-spine">04 · Read the visuals</div><h2>화면(그래프) 읽는 법</h2></div>
           <p class="section-desc">이 도구의 시각자료는 대부분 "한 값"이 아니라 "범위와 위치"를 보여주도록 만들어졌습니다.</p>
         </div>
         <div class="viz-grid">
@@ -407,7 +484,7 @@
 
       <section class="section" id="p-other">
         <div class="section-head">
-          <div><div class="kick section-spine">04 · Other tools</div><h2>금리 · 포트폴리오 · 위험 프로파일</h2></div>
+          <div><div class="kick section-spine">05 · Other tools</div><h2>금리 · 포트폴리오 · 위험 프로파일</h2></div>
           <p class="section-desc">필요한 카드 하나만 읽고 실제 화면을 새 탭에 여세요. 설명서 탭은 그대로 남습니다.</p>
         </div>
         <div class="tool-grid">
@@ -434,17 +511,22 @@
 
       <section class="section" id="p-data">
         <div class="section-head">
-          <div><div class="kick section-spine">05 · Data &amp; AI</div><h2>데이터·기준일·AI는 이렇게 다룹니다</h2></div>
+          <div><div class="kick section-spine">06 · Data &amp; AI</div><h2>데이터·기준일·AI는 이렇게 다룹니다</h2></div>
           <p class="section-desc">모든 수치에 출처·기준일을 붙이고, AI는 숫자를 만들지 않습니다.</p>
         </div>
-        <div class="callout" style="margin-bottom:12px"><strong>기준일 배지</strong> — 히어로에 "주가 기준일 · 재무 연도 · 계산 시각"이 표시됩니다. 포털·증권사와 값이 다르면 기준일, 연결/별도, TTM, 수정주가, 환율·주식 수 처리부터 맞춰 보세요.</div>
+        <div class="callout" style="margin-bottom:12px"><strong>기준일 배지</strong> — 히어로에 "주가 기준일 · 재무 연도 · 계산 시각"이 표시됩니다. 포털·증권사와 값이 다르면 기준일, 연결/별도, TTM, 환율·주식 수 처리부터 맞춰 보세요.</div>
+        <div class="callout" style="margin-bottom:12px"><strong>주가는 두 가지를 나눠 씁니다</strong> — 야후는 과거 주가를 두 벌로 줍니다. 하나는 그날 실제로 찍힌 <b>거래가격</b>,
+          다른 하나는 "배당을 받아 재투자했다면"을 가정해 과거를 배당만큼 낮춰 놓은 <b>수정주가</b>입니다.
+          <span class="hl">수익률을 재는 계산에는 수정주가를, 그때의 가격 수준이 필요한 계산에는 거래가격을 씁니다.</span>
+          역사적 PER·PBR 밴드와 52주 범위, ETF 배당수익률 밴드가 거래가격 기준이고, 백테스트의 미래수익·베타·상대성과가 수정주가 기준입니다.
+          수정주가로 밴드를 만들면 과거 배수가 배당 누적분만큼 낮게 깔려 <b>현재가가 실제보다 비싸 보이기</b> 때문입니다(고배당 종목일수록 큽니다).</div>
         <div class="callout" style="margin-bottom:12px"><strong>결측(—)</strong> — 공개 데이터에 값이 없거나 비교가 부적절하면 임의 추정 없이 —로 두고, 마우스를 올리면 사유가 뜹니다(예: 적자라 PER 계산 불가).</div>
-        <div class="callout" style="border-left-color:var(--dv-clay)"><strong>AI는 선택 기능</strong> — Gemini 키가 없어도 핵심 분석은 규칙 기반으로 동작합니다. 키를 연결하면 피어 후보 선정·기업 소개 번역·뉴스 분류·종합 평가에 참여하지만 <b>화면의 숫자는 만들지 않습니다.</b> 키는 코드·저장소에 올리지 말고 <code>.streamlit/secrets.toml</code>이나 환경변수로만 두세요.</div>
+        <div class="callout" style="border-left-color:var(--dv-clay)"><strong>AI는 선택 기능</strong> — Gemini 키가 없어도 핵심 분석은 규칙 기반으로 동작합니다. 키를 연결하면 피어 후보 선정·기업 소개 번역·뉴스 분류·종합 평가에 참여하지만 <span class="hl">화면의 숫자는 만들지 않습니다.</span> 키는 코드·저장소에 올리지 말고 <code>.streamlit/secrets.toml</code>이나 환경변수로만 두세요.</div>
       </section>
 
       <section class="section" id="p-terms">
         <div class="section-head">
-          <div><div class="kick section-spine">06 · Glossary</div><h2>핵심 용어</h2></div>
+          <div><div class="kick section-spine">07 · Glossary</div><h2>핵심 용어</h2></div>
           <p class="section-desc">공식보다 해석을 먼저. 자세한 계산식은 각 화면의 도움말에서 확인하면 됩니다.</p>
         </div>
         <div class="details-grid">
@@ -454,12 +536,14 @@
           <details><summary>변동성 · 샤프 · 백테스트</summary><div class="detail-body"><ul><li><strong>변동성(σ)</strong>: 수익률이 흔들린 정도.</li><li><strong>샤프비율</strong>: 위험 한 단위당 초과성과.</li><li><strong>백테스트</strong>: 역사적 밴드 신호 하나만 점검(종합 판정 검증·미래 보장 아님).</li></ul></div></details>
           <details><summary>컨센서스 · 선행 EPS · 시나리오</summary><div class="detail-body"><ul><li><strong>컨센서스</strong>: 애널리스트 추정 평균. 목표가·의견은 교차검증용(판정 계산엔 미포함), 매수 편향 유의.</li><li><strong>선행 EPS</strong>: 향후 12개월 예상 EPS. ④ 방법이 여기에 보수적 멀티플을 곱함.</li><li><strong>시나리오·민감도</strong>: 예측이 아닌 가정 조합의 지도.</li></ul></div></details>
           <details><summary>듀레이션 · 볼록성 · 효율적 프론티어</summary><div class="detail-body"><ul><li><strong>듀레이션</strong>: 금리 1%p 변화 시 채권 가격 민감도.</li><li><strong>볼록성</strong>: 듀레이션의 곡률 보정.</li><li><strong>효율적 프론티어</strong>: 같은 위험에서 기대수익이 최대인 조합의 곡선.</li></ul></div></details>
+          <details><summary>ETF · NAV · 괴리율 · 추적오차</summary><div class="detail-body"><ul><li><strong>ETF</strong>: 여러 종목을 한 바구니에 담아 주식처럼 거래하는 상품. 재무제표가 없어 적정가 4방법 대상이 아님.</li><li><strong>NAV</strong>: 순자산가치. 바구니에 담긴 자산의 1좌당 가치 = ETF의 '원가'.</li><li><strong>괴리율</strong>: (현재가 − NAV) ÷ NAV. +면 프리미엄(비싸게), −면 디스카운트.</li><li><strong>추적오차</strong>: 기초지수를 얼마나 정확히 복제했는지. 한국은 운용사 공시값, 미국은 대용 벤치마크 추정치.</li><li><strong>기초지수</strong>: 그 ETF가 따라가기로 약속한 지수(예: KODEX 200 → 코스피 200).</li><li><strong>총보수</strong>: 연간 운용 수수료. 국내 ETF는 경쟁으로 0.01% 미만도 있음.</li></ul></div></details>
+          <details><summary>거래가격 · 수정주가</summary><div class="detail-body"><ul><li><strong>거래가격(Close)</strong>: 그날 장 마감에 실제로 찍힌 값. 시세창·신문에 나오는 그 가격.</li><li><strong>수정주가(Adj Close)</strong>: 배당을 재투자했다고 가정해 배당락 이전 가격을 그만큼 낮춘 값. 과거로 갈수록 격차가 커짐.</li><li><strong>어디에 쓰나</strong>: 수익률·베타·상대성과는 수정주가, 역사적 밴드·52주 범위·ETF 배당밴드는 거래가격.</li></ul></div></details>
         </div>
       </section>
 
       <section class="section" id="p-check" style="border-bottom:0">
         <div class="section-head">
-          <div><div class="kick section-spine">07 · Before a decision</div><h2>결론을 내리기 전, 다섯 가지</h2></div>
+          <div><div class="kick section-spine">08 · Before a decision</div><h2>결론을 내리기 전, 다섯 가지</h2></div>
           <p class="section-desc">아래를 모두 확인했다면 숫자를 본 게 아니라 투자 가설을 검토한 것입니다.</p>
         </div>
         <div class="checklist">
