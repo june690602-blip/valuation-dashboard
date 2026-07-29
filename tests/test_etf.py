@@ -496,7 +496,9 @@ class AxisSignalTests(unittest.TestCase):
         ax = self._ax(r, "dividend")
         self.assertFalse(ax.weak)
         self.assertNotIn("빼세요", ax.lead)              # '판단에서 빼라'와 판정이 모순
-        self.assertTrue(any("낮은 편" in n for n in r.notes))   # 약한 근거 경고는 유지
+        # 약한 근거 경고는 유지. 문구가 아니라 **경고의 내용**을 잡는다 — 어휘를 다듬을 때마다
+        # 테스트가 깨지면 테스트가 문장을 붙잡아 두는 셈이 된다(R3에서 '낮은 편'→'낮아'로 바뀜).
+        self.assertTrue(any("밴드 신호가 약합니다" in n for n in r.notes))
 
     def test_non_primary_weak_axis_stays_weak(self):
         """판정에 쓰이지 않은 저배당 축은 그대로 '약함' — 성장형(QQQ류)."""

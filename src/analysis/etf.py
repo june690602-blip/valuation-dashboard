@@ -258,12 +258,16 @@ def _pos(value: float | None, full_scale: float, higher_is_cheap: bool = False) 
 
 # ── 판정 라벨 ────────────────────────────────────────────────────────
 def _verdict_premium(disc: float) -> str:
-    """disc = NAV/현재가 - 1 (+면 NAV보다 싸게 거래=디스카운트)."""
-    return ("NAV 대비 저평가(디스카운트)" if disc >= 0.02 else
+    """disc = NAV/현재가 - 1 (+면 NAV보다 싸게 거래=디스카운트).
+
+    NAV는 우리가 추정한 내재가치가 아니라 운용사가 공표한 값이다. 시장가가 NAV보다
+    낮다는 건 차익거래가 덜 먹힌 상태를 **관찰**한 것이지 바구니에 담긴 종목들이
+    싸다는 뜻이 아니라, '저평가/고평가'가 아니라 '싼/비싼 구간'으로 부른다(R3 용어집)."""
+    return ("NAV보다 싼 구간(디스카운트)" if disc >= 0.02 else
             "NAV 소폭 하회" if disc >= 0.005 else
-            "NAV 근접 · 적정" if disc > -0.005 else
-            "NAV 소폭 상회(프리미엄)" if disc > -0.02 else
-            "NAV 대비 고평가(프리미엄)")
+            "NAV 근접" if disc > -0.005 else
+            "NAV 소폭 상회" if disc > -0.02 else
+            "NAV보다 비싼 구간(프리미엄)")
 
 
 def _dividend_lead(pct: float) -> str:
@@ -274,12 +278,15 @@ def _dividend_lead(pct: float) -> str:
 
 
 def _verdict_dividend(gap: float) -> str:
-    """gap = 현재수익률/중앙값 - 1 (+면 역사 대비 수익률↑=쌈)."""
-    return ("역사적 저평가 구간(수익률 상단)" if gap >= 0.15 else
-            "다소 저평가" if gap >= 0.05 else
-            "역사 평균 수준 · 적정" if gap > -0.05 else
-            "다소 고평가" if gap > -0.15 else
-            "역사적 고평가 구간(수익률 하단)")
+    """gap = 현재수익률/중앙값 - 1 (+면 역사 대비 수익률↑=쌈).
+
+    자기 5년 배당수익률 분포 안에서의 **위치**이지 적정가 대비 판단이 아니다.
+    _dividend_lead와 같은 어휘 계열을 쓴다(R3 용어집)."""
+    return ("역사적으로 싼 구간(수익률 상단)" if gap >= 0.15 else
+            "다소 싼 구간" if gap >= 0.05 else
+            "역사 평균 수준" if gap > -0.05 else
+            "다소 비싼 구간" if gap > -0.15 else
+            "역사적으로 비싼 구간(수익률 하단)")
 
 
 # ── 종합 ────────────────────────────────────────────────────────────
@@ -412,7 +419,7 @@ def compute_etf(d: ETFData, rf: float | None = None) -> ETFResult:
         low_yield = r.div_yield is not None and r.div_yield < 0.015     # 블렌드형 ~1%면 신호 약함
         r.confidence = "중간" if low_yield else "높음"
         if low_yield:
-            r.notes.append("배당수익률이 낮은 편이라 밴드 신호가 약합니다 — "
+            r.notes.append("배당수익률이 낮아 밴드 신호가 약합니다 — "
                            "52주 추세·시장 대비 PER과 함께 보세요.")
     elif fund_type == "growth_equity" or (d.basket_pe and not has_div):
         # ② 상대 + 추세 (성장형: 배당밴드 약해 밸류에이션 단정하지 않음)

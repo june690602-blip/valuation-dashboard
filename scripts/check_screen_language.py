@@ -103,26 +103,27 @@ OBSERVED = ("싼 구간", "비싼 구간", "보통 구간", "싼 편", "비싼 �
 # 판정·결론 문구를 만드는 모든 지점. (파일, 앵커, 앵커부터 볼 줄 수, 층위, 설명)
 #   intrinsic   — 적정가(내재가치) 대비 판단이므로 저평가/고평가가 맞다
 #   observed    — 관찰된 가격 수준이므로 싼/비싼 구간이 맞다
-#   conditional — 한 자리에서 두 층위를 분기해 쓴다(적정가를 냈는지에 따라)
+#   conditional — 한 자리에서 두 층위를 분기해 쓴다(적정가를 냈는지에 따라).
+#                 지금은 해당 지점이 없다 — ETF 눈금이 여기 있었으나 R3에서 observed로 정리했다.
 LAYER_SITES = [
     ("src/analysis/valuation.py", r"VERDICTS = \[", 1, "intrinsic",
      "주식 5단계 판정 — 적정가 4방법 가중 종합 대비"),
-    ("src/analysis/etf.py", r"def _verdict_premium", 8, "observed",
+    ("src/analysis/etf.py", r"def _verdict_premium", 12, "observed",
      "ETF 괴리 — NAV는 우리가 추정한 값이 아니라 공표된 값이다"),
     ("src/analysis/etf.py", r"def _dividend_lead", 6, "observed",
      "ETF 배당 밴드 위치 — 자기 5년 분포 안에서의 위치"),
-    ("src/analysis/etf.py", r"def _verdict_dividend", 8, "observed",
+    ("src/analysis/etf.py", r"def _verdict_dividend", 12, "observed",
      "ETF 배당 밴드 판정 — 자기 역사 대비 위치이지 적정가가 아니다"),
     ("src/analysis/etf.py", r"r\.stance = \(", 4, "observed",
      "ETF 상대 위치 헤드라인 — 적정가 판정을 보류한 자리(PR #47)"),
-    ("src/analysis/commentary.py", r"# 2\) 역사적 밴드 위치", 9, "observed",
+    ("src/analysis/commentary.py", r"# 2\) 역사적 밴드 위치", 12, "observed",
      "주식 역사 밴드 해설 — 자기 5년 분포 안에서의 위치"),
     ("web/assets/stock.js", r"cap\.innerHTML = '밴드는", 1, "observed",
      "밸류에이션 탭 밴드 캡션 — 밴드 분위(관찰값)를 말하는 자리"),
     ("web/assets/stock.js", r"// 3존 라벨", 6, "intrinsic",
      "주식 판정 눈금 — 적정가 대비 위치"),
-    ("web/assets/stock.js", r"relHead \? '싼 구간' : '저평가'", 3, "conditional",
-     "ETF 판정 눈금 — 적정가를 냈으면 저평가/고평가, 보류면 싼/비싼 구간(PR #47)"),
+    ("web/assets/stock.js", r"ETF 눈금은 \*\*항상\*\* 관찰 어휘다", 11, "observed",
+     "ETF 판정 눈금 — ETF는 적정가를 계산하지 않으므로 항상 관찰 어휘"),
 ]
 
 
@@ -181,17 +182,39 @@ COLLOQUIAL_SCOPE = [
     "web/assets/stock.js", "web/stock.html", "web/guide.html", "web/home.html",
 ]
 
+# 격식 규약을 적용하지 않는 구간. `guide.html`의 쉬운 버전(`v-basic`)은 "올라가죠"처럼
+# 말을 건네는 문체를 **의도적으로** 쓰는 자리다(눈높이 토글). 여기까지 격식을 올리면
+# 두 버전을 나눈 이유가 없어진다. 어휘 층위(A)와 사실 주장(D)은 쉬운 버전에도 그대로
+# 적용하되, 말투(B)만 예외로 둔다 — 정확함과 격식은 다른 손잡이이기 때문이다.
+COLLOQUIAL_EXEMPT = [("web/guide.html", r'id="v-basic"', r'id="v-pro"')]
+
+
+def _exempt_ranges(path: str) -> list[tuple[int, int]]:
+    out = []
+    for p, start_re, end_re in COLLOQUIAL_EXEMPT:
+        if p != path:
+            continue
+        src = read(path)
+        s, e = re.search(start_re, src), re.search(end_re, src)
+        if s and e:
+            out.append((line_of(src, s.start()), line_of(src, e.start())))
+    return out
+
 
 def check_colloquial():
     print("\n■ B. 구어체 잔재 — '~한 편/쪽'은 판정을 흐리지 않으면서 격식만 내린다")
-    verdictish, general = [], []
+    verdictish, general, exempt = [], [], []
     for path in COLLOQUIAL_SCOPE:
         src = screen_text(read(path), path)
         lines = src.splitlines()
+        skip = _exempt_ranges(path)
         for m in COLLOQUIAL.finditer(src):
             ln = line_of(src, m.start())
             ctx = lines[ln - 1].strip()
             row = (path, ln, m.group(0), ctx[:100])
+            if any(a <= ln < b for a, b in skip):
+                exempt.append(row)
+                continue
             # 값의 위치를 말하는 자리(싸다/비싸다·구간·밴드)인지, 일반 서술인지 나눈다.
             # 앞은 PR #47이 정리한 판정 어휘라 규약의 대상이고, 뒤는 문체 취향이 섞인다.
             (verdictish if re.search(r"싼|비싼|구간|밴드|분위", ctx) else general).append(row)
@@ -203,6 +226,11 @@ def check_colloquial():
     if general:
         say(NA, f"일반 서술의 '~한 편/쪽' {len(general)}곳 — 문체 판단이 섞여 규칙으로 못 박지 않는다",
             "\n".join(f"{p}:{ln}  「{g}」  {c}" for p, ln, g, c in general))
+    if exempt:
+        say(OK, f"규약 예외 구간의 '~한 편/쪽' {len(exempt)}곳 — 말투를 의도적으로 낮춘 자리",
+            "\n".join(f"{p}:{ln}  「{g}」  {c}" for p, ln, g, c in exempt)
+            + "\nguide.html의 쉬운 버전(v-basic)은 말을 건네는 문체가 설계다. 격식만 예외이고 "
+              "어휘 층위·사실 주장은 그대로 적용된다.")
 
 
 # ── C. 파이썬이 만든 문장을 자바스크립트가 문자열로 판별하는 지점 ────────────
@@ -212,8 +240,8 @@ STRING_CONTRACTS = [
     {"needle": "밸류트랩", "producer": "src/analysis/commentary.py",
      "consumer": "web/assets/stock.js", "consumer_anchor": r"indexOf\('밸류트랩'\)",
      "what": "핵심 해설 강조(.cmt.key 테두리)"},
-    {"needle": "순수 저평가", "producer": "src/analysis/commentary.py",
-     "consumer": "web/assets/stock.js", "consumer_anchor": r"indexOf\('순수 저평가'\)",
+    {"needle": "순수한 저평가", "producer": "src/analysis/commentary.py",
+     "consumer": "web/assets/stock.js", "consumer_anchor": r"indexOf\('순수한 저평가'\)",
      "what": "핵심 해설 강조(.cmt.key 테두리)"},
     {"needle": "주의 ·", "producer": "src/analysis/valuation.py",
      "consumer": "src/analysis/commentary.py", "consumer_anchor": r'startswith\("주의 ·"\)',
@@ -245,7 +273,9 @@ def check_string_contracts():
 # ── D. 고정된 수를 주장하는 문구 ─────────────────────────────────────────────
 # "네 가지 방법"은 사실 주장이다. 방법이 조건부로 꺼지는 코드가 있으면 그 주장은
 # 항상 참일 수 없다(#63). 문구와 코드를 대조한다.
-FIXED_COUNT = re.compile(r"(네 가지 방법|네 방법|4방법|4가지 방법|네 답)")
+# '최대'가 앞에 붙으면 고정 주장이 아니라 상한 표시라 통과시킨다 — 방법이 꺼질 수
+# 있다는 사실과 어긋나지 않는다. 이 예외가 없으면 옳게 고친 문장까지 [문제]로 떨어진다.
+FIXED_COUNT = re.compile(r"(?<!최대 )(네 가지 방법|네 방법|4방법|4가지 방법|네 답)")
 COUNT_SCOPE = ["web/guide.html", "web/home.html", "web/stock.html",
                "web/assets/stock.js", "src/analysis/etf.py", "src/data/models.py",
                "src/ui/pages/home.py", "src/ui/pages/stock.py"]

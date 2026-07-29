@@ -527,7 +527,7 @@
     $('bandChart').innerHTML = bandChart();
     var b = D.band[state.bandMetric.toLowerCase()];
     var cap = $('bandCaption');
-    if (b && b.percentile != null) { var p = b.percentile; cap.innerHTML = '밴드는 5년 배수 분포의 10–90분위를 펀더멘털(EPS/BPS)에 곱한 가격대. 주가(네이비 선)가 위쪽 선에 가까울수록 역사적으로 비쌈. 현재 배수는 5년 분포 <b style="color:var(--ink-2)">하위 ' + p.toFixed(0) + '%</b> — ' + (p < 35 ? '역사적으로도 저평가 구간.' : p > 65 ? '역사적으로 비싼 구간.' : '중간 구간.'); }
+    if (b && b.percentile != null) { var p = b.percentile; cap.innerHTML = '밴드는 5년 배수 분포의 10–90분위를 펀더멘털(EPS/BPS)에 곱한 가격대. 주가(네이비 선)가 위쪽 선에 가까울수록 역사적으로 비쌈. 현재 배수는 5년 분포 <b style="color:var(--ink-2)">하위 ' + p.toFixed(0) + '%</b> — ' + (p < 35 ? '역사적으로도 싼 구간.' : p > 65 ? '역사적으로 비싼 구간.' : '중간 구간.'); }
     else cap.textContent = '';
   }
 
@@ -876,11 +876,15 @@
     var sub = [m.sector, m.industry].filter(Boolean).join(' · ');
     // 신뢰도 툴팁 — 산출 근거(방법 간 편차 = 변동계수)를 실제 수치로 설명
     var nMeth = (v.estimates || []).length;
+    // 신뢰도는 '값이 모인 정도'이지 '독립적으로 합의한 정도'가 아니다. ②와 ④는 같은 배수
+    // (자기 5년 PER 중앙값)에 서로 다른 EPS를 곱한 값이라 구조적으로 가까이 모인다 — 그래서
+    // 편차가 작다는 사실만으로 신뢰도를 합의로 읽으면 실제보다 높게 받아들이게 된다.
     var confTip = v.dispersion != null
       ? '방법 간 중심값 편차 ±' + Math.round(v.dispersion * 100) + '% (' + nMeth + '개 방법) — '
-        + (v.confidence === '높음' ? '방법들이 비슷한 값을 냅니다(±15% 미만).'
-          : v.confidence === '중간' ? '방법 간 차이가 다소 있습니다(±15~35%).'
-          : '방법들이 서로 크게 다른 값을 냅니다(±35% 이상). 판정을 보수적으로 해석하세요.')
+        + (v.confidence === '높음' ? '방법 간 값이 좁게 모여 있습니다(±15% 미만).'
+          : v.confidence === '중간' ? '방법 간 값이 다소 흩어져 있습니다(±15~35%).'
+          : '방법 간 값이 크게 흩어져 있습니다(±35% 이상). 판정을 보수적으로 해석하세요.')
+        + ' 값이 모인 정도이지 방법들이 독립적으로 합의했다는 뜻은 아닙니다 — ② 역사적 밴드와 ④ 선행 이익은 같은 배수를 씁니다.'
       : nMeth <= 1 ? '사용 가능한 평가 방법이 1개뿐이라 낮음으로 처리합니다.'
       : '편차 정보를 계산하지 못했습니다.';
     var finYear = (D.financials && D.financials.years && D.financials.years.length)
@@ -945,7 +949,7 @@
       ['시가총액', t.market_cap != null ? fmtMoney(t.market_cap) : na('주가 또는 상장주식수를 확인하지 못했습니다.')],
       ['PER (TTM)', t.per != null ? fmtX(t.per) : na('적자(EPS≤0)이거나 이익 데이터가 없어 PER를 계산할 수 없습니다.')],
       ['PBR', t.pbr != null ? fmtX(t.pbr) : na('자본(BPS) 데이터가 없어 PBR를 계산할 수 없습니다.')],
-      ['ROE (TTM)', t.roe != null ? fmtPct(t.roe) : na('순이익 또는 자기자본 데이터가 없습니다.')],
+      ['ROE (TTM)', t.roe != null ? fmtPct(t.roe) : na('순이익 또는 자기자본을 받지 못해 ROE를 계산할 수 없습니다.')],
       ['베타 (β)', t.beta != null ? t.beta.toFixed(2) : na('상장 기간이 짧아 회귀 표본이 부족합니다 — 자본비용 탭은 β=1을 가정합니다.')],
       ['WACC', t.wacc != null ? fmtPct(t.wacc) : na(fin ? '금융업은 자금조달 구조가 달라 WACC를 제공하지 않습니다.' : '부채·베타 재료가 부족해 WACC를 계산하지 못했습니다.')]];
     $('tiles').innerHTML = items.map(function (it, i) {
@@ -993,7 +997,7 @@
       }
       if (skipMap[name] != null) {
         // 건너뛴 방법도 번호 자리를 유지해 ①~④가 항상 순서대로 보이게 한다
-        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;opacity:.55"><span style="font-size:13px;color:var(--ink-3)">' + (mt ? '<span class="methods-mno">' + mt[0] + '</span>' : '') + esc(name) + '</span><span class="mono r" style="font-size:12.5px;color:var(--ink-3)">—</span><span class="r" style="font-size:12px;color:var(--ink-3)">건너뜀</span><span style="font-size:12px;color:var(--ink-3)">' + esc(skipMap[name]) + '</span></div>';
+        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;opacity:.55"><span style="font-size:13px;color:var(--ink-3)">' + (mt ? '<span class="methods-mno">' + mt[0] + '</span>' : '') + esc(name) + '</span><span class="mono r" style="font-size:12.5px;color:var(--ink-3)">—</span><span class="r" style="font-size:12px;color:var(--ink-3)">제외</span><span style="font-size:12px;color:var(--ink-3)">' + esc(skipMap[name]) + '</span></div>';
       }
       return '';
     }).join('');
@@ -1007,7 +1011,7 @@
     var formula = '<div style="font-size:11px;color:var(--ink-3);line-height:1.75;margin-top:10px">공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — 종합 = 가중평균 ④35 · ①25 · ②25 · ③15% (순위 근거: Liu·Nissim·Thomas 2002·2007 국제 + 국내 가치관련성; 국내 컨센서스 낙관편의 유의 — 상세 docs/adr/0003) · 출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)</div>';
     // 건너뛴 방법이 있으면 가중치가 재정규화됐음을 명시 — 각 행의 '가중 %'가 실제 적용값
     var renorm = (v.skipped || []).length && est.length
-      ? '<div style="font-size:11px;color:var(--ink-3);margin-top:6px">건너뛴 방법의 가중치는 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.</div>' : '';
+      ? '<div style="font-size:11px;color:var(--ink-3);margin-top:6px">제외된 방법의 가중치는 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.</div>' : '';
     $('methodsTable').innerHTML = est.length ? head + rows + total + sens + renorm + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
     // 점수
     $('scoreOverall').textContent = D.scores.overall != null ? Math.round(D.scores.overall) : '—';
@@ -1019,7 +1023,10 @@
       : '';
     // 해설
     $('commentary').innerHTML = (D.commentary || []).map(function (c) {
-      var m = CMT[c.kind] || CMT.info, key = c.text.indexOf('밸류트랩') >= 0 || c.text.indexOf('순수 저평가') >= 0;
+      // 강조 조건은 commentary.py가 실제로 만드는 문자열과 정확히 같아야 한다.
+      // '순수 저평가'로 두었던 동안 이 강조는 한 번도 켜진 적이 없었다(파이썬은 '순수한 저평가').
+      // scripts/check_screen_language.py의 C 검사가 이 규약의 생사를 감시한다.
+      var m = CMT[c.kind] || CMT.info, key = c.text.indexOf('밸류트랩') >= 0 || c.text.indexOf('순수한 저평가') >= 0;
       var strokeW = c.kind === 'good' ? 1.9 : 1.75;
       var icon = c.kind === 'info' ? '<circle cx="12" cy="12" r="10"/><path d="' + m[1] + '"/>' : c.kind === 'warn' ? '<path d="' + m[1] + '"/><path d="M12 9v4"/><path d="M12 17h.01"/>' : '<path d="' + m[1] + '"/>';
       return '<div class="cmt' + (key ? ' key' : '') + '"><span style="color:' + m[0] + ';flex:none;margin-top:1px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round">' + icon + '</svg></span><div style="font-size:12.5px;color:var(--ink-2);line-height:1.55">' + esc(c.text) + '</div></div>';
@@ -1074,6 +1081,11 @@
     if (!p || p.error) { $('priceTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">주가 데이터를 불러오지 못했습니다.</div>'; $('priceChart').innerHTML = ''; return; }
     var tiles = [['현재가', fmtPrice(p.cur)], ['52주 최고 / 최저', won(p.hi52) + ' <span style="color:var(--ink-3)">/</span> ' + won(p.lo52)], ['최근 1년 수익률', '<span style="color:' + (p.ret1y >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(p.ret1y) + '</span>'], ['52주 밴드 내 위치', p.pos52 != null ? p.pos52.toFixed(0) + '%' : '—']];
     $('priceTiles').innerHTML = tiles.map(function (t, i) { return '<div style="flex:1;min-width:150px;padding:' + (i === 0 ? '0 18px 0 0' : '0 18px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:' + (i === 1 ? 17 : 22) + 'px;font-weight:500;margin-top:6px">' + t[1] + '</div></div>'; }).join('');
+    // 같은 블록 안에서 52주(실거래가)와 최근 1년 수익률(수정주가)이 다른 기준을 쓴다.
+    // 차트 출처 문구는 차트만 설명하므로 여기서 한 번 더 밝힌다(R3 발견 6 · #57).
+    // 타일 컨테이너는 모바일에서 가로 스크롤이라 안내문은 그 바깥에 둔다.
+    var bn = $('priceBasisNote');
+    if (bn) bn.innerHTML = p.basis_note ? esc(p.basis_note) : '';
     renderPrice();
   }
 
@@ -1288,7 +1300,7 @@
     var head = '<div class="row head" style="grid-template-columns:' + cols + '"><span class="col-label">종목</span><span class="col-label r">시총' + (CUR === 'KRW' ? '(조)' : '') + '</span><span class="col-label r">PER</span><span class="col-label r">PBR</span><span class="col-label r">ROE</span></div>';
     var naPeer = '이 종목의 해당 지표가 원천 데이터(Yahoo·KRX)에 없습니다 — 적자 기업은 PER가 비게 됩니다.';
     var body = pr.rows.map(function (p, i) {
-      var mc = p.market_cap == null ? na('시가총액 데이터가 없습니다.') : CUR === 'KRW' ? (p.market_cap / 1e12).toFixed(1) : (p.market_cap / 1e9).toFixed(1);
+      var mc = p.market_cap == null ? na('주가 또는 상장주식수를 받지 못해 시가총액을 계산할 수 없습니다.') : CUR === 'KRW' ? (p.market_cap / 1e12).toFixed(1) : (p.market_cap / 1e9).toFixed(1);
       var last = i === pr.rows.length - 1;
       // 제외 키: KR은 상장목록 이름, US는 심볼(data-key) — 서버 exclude 매칭과 동일 기준
       var exKey = CUR === 'KRW' ? p.name : (p.key || p.name);
@@ -1497,13 +1509,15 @@
             '<span style="font-family:' + disp + ';font-weight:800;font-size:25px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(headline) + '</span>' + holdBadge +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + esc(subline) + '</span></div>' +
           '<div style="position:relative;margin-top:15px;padding-bottom:28px">' +
-            // 적정가 판정을 보류한 ETF는 눈금도 적정가 눈금이면 안 된다 — 마커는 '상대 위치(참고)'인데
-            // 존만 저평가/고평가로 두면 '적정가 판정은 보류' 배지와 서로 어긋난다. 관찰된 가격 수준을
-            // 말하는 싼/비싼 구간으로 바꿔 단다(내재가치 대비 판단인 저평가/고평가와는 다른 층위의 말).
+            // ETF 눈금은 **항상** 관찰 어휘다. ETF는 재무제표가 없어 적정가(내재가치)를 아예
+            // 계산하지 않고, 세 축(NAV 괴리·바스켓 상대·배당 밴드) 모두 '이미 있는 기준 안에서의
+            // 위치'를 잴 뿐이다. 예전에는 적정가 판정을 보류한 경우에만 싼/비싼 구간으로 바꿔 달았는데
+            // (PR #47), 그러면 배당 밴드로 판정한 ETF는 헤드라인이 "다소 비싼 구간"인데 눈금은
+            // "저평가·적정·고평가"가 되어 한 화면에서 층위가 갈렸다(R3 발견 1의 뒤끝).
             '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:7px">' +
-              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--dv-positive);font-weight:700' : '') + '">' + (relHead ? '싼 구간' : '저평가') + '</span>' +
-              '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">' + (relHead ? '보통' : '적정') + '</span>' +
-              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--dv-negative);font-weight:700' : '') + '">' + (relHead ? '비싼 구간' : '고평가') + '</span></div>' +
+              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--dv-positive);font-weight:700' : '') + '">싼 구간</span>' +
+              '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">보통</span>' +
+              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--dv-negative);font-weight:700' : '') + '">비싼 구간</span></div>' +
             '<div style="display:flex;height:13px;border-radius:var(--radius-pill);overflow:hidden">' +
               '<span style="flex:1;background:var(--dv-green);opacity:.82"></span><span style="flex:1;background:var(--dv-green);opacity:.45"></span><span style="flex:1;background:var(--paper-3)"></span><span style="flex:1;background:var(--dv-clay);opacity:.45"></span><span style="flex:1;background:var(--dv-clay);opacity:.82"></span></div>' +
             (mpos == null
@@ -1519,14 +1533,14 @@
   function renderEtfTiles() {
     var mk = {}; (D.masked || []).forEach(function (m) { mk[m[0]] = m[1]; });
     var mt = D.metrics, tr = D.trend;
-    var perCell = mk['바스켓 PER'] ? na(mk['바스켓 PER']) : (mt.basket_pe != null ? fmtX(mt.basket_pe) : na('이익 기반 배수가 없습니다.'));
+    var perCell = mk['바스켓 PER'] ? na(mk['바스켓 PER']) : (mt.basket_pe != null ? fmtX(mt.basket_pe) : na('구성종목의 이익 지표를 무료 데이터로 모으지 못해 바스켓 PER를 계산할 수 없습니다.'));
     var items = [
       ['현재가', fmtPrice(D.price)],
       ['NAV 대비', D.premium != null ? fmtSigned(D.premium) : na('NAV(순자산가치)를 받지 못했습니다.')],
-      ['배당수익률', mt.div_yield != null ? fmtPct(mt.div_yield, 2) : na('배당 정보가 없습니다.')],
+      ['배당수익률', mt.div_yield != null ? fmtPct(mt.div_yield, 2) : na('분배 이력이 없거나 무료 소스가 제공하지 않아 배당수익률을 계산할 수 없습니다.')],
       ['바스켓 PER', perCell],
       ['52주 위치', tr.w52_pos != null ? Math.round(tr.w52_pos) + '%' : na('시세 이력이 짧습니다.')],
-      ['순자산(AUM)', mt.aum != null ? fmtMoney(mt.aum) : na('운용사 제공 순자산 데이터가 없습니다.')]];
+      ['순자산(AUM)', mt.aum != null ? fmtMoney(mt.aum) : na('운용사 순자산(AUM) 공시를 무료 소스에서 받지 못했습니다 — 펀드 규모는 판단에서 빼세요.')]];
     $('tiles').innerHTML = items.map(function (it, i) {
       return '<div style="padding:0 16px' + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + it[0] + '</div><div class="mono" style="font-size:22px;font-weight:500;margin-top:7px;white-space:nowrap">' + it[1] + '</div></div>';
     }).join('');
@@ -1735,7 +1749,7 @@
       // 비교가 안 되므로, 아주 낮은 구간에서만 소수 자리를 늘린다.
       ['총보수(연)', mt.expense_ratio != null ? fmtPct(mt.expense_ratio, mt.expense_ratio < 0.0005 ? 4 : 2) : na('운용사 총보수(expense ratio) 데이터를 무료 소스에서 받지 못했습니다.'), '펀드 운용 수수료'],
       [teName, D.trackingError != null ? '<span class="na" tabindex="0" data-tip="' + esc(teTip) + '">' + fmtPct(D.trackingError, 2) + ' ⓘ</span>' : na('벤치마크가 없어 계산하지 못했습니다.'), teSub],
-      ['순자산(AUM)', mt.aum != null ? fmtMoney(mt.aum) : na('순자산 데이터가 없습니다.'), '펀드 규모'],
+      ['순자산(AUM)', mt.aum != null ? fmtMoney(mt.aum) : na('운용사 순자산(AUM) 공시를 무료 소스에서 받지 못했습니다 — 펀드 규모는 판단에서 빼세요.'), '펀드 규모'],
       ['비교 벤치마크', esc(mt.bench_label || '—'), '상대 비교 기준']];
     // 아래 네 줄은 한국(네이버)에서만 오는 값 — 미국은 없으므로 행 자체를 만들지 않는다.
     if (fi.base_index) rows.push(['기초지수', esc(fi.base_index), '이 ETF가 따라가기로 한 지수']);

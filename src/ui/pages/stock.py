@@ -94,7 +94,8 @@ def render_landing(market: str):
     st.markdown(
         "**종목 하나를 입력하면** 재무제표·주가·업종 데이터를 자동 수집해 다음을 보여줍니다.\n"
         "- 5개 카테고리(밸류에이션·수익성·성장성·안정성·현금흐름) **업종 상대 점수**\n"
-        "- 4가지 방법(업종 상대가치 · 역사적 밴드 · RIM · 컨센서스 선행 이익)으로 삼각측량한 **적정주가와 판정**\n"
+        "- 최대 4가지 방법(업종 상대가치 · 역사적 밴드 · RIM · 컨센서스 선행 이익)으로 삼각측량한 "
+        "**적정주가와 판정** — 종목의 특성상 성립하지 않는 방법은 제외하고 가중치를 다시 배분합니다\n"
         "- 증권가 **컨센서스(목표주가·선행 EPS)와 교차검증**, 비관·기준·낙관 **시나리오 분석**\n"
         "- 과거 시세로 회귀한 **베타 → 영업위험 자본비용 → WACC** 분해\n"
         "- 낮은 멀티플이 기회인지 밸류트랩인지 가려주는 **자동 해설**"
@@ -146,7 +147,7 @@ def render_summary_tab(d, ind, scores, cc, val):
                                  "적정가 범위": f"{fmt_price(e.low, d.currency)} ~ {fmt_price(e.high, d.currency)}",
                                  "중심": fmt_price(e.mid, d.currency), "근거": e.note})
                 elif name in skip_map:
-                    rows.append({"방법": name, "가중": "—", "적정가 범위": "건너뜀",
+                    rows.append({"방법": name, "가중": "—", "적정가 범위": "제외",
                                  "중심": "—", "근거": skip_map[name]})
             st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
             st.caption("공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 · "
