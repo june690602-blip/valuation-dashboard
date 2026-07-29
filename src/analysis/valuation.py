@@ -301,7 +301,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     if mismatch:
         res.notes.append(
             f"재무제표는 {mismatch}로 공시되는데 주가는 {d.currency}입니다(ADR 등). 주가를 재무 값으로 "
-            "나누는 평가(업종 상대가치·역사적 밴드·RIM)는 환율만큼 어긋나 건너뜁니다 — 컨센서스 "
+            "나누는 평가(업종 상대가치·역사적 밴드·RIM)는 환율만큼 어긋나 제외합니다 — 컨센서스 "
             "선행이익 방법만 사용하므로 판정 신뢰도가 낮습니다.")
 
     shares = d.shares_outstanding
@@ -324,7 +324,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         res.skipped.append(("업종 상대가치", ccy_reason))
     else:
         res.skipped.append(("업종 상대가치", "피어 표본 부족"))
-        res.notes.append("피어 표본이 부족해 상대가치 평가를 건너뜁니다.")
+        res.notes.append("피어 표본이 부족해 상대가치 평가를 제외합니다.")
 
     # ② 역사적 밴드 (PER 우선, 적자면 PBR)
     # 통화가 섞이면 밴드 자체가 무의미하므로 계산하지 않는다 — 차트에도 그려지면 안 된다.
@@ -362,7 +362,8 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     elif book_distorted:
         res.skipped.append(("수익가치(RIM)", "장부가가 실제 가치를 담지 못함(무형자산·자사주)"))
         res.notes.append("무형자산이 장부에 잡히지 않거나 자사주 매입으로 장부자본이 작아 "
-                         "RIM(장부가치 기반) 평가를 건너뜁니다 — 나머지 방법으로 판정합니다.")
+                         "RIM(장부가치 기반) 평가에서 제외합니다 — 나머지 방법으로 판정하며 "
+                         "가중치는 다시 배분합니다.")
         res.rim_r = r_equity
     else:
         roe_used = float(np.clip(roe_raw, -0.5, 0.6)) if roe_raw is not None else None
@@ -372,7 +373,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
             res.estimates.append(rim)
         else:
             res.skipped.append(("수익가치(RIM)", "ROE ≤ 0 (적자)"))
-            res.notes.append("ROE가 0 이하라 RIM 평가를 건너뜁니다 (적자 기업).")
+            res.notes.append("ROE가 0 이하라 RIM 평가를 제외합니다(적자 기업).")
 
     # ④ 선행 이익 — 애널리스트 컨센서스가 있을 때만 (판정이 미래 추정을 반영하게)
     cons = d.consensus
