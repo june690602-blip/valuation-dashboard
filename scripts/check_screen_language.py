@@ -243,10 +243,46 @@ STRING_CONTRACTS = [
     {"needle": "순수한 저평가", "producer": "src/analysis/commentary.py",
      "consumer": "web/assets/stock.js", "consumer_anchor": r"indexOf\('순수한 저평가'\)",
      "what": "핵심 해설 강조(.cmt.key 테두리)"},
-    {"needle": "주의 ·", "producer": "src/analysis/valuation.py",
-     "consumer": "src/analysis/commentary.py", "consumer_anchor": r'startswith\("주의 ·"\)',
-     "what": "노트 등급 승격(info → warn)"},
+    # 「주의 ·」 접두어 규약은 **없앴다**(#68). 노트의 등급은 이제 문장 접두어가 아니라
+    # ValuationNote.kind가 데이터로 들고 있다 — 문장을 다듬어도 등급이 흔들리지 않는다.
+    # 이 라운드가 잡아낸 취약성(발견 7)을 같은 종류의 자리에서 미리 없앤 셈이다.
 ]
+
+# 등급·무리를 **데이터로** 나르는 자리. 문자열 규약을 없앤 대신 여기가 규약이 됐다 —
+# 필드가 사라지거나 값이 바뀌면 화면이 조용히 한 무리를 통째로 잃는다.
+DATA_CONTRACTS = [
+    {"what": "노트 등급", "producer": "src/analysis/valuation.py",
+     "producer_anchor": r"class ValuationNote", "field": "kind",
+     "consumer": "src/analysis/commentary.py", "consumer_anchor": r"Comment\(n\.kind, n\.text"},
+    {"what": "해설 무리(근거/읽는 법)", "producer": "src/analysis/commentary.py",
+     "producer_anchor": r'GROUP_READING = "reading"', "field": "group",
+     "consumer": "web/assets/stock.js", "consumer_anchor": r"c\.group === 'reading'"},
+    {"what": "해설 주제(가격/품질)", "producer": "src/analysis/commentary.py",
+     "producer_anchor": r'ABOUT_PRICE = "price"', "field": "about",
+     "consumer": "src/analysis/commentary.py", "consumer_anchor": r"c\.about == ABOUT_PRICE"},
+    {"what": "판정↔근거 충돌 문장", "producer": "src/analysis/commentary.py",
+     "producer_anchor": r"def verdict_conflict", "field": "conflict",
+     "consumer": "web/assets/stock.js", "consumer_anchor": r"v\.conflict && v\.conflict\.short"},
+]
+
+
+def check_data_contracts():
+    print("\n■ C2. 데이터 규약 — 문자열 대신 필드로 나르는 자리")
+    for c in DATA_CONTRACTS:
+        psrc, csrc = read(c["producer"]), read(c["consumer"])
+        made = re.search(c["producer_anchor"], psrc)
+        used = re.search(c["consumer_anchor"], csrc)
+        if made and used:
+            say(OK, f"{c['what']} · 필드 `{c['field']}`",
+                f"만드는 곳 {c['producer']}:{line_of(psrc, made.start())} → "
+                f"읽는 곳 {c['consumer']}:{line_of(csrc, used.start())}")
+        elif not made:
+            say(BAD, f"{c['what']} — 만드는 지점이 사라졌습니다",
+                f"{c['producer']}에서 `{c['producer_anchor']}`를 찾지 못했습니다.")
+        else:
+            say(BAD, f"{c['what']} — 읽는 지점이 사라졌습니다",
+                f"{c['consumer']}에서 `{c['consumer_anchor']}`를 찾지 못했습니다.\n"
+                "화면이 한 무리를 통째로 잃어도 오류 없이 그려집니다 — 눈으로는 알 수 없는 종류입니다.")
 
 
 def check_string_contracts():
@@ -391,6 +427,7 @@ def main(argv):
     check_layers()
     check_colloquial()
     check_string_contracts()
+    check_data_contracts()
     check_fixed_counts()
     check_disclaimer()
     check_na_reasons()

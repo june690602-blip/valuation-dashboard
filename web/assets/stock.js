@@ -914,6 +914,14 @@
           '<div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap">' +
             '<span style="font-family:' + disp + ';font-weight:800;font-size:27px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(v.verdict || '—') + '</span>' +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + verdictLine + '</span></div>' +
+          // 판정과 아래 근거가 반대 방향일 때만 뜬다 — 큰 글씨를 본 사람이 스크롤하기 전에
+          // "왜 아래는 반대로 말하나"를 먼저 읽게 한다. 반대가 아니면 아무 말도 하지 않는다(#69).
+          // 문장은 파이썬(commentary.verdict_conflict)이 만들고 여기서는 자리만 잡는다.
+          // esc()를 걸지 않는 이유: 이 문자열은 판정 어휘(고정 목록)와 숫자 포맷만으로
+          // 서버가 조립한 것이라 외부 입력이 섞이지 않는다. <b> 강조를 살리려고 그대로 넣는다.
+          (v.conflict && v.conflict.short
+            ? '<div style="margin-top:11px;padding:9px 12px;border:1px solid var(--line-strong);border-left:3px solid var(--warning);border-radius:var(--radius-sm);background:var(--paper-2);font-size:12px;color:var(--ink-2);line-height:1.6">' + v.conflict.short + '</div>'
+            : '') +
           // 3존 라벨(저평가·적정·고평가) + 연속 마커
           // 지금 어느 구간인지는 **진하기**로 말한다 — 활성 --ink(굵게) / 비활성 --ink-3.
           // 눈금 막대 자체는 자(scale)라서 초록·클레이를 유지한다(판단이 아니라 눈금이다).
@@ -1025,16 +1033,34 @@
     $('scoreFinNote').innerHTML = (D.meta && D.meta.is_financial)
       ? '<div style="font-size:11.5px;color:var(--ink-3);line-height:1.65;margin-top:18px;padding-top:12px;border-top:1px dashed var(--line)">금융업(은행·보험·증권)은 부채 대부분이 예금·보험부채라 일반 <b>재무 안정성·현금흐름</b> 지표(부채비율·유동비율·FCF수익률 등)가 부적합해 상대점수에서 제외합니다. 은행 건전성은 BIS 자기자본비율·고정이하여신비율 등 <b>감독당국 공시</b>로 평가해야 하며, 본 도구는 무료 공개 데이터 범위상 이를 제공하지 않습니다.</div>'
       : '';
-    // 해설
-    $('commentary').innerHTML = (D.commentary || []).map(function (c) {
+    // 해설 — 두 무리로 나눠 그린다. 무리는 파이썬이 group으로 붙여 보낸다.
+    // 문장을 뒤져서 가르지 않는 이유는 R3 발견 7과 같다 — 문자열 규약은 조용히 깨진다(#68).
+    var cmts = D.commentary || [];
+    var basis = cmts.filter(function (c) { return c.group !== 'reading'; });
+    var reading = cmts.filter(function (c) { return c.group === 'reading'; });
+
+    function cmtCard(c, extraClass) {
       // 강조 조건은 commentary.py가 실제로 만드는 문자열과 정확히 같아야 한다.
       // '순수 저평가'로 두었던 동안 이 강조는 한 번도 켜진 적이 없었다(파이썬은 '순수한 저평가').
       // scripts/check_screen_language.py의 C 검사가 이 규약의 생사를 감시한다.
       var m = CMT[c.kind] || CMT.info, key = c.text.indexOf('밸류트랩') >= 0 || c.text.indexOf('순수한 저평가') >= 0;
       var strokeW = c.kind === 'good' ? 1.9 : 1.75;
       var icon = c.kind === 'info' ? '<circle cx="12" cy="12" r="10"/><path d="' + m[1] + '"/>' : c.kind === 'warn' ? '<path d="' + m[1] + '"/><path d="M12 9v4"/><path d="M12 17h.01"/>' : '<path d="' + m[1] + '"/>';
-      return '<div class="cmt' + (key ? ' key' : '') + '"><span style="color:' + m[0] + ';flex:none;margin-top:1px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round">' + icon + '</svg></span><div style="font-size:12.5px;color:var(--ink-2);line-height:1.55">' + esc(c.text) + '</div></div>';
-    }).join('') || '<div style="color:var(--ink-3);font-size:13px">해설을 생성할 수 없습니다.</div>';
+      return '<div class="cmt' + (key ? ' key' : '') + (extraClass || '') + '"><span style="color:' + m[0] + ';flex:none;margin-top:1px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round">' + icon + '</svg></span><div style="font-size:12.5px;color:var(--ink-2);line-height:1.55">' + esc(c.text) + '</div></div>';
+    }
+
+    $('commentary').innerHTML = basis.map(function (c) { return cmtCard(c); }).join('')
+      || '<div style="color:var(--ink-3);font-size:13px">해설을 생성할 수 없습니다.</div>';
+
+    // 판정↔근거 충돌 설명(있을 때만)은 이 블록의 첫 카드로 오고, 그것만 한 단 띄운다.
+    var clash = (D.verdict && D.verdict.conflict) ? D.verdict.conflict.detail : null;
+    var block = $('readingBlock');
+    if (block) {
+      block.hidden = !reading.length;
+      $('reading').innerHTML = reading.map(function (c, i) {
+        return cmtCard(c, (clash && i === 0 && c.text === clash) ? ' clash' : '');
+      }).join('');
+    }
     renderConsensus();
   }
 
@@ -1726,7 +1752,12 @@
       return '<div style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px"><div class="kick">' + it[0] + '</div><div class="mono" style="font-size:22px;font-weight:500;margin-top:6px;color:' + col + '">' + (v == null ? '—' : fmtSigned(v)) + '</div></div>';
     }).join('');
     return etfSectionHead('01', hasBench ? '벤치마크 대비 누적 성과' : '최근 5년 추이', (hasBench ? '시작점을 100으로 맞춰 ' + esc(D.metrics.bench_label || '벤치마크') + '와 겹쳐 봅니다. 위에 있을수록 벤치마크보다 잘했다는 뜻입니다.' : '최근 5년 종가 흐름입니다.'), null) +
-      '<div class="analysis-section-body">' + etfRelChart() + '</div>' +
+      '<div class="analysis-section-body">' + etfRelChart() +
+        // 한 화면에 두 계열이 산다 — 종가 라인은 총수익, 배당 밴드·NAV 괴리는 실거래가.
+        // 어느 쪽으로 통일해도 한쪽이 틀리므로 통일하는 대신 기준을 밝힌다(#57).
+        (D.priceBasisNote
+          ? '<div style="margin-top:10px;font-size:11.5px;color:var(--ink-3);line-height:1.65">기준 · ' + esc(D.priceBasisNote) + '</div>'
+          : '') + '</div>' +
       etfSectionHead('02', '기간별 수익률', '야후 파이낸스 기준 총수익률(분배금 포함). 과거 실적이며 미래를 보장하지 않습니다.', null) +
       '<div class="analysis-section-body"><div style="display:flex;flex-wrap:wrap;gap:12px">' + retHtml + '</div></div>';
   }

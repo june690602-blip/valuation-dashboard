@@ -54,6 +54,13 @@ TOTAL_RETURN_SITES = {
     ("src/analysis/etf.py", "_trend"): "추세(이동평균) = 총수익 계열",
     ("src/analysis/valuation.py", "_fundamental_daily"): "거래일 축 정렬용(값 무관)",
     ("src/web/serialize.py", "_etf_rel_series"): "벤치마크 누적성과 오버레이",
+    # ↓ #57에서 **총수익이 맞다고 결론 낸** 두 지점. 이전에는 PRICE_LEVEL_SITES에 등록해
+    #   의도적으로 [문제]로 띄워 두고 "R3·R4와 함께 정하자"고 미뤄 둔 자리였다.
+    #   차트가 답하는 질문은 "들고 있었다면 얼마 벌었나"라 배당까지 반영한 계열이 맞고,
+    #   같은 화면의 52주·밴드는 실거래가로 남긴다 — 어느 한쪽으로 통일하면 반드시
+    #   한쪽이 틀린다. 대신 기준이 다르다는 사실을 화면에 밝힌다(basis_note).
+    ("src/web/serialize.py", "_etf_price_series"): "ETF 종가 라인 = 분배금 포함 총수익(#57)",
+    ("src/ui/pages/stock.py", "render_price_tab"): "차트선·1년 수익률 = 총수익 (52주는 실거래가)",
     ("src/ui/pages/stock.py", "render"): "상대성과 차트",
     ("src/ui/charts.py", "relative_perf_chart"): "상대성과 차트",
     ("src/analysis/capital_cost.py", "estimate_beta"): "베타 회귀 = 총수익 수익률",
@@ -82,8 +89,6 @@ PRICE_LEVEL_SITES = {
     ("src/analysis/backtest.py", "_rim_discount"): "RIM 저평가율의 분모",
     ("src/analysis/ai_analysis.py", "build_opinion_context"): "52주 최고·최저",
     ("src/web/serialize.py", "_price"): "주가차트의 52주 최고·최저·밴드 내 위치",
-    ("src/web/serialize.py", "_etf_price_series"): "ETF 종가 라인차트(밴드와 같은 축이어야 함)",
-    ("src/ui/pages/stock.py", "render_price_tab"): "주가차트에 찍히는 가격",
     ("src/analysis/etf.py", "_dividend_band"): "배당수익률 역사밴드",
     ("src/analysis/etf.py", "_trend"): "52주 밴드·밴드 내 위치",
 }
@@ -144,7 +149,8 @@ def static_check():
             "\n".join(f"{f}:{fn} — {why}" for (f, fn), why in missing))
     else:
         say(OK, f"등록된 가격형 계산 {len(PRICE_LEVEL_SITES) - len(gone)}곳 모두 미조정 사용",
-            "이슈 #35에서 고친 4곳 + ETF 2곳이 여전히 actual_prices/prices_raw를 읽는다")
+            "이슈 #35에서 고친 4곳 + ETF 2곳 + 밸류에이션 밴드가 actual_prices/prices_raw를 읽는다.\n"
+            "차트선(#57)은 여기가 아니라 TOTAL_RETURN_SITES에 있다 — 총수익이 맞는 자리다.")
 
     # ② 어느 레지스트리에도 없는 지점 = 사람이 판단해야 하는 미분류
     known = set(TOTAL_RETURN_SITES) | set(PRICE_LEVEL_SITES) | PASSTHROUGH_SITES
