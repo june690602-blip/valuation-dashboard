@@ -15,7 +15,7 @@
   var MAX = 2000;
   var css = [
     '#fbBtn{position:fixed;right:18px;bottom:18px;z-index:45;display:inline-flex;align-items:center;gap:6px;',
-    'padding:8px 14px;border:1px solid var(--line-strong,#C8C2B4);border-radius:999px;background:var(--paper,#FBF9F5);',
+    'padding:8px 14px;border:1px solid var(--line-strong,#C8C2B4);border-radius:var(--radius-pill,999px);background:var(--paper,#FBF9F5);',
     'color:var(--ink-2,#514C45);font-family:var(--font-sans,system-ui);font-size:11.5px;letter-spacing:.01em;',
     'cursor:pointer;box-shadow:var(--shadow-sm,0 1px 2px rgba(20,19,15,.04));transition:background 120ms,color 120ms}',
     '#fbBtn:hover{background:var(--paper-3,#EDE8DE);color:var(--ink,#16130F)}',

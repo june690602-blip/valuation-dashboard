@@ -40,7 +40,7 @@
   .chart-status-change { margin-top:4px; font-family:var(--font-mono); font-size:11px; font-weight:600; }
   .chart-status-metrics { display:grid; grid-template-columns:repeat(5,minmax(64px,1fr)); gap:7px 14px; flex:1; min-width:390px; }
   .chart-status-metric { min-width:0; }
-  .chart-status-metric dt { margin:0; font-size:9.5px; letter-spacing:.08em; color:var(--ink-3); text-transform:uppercase; }
+  .chart-status-metric dt { margin:0; font-size:10px; letter-spacing:.08em; color:var(--ink-3); text-transform:uppercase; }
   .chart-status-metric dd { margin:3px 0 0; font-family:var(--font-mono); font-size:12px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #priceChart { width:100%;min-width:0;overflow:hidden; }
   #priceChart canvas { max-width:100%; }
@@ -117,7 +117,7 @@
   /* 섹션 제목 틴트 밴드 — 콘텐츠 폭에 맞춰 아주 연한 웜 틴트를 깔아 영역 전환을 알린다.
      수평 패딩 없이 세로 패딩만 주어 본문(46px 들여쓰기)과 정렬이 유지된다. */
   .analysis-section-head { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: start; position: relative; background: var(--spine-band); border-radius: var(--radius-sm); padding: 10px 0 12px; }
-  .analysis-section-head::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--spine); border-radius: 1px; }
+  .analysis-section-head::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--spine); border-radius: var(--radius-pill); }
   .analysis-section-index { font-family: var(--font-mono); font-size: 11px; color: var(--spine-ink-strong); padding-top: 4px; padding-left: 12px; }
   .analysis-section-title { margin: 0; font-family: var(--font-display); font-size: 17px; line-height: 1.35; font-weight: 700; color: var(--ink); }
   .analysis-section-desc { margin: 5px 0 0; max-width: 62ch; font-size: 12.5px; line-height: 1.65; color: var(--ink-3); }
@@ -127,7 +127,7 @@
   /* 탭 역할 지도 — 각 탭 상단에 "이 탭이 적정가 지표의 어느 부품인지"를 한 줄로 알린다.
      적정가 재료 ①②③(업종 비교·밸류에이션·재무 분석)과 그 외 역할(현재가·결론·검증·맥락)을 구분. */
   .method-map { display: flex; align-items: baseline; gap: 11px; margin: 2px 0 22px; font-size: 12.5px; color: var(--ink-3); line-height: 1.6; }
-  .method-chip { flex: none; font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--spine-ink-strong); background: var(--spine-band); border: 1px solid color-mix(in srgb, var(--spine) 45%, var(--line)); border-radius: 2px; padding: 3px 9px; letter-spacing: .02em; white-space: nowrap; }
+  .method-chip { flex: none; font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--spine-ink-strong); background: var(--spine-band); border: 1px solid color-mix(in srgb, var(--spine) 45%, var(--line)); border-radius: var(--radius-sm); padding: 3px 9px; letter-spacing: .02em; white-space: nowrap; }
   .methods-mno { font-family: var(--font-mono); font-size: 11px; color: var(--spine-ink-strong); margin-right: 6px; }
   .methods-goto { appearance: none; border: none; background: none; padding: 0; cursor: pointer; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
   .methods-goto:hover { text-decoration-color: var(--ink-3); }
@@ -163,7 +163,7 @@
   .analysis-details summary::-webkit-details-marker { display: none; }
   .analysis-details[open] summary .chev { transform: rotate(180deg); }
   /* 로딩/에러 오버레이 */
-  #status { position: fixed; inset: 58px 0 0 0; background: rgba(255,255,255,.82); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 40; }
+  #status { position: fixed; inset: 58px 0 0 0; background: var(--paper-scrim); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 40; }
   #status.on { display: flex; }
   #status .box { text-align: center; color: var(--ink-2); }
   .spin { width: 26px; height: 26px; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite; margin: 0 auto 14px; }
@@ -198,25 +198,27 @@
     .analysis-section-body, .analysis-section-chart { margin-left: 34px; margin-top: 16px; }
   }
   /* 종목 자동완성 드롭다운 (증권사식 타입어헤드) */
-  .ac-drop { position: absolute; left: 0; right: 0; top: calc(100% + 5px); background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); box-shadow: 0 10px 28px rgba(30,25,18,.14); z-index: 60; max-height: 340px; overflow-y: auto; }
+  .ac-drop { position: absolute; left: 0; right: 0; top: calc(100% + 5px); background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); z-index: 60; max-height: 340px; overflow-y: auto; }
   .ac-item { display: flex; align-items: baseline; gap: 9px; padding: 8px 11px; cursor: pointer; border-bottom: 1px solid var(--line); }
   .ac-item:last-child { border-bottom: none; }
   .ac-item.on, .ac-item:hover { background: var(--paper-2); }
   .ac-name { font-size: 13px; color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ac-item.on .ac-name { color: var(--ink); }
   .ac-code { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); flex: none; }
-  .ac-sub { margin-left: auto; font-size: 10px; color: var(--ink-3); border: 1px solid var(--line); border-radius: 2px; padding: 1px 5px; flex: none; white-space: nowrap; max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+  .ac-sub { margin-left: auto; font-size: 10px; color: var(--ink-3); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 1px 5px; flex: none; white-space: nowrap; max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
   .ac-sub.ac-etf { color: var(--paper); background: var(--ink); border-color: var(--ink); font-weight: 600; letter-spacing: 0.04em; }
   .ac-empty { padding: 10px 12px; font-size: 12px; color: var(--ink-3); }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">본문으로 건너뛰기</a>
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
 
   <!-- ══ TOP NAV ══ -->
-  <header class="app-header" style="height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:26px;padding:0 26px;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
-    <a href="home.html" title="투자지표 홈으로" style="display:flex;align-items:baseline;gap:8px;flex:none;white-space:nowrap;text-decoration:none;color:inherit">
-      <span style="font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-0.01em">투자지표</span>
+  <header class="app-header" style="min-height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:26px;padding:0 26px;background:var(--paper-veil);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
+    <a class="brand" href="home.html" aria-label="투자지표 홈" title="투자지표 홈으로" style="display:flex;align-items:center;gap:9px;flex:none;white-space:nowrap;text-decoration:none;color:inherit">
+      <span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
+      <span class="brand-name" style="font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-0.01em">투자지표</span>
     </a>
     <nav style="display:flex;gap:2px;align-items:center;white-space:nowrap;overflow-x:auto;scrollbar-width:none">
       <a href="home.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">홈</a>
@@ -262,7 +264,7 @@
         </button>
         <div id="assumeBody" style="display:none;margin-top:14px;flex-direction:column;gap:14px">
           <div>
-            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12.5px;color:var(--ink-2)">무위험이자율 R<sub style="font-size:9px">f</sub></span><span class="mono" style="font-size:12.5px" id="asmRf">3.50%</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12.5px;color:var(--ink-2)">무위험이자율 R<sub style="font-size:10px">f</sub></span><span class="mono" style="font-size:12.5px" id="asmRf">3.50%</span></div>
             <div style="font-size:11px;color:var(--ink-3);margin-top:2px">채권 탭 10Y 국채 금리 기본값</div>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:12.5px;color:var(--ink-2)">시장위험프리미엄 MRP</span><span class="mono" style="font-size:12.5px" id="asmMrp">6.00%</span></div>
@@ -283,7 +285,7 @@
     </button>
 
     <!-- ══ MAIN ══ -->
-    <main class="app-main" style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <main id="main" class="app-main" style="flex:1;min-width:0;display:flex;flex-direction:column">
       <div class="app-content" style="flex:1;padding:24px 30px 8px 34px;max-width:var(--content-max);width:100%">
 
         <div class="hv on" id="hv-B"></div>

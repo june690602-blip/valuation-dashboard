@@ -92,106 +92,123 @@ SKIP = re.compile(r"preview-home-")
 # ══════════════════════════════════════════════════════════════════════
 # 레지스트리 1 — 공용 셸
 #
-# 헤더·네비·브랜드는 7장 전부에 나오는 같은 물건이다. 지금은 구현이 세 벌이고
-# 값이 다섯 갈래인데, 그 사실을 여기 못 박아 둔다. 한 벌로 합치면 이 표가 줄어든다.
+# 헤더·네비·브랜드는 7장 전부에 나오는 같은 물건이다. 페이지마다 자기 값을 가지면
+# 한 곳을 고쳐도 나머지가 따라오지 않는다.
 # ══════════════════════════════════════════════════════════════════════
+# R4에서 **통일하기로 확정한 것**: 지면 톤(--paper-veil) · 로고마크 · 워드마크 크기 · 건너뛰기 링크.
+# **의도적으로 남긴 차이**: 헤더 높이(홈 64 = 관문 / 앱 58 = 작업대)와 구현 방식(클래스/인라인).
+#   높이는 역할이 다르다는 신호라 남겼고, 구현 통합은 화면 구성이 함께 움직여 R5의 것이다.
 SHELL_SITES = {
     "web/home.html": {
         "impl": "class:.site-header",
+        "role": "관문",
         "height": "64px(min-height)",
-        "bg": "color-mix(paper 91%)",   # 미색 종이
-        "brand_px": "20px",
+        "bg": "--paper-veil",
+        "brand_px": "21px",
         "brand_mark": True,             # 원형 잉크 로고마크
         "nav": ".nav-link 13px / gap 2px",
     },
     "web/guide.html": {
         "impl": "class:.site-header",
+        "role": "작업대",
         "height": "58px(min-height)",
-        "bg": "rgba(255,255,255,.94)",  # 순백
+        "bg": "--paper-veil",
         "brand_px": "21px",
-        "brand_mark": False,
+        "brand_mark": True,
         "nav": ".top-nav a 13.5px / gap 4px",
     },
     "web/test.html": {
         "impl": "class:.site-header",
+        "role": "작업대",
         "height": "58px(min-height)",
-        "bg": "rgba(255,255,255,.92)",  # 순백
+        "bg": "--paper-veil",
         "brand_px": "21px",
-        "brand_mark": False,
+        "brand_mark": True,
         "nav": ".site-nav a 13.5px / gap 4px",
     },
     "web/stock.html": {
         "impl": "inline",
-        "height": "58px(height)",
-        "bg": "rgba(255,255,255,0.9)",  # 순백
+        "role": "작업대",
+        "height": "58px(min-height)",
+        "bg": "--paper-veil",
         "brand_px": "21px",
-        "brand_mark": False,
+        "brand_mark": True,
         "nav": "inline a 13px / gap 2px",
     },
     "web/bond.html": {
         "impl": "inline",
-        "height": "58px(height)",
-        "bg": "rgba(255,255,255,0.9)",
+        "role": "작업대",
+        "height": "58px(min-height)",
+        "bg": "--paper-veil",
         "brand_px": "21px",
-        "brand_mark": False,
+        "brand_mark": True,
         "nav": "inline a 13px / gap 2px",
     },
     "web/portfolio.html": {
         "impl": "inline",
-        "height": "58px(height)",
-        "bg": "rgba(255,255,255,0.9)",
+        "role": "작업대",
+        "height": "58px(min-height)",
+        "bg": "--paper-veil",
         "brand_px": "21px",
-        "brand_mark": False,
+        "brand_mark": True,
         "nav": "inline a 13px / gap 2px",
     },
     "web/admin.html": {
         "impl": "inline",
-        "height": "58px(height)",
-        "bg": "rgba(255,255,255,0.9)",
+        "role": "작업대",
+        "height": "58px(min-height)",
+        "bg": "--paper-veil",
         "brand_px": "21px",
-        "brand_mark": False,
+        "brand_mark": True,
         "nav": "inline a 13px / gap 2px",
     },
 }
 
 # 레지스트리 2 — 판정에 쓰는 색.
 #
-# CLAUDE.md는 "파랑=저평가·빨강=고평가는 판정 전용"이라고 적었다. Streamlit 프런트는
-# 그대로지만 Meridian 웹은 초록/클레이를 쓰고, 그 두 색을 등락·수익률과 공유한다.
+# R4 이전에는 두 프런트가 다른 계열이었다 — Streamlit은 CLAUDE.md 규칙대로 파랑/빨강,
+# Meridian 웹은 초록/클레이. 게다가 웹은 그 두 색을 등락·수익률과 나눠 써서 초록 하나가
+# 다섯 가지를 말했다. 지금은 양쪽 다 무채 잉크로 판정하고, 색은 부호 전용이다.
 VERDICT_COLOR_SITES = {
     "src/ui/components.py:VERDICT_COLORS": {
         "front": "Streamlit",
-        "저평가": "#2a78d6 파랑",
-        "고평가": "#e34948 빨강",
+        "저평가": "무채 잉크(진하기)",
+        "고평가": "무채 잉크(진하기)",
         "shared_with": [],
     },
-    "web/assets/stock.js:893 (주식 판정 헤드라인)": {
+    "web/assets/stock.js (주식 판정 헤드라인·3존 눈금)": {
         "front": "Meridian 웹",
-        "저평가": "--dv-positive 초록",
-        "고평가": "--dv-negative 클레이",
-        "shared_with": ["일간 등락", "초과수익", "백테스트 수익률", "해설 good/bad", "피어 대비 싸다/비싸다"],
+        "저평가": "무채 잉크(진하기)",
+        "고평가": "무채 잉크(진하기)",
+        "shared_with": [],
     },
-    "web/assets/stock.js:1478 (ETF 판정 헤드라인)": {
+    "web/assets/stock.js (ETF 관찰 헤드라인·눈금·축 배지)": {
         "front": "Meridian 웹",
-        "저평가": "--dv-positive 초록",
-        "고평가": "--dv-negative 클레이",
-        "shared_with": ["일간 등락", "초과수익", "백테스트 수익률", "해설 good/bad"],
+        "저평가": "무채 잉크(진하기)",
+        "고평가": "무채 잉크(진하기)",
+        "shared_with": [],
     },
 }
+
+# --dv-positive/--dv-negative가 여전히 말해도 되는 것 — 전부 **숫자의 부호** 하나다.
+# 판정이 여기서 빠졌다는 것이 R4의 결정이다.
+SIGN_COLOR_MEANINGS = ["일간 등락", "초과수익", "괴리율", "백테스트 수익률·순위상관", "피어 대비 차이", "ROIC−WACC 스프레드"]
 
 # 레지스트리 3 — 지면 위에서 텍스트로 쓰이는 토큰.
 #   name: (hex, 어디에 쓰이나, 본문(4.5) 기준인가)
 TEXT_TOKENS = {
-    "--ink": ("#16130F", "본문·제목", True),
+    "--ink": ("#16130F", "본문·제목·판정 헤드라인", True),
     "--ink-2": ("#514C45", "2차 텍스트", True),
-    "--ink-3": ("#8A847B", "캡션·kick·col-label(11px 전후) · 284곳", True),
-    "--ink-4": ("#B3ADA3", "탭 번호·플레이스홀더(9.5~11px)", True),
-    "--spine-ink": ("#9C8C72", "섹션 번호·히어로 키커", True),
-    "--spine-ink-strong": ("#8B7C60", "틴트 밴드 위 섹션 번호", True),
-    "--dv-positive": ("#2F7D5B", "저평가 판정·상승·플러스 수익률", True),
-    "--dv-negative": ("#B5643C", "고평가 판정·하락·마이너스 수익률", True),
+    "--ink-3": ("#6D6861", "캡션·kick·col-label(11px 전후) · 284곳", True),
+    # 장식적 표기 전용 — 옆에 실제 라벨이 있는 순번·플레이스홀더에만 쓴다.
+    # 본문 기준을 적용하지 않는다(body_text=False)는 것 자체가 이 토큰의 규약이다.
+    "--ink-4": ("#8A847B", "순번·플레이스홀더 — 장식적 표기 전용", False),
+    "--spine-ink": ("#756752", "섹션 번호·히어로 키커", True),
+    "--spine-ink-strong": ("#63563F", "틴트 밴드 위 섹션 번호", True),
+    "--dv-positive": ("#2C7556", "플러스 부호 — 등락·수익률·괴리율", True),
+    "--dv-negative": ("#9D5634", "마이너스 부호 — 등락·수익률·괴리율", True),
     "--dv-navy": ("#2B4A82", "링크·강조 테두리·차트 주선", True),
-    "--warning": ("#C08A2E", "경고 문구(약한 근거·과최적화 주의)", True),
+    "--warning": ("#886221", "경고 문구(약한 근거·과최적화 주의)", True),
     "--danger": ("#A23A2A", "입력 오류 플레이스홀더", True),
 }
 PAPERS = {"--paper": "#FBF9F5", "--paper-2": "#F4F0E9", "--paper-3": "#EDE8DE"}
@@ -229,9 +246,9 @@ def check_shell() -> None:
     head("A. 공용 셸 — 헤더·네비·브랜드가 한 벌인가")
 
     impls: dict[str, list[str]] = {}
-    bgs: dict[str, list[str]] = {}
-    heights: dict[str, list[str]] = {}
     missing: list[str] = []
+    white_pages: list[str] = []
+    unregistered: list[str] = []
 
     for page in PAGES:
         text = read(page)
@@ -242,8 +259,7 @@ def check_shell() -> None:
         tag = m.group(0)
         reg = SHELL_SITES.get(page)
         if reg is None:
-            say(BAD, f"{page} — 레지스트리에 등록되지 않은 페이지",
-                "SHELL_SITES에 헤더 구현을 등록해야 이 검사가 의미를 갖는다.")
+            unregistered.append(page)
             continue
 
         # 등록된 구현이 실제와 맞는가
@@ -253,56 +269,70 @@ def check_shell() -> None:
             say(BAD, f"{page} — 헤더 구현이 레지스트리와 다름",
                 f"등록: {reg['impl']} / 실제: {actual_impl}")
         impls.setdefault(reg["impl"], []).append(Path(page).name)
-        bgs.setdefault(reg["bg"], []).append(Path(page).name)
-        heights.setdefault(reg["height"], []).append(Path(page).name)
+
+        # 지면 톤 — 파일을 직접 읽는다(레지스트리를 믿지 않는다)
+        if re.search(r"rgba\(\s*255,\s*255,\s*255", tag) or "#fff" in tag.lower():
+            white_pages.append(Path(page).name)
+        # 로고마크가 실제로 마크업에 있는가
+        head_block = text[m.start():m.start() + 1400]
+        has_mark = 'class="brand-mark"' in head_block
+        if has_mark != bool(reg["brand_mark"]):
+            say(BAD, f"{page} — 로고마크 유무가 레지스트리와 다름",
+                f"등록: {'있음' if reg['brand_mark'] else '없음'} / 실제: {'있음' if has_mark else '없음'}")
 
     if missing:
         say(NA, "헤더가 없는 페이지", " · ".join(missing))
+    if unregistered:
+        say(BAD, f"레지스트리에 등록되지 않은 페이지 {len(unregistered)}장",
+            " · ".join(unregistered) + "\nSHELL_SITES에 등록해야 이 검사가 의미를 갖는다.")
 
-    # 구현 가짓수
-    if len(impls) > 1:
-        detail = "\n".join(f"{k} — {', '.join(v)}" for k, v in impls.items())
-        say(BAD, f"헤더 구현이 {len(impls)}벌이다 (한 벌이어야 한다)", detail)
+    # 지면 톤 — 순백 헤더는 미색 종이 원칙(meridian.css 첫 주석)과 어긋난다
+    stray_white: list[str] = []
+    for rel in PAGES:
+        text = read(rel)
+        for m in re.finditer(r"rgba\(\s*255,\s*255,\s*255[^)]*\)", text):
+            stray_white.append(f"{rel}:{line_of(text, m.start())}  {m.group(0)}")
+    if white_pages or stray_white:
+        detail = ("헤더: " + ", ".join(white_pages) + "\n" if white_pages else "")
+        detail += "\n".join(stray_white)
+        detail += "\nmeridian.css 첫 주석 「지면은 순백이 아니라 미색 종이」 — 지면 위 면은 --paper-veil/--paper-scrim을 쓴다."
+        say(BAD, f"순백 면이 남아 있다 ({len(white_pages) + len(stray_white)}건)", detail)
     else:
-        say(OK, "헤더 구현이 한 벌이다")
-
-    # 지면 톤 — 순백 헤더는 미색 종이 원칙(meridian.css 주석)과 어긋난다
-    white = {k: v for k, v in bgs.items() if "255,255,255" in k.replace(" ", "")}
-    if white:
-        detail = "\n".join(f"{k} — {', '.join(v)}" for k, v in white.items())
-        detail += "\nmeridian.css:11 「지면은 순백이 아니라 미색 종이」 — 헤더만 순백이면 경계가 드러난다."
-        say(BAD, f"헤더 배경이 순백인 페이지 {sum(len(v) for v in white.values())}장", detail)
-    else:
-        say(OK, "헤더 배경이 전부 미색 계열")
+        say(OK, "지면 위 면이 전부 미색 계열이다 (--paper-veil / --paper-scrim)",
+            "헤더 7장 + 로딩 오버레이 + 목차 바. 홈에서 다른 화면으로 넘어가도 지면 톤이 이어진다.")
 
     # 브랜드
-    marked = [Path(p).name for p, r in SHELL_SITES.items() if r["brand_mark"]]
     unmarked = [Path(p).name for p, r in SHELL_SITES.items() if not r["brand_mark"]]
-    if marked and unmarked:
-        say(BAD, f"로고마크가 {len(marked)}장에만 있다",
-            f"있음: {', '.join(marked)}\n없음: {', '.join(unmarked)}\n"
-            "홈에서 다른 화면으로 넘어가면 로고가 사라지고 워드마크만 남는다.")
+    if unmarked:
+        say(BAD, f"로고마크가 없는 화면 {len(unmarked)}장", ", ".join(unmarked))
     else:
-        say(OK, "로고마크 노출이 전 화면에서 같다")
+        say(OK, f"로고마크가 {len(SHELL_SITES)}장 전부에 있다",
+            "meridian.css의 .brand-mark 한 곳에서 정의한다 — 한 번 고치면 7장이 함께 움직인다.")
 
     sizes = {r["brand_px"] for r in SHELL_SITES.values()}
     if len(sizes) > 1:
         say(BAD, f"브랜드 워드마크 크기가 {len(sizes)}가지", " · ".join(sorted(sizes)))
     else:
-        say(OK, "브랜드 워드마크 크기가 하나")
+        say(OK, f"브랜드 워드마크 크기가 하나 ({sizes.pop()})")
+
+    # ── 여기부터는 **의도적으로 남긴 차이**다 ──
+    heights: dict[str, list[str]] = {}
+    for page, r in SHELL_SITES.items():
+        heights.setdefault(f"{r['height']} · {r['role']}", []).append(Path(page).name)
+    say(OK, f"헤더 높이 {len(heights)}가지 — 역할에 따른 의도된 차이 (전부 min-height)",
+        "\n".join(f"{k} — {', '.join(v)}" for k, v in heights.items())
+        + "\n홈은 관문이라 한 단계 크고, 나머지는 작업대라 낮다. 브랜드·톤은 같으므로\n"
+          "'다른 사이트'로 읽히지 않는다 — 다른 방이라는 신호만 남긴다.")
 
     navs = {r["nav"] for r in SHELL_SITES.values()}
     if len(navs) > 1:
-        say(BAD, f"네비 링크 규격이 {len(navs)}가지", "\n".join(sorted(navs)))
+        say(BAD, f"네비 링크 규격이 {len(navs)}가지 — 이슈로 남김",
+            "\n".join(sorted(navs))
+            + f"\n헤더 구현도 {len(impls)}벌이다: "
+            + " / ".join(f"{k}({len(v)})" for k, v in impls.items())
+            + "\n한 벌로 합치려면 마크업이 함께 움직여 화면 구성 변경이 된다 — R5의 범위다.")
     else:
         say(OK, "네비 링크 규격이 하나")
-
-    if len(heights) > 1:
-        detail = "\n".join(f"{k} — {', '.join(v)}" for k, v in heights.items())
-        detail += "\n스티키 하위 요소(guide.html의 .toc·.ver-toggle)가 top:58px로 고정돼 있어 헤더 높이가 바뀌면 함께 어긋난다."
-        say(BAD, f"헤더 높이가 {len(heights)}가지", detail)
-    else:
-        say(OK, "헤더 높이가 하나")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -460,7 +490,25 @@ def check_verdict_color() -> None:
         lines.append("초록이 '싸다'인지 '올랐다'인지 색만으로는 갈리지 않는다.")
         say(BAD, "판정 색이 등락·수익률 색과 같은 토큰이다", "\n".join(lines))
     else:
-        say(OK, "판정 색이 등락 색과 분리돼 있다")
+        say(OK, "판정 색이 부호 색과 분리돼 있다",
+            "--dv-positive/--dv-negative가 말하는 것은 이제 하나뿐이다 — 숫자의 부호.\n"
+            "  " + " · ".join(SIGN_COLOR_MEANINGS))
+
+    # 판정을 만드는 자리에 부호 색이 되살아났는가 — 회귀 감시
+    js = read("web/assets/stock.js")
+    regressed: list[str] = []
+    for m in re.finditer(r"var vColor = .*", js):
+        if "dv-positive" in m.group(0) or "dv-negative" in m.group(0):
+            regressed.append(f"web/assets/stock.js:{line_of(js, m.start())}  {m.group(0).strip()[:80]}")
+    # 3존 눈금 라벨 — 활성 존 강조에 부호 색을 쓰면 같은 회귀다
+    for m in re.finditer(r"tone === '(positive|negative)' \? ';color:var\(--dv-[a-z]+\)", js):
+        regressed.append(f"web/assets/stock.js:{line_of(js, m.start())}  눈금 라벨에 부호 색")
+    if regressed:
+        say(BAD, f"판정 자리에 부호 색이 되살아났다 {len(regressed)}건", "\n".join(regressed))
+    else:
+        say(OK, "판정 헤드라인·눈금 라벨이 무채 잉크만 쓴다",
+            "주식·ETF 양쪽 · 활성 존은 --ink(굵게), 비활성은 --ink-3.\n"
+            "눈금 막대 자체는 자(scale)라서 --dv-green/--dv-clay를 유지한다.")
 
     # 판정 양끝의 대비가 같은 등급인가 — R3 발견 2(양끝을 같은 계열로)의 색 판본
     pos = contrast(TEXT_TOKENS["--dv-positive"][0], PAPERS["--paper"])
@@ -477,8 +525,25 @@ def check_verdict_color() -> None:
 # ══════════════════════════════════════════════════════════════════════
 # E. 대비 — 읽히지 않는 색은 색이 아니다
 # ══════════════════════════════════════════════════════════════════════
+ROOT_VAR_RE = re.compile(r"(--[a-z0-9-]+)\s*:\s*(#[0-9A-Fa-f]{6})\s*;")
+
+
 def check_contrast() -> None:
     head("E. 대비 — 지면 위 텍스트 토큰이 WCAG AA(4.5:1)를 넘는가")
+
+    # 레지스트리가 meridian.css와 같은 값을 보고 있는가.
+    # 여기가 어긋나면 아래 대비 계산은 존재하지 않는 색을 검사하는 셈이 된다.
+    css_vars = dict(ROOT_VAR_RE.findall(read("web/assets/meridian.css")))
+    drift = [(n, v[0], css_vars.get(n)) for n, v in {**TEXT_TOKENS, **{k: (h, "", True) for k, h in PAPERS.items()}}.items()
+             if css_vars.get(n) and css_vars[n].upper() != v[0].upper()]
+    missing = [n for n in TEXT_TOKENS if n not in css_vars]
+    if drift or missing:
+        detail = "\n".join(f"{n}: 레지스트리 {reg} / meridian.css {css}" for n, reg, css in drift)
+        if missing:
+            detail += "\nmeridian.css에서 못 찾은 토큰: " + " · ".join(missing)
+        say(BAD, "레지스트리와 meridian.css의 토큰 값이 다르다", detail)
+    else:
+        say(OK, f"레지스트리가 meridian.css와 같은 값을 본다 ({len(TEXT_TOKENS)}개 토큰)")
 
     rows = []
     fails = []
@@ -495,8 +560,10 @@ def check_contrast() -> None:
             borderline.append((name, hex_color, on_paper, worst, usage))
 
     print("         토큰                 색        --paper  최악(paper-3)  쓰이는 곳")
+    print("         (◦ = 장식적 표기 전용 — 본문 기준을 적용하지 않는다)")
     for name, hex_color, on_paper, worst, usage in rows:
-        mark = "✗" if on_paper < 4.5 else ("△" if worst < 4.5 else "✓")
+        decorative = not TEXT_TOKENS[name][2]
+        mark = "◦" if decorative else ("✗" if on_paper < 4.5 else ("△" if worst < 4.5 else "✓"))
         print(f"         {mark} {name:<18} {hex_color}  {on_paper:6.2f}   {worst:6.2f}        {usage}")
 
     if fails:
@@ -549,11 +616,15 @@ def check_breakpoints() -> None:
 
     # 공용 CSS가 페이지 구조를 직접 겨냥하는가
     css = read("web/assets/meridian.css")
-    if "body > div > header" in css:
+    structural = re.findall(r"^\s*(body\s*>[^{]+)\{", css, re.M)
+    if structural:
         say(BAD, "공용 CSS가 페이지 마크업 구조를 직접 겨냥한다",
-            "meridian.css:190 `body > div > header` — 선택자가 구조에 걸려 있어\n"
-            "자기 반응형을 가진 홈(`div.page > header`)까지 !important로 덮어쓴다.\n"
-            "실측(820px): 홈 헤더 높이 92px, 브랜드 왼쪽 여백이 16px+page-pad로 이중 적용.")
+            "\n".join(s.strip() for s in structural)
+            + "\n구조를 겨냥한 선택자는 마크업이 같기만 하면 의도하지 않은 화면까지 덮는다.")
+    else:
+        say(OK, "공용 CSS가 구조가 아니라 역할(.app-header)을 겨냥한다",
+            "R4 이전에는 `body > div > header`여서 자기 반응형을 가진 홈까지 !important로 덮었다.\n"
+            "실측(820px): 홈 헤더 92px · 브랜드 왼쪽 여백 41px(헤더 패딩 16 + --page-pad 25 이중 적용).")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -590,11 +661,28 @@ def check_type_scale() -> None:
     else:
         say(OK, "간격 토큰이 있다")
 
-    tiny = {v: c for v, c in sizes.items() if v < 10}
+    # 정보를 나르는 글자의 바닥은 10px로 둔다. 순번(탭의 01~09)만 예외인데,
+    # 바로 옆에 실제 라벨("기업·뉴스")이 있어 그 숫자를 못 읽어도 잃는 정보가 없기 때문이다.
+    NUMBERING = {"web/stock.html": [".tabbtn .tn"]}
+    tiny: dict[float, list[str]] = {}
+    for rel in _targets():
+        text = read(rel)
+        for m in FONT_SIZE_RE.finditer(text):
+            v = float(m.group(1))
+            if v >= 10:
+                continue
+            ln = line_of(text, m.start())
+            line = text.splitlines()[ln - 1]
+            if any(sel in line for sel in NUMBERING.get(rel, [])):
+                continue
+            tiny.setdefault(v, []).append(f"{rel}:{ln}")
     if tiny:
-        say(BAD, f"10px 미만 글자 {sum(tiny.values())}건",
-            " · ".join(f"{v:g}px ×{c}" for v, c in sorted(tiny.items()))
-            + "\n실측(삼성전자 화면): 8px 라벨 5개가 눈금 축에 그려진다.")
+        say(BAD, f"10px 미만 글자 {sum(len(v) for v in tiny.values())}건",
+            "\n".join(f"{v:g}px — " + " · ".join(sites) for v, sites in sorted(tiny.items())))
+    else:
+        say(OK, "정보를 나르는 글자가 전부 10px 이상",
+            "예외는 탭 순번(.tabbtn .tn 9.5px)뿐 — 옆에 실제 라벨이 있어 못 읽어도 잃는 정보가 없다.\n"
+            "R4 이전에는 점수 막대 중앙선에 8px 라벨이 5개 있었다(실측).")
 
 
 # ══════════════════════════════════════════════════════════════════════

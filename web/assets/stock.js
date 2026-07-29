@@ -184,11 +184,11 @@
       return el('div', { style: { display: 'grid', gridTemplateColumns: '92px 1fr', gap: '16px', alignItems: 'center' } },
         el('span', { style: { fontSize: '14px', fontWeight: 600 } }, k === '재무 안정성' ? '재무안정성' : k),
         el('div', {},
-          el('div', { style: { position: 'relative', height: '30px', background: 'var(--paper-3)', border: '1px solid var(--line-strong)', borderRadius: '5px', overflow: 'hidden' } },
+          el('div', { style: { position: 'relative', height: '30px', background: 'var(--paper-3)', border: '1px solid var(--line-strong)', borderRadius: 'var(--radius-md)', overflow: 'hidden' } },
             // 의미색(강점=green·약점=clay)은 유지하되 종이 쪽으로 68% 톤다운 — 판정 막대보다 조용하게.
             el('div', { style: { position: 'absolute', top: 0, bottom: 0, left: 0, width: w + '%', background: good ? 'color-mix(in srgb, var(--dv-green) 68%, var(--paper))' : 'color-mix(in srgb, var(--dv-clay) 68%, var(--paper))' } }),
             el('div', { style: { position: 'absolute', left: '50%', top: 0, bottom: 0, width: '2px', background: 'var(--ink)', opacity: 0.5 } }),
-            el('span', { style: { position: 'absolute', left: '50%', top: '2px', transform: 'translateX(-50%)', fontSize: '8px', color: 'var(--ink-3)', fontFamily: 'var(--font-sans)' } }, '50'),
+            el('span', { style: { position: 'absolute', left: '50%', top: '2px', transform: 'translateX(-50%)', fontSize: '10px', color: 'var(--ink-2)', fontFamily: 'var(--font-sans)' } }, '50'),
             v == null ? '' : el('span', { style: { position: 'absolute', left: 'calc(' + w + '% - 8px)', top: '50%', transform: 'translate(-100%,-50%)', fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 700, color: 'var(--ink)' } }, Math.round(v))
           ),
           el('div', { style: { fontSize: '12px', color: 'var(--ink-2)', marginTop: '5px', lineHeight: 1.4 } }, scoreDesc(k, v))
@@ -890,7 +890,9 @@
     var finYear = (D.financials && D.financials.years && D.financials.years.length)
       ? D.financials.years[D.financials.years.length - 1] : null;
     // 판정 헤드라인 색 · 연속 마커 위치 · 평이한 해설
-    var vColor = tone === 'positive' ? 'var(--dv-positive)' : tone === 'negative' ? 'var(--dv-negative)' : 'var(--ink)';
+    // 판정은 색을 쓰지 않는다(R4) — 초록·클레이는 '숫자의 부호'(등락·수익률·괴리율) 전용이고,
+    // 판정은 우리가 내린 판단이라 무채 잉크로만 쓴다. 방향은 문자와 눈금 위 위치가 말한다.
+    var vColor = 'var(--ink)';
     var gp = v.gap == null ? null : Math.max(-0.4, Math.min(0.4, v.gap));
     var mpos = gp == null ? pos : (50 - gp / 0.4 * 40);   // 괴리율(연속)→바 위치. +괴리(상승여력)=왼쪽(저평가)
     var gapAbs = v.gap == null ? null : Math.abs(v.gap * 100).toFixed(1);
@@ -913,11 +915,13 @@
             '<span style="font-family:' + disp + ';font-weight:800;font-size:27px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(v.verdict || '—') + '</span>' +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + verdictLine + '</span></div>' +
           // 3존 라벨(저평가·적정·고평가) + 연속 마커
+          // 지금 어느 구간인지는 **진하기**로 말한다 — 활성 --ink(굵게) / 비활성 --ink-3.
+          // 눈금 막대 자체는 자(scale)라서 초록·클레이를 유지한다(판단이 아니라 눈금이다).
           '<div style="position:relative;margin-top:15px;padding-bottom:28px">' +
             '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:7px">' +
-              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--dv-positive);font-weight:700' : '') + '">저평가</span>' +
+              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--ink);font-weight:700' : '') + '">저평가</span>' +
               '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">적정</span>' +
-              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--dv-negative);font-weight:700' : '') + '">고평가</span></div>' +
+              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--ink);font-weight:700' : '') + '">고평가</span></div>' +
             '<div style="display:flex;height:13px;border-radius:var(--radius-pill);overflow:hidden">' +
               '<span style="flex:1;background:var(--dv-green);opacity:.82"></span><span style="flex:1;background:var(--dv-green);opacity:.45"></span><span style="flex:1;background:var(--paper-3)"></span><span style="flex:1;background:var(--dv-clay);opacity:.45"></span><span style="flex:1;background:var(--dv-clay);opacity:.82"></span></div>' +
             '<div style="position:absolute;left:' + mpos + '%;top:26px;transform:translateX(-50%);width:2px;height:22px;background:var(--ink)"></div>' +
@@ -1232,7 +1236,7 @@
       var cc = CATCOL[cat];
       html += '<div style="' + (ci ? 'margin-top:18px;border-top:1px solid var(--line);padding-top:14px' : '') + '"><div style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:' + cc[0] + '"></span><span style="font-size:12px;font-weight:600">' + cat + '</span><span style="font-size:11px;color:var(--ink-3)">' + cc[1] + '</span></div>';
       group.forEach(function (it) {
-        var tags = (it.tags || []).map(function (t) { var macro = cat === '거시'; return '<span style="font-family:var(--font-mono);font-size:10px;' + (macro ? 'color:var(--ink);border:1px solid var(--dv-navy)' : 'color:#fff;background:var(--dv-navy)') + ';border-radius:2px;padding:1px 6px;margin-left:4px">' + esc(t) + '</span>'; }).join('');
+        var tags = (it.tags || []).map(function (t) { var macro = cat === '거시'; return '<span style="font-family:var(--font-mono);font-size:10px;' + (macro ? 'color:var(--ink);border:1px solid var(--dv-navy)' : 'color:#fff;background:var(--dv-navy)') + ';border-radius:var(--radius-sm);padding:1px 6px;margin-left:4px">' + esc(t) + '</span>'; }).join('');
         var meta = [it.source, it.date].filter(Boolean).join(' · ');
         html += '<a href="' + esc(it.link || '#') + '" target="_blank" rel="noopener" style="display:block;font-size:13.5px;margin-top:10px;line-height:1.5">' + esc(it.title) + tags + '</a><div style="font-size:11px;color:var(--ink-3);margin-top:3px">' + esc(meta) + '</div>';
       });
@@ -1428,10 +1432,10 @@
     var stop = (p && p.lo52 != null) ? won(p.lo52) : '—';
     function li(arr) { return arr.length ? arr.map(function (c) { return '<li>' + esc(c.text) + '</li>'; }).join('') : '<li>—</li>'; }
     $('aiContent').innerHTML =
-      '<div style="background:var(--navy);color:#E9EDF5;border-radius:var(--radius-md);padding:26px 28px">' +
-        '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#9BA8C4">한 줄 관찰 · 규칙 기반</div>' +
+      '<div style="background:var(--navy);color:var(--navy-ink);border-radius:var(--radius-md);padding:26px 28px">' +
+        '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--navy-muted)">한 줄 관찰 · 규칙 기반</div>' +
         '<div style="font-family:var(--font-display);font-weight:700;font-size:28px;letter-spacing:-0.01em;margin-top:8px">' + stance + ' — ' + esc(v.verdict) + ' · 괴리율 ' + fmtSigned(v.gap) + '</div>' +
-        '<div style="font-size:13px;color:#C4CDE0;margin-top:10px;line-height:1.6">대시보드 산출 사실(적정가 범위·상승여력·업종 백분위·자본비용)을 근거로 한 스탠스입니다.' + (m.ai_available ? ' 아래 버튼으로 Gemini 서술형 종합 평가를 생성할 수 있어요.' : ' 서술형 AI 평가는 Gemini 키를 설정하면 생성됩니다.') + '</div>' +
+        '<div style="font-size:13px;color:var(--navy-ink);margin-top:10px;line-height:1.6">대시보드 산출 사실(적정가 범위·상승여력·업종 백분위·자본비용)을 근거로 한 스탠스입니다.' + (m.ai_available ? ' 아래 버튼으로 Gemini 서술형 종합 평가를 생성할 수 있어요.' : ' 서술형 AI 평가는 Gemini 키를 설정하면 생성됩니다.') + '</div>' +
         (m.ai_available ? '<button id="opBtn" class="btn btn-sm" style="margin-top:16px;background:var(--paper);color:var(--ink)">✦ 종합 투자평가 생성 (Gemini)</button>' : '') + '</div>' +
         '<div id="opOut"></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px">' +
@@ -1475,7 +1479,8 @@
   function renderEtfHeader() {
     var initial = /[A-Za-z]/.test(D.name[0]) ? D.name[0].toUpperCase() : D.name[0];
     var tone = etfTone(D.verdict);
-    var vColor = tone === 'positive' ? 'var(--dv-positive)' : tone === 'negative' ? 'var(--dv-negative)' : 'var(--ink)';
+    // 주식과 같은 규약 — 판단은 무채 잉크, 색은 숫자의 부호에만(R4)
+    var vColor = 'var(--ink)';
     var mono = 'var(--font-mono)', disp = 'var(--font-display)';
     var mpos = etfMarkerPos(D.gap, D.primary);
     var held = D.verdict == null;
@@ -1487,7 +1492,6 @@
     if (relHead) {
       headline = rel.stance;
       tone = rel.pos >= 65 ? 'negative' : rel.pos <= 35 ? 'positive' : 'neutral';
-      vColor = tone === 'positive' ? 'var(--dv-positive)' : tone === 'negative' ? 'var(--dv-negative)' : 'var(--ink)';
       mpos = rel.pos;
     }
     var subline = held
@@ -1515,9 +1519,9 @@
             // (PR #47), 그러면 배당 밴드로 판정한 ETF는 헤드라인이 "다소 비싼 구간"인데 눈금은
             // "저평가·적정·고평가"가 되어 한 화면에서 층위가 갈렸다(R3 발견 1의 뒤끝).
             '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:7px">' +
-              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--dv-positive);font-weight:700' : '') + '">싼 구간</span>' +
+              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--ink);font-weight:700' : '') + '">싼 구간</span>' +
               '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">보통</span>' +
-              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--dv-negative);font-weight:700' : '') + '">비싼 구간</span></div>' +
+              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--ink);font-weight:700' : '') + '">비싼 구간</span></div>' +
             '<div style="display:flex;height:13px;border-radius:var(--radius-pill);overflow:hidden">' +
               '<span style="flex:1;background:var(--dv-green);opacity:.82"></span><span style="flex:1;background:var(--dv-green);opacity:.45"></span><span style="flex:1;background:var(--paper-3)"></span><span style="flex:1;background:var(--dv-clay);opacity:.45"></span><span style="flex:1;background:var(--dv-clay);opacity:.82"></span></div>' +
             (mpos == null
@@ -1575,20 +1579,23 @@
   }
   // 축 신호 → 색·라벨 (싼 0 ↔ 비쌈 100). 신호가 약한 축은 중립색으로 눌러 오독을 막는다.
   // 라벨은 '쪽'이 아니라 '구간' — '쪽'은 방향을 가리키는 구어체라 분석 화면 톤에서 겉돈다.
+  // col = 게이지 마커·배지 틴트(면의 색) / ink = 글자색.
+  // 축별 신호도 '이미 있는 기준 안에서 지금이 어디냐'는 판단이라 글자는 무채 잉크로 쓴다(R4).
+  // 색은 면에 남겨 한눈에 훑을 수 있게 하고, 읽는 글자는 대비를 지킨다.
   function etfSigTone(pos, weak) {
-    if (pos == null) return { col: 'var(--ink-3)', label: '자료 없음', soft: true };
-    if (weak) return { col: 'var(--ink-3)', label: '신호 약함', soft: true };
-    if (pos >= 65) return { col: 'var(--dv-clay)', label: '비싼 구간', soft: false };
-    if (pos <= 35) return { col: 'var(--dv-green)', label: '싼 구간', soft: false };
-    return { col: 'var(--ink-3)', label: '중립', soft: true };
+    if (pos == null) return { col: 'var(--ink-3)', ink: 'var(--ink-3)', label: '자료 없음', soft: true };
+    if (weak) return { col: 'var(--ink-3)', ink: 'var(--ink-3)', label: '신호 약함', soft: true };
+    if (pos >= 65) return { col: 'var(--dv-clay)', ink: 'var(--ink)', label: '비싼 구간', soft: false };
+    if (pos <= 35) return { col: 'var(--dv-green)', ink: 'var(--ink)', label: '싼 구간', soft: false };
+    return { col: 'var(--ink-3)', ink: 'var(--ink-3)', label: '중립', soft: true };
   }
   // 미니 게이지 — 서로 단위가 다른 축을 같은 자로 훑어보게 하는 핵심 장치
   function etfGauge(pos, tone, showEnds) {
-    var track = '<div style="position:relative;height:6px;border-radius:99px;background:linear-gradient(90deg,rgba(47,125,91,.28),var(--paper-3) 45%,var(--paper-3) 55%,rgba(181,100,60,.28))">' +
+    var track = '<div style="position:relative;height:6px;border-radius:var(--radius-pill);background:linear-gradient(90deg,rgba(47,125,91,.28),var(--paper-3) 45%,var(--paper-3) 55%,rgba(181,100,60,.28))">' +
       (pos == null ? '' :
-        '<span style="position:absolute;left:' + pos.toFixed(0) + '%;top:-4px;transform:translateX(-50%);width:11px;height:14px;border-radius:3px;background:' + tone.col + ';border:2px solid var(--paper);box-shadow:var(--shadow-sm)' + (tone.soft ? ';opacity:.75' : '') + '"></span>') +
+        '<span style="position:absolute;left:' + pos.toFixed(0) + '%;top:-4px;transform:translateX(-50%);width:11px;height:14px;border-radius:var(--radius-sm);background:' + tone.col + ';border:2px solid var(--paper);box-shadow:var(--shadow-sm)' + (tone.soft ? ';opacity:.75' : '') + '"></span>') +
       '</div>';
-    var ends = showEnds ? '<div style="display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:.02em;color:var(--ink-3);margin-top:5px"><span>싼 구간</span><span>비싼 구간</span></div>' : '';
+    var ends = showEnds ? '<div style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:.02em;color:var(--ink-3);margin-top:5px"><span>싼 구간</span><span>비싼 구간</span></div>' : '';
     return track + ends;
   }
   // ① 판정 — 종합 신호 한 줄 + 축별 게이지 행
@@ -1603,7 +1610,7 @@
         '<div><div style="font-family:' + EMONO + ';font-size:16px;font-weight:600;color:' + (a.available ? 'var(--ink)' : 'var(--ink-3)') + '">' + esc(a.value) + '</div>' +
           '<div style="font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.5">' + esc(lead) + tip + '</div></div>' +
         '<div>' + etfGauge(a.available ? a.pos : null, tone, i === 0) + '</div>' +
-        '<div style="text-align:right"><span style="display:inline-block;padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:700;color:' + tone.col + ';background:' + (tone.soft ? 'var(--paper-3)' : (tone.col === 'var(--dv-clay)' ? 'rgba(181,100,60,.12)' : 'rgba(47,125,91,.12)')) + '">' + tone.label + '</span></div></div>';
+        '<div style="text-align:right"><span style="display:inline-block;padding:3px 9px;border-radius:var(--radius-pill);font-size:11.5px;font-weight:700;color:' + tone.ink + ';background:' + (tone.soft ? 'var(--paper-3)' : (tone.col === 'var(--dv-clay)' ? 'color-mix(in srgb, var(--dv-clay) 14%, var(--paper))' : 'color-mix(in srgb, var(--dv-green) 14%, var(--paper))')) + '">' + tone.label + '</span></div></div>';
     }).join('');
 
     // 종합 — 판정 보류 유형에서도 "그래서 지금 어느 쪽인가"를 먼저 보여준다.
@@ -1658,7 +1665,7 @@
       // 0%로 그리면 '거의 안 담았다'는 반대 뜻으로 읽힌다.
       var w = x.weight, has = w != null;
       var bar = has
-        ? '<span style="width:52px;height:6px;background:var(--paper-3);border-radius:3px;overflow:hidden"><span style="display:block;height:100%;width:' + (w / maxW * 100).toFixed(0) + '%;background:var(--dv-navy)"></span></span><b class="mono" style="font-size:12px">' + (w * 100).toFixed(1) + '%</b>'
+        ? '<span style="width:52px;height:6px;background:var(--paper-3);border-radius:var(--radius-pill);overflow:hidden"><span style="display:block;height:100%;width:' + (w / maxW * 100).toFixed(0) + '%;background:var(--dv-navy)"></span></span><b class="mono" style="font-size:12px">' + (w * 100).toFixed(1) + '%</b>'
         : '<span class="na" tabindex="0" data-tip="운용사가 구성 비중을 공개하지 않아 순서만 표시합니다." style="font-size:12px">—</span>';
       // 보유종목은 그 자체가 분석 가능한 기업이라 종목 페이지로 연결한다.
       // 시장은 심볼 형태로 가른다 — 6자리 숫자=국내(005930), 알파벳=미국(NVDA).
@@ -1680,7 +1687,7 @@
     var secRows = secs.map(function (s) {
       return '<div style="display:grid;grid-template-columns:104px 1fr 50px;gap:10px;align-items:center;margin-bottom:8px">' +
         '<span style="font-size:12.5px;color:var(--ink-2)">' + esc(s.label) + '</span>' +
-        '<span style="height:8px;background:var(--paper-3);border-radius:4px;overflow:hidden"><span style="display:block;height:100%;width:' + (s.weight / maxS * 100).toFixed(0) + '%;background:var(--dv-gold)"></span></span>' +
+        '<span style="height:8px;background:var(--paper-3);border-radius:var(--radius-md);overflow:hidden"><span style="display:block;height:100%;width:' + (s.weight / maxS * 100).toFixed(0) + '%;background:var(--dv-gold)"></span></span>' +
         '<b class="mono" style="font-size:12px;text-align:right">' + (s.weight * 100).toFixed(1) + '%</b></div>';
     }).join('');
     return '<div style="display:flex;flex-wrap:wrap;gap:34px">' +
@@ -1730,7 +1737,7 @@
     return '<div style="display:flex;align-items:flex-end;gap:16px;height:130px;padding-top:8px">' + ds.map(function (d) {
       return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%">' +
         '<span class="mono" style="font-size:10.5px;color:var(--ink-2)">' + fmtPrice(d.amount) + '</span>' +
-        '<span style="width:66%;background:var(--dv-green);border-radius:3px 3px 0 0;height:' + (d.amount / maxA * 92).toFixed(0) + 'px"></span>' +
+        '<span style="width:66%;background:var(--dv-green);border-radius:var(--radius-sm) var(--radius-sm) 0 0;height:' + (d.amount / maxA * 92).toFixed(0) + 'px"></span>' +
         '<span class="mono" style="font-size:10.5px;color:var(--ink-3)">' + d.year + '</span></div>';
     }).join('') + '</div>';
   }
