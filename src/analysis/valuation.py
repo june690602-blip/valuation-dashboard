@@ -65,6 +65,19 @@ class FairValue:
 
 
 @dataclass
+class ValuationNote:
+    """판정을 **읽는 법**을 알리는 한 줄. 등급을 문장 안이 아니라 필드로 든다.
+
+    이전에는 `"주의 · …"`처럼 **문자열 접두어**로 경고를 표시하고 화면 쪽에서 그 접두어를
+    부분일치로 찾아 등급을 정했다. R3 발견 7이 정확히 그 방식으로 조용히 깨진 사례다 —
+    파이썬은 `'순수한 저평가'`를 만드는데 자바스크립트는 `'순수 저평가'`를 찾아, 강조가
+    첫 커밋부터 한 번도 켜진 적이 없었다(#68). 등급은 데이터로 든다.
+    """
+    kind: str   # warn(먼저 봐야 함) | info(알아두면 좋음)
+    text: str
+
+
+@dataclass
 class ValuationResult:
     estimates: list = field(default_factory=list)   # [FairValue]
     fair_low: float | None = None
@@ -94,6 +107,8 @@ class ValuationResult:
     # (0~1). 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한 실효 의존도**다 —
     # 이 배수가 10% 틀리면 종합도 이 비율만큼 틀린다.
     shared_multiple_share: float | None = None
+    # [ValuationNote] — 계산이 스스로 남긴 '이 판정을 읽는 법'.
+    # 지표 해설(commentary.py)과 성격이 다르다: 저건 판정의 **근거**고 이건 판정을 **읽는 법**이다.
     notes: list = field(default_factory=list)
 
 
@@ -299,10 +314,11 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     mismatch = currency_mismatch(d)
     ccy_reason = f"재무 통화({mismatch}) ≠ 주가 통화({d.currency})" if mismatch else ""
     if mismatch:
-        res.notes.append(
+        res.notes.append(ValuationNote(
+            "warn",
             f"재무제표는 {mismatch}로 공시되는데 주가는 {d.currency}입니다(ADR 등). 주가를 재무 값으로 "
             "나누는 평가(업종 상대가치·역사적 밴드·RIM)는 환율만큼 어긋나 제외합니다 — 컨센서스 "
-            "선행이익 방법만 사용하므로 판정 신뢰도가 낮습니다.")
+            "선행이익 방법만 사용하므로 판정 신뢰도가 낮습니다."))
 
     shares = d.shares_outstanding
     eps = d.latest("eps")
@@ -324,7 +340,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         res.skipped.append(("업종 상대가치", ccy_reason))
     else:
         res.skipped.append(("업종 상대가치", "피어 표본 부족"))
-        res.notes.append("피어 표본이 부족해 상대가치 평가를 제외합니다.")
+        res.notes.append(ValuationNote("info", "피어 표본이 부족해 상대가치 평가를 제외합니다."))
 
     # ② 역사적 밴드 (PER 우선, 적자면 PBR)
     # 통화가 섞이면 밴드 자체가 무의미하므로 계산하지 않는다 — 차트에도 그려지면 안 된다.
@@ -342,7 +358,8 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
                                        note=f"5년 {basis} 25~75분위 × 현재 펀더멘털"))
     else:
         res.skipped.append(("역사적 밴드", "상장기간 짧음 또는 적자 지속"))
-        res.notes.append("상장기간이 짧거나 적자가 길어 역사적 밴드를 계산하지 못했습니다.")
+        res.notes.append(ValuationNote(
+            "info", "상장기간이 짧거나 적자가 길어 역사적 밴드를 계산하지 못했습니다."))
 
     # ③ RIM — 장부자본이 왜곡된 기업(대규모 자사주 매입 등)은 건너뜀
     ttm_roe = ind.profitability.get("roe")
@@ -361,9 +378,9 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         res.rim_r = r_equity
     elif book_distorted:
         res.skipped.append(("수익가치(RIM)", "장부가가 실제 가치를 담지 못함(무형자산·자사주)"))
-        res.notes.append("무형자산이 장부에 잡히지 않거나 자사주 매입으로 장부자본이 작아 "
+        res.notes.append(ValuationNote("info", "무형자산이 장부에 잡히지 않거나 자사주 매입으로 장부자본이 작아 "
                          "RIM(장부가치 기반) 평가에서 제외합니다 — 나머지 방법으로 판정하며 "
-                         "가중치는 다시 배분합니다.")
+                         "가중치는 다시 배분합니다."))
         res.rim_r = r_equity
     else:
         roe_used = float(np.clip(roe_raw, -0.5, 0.6)) if roe_raw is not None else None
@@ -373,7 +390,8 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
             res.estimates.append(rim)
         else:
             res.skipped.append(("수익가치(RIM)", "ROE ≤ 0 (적자)"))
-            res.notes.append("ROE가 0 이하라 RIM 평가를 제외합니다(적자 기업).")
+            res.notes.append(ValuationNote(
+                    "info", "ROE가 0 이하라 RIM 평가를 제외합니다(적자 기업)."))
 
     # ④ 선행 이익 — 애널리스트 컨센서스가 있을 때만 (판정이 미래 추정을 반영하게)
     cons = d.consensus
@@ -390,10 +408,11 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
             # 둘의 비율이 환율배만큼 틀어진다(실측: TSM -95%로 표시됐다). 아예 내지 않는다.
             if eps and eps > 0 and not mismatch:
                 res.forward_growth = cons.forward_eps / eps - 1
-                res.notes.append(
+                res.notes.append(ValuationNote(
+                    "info",
                     f"선행 이익 방법은 컨센서스 12개월 EPS(현 TTM 대비 "
                     f"{res.forward_growth:+.0%})를 사용합니다 — 시장의 실적 전망이 "
-                    "빗나가면 함께 빗나갑니다.")
+                    "빗나가면 함께 빗나갑니다."))
                 # 이익이 크게 움직이면 배수와 이익이 서로 다른 국면을 보게 된다. 이익이
                 # 눌려 있던 기간은 PER이 높게 깔리는데(분모가 작아서), 그 배수를 회복된
                 # 이익에 곱하면 한 번의 회복을 두 번 센다. 임계 ±50%는 R2 패널 실측에서
@@ -402,13 +421,14 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
                 # 종목(J&J +47% 이하)은 배수 괴리가 10% 안쪽이었다. 근본 해결은 #62.
                 if abs(res.forward_growth) >= 0.5:
                     updown = "늘어나는" if res.forward_growth > 0 else "줄어드는"
-                    res.notes.append(
-                        f"주의 · 이익이 크게 {updown} 국면입니다(선행 EPS가 TTM 대비 "
+                    res.notes.append(ValuationNote(
+                        "warn",
+                        f"이익이 크게 {updown} 국면입니다(선행 EPS가 TTM 대비 "
                         f"{res.forward_growth:+.0%}). 곱하는 배수는 '지난 5년 PER의 "
                         "중앙값'이라 이익이 지금과 다르던 시기에서 나온 값입니다 — 두 값의 "
                         "국면이 어긋나 선행 이익 방법이 실제보다 낙관적(이익 증가 국면)이거나 "
                         "비관적(감소 국면)으로 나올 수 있습니다. 아래 컨센서스 목표주가와 "
-                        "반드시 함께 보세요.")
+                        "반드시 함께 보세요."))
         else:
             res.skipped.append(("선행 이익(컨센서스)", "밴드·피어 멀티플 부족"))
 
@@ -430,10 +450,11 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         res.gap_equal = res.fair_mid_equal / d.price - 1
         res.verdict_equal = _verdict(res.gap_equal)
         if res.verdict_equal != res.verdict:
-            res.notes.append(
+            res.notes.append(ValuationNote(
+                "warn",
                 f"가중 방식에 따라 판정이 갈립니다(가중 '{res.verdict}' vs "
                 f"동일가중 '{res.verdict_equal}'). 가중치는 순위 근거의 정성적 인코딩이니 "
-                "참고로만 보세요.")
+                "참고로만 보세요."))
         # ②와 ④는 같은 식(자기 5년 PER 중앙값 × EPS)이라 이 배수 하나가 틀리면 둘이
         # 같은 방향으로 함께 틀린다. 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한
         # 실효 의존도**를 계산해 화면에 밝힌다 — 배수가 10% 틀리면 종합도 이만큼 틀린다.
@@ -443,21 +464,23 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
             mid_of = {e.method: e.mid for e in res.estimates}
             res.shared_multiple_share = float(
                 sum(w * mid_of[m] for m, w in shared) / res.fair_mid)
-            res.notes.append(
+            res.notes.append(ValuationNote(
+                "warn",
                 f"② 역사적 밴드와 ④ 선행 이익은 같은 배수(자기 5년 PER 중앙값)에 각각 "
                 f"TTM EPS와 컨센서스 EPS를 곱한 값입니다 — 서로 다른 관점이 아니라 같은 "
                 f"관점의 과거판·미래판입니다. 그래서 종합 적정가의 "
                 f"{res.shared_multiple_share:.0%}가 이 배수 하나에 의존합니다. 두 방법이 "
-                "비슷하게 나와도 '독립적으로 합의했다'는 뜻이 아닙니다.")
+                "비슷하게 나와도 '독립적으로 합의했다'는 뜻이 아닙니다."))
 
         if len(mids) >= 2 and res.fair_mid:
             disp = float(np.std(mids) / abs(np.mean(mids)))
             res.dispersion = disp
             res.confidence = "높음" if disp < 0.15 else "중간" if disp < 0.35 else "낮음"
             if res.confidence == "낮음":
-                res.notes.append(f"평가 방법 간 편차가 큽니다(±{disp:.0%}). "
-                                 "판정을 보수적으로 해석하세요.")
+                res.notes.append(ValuationNote("warn", f"평가 방법 간 편차가 큽니다(±{disp:.0%}). "
+                                 "판정을 보수적으로 해석하세요."))
         else:
             res.confidence = "낮음"
-            res.notes.append("사용 가능한 평가 방법이 1개뿐이라 신뢰도가 낮습니다.")
+            res.notes.append(ValuationNote(
+                "warn", "사용 가능한 평가 방법이 1개뿐이라 신뢰도가 낮습니다."))
     return res

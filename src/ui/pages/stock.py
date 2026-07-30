@@ -9,12 +9,14 @@ import streamlit as st
 
 from src.analysis.backtest import HORIZONS, run_backtest
 from src.analysis.capital_cost import compute_capital_cost
-from src.analysis.commentary import build_commentary
+from src.analysis.commentary import (GROUP_BASIS, GROUP_READING,
+                                     build_commentary, verdict_conflict)
 from src.analysis.indicators import compute_indicators
 from src.analysis.scenario import build_scenarios
 from src.analysis.scoring import (comparable_peers, compute_scores, peer_median,
                                    rank_peers_cheapness, sanitize_peer_frame)
 from src.analysis.valuation import compute_valuation
+from src.data.models import actual_prices
 from src.ui import charts
 from src.ui.components import (fmt_money, fmt_pct, fmt_price, fmt_value, fmt_x,
                                label, score_bar_html, section_header_html,
@@ -181,8 +183,17 @@ def render_summary_tab(d, ind, scores, cc, val):
     comments = build_commentary(d, ind, scores, cc, val)
     icons = {"good": "✅", "bad": "🔻", "warn": "⚠️", "info": "ℹ️"}
     funcs = {"good": st.success, "bad": st.error, "warn": st.warning, "info": st.info}
-    for cm in comments:
+    # 판정의 **근거**와 판정을 **읽는 법**은 성격이 다른 글이라 목록을 가른다(#68).
+    # 섞어 두면 "판정을 보수적으로 해석하세요"가 ROE 추이 아래에 놓인다.
+    for cm in (c for c in comments if c.group == GROUP_BASIS):
         funcs[cm.kind](cm.text, icon=icons[cm.kind])
+
+    reading = [c for c in comments if c.group == GROUP_READING]
+    if reading:
+        st.markdown("###### 이 판정을 읽을 때")
+        st.caption("위 근거와 달리, 계산이 스스로 남긴 한계·전제입니다.")
+        for cm in reading:
+            funcs[cm.kind](cm.text, icon=icons[cm.kind])
 
 
 def _render_consensus_summary(d, val):
@@ -598,17 +609,29 @@ def render_price_tab(d):
         st.info("주가 데이터를 불러오지 못했습니다.")
         return
     close = ohlcv["Close"]
-    hi52, lo52 = float(close.tail(252).max()), float(close.tail(252).min())
+    # 한 화면에 두 계열이 산다 — 무엇을 묻느냐에 따라 답이 다르기 때문이다(#57).
+    #   차트선·이동평균·거래량·1년 수익률 → 수정종가. "배당까지 받았다면 얼마 벌었나"를 잰다.
+    #   52주 최고·최저·밴드 내 위치     → 실거래가. "그날 화면에 찍혀 있던 값"이라야
+    #                                     신문·증권사와 같은 수를 말한다.
+    # 둘을 한 계열로 통일하면 어느 한쪽이 반드시 틀린다. 대신 기준이 다르다는 사실을
+    # 아래 캡션으로 밝힌다(Meridian 웹의 basis_note와 같은 문장).
+    band_close = actual_prices(d).dropna()
+    if len(band_close) == 0:
+        band_close = close.dropna()
+    tail52 = band_close.tail(252)
+    hi52, lo52 = float(tail52.max()), float(tail52.min())
+    band_cur = float(tail52.iloc[-1])
     ret1y = close.iloc[-1] / close.tail(252).iloc[0] - 1 if len(close) >= 252 else None
-    pos52 = (close.iloc[-1] - lo52) / (hi52 - lo52) * 100 if hi52 > lo52 else None
+    pos52 = (band_cur - lo52) / (hi52 - lo52) * 100 if hi52 > lo52 else None
 
     m = st.columns(4)
     m[0].metric("현재가", fmt_price(d.price, d.currency))
     m[1].metric("52주 최고 / 최저", f"{hi52:,.0f} / {lo52:,.0f}",
-                help="최근 1년 종가 기준")
-    m[2].metric("최근 1년 수익률", fmt_pct(ret1y) if ret1y is not None else "—")
+                help="최근 1년 **실거래가** 기준(배당 미조정) — 신문·증권사와 같은 관례입니다.")
+    m[2].metric("최근 1년 수익률", fmt_pct(ret1y) if ret1y is not None else "—",
+                help="배당까지 반영한 **수정주가** 기준(총수익).")
     m[3].metric("52주 밴드 내 위치", f"{pos52:.0f}%" if pos52 is not None else "—",
-                help="0%=52주 최저, 100%=52주 최고")
+                help="0%=52주 최저, 100%=52주 최고 (실거래가 기준)")
 
     mode = st.radio("보기", ["절대 주가", "지수 대비 상대성과"], horizontal=True,
                     key="price_mode", label_visibility="collapsed")
@@ -617,6 +640,11 @@ def render_price_tab(d):
                         use_container_width=True, config=PLOTLY_CFG_ZOOM)
         st.caption("종가 + 이동평균(20/60/120일) + 거래량. 휠/드래그로 확대(더블클릭 리셋), "
                    "상단 버튼으로 기간을 바꿀 수 있습니다.")
+        st.caption("기준 · 차트선과 최근 1년 수익률은 배당까지 반영한 **수정주가**입니다"
+                   "(추세·이동평균을 보는 도구라 총수익 기준이 맞습니다). 위의 "
+                   "**52주 최고·최저와 밴드 내 위치**, 밸류에이션 탭의 PER·PBR 밴드는 "
+                   "**실거래가** 기준이라 같은 날이라도 값이 다를 수 있습니다 — "
+                   "배당이 많은 종목일수록 차이가 큽니다.")
     else:
         st.plotly_chart(
             charts.relative_perf_chart(d.prices, d.index_prices, d.name, d.benchmark_name),
@@ -896,6 +924,13 @@ def render():
         st.markdown(f"<div style='text-align:right;'>{verdict_badge_html(val.verdict, val.gap, val.confidence)}</div>",
                     unsafe_allow_html=True)
         _render_basket_button(d)
+
+    # 판정과 아래 근거가 반대 방향일 때만 뜬다(#69). 반대가 아니면 아무 말도 하지 않는다 —
+    # 반대가 아닌데 설명을 붙이면 그게 소음이다. 문장은 commentary.verdict_conflict가 만든다.
+    _clash = verdict_conflict(val, [c for c in build_commentary(d, ind, scores, cc, val)
+                                    if c.group == GROUP_BASIS])
+    if _clash:
+        st.warning(_clash.short.replace("<b>", "**").replace("</b>", "**"), icon="⚠️")
 
     m = st.columns(6)
     m[0].metric("시가총액", fmt_money(d.market_cap, d.currency))

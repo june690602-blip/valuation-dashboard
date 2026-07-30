@@ -19,7 +19,7 @@ import pandas as pd
 
 from src.analysis.backtest import HORIZONS, run_backtest
 from src.analysis.capital_cost import compute_capital_cost
-from src.analysis.commentary import build_commentary
+from src.analysis.commentary import GROUP_BASIS, build_commentary, verdict_conflict
 from src.analysis.etf import compute_etf
 from src.analysis.indicators import compute_indicators
 from src.analysis.scoring import (comparable_peers, peer_median,
@@ -642,6 +642,10 @@ def analyze(market: str, query: str, peer_count: int = 9,
     asof = d.prices.index[-1].strftime("%Y-%m-%d") if len(d.prices) else datetime.now().strftime("%Y-%m-%d")
     quality = [w for w in d.warnings if not w.startswith(("피어 기준", "재무제표:"))]
 
+    # 해설은 한 번만 만들고, 판정↔근거 충돌 판단에 같은 목록을 쓴다(두 번 만들면 갈릴 수 있다).
+    _commentary = build_commentary(d, ind, scores, cc, val)
+    _conflict = verdict_conflict(val, [c for c in _commentary if c.group == GROUP_BASIS])
+
     payload = {
         "meta": {
             "name": d.name, "ticker": d.ticker, "yahoo_ticker": d.yahoo_ticker,
@@ -666,6 +670,9 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "skipped": [{"method": m, "reason": r} for m, r in (val.skipped or [])],
             "estimates": [{"method": e.method, "low": num(e.low), "mid": num(e.mid),
                            "high": num(e.high), "note": e.note} for e in val.estimates],
+            # 판정과 근거가 반대를 말할 때만 채워진다. 없으면 화면은 아무 말도 하지 않는다(#69).
+            "conflict": ({"short": _conflict.short, "detail": _conflict.detail}
+                         if _conflict else None),
         },
         "tiles": {
             "market_cap": num(d.market_cap), "per": num(ind.valuation.get("per")),
@@ -687,8 +694,10 @@ def analyze(market: str, query: str, peer_count: int = 9,
                         for cat, rows in scores.details.items()},
         },
         "multiples": _multiples(d, ind, val),
-        "commentary": [{"kind": c.kind, "text": c.text}
-                       for c in build_commentary(d, ind, scores, cc, val)],
+        # group으로 두 무리를 구분해 내보낸다 — basis(판정의 근거) / reading(이 판정을 읽는 법).
+        # 화면이 문장을 뒤져서 가르지 않도록 데이터로 든다(#68).
+        "commentary": [{"kind": c.kind, "text": c.text, "group": c.group, "about": c.about}
+                       for c in _commentary],
         "band": {
             "per": _band_one(val.per_band, val.per_q, val.per_percentile),
             "pbr": _band_one(val.pbr_band, val.pbr_q, val.pbr_percentile),
@@ -717,7 +726,16 @@ def analyze(market: str, query: str, peer_count: int = 9,
 
 # ── ETF 적정가 ──────────────────────────────────────────────────────
 def _etf_price_series(d) -> dict:
-    """ETF 5년 종가를 라인차트용으로 다운샘플(~250포인트, 결측 제거)."""
+    """ETF 5년 종가를 라인차트용으로 다운샘플(~250포인트, 결측 제거).
+
+    **수정종가(총수익)를 쓴다** — 주식 주가차트와 같은 원칙이다(#57). 이 선이 답하는
+    질문은 "이 ETF를 들고 있었다면 얼마 벌었나"이고, 분배금이 잦은 ETF에서 실거래가로
+    그리면 분배금만큼 우하향해 실제 성과보다 나빠 보인다.
+
+    반대로 **배당 밴드·NAV 괴리·52주 위치는 실거래가**를 쓴다(`etf._dividend_band`·
+    `etf._trend`). 같은 화면 안에서 두 계열이 사는 이유는 묻는 것이 다르기 때문이고,
+    그 사실은 화면에 `basis_note`로 밝힌다 — 어느 한쪽으로 통일하면 반드시 한쪽이 틀린다.
+    """
     px = d.prices.dropna() if d.prices is not None else pd.Series(dtype=float)
     if len(px) == 0:
         return {"x": [], "y": []}
@@ -877,6 +895,10 @@ def analyze_etf(market: str, query: str) -> dict:
         "relative": {"stance": r.stance, "pos": num(r.stance_pos),
                      "ratioPct": num(r.rel_ratio_pct), "reasons": list(r.stance_reasons)},
         "priceSeries": _etf_price_series(d),
+        # 주식 화면과 같은 안내(#57) — 이 화면에도 두 계열이 산다.
+        "priceBasisNote": "종가 라인은 분배금까지 반영한 수정주가입니다(총수익 기준). "
+                          "배당 밴드·NAV 괴리·52주 위치는 실거래가 기준이라 같은 날이라도 "
+                          "값이 다를 수 있습니다 — 분배금이 많은 ETF일수록 차이가 큽니다.",
         "notes": list(r.notes),
         "masked": [[label, reason] for label, reason in r.masked],
         "holdings": _etf_holdings(d),

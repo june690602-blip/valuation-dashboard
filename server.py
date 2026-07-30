@@ -358,6 +358,14 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._send_json({"items": []})
         if u.path in ("/", "/index.html"):
             self.path = "/home.html"   # 진입점 = 홈(랜딩). 주식 페이지는 nav·예시카드로 이동.
+        # 디자인 시안(preview-*.html)은 화면이 아니라 작업 흔적이다 — 링크는 없지만
+        # web/ 폴더를 통째로 서빙하므로 주소를 치면 그대로 열린다. 홈 리디자인 시안 6장이
+        # 옛 면책 문구를 단 채 열리던 게 R3 발견 11이었다(#70). 지금은 .gitignore가
+        # 저장소에서 막고 있어 배포본에는 없지만, **로컬에 남아 있으면 여전히 열린다.**
+        # 규칙을 파일 유무가 아니라 서버에 둔다 — 새 시안을 만들어도 자동으로 막힌다.
+        if Path(u.path).name.startswith("preview-"):
+            self.send_error(404, "Not Found")
+            return None
         return super().do_GET()
 
     def do_POST(self):  # noqa: N802
