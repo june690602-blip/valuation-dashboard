@@ -29,7 +29,11 @@
     for (var i = 0; i < kids.length; i++) { var c = kids[i]; if (c == null || c === false) continue; s += Array.isArray(c) ? c.join('') : c; }
     return s + '</' + tag + '>';
   }
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
+  // 홑따옴표(')까지 이스케이프한다 — 네 프런트 파일이 같은 규칙을 써야 한다(R5).
+  // 지금은 속성을 " 로만 감싸서 없어도 악용되지 않지만, 같은 이름의 함수가 파일마다
+  // 다른 안전성을 뜻하는 상태를 남기지 않는다. 인라인 핸들러(onclick=)는 쓰지 않으므로
+  // &#39;이 JS 문맥으로 새어 들어갈 자리가 없다.
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
   function $(id) { return document.getElementById(id); }
 
   /* ── 미니 마크다운 (Gemini 응답: ### 제목 · **굵게** · - 목록 · > 인용) ── */
@@ -329,7 +333,6 @@
     var COL = { ink: cvar('--ink'), ink2: cvar('--ink-2'), ink3: cvar('--ink-3'), line: cvar('--line'), lineStrong: cvar('--line-strong'), paper: cvar('--paper'), fill: cvar('--paper-3'), gold: cvar('--dv-gold'), slate: cvar('--dv-slate'), plum: cvar('--dv-plum'), clay: cvar('--dv-clay'), positive: cvar('--dv-positive'), negative: cvar('--dv-negative') };
 
     function fmtChartPrice(v) { if (v == null || !isFinite(v)) return '—'; return CUR === 'KRW' ? Math.round(v).toLocaleString('en-US') : Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-    function fmtCompactVolume(v) { if (v == null || !isFinite(v)) return '—'; var a = Math.abs(v); return a >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : a >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : Math.round(v).toLocaleString('en-US'); }
     function displayDate(v) { return String(v || '—').replace(/-/g, '.'); }
     function signedPctPoint(v) { return v == null || !isFinite(v) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
     function metric(label, value) { return '<div class="chart-status-metric"><dt>' + esc(label) + '</dt><dd>' + esc(value) + '</dd></div>'; }
@@ -600,7 +603,15 @@
     var X = function (v) { return padL + Math.max(0, Math.min(perMax, v)) / perMax * xw; };
     var Y = function (v) { return padT + (1 - (Math.max(yBot, Math.min(yTop, v)) - yBot) / (yTop - yBot)) * plotH; };
     var med = function (a) { var s = a.slice().sort(function (x, y) { return x - y; }), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-    var medPer = med(perArr), medRoe = med(roeArr);
+    // 축 범위는 자사를 포함해 잡고(자사 점이 화면 밖으로 나가면 안 된다), **업종 중앙 십자선은
+    // 자사를 뺀 피어만으로** 낸다. 자사를 넣으면 중앙선이 자사 쪽으로 끌려 실제보다 업종에
+    // 가까워 보이고, 표본이 홀수면 중앙값이 자사 자신이 되어 가로선이 자기 점 위에 그려진다
+    // (삼성전자 실측: 피어 9개에서 ROE 십자선 18.86% = 자사 ROE). 서버의 peer_median도
+    // exclude_self=True로 자사를 뺀다 — 같은 개념을 두 곳에서 계산하다 표본 정의가 갈렸다.
+    var peerOnly = pts.filter(function (p) { return !p.self; });
+    var medBase = peerOnly.length ? peerOnly : pts;
+    var medPer = med(medBase.map(function (p) { return p.per; }));
+    var medRoe = med(medBase.map(function (p) { return p.roe; }));
     var els = [];
     // 저PER·고ROE 사분면 — 의미색은 아주 옅게만
     els.push(el('rect', { x: padL, y: padT, width: X(medPer) - padL, height: Y(medRoe) - padT, fill: 'var(--dv-green)', fillOpacity: 0.05 }));
