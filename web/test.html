@@ -10,8 +10,8 @@
 <link rel="stylesheet" href="assets/meridian.css">
 <script src="assets/analytics.js" defer></script>
 <style>
-  .site-header { min-height: 58px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 26px; padding: 0 26px; background: rgba(255,255,255,.92); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 30; }
-  .brand { display: inline-flex; align-items: baseline; gap: 8px; flex: none; white-space: nowrap; text-decoration: none; }
+  .site-header { min-height: 58px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 26px; padding: 0 26px; background: var(--paper-veil); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 30; }
+  .brand { display: inline-flex; align-items: center; gap: 9px; flex: none; white-space: nowrap; text-decoration: none; }
   .brand-name { font-family: var(--font-display); font-weight: 700; font-size: 21px; letter-spacing: -.01em; }
   .site-nav { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
   .site-nav a { color: var(--ink-3); font-size: 13.5px; padding: 7px 10px; text-decoration: none; }
@@ -34,7 +34,7 @@
 
   .wizard { padding: 48px 0 72px; }
   .wizard-card { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: clamp(22px, 4vw, 36px); background: var(--paper); box-shadow: var(--shadow-card); }
-  .progress-track { height: 5px; overflow: hidden; background: var(--paper-3); border-radius: 3px; }
+  .progress-track { height: 5px; overflow: hidden; background: var(--paper-3); border-radius: var(--radius-pill); }
   .progress-track > i { display: block; height: 100%; background: var(--dv-navy); transition: width var(--dur-med) var(--ease-out); }
   .step-meta { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-top: 14px; }
   .chapter-label { color: var(--dv-navy); font-size: 12px; font-weight: 600; }
@@ -45,7 +45,7 @@
   .answer-option { width: 100%; min-height: 52px; display: grid; grid-template-columns: 28px 1fr; gap: 11px; align-items: center; text-align: left; border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 12px 14px; background: var(--paper); color: var(--ink-2); font: 500 14px/1.55 var(--font-sans); cursor: pointer; transition: border-color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast); }
   .answer-option:hover { border-color: var(--ink-3); background: var(--paper-2); }
   .answer-option:focus-within { outline: 2px solid var(--dv-navy); outline-offset: 2px; }
-  .answer-option.selected { border-color: var(--dv-navy); background: #F3F5F9; color: var(--ink); }
+  .answer-option.selected { border-color: var(--dv-navy); background: color-mix(in srgb, var(--dv-navy) 8%, var(--paper)); color: var(--ink); }
   .option-index { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--ink-3); font: 11px var(--font-mono); }
   .answer-option.selected .option-index { border-color: var(--dv-navy); background: var(--dv-navy); color: #fff; }
   .wizard-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 26px; }
@@ -69,7 +69,7 @@
   .dimension-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
   .dimension-name { font-size: 13px; font-weight: 600; }
   .dimension-score { font: 600 14px var(--font-mono); }
-  .dimension-bar { height: 5px; background: var(--paper-3); border-radius: 3px; overflow: hidden; margin-top: 12px; }
+  .dimension-bar { height: 5px; background: var(--paper-3); border-radius: var(--radius-pill); overflow: hidden; margin-top: 12px; }
   .dimension-bar > i { display: block; height: 100%; background: var(--dv-navy); }
   .dimension-help { color: var(--ink-3); font-size: 11.5px; line-height: 1.55; margin-top: 9px; }
   .insight-list { display: grid; gap: 10px; margin-top: 16px; }
@@ -122,9 +122,11 @@
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">본문으로 건너뛰기</a>
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
   <header class="site-header">
     <a class="brand" href="home.html" aria-label="투자지표 홈">
+      <span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
       <span class="brand-name">투자지표</span>
     </a>
     <nav class="site-nav" aria-label="주요 메뉴" style="display:flex;gap:2px;align-items:center;white-space:nowrap;overflow-x:auto;scrollbar-width:none">
@@ -136,7 +138,7 @@
     </nav>
   </header>
 
-  <main class="risk-shell">
+  <main id="main" class="risk-shell">
     <section id="intro" class="risk-intro" aria-labelledby="risk-title">
       <div class="kick" style="color:var(--dv-navy)">RISK PROFILE · 비공식 자가진단</div>
       <h1 id="risk-title" class="risk-title">수익률보다 먼저,<br>감당할 수 있는 변동성을 확인하세요.</h1>

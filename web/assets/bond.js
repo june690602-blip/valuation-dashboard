@@ -161,7 +161,7 @@
     var NS = 'http://www.w3.org/2000/svg';
     var g = document.createElementNS(NS, 'g'); g.setAttribute('pointer-events', 'none'); g.style.display = 'none'; svg.appendChild(g);
     var tip = document.createElement('div');
-    tip.style.cssText = 'position:absolute;pointer-events:none;display:none;background:var(--paper);border:1px solid var(--line-strong);border-radius:6px;padding:6px 9px;font-size:11.5px;color:var(--ink);box-shadow:0 3px 10px rgba(30,25,18,.12);white-space:nowrap;z-index:6';
+    tip.style.cssText = 'position:absolute;pointer-events:none;display:none;background:var(--paper);border:1px solid var(--line-strong);border-radius:var(--radius-md);padding:6px 9px;font-size:11.5px;color:var(--ink);box-shadow:var(--shadow-md);white-space:nowrap;z-index:6';
     box.appendChild(tip);
     svg.addEventListener('mousemove', function (e) {
       var rect = svg.getBoundingClientRect(); if (!rect.width) return;
@@ -315,7 +315,7 @@
     var news = BOND.news || [];
     if (!news.length) { $('bondNews').innerHTML = '<div style="font-size:13px;color:var(--ink-3)">관련 뉴스를 찾지 못했습니다.</div>'; return; }
     $('bondNews').innerHTML = news.map(function (it) {
-      var tags = (it.tags || []).map(function (t) { return '<span style="font-family:var(--font-mono);font-size:10px;color:#fff;background:var(--dv-navy);border-radius:2px;padding:1px 6px;margin-left:5px">' + esc(t) + '</span>'; }).join('');
+      var tags = (it.tags || []).map(function (t) { return '<span style="font-family:var(--font-mono);font-size:10px;color:#fff;background:var(--dv-navy);border-radius:var(--radius-sm);padding:1px 6px;margin-left:5px">' + esc(t) + '</span>'; }).join('');
       var meta = [it.source, it.date].filter(Boolean).join(' · ');
       return '<a href="' + esc(it.link || '#') + '" target="_blank" rel="noopener" style="display:block;font-size:13.5px;margin-top:12px;line-height:1.5">' + esc(it.title) + tags + '</a><div style="font-size:11px;color:var(--ink-3);margin-top:3px">' + esc(meta) + '</div>';
     }).join('') + '<div style="font-size:11px;color:var(--ink-3);margin-top:14px">태그는 PEST(정책·경제·사회·기술) 관점의 키워드 분류입니다.</div>';

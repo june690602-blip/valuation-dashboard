@@ -25,13 +25,24 @@ PALETTE = {
     "neutral_bg": "#f0efec",
 }
 
-# 판정 → 배지 색 (저평가=파랑 극, 고평가=빨강 극, 중립=회색)
+# 판정 → 배지 색.
+#
+# R4(디자인 일관성)에서 무채 잉크로 바꿨다. 이전에는 저평가=파랑·고평가=빨강이었는데,
+# 두 가지가 걸렸다.
+#   ① Meridian 웹(실제 실행 진입점)은 초록/클레이를 쓰고 있어서 **같은 종목의 같은 판정이
+#      프런트마다 다른 색**이었다.
+#   ② 색을 방향에 쓰면 그 색이 등락률·수익률과 같은 뜻으로 읽힌다. 판정과 등락은 자주
+#      반대 방향이라(주가가 오르면 저평가 폭은 줄어든다) 색 하나가 두 말을 하게 된다.
+#
+# 그래서 색은 '숫자의 부호'에만 남기고, 판정은 **진하기로 세기만** 말한다 —
+# "크게"가 붙은 판정이 가장 진하고 "적정 수준"이 가장 연하다. 방향은 문자가 말한다.
+# (배지는 흰 글씨를 얹으므로 세 단계 모두 대비 5:1 이상)
 VERDICT_COLORS = {
-    "크게 저평가": "#1c5cab",
-    "저평가": "#2a78d6",
-    "적정 수준": "#6a6963",
-    "고평가": "#e34948",
-    "크게 고평가": "#d03b3b",
+    "크게 저평가": "#16130F",
+    "저평가": "#514C45",
+    "적정 수준": "#6D6861",
+    "고평가": "#514C45",
+    "크게 고평가": "#16130F",
 }
 
 LABELS = {
@@ -132,7 +143,7 @@ def verdict_badge_html(verdict: str | None, gap: float | None,
                        confidence: str | None) -> str:
     if not verdict:
         return ""
-    color = VERDICT_COLORS.get(verdict, "#6a6963")
+    color = VERDICT_COLORS.get(verdict, "#6D6861")
     gap_txt = f" · 적정가 대비 {gap * +100:+.0f}%" if gap is not None else ""
     conf_txt = f" · 신뢰도 {confidence}" if confidence else ""
     return f"""
