@@ -201,8 +201,26 @@
     .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
     .metric-grid > div { border-left: 0 !important; padding: 0 10px 0 0 !important; }
     .panel [style*="justify-content:space-between"] { align-items: flex-start !important; gap: 8px; }
+    /* 헤더 요약 카드(#hv-B): 좌 210px·우 320px 최소폭이 모바일 폭을 넘겨 페이지 전체가
+       가로로 밀렸다. 두 블록을 세로로 쌓고 최소폭을 풀어 가로 스크롤을 없앤다. */
+    #hv-B > div { flex-direction: column !important; align-items: stretch !important; padding: 18px !important; gap: 18px !important; }
+    #hv-B > div > div { min-width: 0 !important; }
+    /* 우측 끝 .na 툴팁(::after, absolute·visibility:hidden)이 숨은 채로 문서 폭을 부풀려
+       페이지 전체가 가로로 밀렸다. 좁은 화면에서만 x축을 clip해 유령 스크롤을 막는다
+       (clip은 y축 visible을 유지해 아래로 열리는 드롭다운·툴팁은 안 잘린다). */
+    .app-content { overflow-x: clip; }
     .tbl { overflow-x: auto; }
-    #methodsTable .row, #peerTable .row, #btTable .row { min-width: 620px; }
+    #peerTable .row, #btTable .row { min-width: 620px; }
+    /* 방법별 표: 폰에서 4열을 620px로 밀어놓으면 '중심·근거'가 오른쪽으로 스크롤해야 보인다.
+       열을 옆으로 늘어놓는 대신 방법마다 카드처럼 쌓는다 — 1줄 방법·중심, 2줄 범위, 3줄 근거. */
+    #methodsTable .row { min-width: 0; grid-template-columns: minmax(0, 1fr) auto !important; gap: 9px 12px; padding: 17px 0; line-height: 1.6; }
+    #methodsTable .row.head { display: none; }        /* 쌓으면 열 머리가 값과 안 맞는다 → 아래 ::before로 대신 */
+    #methodsTable .row > :nth-child(1) { grid-area: 1 / 1; }
+    #methodsTable .row > :nth-child(3) { grid-area: 1 / 2; }
+    #methodsTable .row > :nth-child(2) { grid-area: 2 / 1 / auto / -1; text-align: left; }
+    #methodsTable .row > :nth-child(4) { grid-area: 3 / 1 / auto / -1; }
+    #methodsTable .row:not(.total) > :nth-child(2)::before { content: '범위 '; color: var(--ink-4); }
+    #methodsTable .row.total > :nth-child(2) { display: none; }
     .analysis-section { padding: 24px 0 28px; }
     .analysis-section-head { grid-template-columns: 26px minmax(0, 1fr); gap: 8px; }
     .analysis-section-meta { grid-column: 2; padding-top: 0; }

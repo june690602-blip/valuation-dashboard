@@ -95,12 +95,14 @@
   /* ══════════ 차트 (데이터 구동) ══════════ */
 
   function bulletChart() {
+    if (window.matchMedia && window.matchMedia('(max-width: 560px)').matches) return bulletChartNarrow();
     var est = D.verdict.estimates || [];
     var cur = D.meta.price, avg = D.verdict.fair_mid;
     var vals = [cur]; est.forEach(function (e) { if (e.low != null) vals.push(e.low); if (e.high != null) vals.push(e.high); if (e.mid != null) vals.push(e.mid); });
     if (avg != null) vals.push(avg);
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), sp = (hi - lo) || hi * 0.2 || 1;
-    var dmin = lo - sp * 0.18, dmax = hi + sp * 0.12;
+    // 아래 여백이 0 밑으로 내려가면 '-124천' 같은 음수 주가 눈금이 생긴다 — 0에서 자른다.
+    var dmin = Math.max(0, lo - sp * 0.18), dmax = hi + sp * 0.12;
     var W = 1040, padR = 30, plotL = 250, plotW = W - plotL - padR;
     var X = function (v) { return plotL + (Math.max(dmin, Math.min(dmax, v)) - dmin) / (dmax - dmin) * plotW; };
     var headH = 104, rowH = 58, rowsTop = headH, axisY = rowsTop + est.length * rowH + 10, H = axisY + 40;
@@ -136,6 +138,78 @@
     });
     els.push(el('line', { x1: plotL, x2: plotL + plotW, y1: axisY, y2: axisY, stroke: 'var(--line)', strokeWidth: 1 }));
     for (var t = 0; t <= 4; t++) { var tv = dmin + (dmax - dmin) * t / 4, xx = plotL + plotW * t / 4; els.push(el('line', { x1: xx, x2: xx, y1: axisY, y2: axisY + 5, stroke: 'var(--line-strong)', strokeWidth: 1 })); els.push(el('text', { x: xx, y: axisY + 21, fontSize: 11.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, compactWon(tv))); }
+    return el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els);
+  }
+
+  // 좁은 화면(≤560px) 전용 배치 — 데스크톱 bulletChart()는 그대로 둔다.
+  // 데스크톱은 viewBox 1040px를 width:100%로 줄여 그리는데, 폰에서는 배율이 0.32까지
+  // 떨어져 15px 글자가 5px로 렌더된다(읽을 수 없다). 여기서는 컨테이너 실폭을 그대로
+  // viewBox로 삼아 배율을 1 부근에 두고(선언 크기 = 화면 크기), 왼쪽 라벨 열을 없애
+  // 방법 이름을 막대 위로 올린다. 근거 문구는 바로 아래 방법별 표에 그대로 있어 뺀다.
+  function bulletChartNarrow() {
+    var est = D.verdict.estimates || [];
+    var cur = D.meta.price, avg = D.verdict.fair_mid;
+    var vals = [cur]; est.forEach(function (e) { if (e.low != null) vals.push(e.low); if (e.high != null) vals.push(e.high); if (e.mid != null) vals.push(e.mid); });
+    if (avg != null) vals.push(avg);
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), sp = (hi - lo) || hi * 0.2 || 1;
+    // 아래 여백이 0 밑으로 내려가면 '-124천' 같은 음수 주가 눈금이 생긴다 — 0에서 자른다.
+    var dmin = Math.max(0, lo - sp * 0.18), dmax = hi + sp * 0.12;
+    var host = $('bulletChart');
+    var W = Math.max(280, Math.min(520, (host && host.clientWidth) || 340));
+    var plotL = 5, plotW = W - 10;   // 막대 끝(둥근 캡)이 지면 밖으로 잘리지 않게 좌우를 조금 들인다
+    var X = function (v) { return plotL + (Math.max(dmin, Math.min(dmax, v)) - dmin) / (dmax - dmin) * plotW; };
+    var headH = 164, rowH = 84, rowsTop = headH, axisY = rowsTop + est.length * rowH + 14, H = axisY + 34;
+    // 폰에서는 왼쪽 라벨 열이 없어 기준선(현재가·적정가)이 글자 위를 지난다 → 종이색 테두리로 글자를 살린다.
+    var halo = { paintOrder: 'stroke', stroke: 'var(--paper)', strokeWidth: '3.5px', strokeLinejoin: 'round' };
+    var haloThin = { paintOrder: 'stroke', stroke: 'var(--paper)', strokeWidth: '3px', strokeLinejoin: 'round' };
+    var els = [];
+    var upside = (avg != null && cur) ? avg / cur - 1 : null;
+    var up = upside != null && upside >= 0;
+    var accent = up ? 'var(--dv-green)' : 'var(--dv-clay)';
+    els.push(el('text', { x: 0, y: 14, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, '현재가'));
+    els.push(el('text', { x: 0, y: 44, fontSize: 22, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(cur)));
+    els.push(el('text', { x: 0, y: 84, fontSize: 11, fill: accent, fontFamily: 'var(--font-sans)' }, '종합 적정가 · 가중'));
+    els.push(el('text', { x: 0, y: 114, fontSize: 22, fill: accent, fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(avg)));
+    if (upside != null) {
+      els.push(el('rect', { x: W - 92, y: 14, width: 92, height: 32, rx: 16, fill: accent }));
+      els.push(el('text', { x: W - 46, y: 35, fontSize: 15, fill: '#fff', fontFamily: 'var(--font-mono)', fontWeight: 600, textAnchor: 'middle' }, fmtSigned(upside)));
+      els.push(el('text', { x: W - 46, y: 62, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'middle' }, up ? '상승여력' : '하락위험'));
+    }
+    var guideTop = rowsTop - 12, guideBot = axisY;
+    if (avg != null) {
+      els.push(el('rect', { x: Math.min(X(cur), X(avg)), y: guideTop, width: Math.abs(X(avg) - X(cur)), height: guideBot - guideTop, fill: accent, fillOpacity: 0.07 }));
+      els.push(el('line', { x1: X(avg), x2: X(avg), y1: guideTop, y2: guideBot, stroke: accent, strokeWidth: 1.5 }));
+    }
+    els.push(el('line', { x1: X(cur), x2: X(cur), y1: guideTop, y2: guideBot, stroke: 'var(--ink)', strokeWidth: 1.5, strokeDasharray: '5 4' }));
+    els.push(el('text', { x: X(cur), y: guideTop - 9, fontSize: 10.5, fill: 'var(--ink)', fontFamily: 'var(--font-sans)', fontWeight: 600, textAnchor: X(cur) < 26 ? 'start' : X(cur) > W - 26 ? 'end' : 'middle', style: haloThin }, '현재가'));
+    est.forEach(function (m, i) {
+      var y0 = rowsTop + i * rowH, y = y0 + 42;
+      if (i) els.push(el('line', { x1: 0, x2: W, y1: y0 - 5, y2: y0 - 5, stroke: 'var(--line)', strokeWidth: 1 }));
+      els.push(el('text', { x: 0, y: y0 + 16, fontSize: 13, fill: 'var(--ink)', fontFamily: 'var(--font-sans)', fontWeight: 600, style: halo }, esc(m.method)));
+      els.push(el('text', { x: W, y: y0 + 16, fontSize: 12, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', fontWeight: 500, textAnchor: 'end', style: halo }, compactWon(m.mid)));
+      if (m.low != null && m.high != null) {
+        var xa = X(m.low), xb = X(m.high);
+        els.push(el('line', { x1: xa, x2: xb, y1: y, y2: y, stroke: 'var(--dv-navy)', strokeWidth: 8, strokeLinecap: 'butt', opacity: 0.22 }));
+        // 범위의 시작·끝을 눈금으로 못 박는다 — 막대만으로는 어디까지가 이 방법의 범위인지 읽히지 않는다.
+        els.push(el('line', { x1: xa, x2: xa, y1: y - 7, y2: y + 7, stroke: 'var(--dv-navy)', strokeWidth: 1.5 }));
+        els.push(el('line', { x1: xb, x2: xb, y1: y - 7, y2: y + 7, stroke: 'var(--dv-navy)', strokeWidth: 1.5 }));
+        // 방법 간 격차가 크면 좁은 범위(RIM은 축의 1.5%)는 몇 픽셀로 뭉개진다 → 숫자로도 적는다.
+        if (xb - xa >= 82) {
+          els.push(el('text', { x: xa, y: y + 24, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'start', style: haloThin }, compactWon(m.low)));
+          els.push(el('text', { x: xb, y: y + 24, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'end', style: haloThin }, compactWon(m.high)));
+        } else {
+          var mx = (xa + xb) / 2, anc = mx < 52 ? 'start' : mx > W - 52 ? 'end' : 'middle';
+          els.push(el('text', { x: anc === 'start' ? 0 : anc === 'end' ? W : mx, y: y + 24, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: anc, style: haloThin }, compactWon(m.low) + ' ~ ' + compactWon(m.high)));
+        }
+      }
+      if (m.mid != null) els.push(el('circle', { cx: X(m.mid), cy: y, r: 5.5, fill: 'var(--dv-navy)', stroke: 'var(--paper)', strokeWidth: 1.5 }));
+    });
+    els.push(el('line', { x1: plotL, x2: plotL + plotW, y1: axisY, y2: axisY, stroke: 'var(--line)', strokeWidth: 1 }));
+    for (var t = 0; t <= 2; t++) {   // 눈금은 3개 — 폰 폭에서 5개는 라벨이 서로 붙는다
+      var tv = dmin + (dmax - dmin) * t / 2, xx = plotL + plotW * t / 2;
+      els.push(el('line', { x1: xx, x2: xx, y1: axisY, y2: axisY + 5, stroke: 'var(--line-strong)', strokeWidth: 1 }));
+      els.push(el('text', { x: xx, y: axisY + 22, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: t === 0 ? 'start' : t === 2 ? 'end' : 'middle' }, compactWon(tv)));
+    }
     return el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
 
@@ -1004,7 +1078,9 @@
             ? '<span style="font-size:13.5px;font-weight:600"><span class="methods-mno">' + mt[0] + '</span>' + esc(name) + '</span>'
             : '<span style="font-size:13.5px;font-weight:600">' + esc(name) + '</span>';
         var wgt = (v.weights || {})[name];
-        if (wgt != null) nameCell += ' <span class="mono" style="font-size:10.5px;color:var(--ink-3)">가중 ' + Math.round(wgt * 100) + '%</span>';
+        // 가중 배지는 '방법' 칸 안에 들어가야 한다. 형제 span으로 붙이면 격자 자식이 5개가 되어
+        // 4열 표의 열이 한 칸씩 밀린다(범위가 '중심' 머리 아래로, 근거는 다음 줄로).
+        if (wgt != null) nameCell = '<span>' + nameCell + ' <span class="mono" style="font-size:10.5px;color:var(--ink-3)">가중 ' + Math.round(wgt * 100) + '%</span></span>';
         return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + '</span></div>';
       }
       if (skipMap[name] != null) {
@@ -1970,8 +2046,10 @@
     var peer = $('peerSlider'); if (peer) { peer.addEventListener('input', function () { $('peerCountVal').textContent = peer.value; }); peer.addEventListener('change', function () { state.peer_count = +peer.value; load(); }); }
     $('status').addEventListener('click', function () { $('status').classList.remove('on'); });
 
-    // 창 크기 변경 시 주가 차트(캔버스)만 다시 — 활성 탭일 때
-    var rzT; window.addEventListener('resize', function () { clearTimeout(rzT); rzT = setTimeout(function () { var p = $('panel-price'); if (D && p && p.classList.contains('on')) renderPrice(); }, 180); });
+    // 창 크기 변경 시 주가 차트(캔버스)만 다시 — 활성 탭일 때.
+    // 적정가 차트도 같이: 폰↔데스크톱 배치가 갈리고(≤560px) 좁은 배치는 컨테이너 실폭을
+    // viewBox로 쓰므로, 회전·크기 변경 뒤에는 다시 그려야 크기가 맞는다.
+    var rzT; window.addEventListener('resize', function () { clearTimeout(rzT); rzT = setTimeout(function () { var p = $('panel-price'); if (D && p && p.classList.contains('on')) renderPrice(); var s = $('panel-summary'); if (D && s && s.classList.contains('on')) $('bulletChart').innerHTML = bulletChart(); }, 180); });
     // 딥링크: ?q=&market= (홈 예시카드·교차검색 착지)
     try {
       var sp = new URLSearchParams(location.search);
