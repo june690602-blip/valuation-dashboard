@@ -1454,10 +1454,8 @@
     // 안 나오던 값이라, 타일 아래에 사유로 붙인다 — 특히 t는 왜 그 값인지가 중요하다.
     var wn = w.warnings || [];
     $('waccNotes').innerHTML = wn.length
-      ? '<div style="margin-top:14px;display:flex;flex-direction:column;gap:7px">' + wn.map(function (m) {
-          return '<div style="display:flex;gap:8px;font-size:12px;color:var(--ink-3);line-height:1.65">'
-            + '<span style="flex:none;color:var(--ink-4)">·</span><span>' + esc(m) + '</span></div>';
-        }).join('') + '</div>'
+      ? '<div class="wacc-notes">' + wn.map(function (m) {
+          return '<div class="wacc-note">' + esc(m) + '</div>'; }).join('') + '</div>'
       : '';
     $('betaScatter').innerHTML = betaScatter();
     $('waccWaterfall').innerHTML = waccWaterfall();

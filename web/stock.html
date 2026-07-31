@@ -143,6 +143,10 @@
   .methods-goto { appearance: none; border: none; background: none; padding: 0; cursor: pointer; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
   .methods-goto:hover { text-decoration-color: var(--ink-3); }
   /* 빈 값(—)·신뢰도 말풍선 — 왜 없는지/왜 낮은지 짧게 알린다. 순수 CSS라 추가 요청·스크립트가 없다. */
+  /* 자본비용 경고 — 세율을 법정세율로 자르거나 폴백한 사유, 베타 클리핑 등 */
+  .wacc-notes { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+  .wacc-note { display: flex; gap: 8px; font-size: 12px; color: var(--ink-3); line-height: 1.65; }
+  .wacc-note::before { content: "·"; flex: none; color: var(--ink-4); }
   .na { position: relative; color: var(--ink-3); cursor: help; border-bottom: 1px dotted var(--line-strong); }
   .na::after {
     content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 9px); transform: translateX(-50%);
