@@ -143,6 +143,10 @@
   .methods-goto { appearance: none; border: none; background: none; padding: 0; cursor: pointer; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
   .methods-goto:hover { text-decoration-color: var(--ink-3); }
   /* 빈 값(—)·신뢰도 말풍선 — 왜 없는지/왜 낮은지 짧게 알린다. 순수 CSS라 추가 요청·스크립트가 없다. */
+  /* 자본비용 경고 — 세율을 법정세율로 자르거나 폴백한 사유, 베타 클리핑 등 */
+  .wacc-notes { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+  .wacc-note { display: flex; gap: 8px; font-size: 12px; color: var(--ink-3); line-height: 1.65; }
+  .wacc-note::before { content: "·"; flex: none; color: var(--ink-4); }
   .na { position: relative; color: var(--ink-3); cursor: help; border-bottom: 1px dotted var(--line-strong); }
   .na::after {
     content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 9px); transform: translateX(-50%);
@@ -579,7 +583,7 @@
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="wacc-input-title">
               <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="wacc-input-title">자본비용 요약</h3><p class="analysis-section-desc">무위험이자율, 베타와 부채비용 등 WACC 계산의 핵심 입력값을 확인합니다.</p></div><span class="analysis-section-meta" id="waccPeriod"></span></div>
-              <div class="analysis-section-body"><div id="waccTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0"></div></div>
+              <div class="analysis-section-body"><div id="waccTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0"></div><div id="waccNotes"></div></div>
             </section>
             <section class="analysis-section" aria-labelledby="wacc-calc-title">
               <div class="analysis-section-head"><span class="analysis-section-index">02</span><div><h3 class="analysis-section-title" id="wacc-calc-title">산출 과정</h3><p class="analysis-section-desc">시장 민감도인 베타에서 자기자본비용과 가중평균자본비용으로 이어지는 과정을 봅니다.</p></div><span class="analysis-section-meta">회귀 베타 · WACC 구성</span></div>
