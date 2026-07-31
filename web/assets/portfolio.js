@@ -5,22 +5,12 @@
 (function () {
   'use strict';
 
-  var ATTR = { strokeWidth: 'stroke-width', strokeDasharray: 'stroke-dasharray', strokeLinecap: 'stroke-linecap', strokeLinejoin: 'stroke-linejoin', fillOpacity: 'fill-opacity', textAnchor: 'text-anchor', fontFamily: 'font-family', fontSize: 'font-size', fontWeight: 'font-weight', className: 'class' };
-  function kebab(s) { return s.replace(/[A-Z]/g, function (m) { return '-' + m.toLowerCase(); }); }
-  function styleStr(o) { var s = ''; for (var k in o) s += kebab(k) + ':' + o[k] + ';'; return s; }
-  function el(tag, attrs) {
-    var kids = Array.prototype.slice.call(arguments, 2); attrs = attrs || {}; var style = {};
-    if (attrs.style) for (var sk in attrs.style) style[sk] = attrs.style[sk];
-    var s = '<' + tag;
-    // var()는 프레젠테이션 속성에서 Firefox/Safari가 해석하지 못한다 → 인라인 style로.
-    for (var k in attrs) { if (k === 'style' || attrs[k] == null) continue; var val = attrs[k]; if (typeof val === 'string' && val.indexOf('var(') >= 0) { style[k] = val; continue; } s += ' ' + (ATTR[k] || k) + '="' + String(val).replace(/"/g, '&quot;') + '"'; }
-    var st = styleStr(style); if (st) s += ' style="' + st + '"'; s += '>';
-    for (var i = 0; i < kids.length; i++) { var c = kids[i]; if (c == null || c === false) continue; s += Array.isArray(c) ? c.join('') : c; }
-    return s + '</' + tag + '>';
-  }
-  // 이스케이프 규칙은 네 프런트 파일이 같다 — 홑따옴표(')까지 포함한다(R5).
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
-  function $(id) { return document.getElementById(id); }
+  /* 공용 헬퍼는 common.js 한 벌 — 사본을 만들면 조용히 갈라진다(#83 · R5 발견 ㉲). */
+  var DV = window.DV;
+  var ATTR = DV.ATTR, el = DV.el, esc = DV.esc, $ = DV.$, niceStep = DV.niceStep,
+      tiles = DV.tiles, loadBasket = DV.loadBasket, saveBasket = DV.saveBasket,
+      wireSeg = DV.wireSeg;
+
   function pctS(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'; }
   function pct(v, d) { return v == null ? '—' : (v * 100).toFixed(d == null ? 1 : d) + '%'; }
 
@@ -38,8 +28,6 @@
   var state = { months: 60, bench: 'KR' };
   var PA = null, reqSeq = 0, recalcTimer = null;
 
-  function loadBasket() { try { return JSON.parse(localStorage.getItem('invportfolio') || '{}'); } catch (e) { return {}; } }
-  function saveBasket(b) { localStorage.setItem('invportfolio', JSON.stringify(b)); }
   function loadAmounts() { try { return JSON.parse(localStorage.getItem('invamounts') || '{}'); } catch (e) { return {}; } }
   function saveAmounts(a) { localStorage.setItem('invamounts', JSON.stringify(a)); }
 
@@ -176,13 +164,6 @@
     $('pairCaption').innerHTML = msg + ' 과거 ' + d.n_months + '개월 실측 기반 교육용 계산입니다.';
   }
 
-  /* ── 차트: σ-E(r) 평면 ── */
-  /* 축 눈금 간격 — 1·2·5·10 계열의 읽기 좋은 값으로 (주식 탭 차트와 동일 규칙) */
-  function niceStep(range, target) {
-    var raw = Math.max(range, 1e-9) / target;
-    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), n = raw / mag;
-    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
-  }
   /* 라벨 종이 후광 — 그리드·점·선 위에서도 글자가 읽히게. paint-order는 CSS(.plbl)로 준다
      (el()의 ATTR 변환표에 없는 속성이라 SVG 속성으로 넣으면 무시되어 글자가 지워진다). */
   function halo(attrs) { attrs.className = (attrs.className ? attrs.className + ' ' : '') + 'plbl'; return attrs; }
@@ -358,8 +339,6 @@
     $('compTotal').innerHTML = '합계 <b class="mono" style="color:var(--ink-2)">' + t.toLocaleString('en-US') + '만원</b> — 금액은 비중 계산에만 쓰이며 브라우저에만 저장됩니다.';
   }
 
-  /* ── 분석 렌더 ── */
-  function tiles(container, items) { container.innerHTML = items.map(function (t, i) { return '<div class="tile" style="padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="v">' + t[1] + '</div></div>'; }).join(''); }
 
   function renderAnalysis() {
     var d = PA;
@@ -431,18 +410,6 @@
       .catch(function (e) { if (seq !== reqSeq) return; $('status').classList.remove('on'); PA = { error: '서버 연결 실패: ' + e.message }; renderAnalysis(); });
   }
 
-  /* ── 인터랙션 ── */
-  // 세그먼트 컨트롤 — 세 프런트 파일이 같은 구현을 쓴다. aria-pressed로 선택 상태를
-  // 스크린리더에 알린다(시각적으로는 .on 클래스가 말하지만 그것은 소리로 전달되지 않는다).
-  function wireSeg(id, onChange) {
-    var seg = $(id); if (!seg) return;
-    seg.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x.classList.contains('on') ? 'true' : 'false'); });
-    seg.addEventListener('click', function (e) {
-      var b = e.target.closest('button'); if (!b) return;
-      seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
-      b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); onChange(b.getAttribute('data-val'));
-    });
-  }
 
   function init() {
     $('addPreset').addEventListener('click', function () { var code = $('presetSel').value; var p = PRESETS.filter(function (x) { return x[1] === code; })[0]; if (!p) return; var b = loadBasket(); b[p[1]] = { name: p[0], yahoo: p[1], ticker: p[1], type: p[2], currency: p[3], 'class': p[4] }; saveBasket(b); renderComposition(); recalc(); });

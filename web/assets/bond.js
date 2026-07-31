@@ -5,23 +5,11 @@
 (function () {
   'use strict';
 
-  /* ── SVG/HTML 빌더 (stock.js와 동일 규약) ── */
-  var ATTR = { strokeWidth: 'stroke-width', strokeDasharray: 'stroke-dasharray', strokeLinecap: 'stroke-linecap', strokeLinejoin: 'stroke-linejoin', fillOpacity: 'fill-opacity', textAnchor: 'text-anchor', fontFamily: 'font-family', fontSize: 'font-size', fontWeight: 'font-weight', className: 'class' };
-  function kebab(s) { return s.replace(/[A-Z]/g, function (m) { return '-' + m.toLowerCase(); }); }
-  function styleStr(o) { var s = ''; for (var k in o) s += kebab(k) + ':' + o[k] + ';'; return s; }
-  function el(tag, attrs) {
-    var kids = Array.prototype.slice.call(arguments, 2); attrs = attrs || {}; var style = {};
-    if (attrs.style) for (var sk in attrs.style) style[sk] = attrs.style[sk];
-    var s = '<' + tag;
-    // var()는 프레젠테이션 속성에서 Firefox/Safari가 해석하지 못한다 → 인라인 style로.
-    for (var k in attrs) { if (k === 'style' || attrs[k] == null) continue; var val = attrs[k]; if (typeof val === 'string' && val.indexOf('var(') >= 0) { style[k] = val; continue; } s += ' ' + (ATTR[k] || k) + '="' + String(val).replace(/"/g, '&quot;') + '"'; }
-    var st = styleStr(style); if (st) s += ' style="' + st + '"'; s += '>';
-    for (var i = 0; i < kids.length; i++) { var c = kids[i]; if (c == null || c === false) continue; s += Array.isArray(c) ? c.join('') : c; }
-    return s + '</' + tag + '>';
-  }
-  // 이스케이프 규칙은 네 프런트 파일이 같다 — 홑따옴표(')까지 포함한다(R5).
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
-  function $(id) { return document.getElementById(id); }
+  /* 공용 헬퍼는 common.js 한 벌 — 사본을 만들면 조용히 갈라진다(#83 · R5 발견 ㉲). */
+  var DV = window.DV;
+  var ATTR = DV.ATTR, el = DV.el, esc = DV.esc, $ = DV.$, tiles = DV.tiles,
+      loadBasket = DV.loadBasket, saveBasket = DV.saveBasket, wireSeg = DV.wireSeg;
+
 
   /* ── 채권 수학 (bond_math.py 이식) ── */
   var FACE = 100.0;
@@ -214,8 +202,6 @@
     });
   }
 
-  /* ══════════ 렌더 ══════════ */
-  function tiles(container, items) { container.innerHTML = items.map(function (t, i) { return '<div class="tile" style="padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="v">' + t[1] + '</div></div>'; }).join(''); }
 
   function renderRates() {
     // 국가 선택(mkts)에 따라 타일·곡선·스프레드 노트를 함께 필터링한다
@@ -301,9 +287,6 @@
     updateAddBondNote();
   }
 
-  /* ── 포트폴리오 담기 (localStorage 공유) ── */
-  function loadBasket() { try { return JSON.parse(localStorage.getItem('invportfolio') || '{}'); } catch (e) { return {}; } }
-  function saveBasket(b) { localStorage.setItem('invportfolio', JSON.stringify(b)); }
   function bondEtfProxy(market, years) {
     if (market === 'KR') return years <= 5 ? { name: 'KODEX 국고채3년', yahoo: '114260.KS', ticker: '114260.KS', type: '국내기타ETF', currency: 'KRW', class: '채권' } : { name: 'KOSEF 국고채10년', yahoo: '148070.KS', ticker: '148070.KS', type: '국내기타ETF', currency: 'KRW', class: '채권' };
     return years <= 7 ? { name: 'iShares 미국채 7-10년 (IEF)', yahoo: 'IEF', ticker: 'IEF', type: '해외ETF', currency: 'USD', class: '채권' } : { name: 'iShares 미국채 20년+ (TLT)', yahoo: 'TLT', ticker: 'TLT', type: '해외ETF', currency: 'USD', class: '채권' };
@@ -323,18 +306,6 @@
     }).join('') + '<div style="font-size:11px;color:var(--ink-3);margin-top:14px">태그는 PEST(정책·경제·사회·기술) 관점의 키워드 분류입니다.</div>';
   }
 
-  /* ══════════ 인터랙션 ══════════ */
-  // 세그먼트 컨트롤 — 세 프런트 파일이 같은 구현을 쓴다. aria-pressed로 선택 상태를
-  // 스크린리더에 알린다(시각적으로는 .on 클래스가 말하지만 그것은 소리로 전달되지 않는다).
-  function wireSeg(id, onChange) {
-    var seg = $(id); if (!seg) return;
-    seg.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x.classList.contains('on') ? 'true' : 'false'); });
-    seg.addEventListener('click', function (e) {
-      var b = e.target.closest('button'); if (!b) return;
-      seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
-      b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); onChange(b.getAttribute('data-val'));
-    });
-  }
   // 다중 선택 세그먼트 — 버튼별 on/off 토글, 최소 1개는 켜진 상태 유지
   function wireMultiSeg(id, onChange) {
     var seg = $(id); if (!seg) return;

@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/meridian.css">
 <script src="assets/analytics.js" defer></script>
+<script src="assets/common.js"></script>
 <style>
   :root { --page-pad: clamp(18px, 3vw, 34px); }
   .page { min-height: 100vh; display: flex; flex-direction: column; background: var(--paper); }
@@ -260,11 +261,12 @@
 
 <script>
   (function () {
+    /* 공용 헬퍼는 common.js 한 벌 — 사본은 조용히 갈라진다(#83). */
+    var esc = window.DV.esc;
     var form = document.getElementById('heroSearch');
     var input = document.getElementById('heroSearchInput');
 
     function market() { return form.querySelector('input[name="market"]:checked').value; }
-    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
     // ETF도 분석 페이지로 보낸다 — kind=etf면 stock.html이 3축 ETF 뷰를 그린다.
     // (포트폴리오에 담기는 그 ETF 분석 화면 안의 버튼으로 할 수 있다.)
     function goStock(code, kind) { location.href = 'stock.html?market=' + encodeURIComponent(market()) + '&q=' + encodeURIComponent(code) + (kind === 'etf' ? '&kind=etf' : ''); }
