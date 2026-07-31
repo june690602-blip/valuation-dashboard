@@ -13,12 +13,14 @@
     var kids = Array.prototype.slice.call(arguments, 2); attrs = attrs || {}; var style = {};
     if (attrs.style) for (var sk in attrs.style) style[sk] = attrs.style[sk];
     var s = '<' + tag;
+    // var()는 프레젠테이션 속성에서 Firefox/Safari가 해석하지 못한다 → 인라인 style로.
     for (var k in attrs) { if (k === 'style' || attrs[k] == null) continue; var val = attrs[k]; if (typeof val === 'string' && val.indexOf('var(') >= 0) { style[k] = val; continue; } s += ' ' + (ATTR[k] || k) + '="' + String(val).replace(/"/g, '&quot;') + '"'; }
     var st = styleStr(style); if (st) s += ' style="' + st + '"'; s += '>';
     for (var i = 0; i < kids.length; i++) { var c = kids[i]; if (c == null || c === false) continue; s += Array.isArray(c) ? c.join('') : c; }
     return s + '</' + tag + '>';
   }
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
+  // 이스케이프 규칙은 네 프런트 파일이 같다 — 홑따옴표(')까지 포함한다(R5).
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
   function $(id) { return document.getElementById(id); }
 
   /* ── 채권 수학 (bond_math.py 이식) ── */
@@ -322,7 +324,17 @@
   }
 
   /* ══════════ 인터랙션 ══════════ */
-  function wireSeg(id, onChange) { var seg = $(id); if (!seg) return; seg.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on'); onChange(b.getAttribute('data-val')); }); }
+  // 세그먼트 컨트롤 — 세 프런트 파일이 같은 구현을 쓴다. aria-pressed로 선택 상태를
+  // 스크린리더에 알린다(시각적으로는 .on 클래스가 말하지만 그것은 소리로 전달되지 않는다).
+  function wireSeg(id, onChange) {
+    var seg = $(id); if (!seg) return;
+    seg.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x.classList.contains('on') ? 'true' : 'false'); });
+    seg.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
+      b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); onChange(b.getAttribute('data-val'));
+    });
+  }
   // 다중 선택 세그먼트 — 버튼별 on/off 토글, 최소 1개는 켜진 상태 유지
   function wireMultiSeg(id, onChange) {
     var seg = $(id); if (!seg) return;

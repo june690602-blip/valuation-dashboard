@@ -46,6 +46,15 @@ sys.stdout.reconfigure(encoding="utf-8")
 OK, BAD, NA = "[확인]", "[문제]", "[불가]"
 _tally = {OK: 0, BAD: 0, NA: 0}
 
+# 지금 열려 있는 문제의 수 — 전부 이슈로 등록돼 있고 순서대로 닫는다.
+#   #73 공용 셸(네비 규격 4가지·헤더 구현 2벌) · #74 브레이크포인트 12가지·타이포/간격 토큰 부재
+#   #75 카드 깊이가 화면마다 다름
+# 이 스크립트는 **이 수보다 늘어날 때만** 실패한다(R5). 문제를 찍고도 종료코드 0을 반환하면
+# CI에 걸어도 머지를 막지 못해 보고서에 그친다. 반대로 열린 이슈까지 실패로 처리하면 CI가
+# 늘 빨간 상태가 되어 아무도 보지 않게 된다 — 그래서 기준선을 적어 두고 회귀만 막는다.
+# **이슈를 닫으면 이 값을 함께 내린다.**
+KNOWN_OPEN = 5
+
 
 def say(verdict: str, title: str, detail: str = "") -> None:
     _tally[verdict] = _tally.get(verdict, 0) + 1
@@ -809,6 +818,13 @@ def main() -> int:
     print("\n" + "=" * 72)
     print(f"확인 {_tally[OK]} · 문제 {_tally[BAD]} · 불가 {_tally[NA]}")
     print("=" * 72)
+
+    if _tally[BAD] > KNOWN_OPEN:
+        print(f"\n실패 — 문제 {_tally[BAD]}건이 기준선 {KNOWN_OPEN}건을 넘었다.")
+        print("새로 생긴 어긋남을 고치거나, 의도된 변경이면 KNOWN_OPEN을 갱신할 것.")
+        return 1
+    if _tally[BAD] < KNOWN_OPEN:
+        print(f"\n문제가 기준선({KNOWN_OPEN}건)보다 줄었다 — KNOWN_OPEN을 {_tally[BAD]}로 내릴 것.")
     return 0
 
 

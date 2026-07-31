@@ -211,7 +211,6 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
   border: 1px solid var(--line-strong); color: var(--ink-2); background: var(--paper);
 }
 .badge-info { color: var(--dv-navy); border-color: color-mix(in srgb, var(--dv-navy) 35%, var(--line)); }
-.badge-positive { color: var(--dv-positive); border-color: color-mix(in srgb, var(--dv-positive) 35%, var(--line)); }
 
 /* range 슬라이더 */
 input[type=range] {

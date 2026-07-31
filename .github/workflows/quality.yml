@@ -39,8 +39,22 @@ jobs:
       - name: Run static checks
         run: python -m pyflakes app.py server.py src scripts tests
 
+      # 프런트 JS는 파이썬 도구가 보지 못한다 — 문법 오류가 그대로 배포되던 자리다(R5).
+      # 러너에 Node가 이미 있어 의존성을 추가하지 않는다.
+      - name: Check front-end JS syntax
+        run: |
+          for f in web/assets/*.js; do node --check "$f"; done
+
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+
+      # R3~R5의 검토 조서가 만든 회귀 방지 장치. 셋 다 네트워크·API 키가 필요 없다.
+      # 사람이 기억해서 돌리는 검증은 회귀를 막지 못하므로 PR마다 자동으로 돌린다.
+      - name: Run review guards (static)
+        run: |
+          python scripts/check_screen_language.py
+          python scripts/check_design.py
+          python scripts/check_structure.py
 
       - name: Run deterministic finance checks
         run: |
