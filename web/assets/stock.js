@@ -1450,6 +1450,15 @@
     $('waccPeriod').textContent = w.period_label ? '회귀 표본 · ' + w.period_label + ' (벤치마크 ' + D.meta.benchmark + ')' : '';
     var tiles = [['레버드 β_L', w.beta_l != null ? w.beta_l.toFixed(2) : '—'], ['무부채 β_U', w.beta_u != null ? w.beta_u.toFixed(2) : '—'], ['유효세율 t', fmtPct(w.tax, 0)], ['D/E (시가)', fmtPct(w.de, 0)], ['k_e (CAPM)', fmtPct(w.k_e)], ['k_d (세후)', fmtPct(w.k_d_after)]];
     $('waccTiles').innerHTML = tiles.map(function (t, i) { return '<div style="flex:1;min-width:120px;padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:20px;font-weight:500;margin-top:6px">' + t[1] + '</div></div>'; }).join('');
+    // 자본비용 경고(세율 폴백·법정세율 상한, 베타 클리핑 등). 직렬화만 되고 화면엔
+    // 안 나오던 값이라, 타일 아래에 사유로 붙인다 — 특히 t는 왜 그 값인지가 중요하다.
+    var wn = w.warnings || [];
+    $('waccNotes').innerHTML = wn.length
+      ? '<div style="margin-top:14px;display:flex;flex-direction:column;gap:7px">' + wn.map(function (m) {
+          return '<div style="display:flex;gap:8px;font-size:12px;color:var(--ink-3);line-height:1.65">'
+            + '<span style="flex:none;color:var(--ink-4)">·</span><span>' + esc(m) + '</span></div>';
+        }).join('') + '</div>'
+      : '';
     $('betaScatter').innerHTML = betaScatter();
     $('waccWaterfall').innerHTML = waccWaterfall();
     var sp = w.spread;

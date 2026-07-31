@@ -81,19 +81,45 @@ def estimate_beta(prices: pd.Series, index_prices: pd.Series):
     return beta, r2, n, label, rets
 
 
-def _effective_tax_rate(d: CompanyData, default: float) -> tuple[float, bool]:
-    """최근 TTM/연간 유효세율 (법인세/세전이익), 비정상이면 기본값."""
+def _tax_pair(tax, pretax) -> float | None:
+    """유효세율 한 점(법인세/세전이익). 적자 해는 버린다.
+
+    적자면 법인세도 환입(음수)이라 음수÷음수가 그럴듯한 양수 비율을 만든다
+    — 롯데케미칼 2025년은 세전 -2.71조·법인세 -0.23조로 8.4%가 찍힌다. 세금방패에
+    쓸 세율로는 뜻이 없는 값이고, 3~45% 범위 검사도 부호를 안 보므로 그냥 통과한다.
+    """
+    if tax is None or pretax is None or pd.isna(tax) or pd.isna(pretax) or pretax <= 0:
+        return None
+    return float(tax) / float(pretax)
+
+
+def _effective_tax_rate(d: CompanyData, default: float) -> tuple[float, bool, float | None]:
+    """최근 TTM/연간 유효세율. 반환 = (쓸 세율, 산출 성공, 측정 원값).
+
+    세금방패의 t는 '이자를 1원 더 낼 때 아끼는 세금'이라 법정세율을 넘을 수 없다.
+    실효세율이 그보다 높게 나오는 건 손금불산입 항목 때문이고 그건 방패를 키우지
+    않는다 → 법정세율에서 자른다. 자른 사실을 밝힐 수 있게 측정 원값도 함께 준다.
+    """
     pairs = []
-    tt, tp = d.latest("tax_expense"), d.latest("pretax_income")
-    if tt is not None and tp and tp > 0:
-        pairs.append(tt / tp)
+    ttm = _tax_pair(d.latest("tax_expense"), d.latest("pretax_income"))
+    if ttm is not None:
+        pairs.append(ttm)
     fin = d.financials
-    s = (fin["tax_expense"] / fin["pretax_income"]).replace([np.inf, -np.inf], np.nan).dropna()
-    pairs += list(s.tail(2))
+    if {"tax_expense", "pretax_income"} <= set(fin.columns):
+        rows = fin[["tax_expense", "pretax_income"]]
+        # TTM은 최근 연도와 기간이 겹친다(TTM 25Q2~26Q1 vs FY2025 = 3개 분기 중복).
+        # TTM을 썼으면 그 해는 건너뛴다 — 같은 분기가 평균에 두 번 들어가지 않게.
+        if ttm is not None and len(rows) > 1:
+            rows = rows.iloc[:-1]
+        for _, r in rows.tail(2).iterrows():
+            p = _tax_pair(r.get("tax_expense"), r.get("pretax_income"))
+            if p is not None:
+                pairs.append(p)
     valid = [t for t in pairs if 0.03 <= t <= 0.45]
-    if valid:
-        return float(np.clip(np.mean(valid), 0.05, 0.40)), True
-    return default, False
+    if not valid:
+        return default, False, None
+    raw = float(np.mean(valid))
+    return float(np.clip(min(raw, default), 0.05, 0.40)), True, raw
 
 
 def _cost_of_debt(d: CompanyData, rf: float) -> tuple[float | None, str, list]:
@@ -141,9 +167,14 @@ def compute_capital_cost(d: CompanyData, rf: float, mrp: float,
     if tax_override is not None:
         cc.tax_rate = tax_override
     else:
-        cc.tax_rate, ok = _effective_tax_rate(d, default_tax)
+        cc.tax_rate, ok, raw_tax = _effective_tax_rate(d, default_tax)
         if not ok:
-            cc.warnings.append(f"유효세율을 계산하지 못해 법정세율 근사치 {default_tax:.0%}를 사용합니다.")
+            cc.warnings.append(f"유효세율을 계산하지 못해 법정세율 근사치 {default_tax:.0%}를 사용합니다. "
+                               "최근 세전이익이 적자면 법인세도 환입이라 비율에 뜻이 없습니다.")
+        elif raw_tax is not None and raw_tax > cc.tax_rate + 0.005:
+            cc.warnings.append(f"측정된 유효세율 {raw_tax:.1%}가 법정세율 {default_tax:.0%}보다 높아 "
+                               f"세금방패 계산에는 {cc.tax_rate:.0%}를 씁니다. 초과분은 손금불산입 "
+                               "항목에서 오는 것이라 이자비용의 절세 효과를 키우지 않습니다.")
     t = cc.tax_rate
 
     cc.debt = d.latest("total_debt") or 0.0
