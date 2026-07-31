@@ -65,7 +65,8 @@ _tally = {OK: 0, BAD: 0, NA: 0}
 # 이 수보다 늘어날 때만 실패한다. **이슈를 닫으면 이 값을 함께 내린다.**
 KNOWN_OPEN = 7
 
-WEB_JS = ["stock.js", "portfolio.js", "bond.js", "test.js", "feedback.js", "analytics.js"]
+WEB_JS = ["stock.js", "stock-price-chart.js", "portfolio.js", "bond.js", "test.js",
+          "feedback.js", "analytics.js"]
 PAGES = ["home.html", "stock.html", "guide.html", "test.html", "bond.html",
          "portfolio.html", "admin.html"]
 
@@ -98,7 +99,10 @@ SIZE_BUDGET = {
     # 기준 커밋 실측은 1,990줄이었다. R5 수정에서 주석 11줄이 늘어(산점도 십자선이 왜 자사를
     # 빼는지·esc의 이스케이프 규칙이 왜 넷 다 같아야 하는지) 2,001로 한 번 올려 적는다.
     # **이 방향의 조정은 이번이 마지막이다** — 분할 PR에서 이 값을 크게 내린다.
-    "web/assets/stock.js": (2001, "R5의 1순위 분할 대상. 렌더·차트·포맷·ETF가 한 IIFE에 있다"),
+    # 1순위 분할(#79) 1단계로 주가차트 294줄을 stock-price-chart.js로 뺐다: 2,079 → 1,795.
+    # 예산도 실측에 맞춰 내려 적는다 — 다음 단계(ETF 뷰·9탭 렌더)에서 더 내린다.
+    "web/assets/stock.js": (1800, "#79 ㉮ 진행 중. 아직 9탭 렌더·ETF 뷰·SVG 차트가 한 IIFE에 있다"),
+    "web/assets/stock-price-chart.js": (300, "주가 캔버스 차트. (container, D, state, fmt)만 받는다"),
     "web/assets/portfolio.js": (500, "차트 3종 + 바스켓 관리"),
     "web/assets/bond.js": (400, "채권 수학 이식 + 차트 3종"),
     "web/assets/test.js": (400, "성향진단 위저드"),
@@ -128,7 +132,8 @@ SHARED_HELPERS = {
 # 인라인 스타일 예산 — 값이 JS 문자열 안에 있으면 R4의 토큰이 닿지 않는다(R4 한계 3).
 # 내려가기만 한다.
 INLINE_BUDGET = {
-    "web/assets/stock.js": 343,
+    "web/assets/stock.js": 342,
+    "web/assets/stock-price-chart.js": 1,
     "web/assets/portfolio.js": 30,
     "web/assets/bond.js": 19,
     "web/assets/test.js": 17,
