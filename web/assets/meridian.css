@@ -144,6 +144,10 @@ body {
   font-feature-settings: 'tnum' 1;   /* 숫자 tabular */
 }
 
+/* 한글 제목은 어절 단위로만 줄바꿈 — 좁은 화면에서 '적정한가?'가 '적정한/가?'처럼
+   음절에서 끊기는 걸 막는다. Latin은 공백에서 끊기므로 영향 없음. */
+h1, h2, h3 { word-break: keep-all; }
+
 a { color: var(--ink); text-decoration: none; }
 a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
