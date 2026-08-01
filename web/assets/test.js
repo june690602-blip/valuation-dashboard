@@ -2,6 +2,10 @@
 (function () {
   'use strict';
 
+  /* 공용 헬퍼는 common.js 한 벌 — 사본을 만들면 조용히 갈라진다(#83 · R5 발견 ㉲). */
+  var DV = window.DV;
+  var esc = DV.esc, $ = DV.$;
+
   var RESULT_KEY = 'invriskprofile';
   var DRAFT_KEY = 'invriskprofile_draft';
   var config = null;
@@ -10,12 +14,6 @@
   var marketSource = '기본 가정치';
   var state = { step: 0, answers: [], market: 'KR', assessed_A: null, scenario_A: null };
 
-  function $(id) { return document.getElementById(id); }
-  function esc(value) {
-    return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char];
-    });
-  }
   function finite(value) { return typeof value === 'number' && isFinite(value); }
   function readJSON(key) {
     try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (error) { return null; }
