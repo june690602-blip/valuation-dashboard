@@ -300,7 +300,15 @@
     $('bandChart').innerHTML = bandChart();
     var b = D.band[state.bandMetric.toLowerCase()];
     var cap = $('bandCaption');
-    if (b && b.percentile != null) { var p = b.percentile; cap.innerHTML = '밴드는 5년 배수 분포의 10–90분위를 펀더멘털(EPS/BPS)에 곱한 가격대. 주가(네이비 선)가 위쪽 선에 가까울수록 역사적으로 비쌈. 현재 배수는 5년 분포 <b style="color:var(--ink-2)">하위 ' + p.toFixed(0) + '%</b> — ' + (p < 35 ? '역사적으로도 싼 구간.' : p > 65 ? '역사적으로 비싼 구간.' : '중간 구간.'); }
+    if (b && b.percentile != null) {
+      var p = b.percentile, qy = b.quality || {};
+      // 창은 종목·다리마다 다르다(실측 2.8~5.0년) — "5년"이라고 쓰지 않고 잰 값을 쓴다.
+      var win = qy.years != null ? qy.years.toFixed(1) + '년' : '관측 기간';
+      cap.innerHTML = '밴드는 ' + win + ' 배수 분포의 10–90분위를 펀더멘털(EPS/BPS)에 곱한 가격대. 주가(네이비 선)가 위쪽 선에 가까울수록 역사적으로 비쌈. 현재 배수는 이 분포의 <b style="color:var(--ink-2)">하위 ' + p.toFixed(0) + '%</b> — ' + (p < 35 ? '역사적으로도 싼 구간.' : p > 65 ? '역사적으로 비싼 구간.' : '중간 구간.');
+      // 판정에서 빠졌으면 차트는 그대로 두되 왜 뺐는지를 같은 자리에서 밝힌다(ADR-0012).
+      // 판정에는 색을 쓰지 않는다(R4) — 무채 잉크로 쓰고 세기는 진하기로 말한다.
+      if (qy.usable === false && qy.detail) cap.innerHTML += '<br/><b>판정에서 제외</b> · ' + esc(qy.detail).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    }
     else cap.textContent = '';
   }
 
@@ -948,9 +956,9 @@
     }
     var formula = fold('계산식과 출처 · ④를 판정에서 뺀 이유',
       '<b>계산식</b><br/>' +
-      '① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값<br/>' +
+      '① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 과거 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 과거 PER 중앙값<br/>' +
       '<b>종합</b> · 판정 = ①②③ 가중평균(①38.5 · ②38.5 · ③23.1%, 기본 가중 25·25·15를 셋으로 재정규화) · 병기 = ①②③④ 가중평균(④35 · ①25 · ②25 · ③15%)<br/>' +
-      '<b>④를 판정에서 뺀 이유</b> · ④는 시장의 실적 기대를 입력으로 쓰므로, 섞으면 이 도구의 판정이 시장 기대를 얼마나 따라갔는지 볼 수 없게 됩니다. 게다가 ②와 ④는 같은 배수(자기 5년 PER 중앙값)에 다른 EPS를 곱한 값이라 독립된 관점이 아니고, 사후검증(백테스트)도 ④는 시점별 컨센서스가 없어 불가능합니다. 상세 · docs/adr/0006<br/>' +
+      '<b>④를 판정에서 뺀 이유</b> · ④는 시장의 실적 기대를 입력으로 쓰므로, 섞으면 이 도구의 판정이 시장 기대를 얼마나 따라갔는지 볼 수 없게 됩니다. 게다가 ②와 ④는 같은 배수(자기 과거 PER 중앙값)에 다른 EPS를 곱한 값이라 독립된 관점이 아니고, 사후검증(백테스트)도 ④는 시점별 컨센서스가 없어 불가능합니다. 상세 · docs/adr/0006<br/>' +
       '<b>가중치 근거</b> · 가격 설명력 순위(선행이익 &gt; 이익 멀티플 &gt; 장부가): Liu·Nissim·Thomas 2002(JAR, 미국)·2007(FAJ, 10개국) + 국내 가치관련성 연구. 수치 자체는 순위의 정성적 인코딩이며 한국 데이터로 추정한 값이 아닙니다. 국내 컨센서스 낙관편의(자본시장연구원 2025) 유의<br/>' +
       bookQualityLine(v) +
       '<b>출처</b> · 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)');
@@ -1055,12 +1063,12 @@
   }
 
   function renderValuation() {
-    var head = '<div class="row head" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr"><span class="col-label">지표</span><span class="col-label r">현재</span><span class="col-label r">업종 중앙값</span><span class="col-label r">자기 5년</span><span class="col-label r">vs 업종</span></div>';
+    var head = '<div class="row head" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr"><span class="col-label">지표</span><span class="col-label r">현재</span><span class="col-label r">업종 중앙값</span><span class="col-label r">자기 과거</span><span class="col-label r">vs 업종</span></div>';
     var rows = (D.multiples || []).map(function (r, i) {
       var vs = '<span style="color:var(--ink-3)">— 참고</span>';
       if (r.vs != null && r.cheaper != null) { var col = r.cheaper ? 'var(--dv-positive)' : 'var(--dv-negative)'; vs = '<span style="color:' + col + '"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + col + ';margin-right:4px"></span>' + r.vs.toFixed(0) + '% ' + (r.cheaper ? '낮음' : '높음') + '</span>'; }
       var last = i === D.multiples.length - 1;
-      return '<div class="row" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr' + (last ? ';border-bottom:none' : '') + '"><span style="font-size:13.5px">' + esc(r.label) + '</span><span class="mono r" style="font-size:13.5px">' + fmtMult(r.key, r.current) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + fmtMult(r.key, r.med) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + (r.own5y != null ? fmtX(r.own5y) : '—') + '</span><span class="r" style="font-size:12.5px">' + vs + '</span></div>';
+      return '<div class="row" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr' + (last ? ';border-bottom:none' : '') + '"><span style="font-size:13.5px">' + esc(r.label) + '</span><span class="mono r" style="font-size:13.5px">' + fmtMult(r.key, r.current) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + fmtMult(r.key, r.med) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + (r.own_band != null ? fmtX(r.own_band) : '—') + '</span><span class="r" style="font-size:12.5px">' + vs + '</span></div>';
     }).join('');
     $('multiplesTable').innerHTML = head + rows;
     renderBand();
@@ -1133,7 +1141,7 @@
       '<div style="margin-top:18px;border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
       '<div class="kick" style="margin-bottom:8px">어떻게 읽나</div>' +
       '<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:4px">' +
-      '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">이 표는 예측이 아니라 <b>가정 조합의 지도</b>입니다. 초록 칸이 많다 = 표에 깔린 가정 범위(EPS ±30% × 자기 5년 배수 폭) 안에서 이론 가격이 현재가보다 높은 조합이 많다는 뜻 — 현재가가 그 가정들 대비 낮게 거래된다는 신호이지 상승 보장이 아닙니다.</li>' +
+      '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">이 표는 예측이 아니라 <b>가정 조합의 지도</b>입니다. 초록 칸이 많다 = 표에 깔린 가정 범위(EPS ±30% × 자기 과거 배수 폭) 안에서 이론 가격이 현재가보다 높은 조합이 많다는 뜻 — 현재가가 그 가정들 대비 낮게 거래된다는 신호이지 상승 보장이 아닙니다.</li>' +
       '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65"><b>비관 케이스까지 플러스</b>면 가정이 다소 빗나가도 버티는 하방 완충(안전마진)이 있다고 읽고, <b>낙관에서만 플러스</b>면 수익이 낙관 가정의 실현에 의존한다고 읽습니다.</li>' +
       '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">출발점이 컨센서스 EPS라서 시장의 이익 전망 자체가 꺾이면 표 전체가 아래로 이동합니다. 멀티플 슬라이더는 위 케이스 카드에 적용되며, 민감도 표는 열 자체가 멀티플 축이라 고정입니다.</li>' +
       '</ul><div id="scnRead" style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + readLine() + '</div></div>';
@@ -1363,7 +1371,7 @@
         '<b>요약 탭 판정</b>은 ' + fmtSigned(vg) + '입니다' +
         (flip ? ' — <b>방향이 반대입니다.</b>' : '.') +
         ' 두 값은 재료가 달라 어긋날 수 있어요: 판정에는 <b>① 업종 상대가치</b>가 들어가지만 여기엔 없고(피어 목록을 과거로 되살리면 편향이 낍니다), ' +
-        '②의 기준 배수도 판정은 <b>자기 5년</b> 중앙값인데 여기는 <b>직전 1.5년</b> 롤링 중앙값입니다. ' +
+        '②의 기준 배수도 판정은 <b>자기 과거 전체</b>(종목마다 2.8~5.0년) 중앙값인데 여기는 <b>직전 1.5년</b> 롤링 중앙값입니다. ' +
         '이익이 크게 움직인 종목일수록 이 차이가 벌어집니다. ' +
         (flip ? '<b>이 신호가 판정을 뒤집지는 않습니다</b> — 판정은 요약 탭 값이고, 여기는 그 하위집합이 과거에 어떻게 움직였는지를 보는 자리입니다.' : '') +
         '</div>';
@@ -1372,7 +1380,7 @@
       '<b>왜 통계를 내지 않나</b> · 단일 종목의 관찰 기간은 4년 남짓이라 <b>겹치지 않는 12개월 구간이 구조적으로 최대 4개</b>입니다(이 종목은 ' + nEv + '개). 데이터를 더 넣어도 늘지 않는 상한이라, 평균수익·승률은 표본 2~4개짜리 수치가 됩니다. 예전에는 그 값을 표로 크게 보여줬고 n=1에 승률 100%가 뜨기도 했습니다 — 화면에서 내렸습니다(계산 자체는 <span style="font-family:var(--font-mono)">scripts/check_backtest.py</span>에 남아 있습니다)<br/>' +
       '<b>왜 전략 자산곡선을 안 보여주나</b> · "신호일 때만 보유, 아니면 현금" 곡선은 신호 품질이 아니라 <b>시장에 노출된 시간</b>을 잽니다. 상승장에서는 현금으로 쉰 만큼 무조건 지므로, 낮은 성과가 신호가 나빠서인지 안 사서인지 구분되지 않습니다<br/>' +
       (methodNote ? '<b>어떤 신호를 복원했나</b> · ' + methodNote + ' ① 업종 상대가치는 피어 목록이 <b>현재</b> 시점 구성이라 과거로 소급하면 선택·생존편향(룩어헤드)이 낍니다. ④ 선행 이익은 과거 <b>시점별</b> 컨센서스 EPS 빈티지가 무료 데이터에 없습니다<br/>' : '') +
-      '<b>판정과의 관계 — 이것은 판정의 검증이 아닙니다</b> · ①이 없을 뿐 아니라 ②③도 <b>계산이 다릅니다</b>: 기준배수가 판정은 자기 5년 분위인데 여기는 직전 1.5년 롤링 중앙값이고(삼성전자 16.04배 vs 25.08배), ③의 지속계수·자본비용·장부가 게이트도 판정과 다릅니다. 그래서 같은 종목에 정반대 값이 나올 수 있습니다 — 상세 · docs/adr/0009<br/>' +
+      '<b>판정과의 관계 — 이것은 판정의 검증이 아닙니다</b> · ①이 없을 뿐 아니라 ②③도 <b>계산이 다릅니다</b>: 기준배수가 판정은 자기 과거 전체(종목마다 2.8~5.0년) 분위인데 여기는 직전 1.5년 롤링 중앙값이고(삼성전자 16.04배 vs 25.08배), ③의 지속계수·자본비용·장부가 게이트도 판정과 다릅니다. 그래서 같은 종목에 정반대 값이 나올 수 있습니다 — 상세 · docs/adr/0009<br/>' +
       '<b>룩어헤드 방지</b> · 정상 배수·ROE·BPS 모두 그 시점까지의 과거 데이터만 씁니다(자본비용 r만 상수 근사)<br/>' +
       '<b>통계적으로 옳은 길</b> · 여러 종목 × 여러 시점의 <b>횡단면 검증</b>인데, 과거 시점의 종목 유니버스가 무료 데이터에 없어 생존편향을 피할 수 없습니다. 그래서 지금은 통계 대신 관찰로 층위를 내렸습니다');
     if ($('btLede')) $('btLede').innerHTML = lede + btScope;

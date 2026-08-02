@@ -69,6 +69,9 @@ ADR 한 줄을 표 끝에 붙이는 append-only 표라, 기본 머지 전략이 
 된다** — union이 번호순을 흐트러뜨릴 수 있고, `scripts/check_adr_index.py`가 그건 알림만
 한다. 실패시키는 건 셋뿐이다: 같은 줄이 두 번(union이 프로즈까지 겹쳤을 때) · 파일은
 있는데 표에 없음 · 표에는 있는데 파일이 없음.
+  `.gitattributes`는 **머지를 수행하는 브랜치의 작업 트리**에 있어야 적용된다(main에만 있으면
+  안 된다). 지금 main에서 딴 브랜치는 자동으로 갖는다 — 이 규칙이 들어오기 전에 만든
+  브랜치만 `git checkout origin/main -- .gitattributes`를 한 번 하면 된다.
 
 ## 보안 (중요)
 - **API 키를 절대 코드/커밋에 넣지 말 것.** 키는 `.streamlit/secrets.toml`(=`.gitignore`로 제외)

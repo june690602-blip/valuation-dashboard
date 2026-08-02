@@ -321,7 +321,7 @@
                  되살리려면 이 주석만 풀면 된다(패널·렌더러·직렬화는 손댈 필요 없음).
                  보류 이유: 이 탭은 '우리 툴이 맞는지' 검증한다고 약속하는데 실제로는 판정과
                  다른 계산을 검증한다 — ①은 아예 없고(과거 피어 복원 불가), ②의 기준배수도
-                 판정은 자기 5년 분위인데 여기는 직전 1.5년 롤링 중앙값이다(삼성전자 실측
+                 판정은 자기 과거 전체(종목마다 2.8~5.0년) 분위인데 여기는 직전 1.5년 롤링 중앙값이다(삼성전자 실측
                  16.04배 vs 25.08배, 56% 차이). ③도 지속계수·자본비용·장부가 게이트가 다르다.
                  창을 맞추려면 테스트 시작 전에 5년치가 더 필요한데 주가 데이터가 총 5년뿐이라
                  데이터가 길어지기 전에는 정렬이 불가능하다. 상세·재개 조건은 docs/adr/0009.
@@ -451,7 +451,7 @@
 
         <!-- 04 밸류에이션 -->
         <section class="panel" data-tab="valuation" id="panel-valuation">
-          <div class="method-map"><span class="method-chip">적정가 재료 ②</span><span>역사적 밴드 — 자기 5년 멀티플(25~75분위)로 적정가 범위를 만드는 재료입니다.</span></div>
+          <div class="method-map"><span class="method-chip">적정가 재료 ②</span><span>역사적 밴드 — 자기 과거 멀티플(25~75분위)로 적정가 범위를 만드는 재료입니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="valuation-peer-title">
               <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="valuation-peer-title">현재 멀티플</h3><p class="analysis-section-desc">현재 평가배수를 업종 중앙값과 비교해 상대적인 가격 수준을 확인합니다.</p></div><span class="analysis-section-meta">PER · PBR · PSR · EV/EBITDA</span></div>

@@ -83,10 +83,10 @@ def build_commentary(d: CompanyData, ind: Indicators, scores: CategoryScores,
         if pct <= 25:
             # 밴드 위치는 '적정가 대비 판단'이 아니라 '자기 역사 안에서의 위치'다.
             # 저평가/고평가가 아니라 싼/비싼 구간으로 부른다(R3 용어집).
-            out.append(Comment("good", f"현재 PER는 지난 5년 밴드의 하위 {pct:.0f}% 구간 — "
+            out.append(Comment("good", f"현재 PER는 자기 과거 밴드의 하위 {pct:.0f}% 구간 — "
                                        "자기 역사 대비 싼 구간입니다.", about=ABOUT_PRICE))
         elif pct >= 75:
-            out.append(Comment("bad", f"현재 PER는 지난 5년 밴드의 상위 {100 - pct:.0f}% 구간 — "
+            out.append(Comment("bad", f"현재 PER는 자기 과거 밴드의 상위 {100 - pct:.0f}% 구간 — "
                                       "자기 역사 대비 비싼 구간입니다.", about=ABOUT_PRICE))
 
     # 3) RIM 정당 PBR vs 실제 PBR

@@ -337,7 +337,7 @@ def _price(d) -> dict:
     }
 
 
-def _band_one(band_df, q, pct, n=70) -> dict | None:
+def _band_one(band_df, q, pct, n=70, quality=None) -> dict | None:
     if band_df is None or band_df.empty:
         return None
     df = band_df.dropna(subset=["price"])
@@ -350,6 +350,13 @@ def _band_one(band_df, q, pct, n=70) -> dict | None:
     for col in ("q10", "q25", "q50", "q75", "q90"):
         if col in df.columns:
             out[col] = [num(v) for v in df[col].values]
+    # 밴드 품질(ADR-0012) — 창은 종목마다 다르므로 화면이 "5년"이라 쓰지 않고 years를 쓴다.
+    # usable=false면 판정에서 빠졌다는 뜻이고, 차트는 그대로 그리되 사유를 함께 보인다.
+    if quality:
+        out["quality"] = {"years": num(quality["years"]), "corr": num(quality["corr"]),
+                          "sd_fund": num(quality["sd_fund"]), "n": quality["n"],
+                          "price_band": quality["price_band"], "usable": quality["usable"],
+                          "short": quality["short"], "detail": quality["detail"]}
     return out
 
 
@@ -367,7 +374,7 @@ def _multiples(d, ind, val) -> list:
             vs = abs(diff) * 100
         rows.append({
             "key": key, "label": MULTIPLE_LABELS[key],
-            "current": num(cur), "med": num(med), "own5y": num(band50.get(key)),
+            "current": num(cur), "med": num(med), "own_band": num(band50.get(key)),
             "vs": num(vs), "cheaper": cheaper,
             "is_pct": key == "div_yield",
         })
@@ -564,7 +571,7 @@ def _scenario(d, val) -> dict | None:
         price=d.price,
         eps_fwd=c.forward_eps if c else None,
         eps_ttm=d.latest("eps"),
-        per_q=val.per_q,
+        per_q=val.per_q_pricing,
         peer_per=peer_median(comparable_peers(d.peers, d.market_cap), "per"))
     if res is None:
         return None
@@ -753,8 +760,10 @@ def analyze(market: str, query: str, peer_count: int = 9,
         "commentary": [{"kind": c.kind, "text": c.text, "group": c.group, "about": c.about}
                        for c in _commentary],
         "band": {
-            "per": _band_one(val.per_band, val.per_q, val.per_percentile),
-            "pbr": _band_one(val.pbr_band, val.pbr_q, val.pbr_percentile),
+            "per": _band_one(val.per_band, val.per_q, val.per_percentile,
+                             quality=val.band_quality.get("per")),
+            "pbr": _band_one(val.pbr_band, val.pbr_q, val.pbr_percentile,
+                             quality=val.band_quality.get("pbr")),
         },
     }
 

@@ -3,7 +3,8 @@
 증권사 리포트의 Bull/Base/Bear 관행을 따른다:
   시나리오 가격 = 기준 EPS × (1 + EPS 조정률) × 시나리오 멀티플
 - 기준 EPS: 컨센서스 12개월 선행 EPS 우선, 없으면 TTM EPS
-- 멀티플: 자기 5년 PER 밴드 분위(비관 q25 / 기준 q50 / 낙관 q75) 우선,
+- 멀티플: 자기 과거 PER 밴드 분위(비관 q25 / 기준 q50 / 낙관 q75) 우선,
+  단 가격 밴드로 판별돼 판정에서 빠진 다리는 넘어오지 않는다(ADR-0012).
   밴드가 없으면 피어 PER 중앙값 × (0.8 / 1.0 / 1.2)
 적자 기업(EPS<=0)은 이익 기반 시나리오가 성립하지 않아 None을 반환한다.
 """
@@ -57,7 +58,7 @@ def _pick_multiples(per_q, peer_per):
             if len(grid5) < 5:   # q10/q90 결측이면 q25·q75 밖으로 보간
                 grid5 = [q[25] * 0.8, q[25], q[50], q[75], q[75] * 1.2]
             return (q[25], q[50], q[75], grid5,
-                    "자기 5년 PER 밴드 분위 (비관 25 · 기준 50 · 낙관 75분위)")
+                    "자기 과거 PER 밴드 분위 (비관 25 · 기준 50 · 낙관 75분위)")
     if peer_per and peer_per > 0:
         return (peer_per * 0.8, peer_per, peer_per * 1.2,
                 [peer_per * m for m in GRID_PEER_MULTS],

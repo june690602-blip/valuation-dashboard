@@ -19,7 +19,7 @@
 갈라야 할 이유가 세 개 더 있다.
 
 1. **④는 독립된 네 번째 관점이 아니다(R2 실측).** ②와 ④는 같은 식이고 곱하는 EPS만 다르다 —
-   ② = 자기 5년 PER 중앙값 × TTM EPS,  ④ = 자기 5년 PER 중앙값 × 컨센서스 선행 EPS.
+   ② = 자기 과거 PER 중앙값 × TTM EPS,  ④ = 자기 과거 PER 중앙값 × 컨센서스 선행 EPS.
    그래서 ④÷②는 항상 정확히 (선행EPS ÷ TTM EPS)다(10종목 패널 전부에서 확인).
    ④를 빼면 잃는 것은 '한 관점'이 아니라 '②의 미래판'이다. 남은 ①②③이 오히려 서로
    더 다른 것을 본다(피어 / 자기 역사 / 장부가).
@@ -34,7 +34,7 @@
 병기한다(민감도 노출). 컨센서스 '목표주가' 자체는 어느 종합에도 섞지 않고 외부
 교차검증치로만 쓴다.
 
-`shared_multiple_share`는 이제 **컨센서스 반영 값**이 자기 5년 PER 중앙값 하나에 얼마나
+`shared_multiple_share`는 이제 **컨센서스 반영 값**이 자기 과거 PER 중앙값 하나에 얼마나
 매달려 있는지를 잰다(펀더멘털 종합에는 ②만 들어가 이 문제가 없다).
 근거·실측은 docs/review/R2-가정적합성.md, 재현은 scripts/check_sensitivity.py.
 """
@@ -147,10 +147,18 @@ class ValuationResult:
     fundamental_only: bool = True
     per_band: pd.DataFrame | None = None   # 밴드 차트용 (price + 분위선)
     pbr_band: pd.DataFrame | None = None
-    per_percentile: float | None = None    # 현재 PER의 5년 내 백분위
+    per_percentile: float | None = None    # 현재 PER의 관측 창 내 백분위
     pbr_percentile: float | None = None
-    per_q: dict | None = None              # 5년 PER 분위 배수 {10:.., 25:.., 50:..}
+    per_q: dict | None = None              # 관측 창 PER 분위 배수 {10:.., 25:.., 50:..}
     pbr_q: dict | None = None
+    # 판정에서 빠진 다리의 배수는 **가격을 만드는 어느 경로에도** 넘기지 않는다(ADR-0012).
+    # ④ 선행 이익과 시나리오 표가 둘 다 per_q를 타깃 배수로 쓰기 때문에 여기서 한 번만
+    # 끊는다. 밴드 차트는 판정과 무관하게 그려야 하므로 그쪽은 `per_q`를 그대로 쓴다.
+    per_q_pricing: dict | None = None
+    # 다리별 밴드 품질(ADR-0012) — {"per"|"pbr": {n, years, corr, sd_fund, price_band,
+    # usable, short, detail}}. 판정에서 왜 뺐는지의 실측 근거라 화면에 그대로 내보낸다.
+    # 창은 종목마다 다르다(실측 2.8~5.0년) — "5년"이라고 쓰지 말고 `years`를 쓸 것.
+    band_quality: dict = field(default_factory=dict)
     rim_fair_pbr: float | None = None
     rim_roe: float | None = None
     rim_r: float | None = None
@@ -161,7 +169,7 @@ class ValuationResult:
     forward_growth: float | None = None    # 선행 EPS / TTM EPS - 1 (내재 성장률)
     weights: dict = field(default_factory=dict)   # 펀더멘털 종합에 쓴 가중치 (재정규화)
     skipped: list = field(default_factory=list)   # [(방법명, 건너뛴 사유)] — 번호 자리 유지용
-    # ②·④가 함께 쓰는 '자기 5년 PER 중앙값' 하나에 **컨센서스 반영 적정가**가 실제로 얼마나
+    # ②·④가 함께 쓰는 '자기 과거 PER 중앙값' 하나에 **컨센서스 반영 적정가**가 실제로 얼마나
     # 매달려 있나(0~1). 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한 실효 의존도**다 —
     # 이 배수가 10% 틀리면 그 값도 이 비율만큼 틀린다. 펀더멘털 종합에는 ②만 들어가므로
     # 이 지표는 병기값 쪽에만 붙는다.
@@ -247,21 +255,88 @@ def _fundamental_daily(d: CompanyData, col: str, per_share: bool = True) -> pd.S
     return daily
 
 
+BAND_CORR_LIMIT = 0.90   # 이 이상이면 배수의 분위가 주가의 분위와 같은 말이다
+BAND_MIN_YEARS = 3.0     # '자기 과거 분위'라 부르려면 이만큼은 봐야 한다
+BAND_MIN_OBS = 200       # 기간은 길어도 관측이 드물면 분포가 몇몇 날에 좌우된다
+
+
+def _band_quality(mult: pd.Series, px: pd.Series, fund: pd.Series) -> dict:
+    """이 밴드가 배수를 재는가, 주가를 다시 쓴 것인가 (ADR-0012).
+
+    배수는 `주가 ÷ 펀더멘털`이라, 펀더멘털이 거의 움직이지 않으면 배수의 분위는
+    **주가의 분위와 같은 말**이 된다. 그러면 ②는 '자기 역사 대비 싼가'가 아니라
+    '주가가 자기 역사 대비 낮은가'를 답하는데, 한국 소형주는 98%가 자기 5년
+    주가중앙값 아래라 답이 정해져 있다(`scripts/check_size_bias.py`).
+
+    `corr`은 추세를 가진 두 로그 시계열 사이의 값이라 **유의성으로 읽으면 안 되는
+    기술통계**다 — "배수가 주가와 같이 움직인 정도"로만 쓴다. 임계 0.90도 추정값이
+    아니라 판단값이다(`PBR_GATE`와 같은 성격).
+
+    `short`는 방법표의 '제외 사유' 칸(짧게), `detail`은 해설 카드에 들어간다.
+    둘 다 **원인을 단정하지 않고 잰 값을 말한다**.
+    """
+    m = mult.where(mult > 0).dropna()
+    p, f = px.reindex(m.index), fund.reindex(m.index)
+    keep = (p > 0) & (f > 0)
+    m, p, f = m[keep], p[keep], f[keep]
+
+    n = int(len(m))
+    years = float((m.index[-1] - m.index[0]).days / 365.25) if n > 1 else 0.0
+    lm, lp, lf = (np.log(s) if n > 1 else None for s in (m, p, f))
+    sd_fund = float(lf.std()) if n > 1 else float("nan")
+    # 배수나 주가가 한 번도 안 변하면 상관은 정의되지 않는다(0으로 나눈다). 미리 끊는다.
+    varies = n > 1 and float(lm.std()) > 0 and float(lp.std()) > 0
+    corr = float(lm.corr(lp)) if varies else float("nan")
+    out = {"n": n, "years": years, "corr": corr, "sd_fund": sd_fund}
+
+    def done(price_band: bool, short: str, detail: str) -> dict:
+        out.update({"price_band": price_band, "usable": short == "",
+                    "short": short, "detail": detail})
+        return out
+
+    reweight = "판정에서 빼고 나머지 방법으로 판정하며 가중치는 다시 배분합니다."
+    if n < BAND_MIN_OBS:
+        return done(False, f"관측일 {n}일 — {BAND_MIN_OBS}일 미만",
+                    f"배수를 관측한 날이 {n}일뿐입니다. 기간은 {years:.1f}년이지만 거래가 드물어 "
+                    f"분위가 몇몇 날에 좌우됩니다. {reweight}")
+    if years < BAND_MIN_YEARS:
+        return done(False, f"창 {years:.1f}년 — {BAND_MIN_YEARS:g}년 미만",
+                    f"배수를 관측한 기간이 {years:.1f}년입니다. '자기 과거 분위'라 부르려면 "
+                    f"{BAND_MIN_YEARS:g}년 이상은 봐야 합니다. {reweight}")
+    if not np.isfinite(corr):
+        return done(True, "배수가 사실상 변하지 않음",
+                    f"{years:.1f}년간 배수가 거의 그대로여서 분위를 만들 수 없습니다. {reweight}")
+    if corr >= BAND_CORR_LIMIT:
+        return done(True, f"배수가 주가와 함께 움직임 (상관 {corr:+.2f})",
+                    f"{years:.1f}년간 펀더멘털의 변동이 로그 표준편차 {sd_fund:.3f}에 그쳐, 배수가 "
+                    f"주가와 상관 {corr:+.2f}로 함께 움직였습니다. 이 밴드의 분위는 배수의 분위가 "
+                    f"아니라 **주가의 분위**입니다 — 자기 역사 대비 싼지가 아니라 주가가 예전보다 "
+                    f"낮은지를 말합니다. {reweight}")
+    return done(False, "",
+                f"{years:.1f}년간 펀더멘털이 로그 표준편차 {sd_fund:.3f}만큼 움직였고, 배수와 주가의 "
+                f"상관은 {corr:+.2f}입니다. 주가의 분위와 구분되는 배수의 분위로 봅니다.")
+
+
 def _band(d: CompanyData, current_fund: float | None, kind: str):
-    """(밴드 df, 현재 배수 백분위, FairValue 구성요소, 분위 배수 dict) — kind: 'per'|'pbr'"""
+    """(밴드 df, 현재 배수 백분위, FairValue 구성요소, 분위 배수 dict, 품질 dict) — kind: 'per'|'pbr'
+
+    **판정에 쓸지 말지는 여기서 정하지 않는다.** 품질만 재서 함께 돌려주고
+    `compute_valuation()`이 거른다(ADR-0012) — 판정에서 빠진 밴드도 차트에는 남기 때문이다.
+    """
     col = "eps" if kind == "per" else "total_equity"
     per_share = kind == "pbr"  # eps는 이미 주당, equity는 주식수로 나눔
     daily = _fundamental_daily(d, col, per_share=per_share)
     if daily is None:
-        return None, None, None, None
+        return None, None, None, None, None
     daily = daily.where(daily > 0)
     # 과거 배수는 '그날 실제 주가 ÷ 그날 펀더멘털'이라 미조정 종가를 써야 한다. 수정종가는
     # 과거를 그 뒤 지급된 배당만큼 낮춰 잡아 과거 PER·PBR이 실제보다 낮게 깔리고, 그만큼
     # 적정가(분위 배수 × 현재 펀더멘털)가 낮아져 현재가가 늘 비싸 보인다. 고배당일수록 심하다.
     px = actual_prices(d)
     mult = (px / daily).dropna()
-    if len(mult) < 200:
-        return None, None, None, None
+    quality = _band_quality(mult, px, daily) if len(mult) else None
+    if len(mult) < BAND_MIN_OBS:
+        return None, None, None, None, quality
     q = mult.quantile([0.10, 0.25, 0.50, 0.75, 0.90])
     qdict = {int(p * 100): float(v) for p, v in q.items()}
     qdict["current"] = float(mult.iloc[-1])
@@ -271,11 +346,11 @@ def _band(d: CompanyData, current_fund: float | None, kind: str):
         band[f"q{int(p * 100)}"] = daily * v
     band = band.dropna(subset=["price"])
     if not current_fund or current_fund <= 0:
-        return band, pct, None, qdict
+        return band, pct, None, qdict, quality
     fair = (float(q.loc[0.25]) * current_fund,
             float(q.loc[0.50]) * current_fund,
             float(q.loc[0.75]) * current_fund)
-    return band, pct, fair, qdict
+    return band, pct, fair, qdict, quality
 
 
 # ── ③ RIM (잔여이익모델 간이형) ──────────────────────────────────────
@@ -450,8 +525,9 @@ def _recent_roe(d: CompanyData, ttm_roe: float | None) -> float | None:
 # ── ④ 선행 이익 (컨센서스 12개월 EPS × 타깃 멀티플) ─────────────────
 def _forward_value(fwd_eps: float | None, peer_fwd_per: float | None,
                    per_q: dict | None) -> FairValue | None:
-    """중심 = 타깃 멀티플 × 선행 EPS. 타깃 멀티플은 **자기 5년 PER 중앙값 우선**,
-    없으면 피어 선행PER 폴백. 범위는 자기 5년 밴드 q25~q75.
+    """중심 = 타깃 멀티플 × 선행 EPS. 타깃 멀티플은 **자기 과거 PER 중앙값 우선**,
+    없으면 피어 선행PER 폴백. 범위는 자기 과거 밴드 q25~q75. 창의 길이는 종목마다
+    다르고(실측 2.8~5.0년) 가격 밴드로 판별된 다리는 아예 넘어오지 않는다(ADR-0012).
 
     근거(실증): 11종목 횡단면 테스트(scripts/check_multiple_rules.py)에서 자기 5년
     중앙값이 |log(예측/현재가)| 최소(0.26)였고, 증권사 목표주가의 내재 멀티플과
@@ -478,7 +554,7 @@ def _forward_value(fwd_eps: float | None, peer_fwd_per: float | None,
     q50 = per_q.get(50) if per_q else None
     q75 = per_q.get(75) if per_q else None
     if q50 and q50 > 0:
-        mult, label = q50, "자기 5년 PER 중앙값"
+        mult, label = q50, "자기 과거 PER 중앙값"
     elif peer_fwd_per and peer_fwd_per > 0:
         mult, label = peer_fwd_per, "피어 선행PER"
     else:
@@ -535,18 +611,29 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
 
     # ② 역사적 밴드 (PER 우선, 적자면 PBR)
     # 통화가 섞이면 밴드 자체가 무의미하므로 계산하지 않는다 — 차트에도 그려지면 안 된다.
-    per_fair = pbr_fair = None
+    per_fair = pbr_fair = per_qual = pbr_qual = None
     if not mismatch:
-        res.per_band, res.per_percentile, per_fair, res.per_q = _band(
+        res.per_band, res.per_percentile, per_fair, res.per_q, per_qual = _band(
             d, eps if eps and eps > 0 else None, "per")
-        res.pbr_band, res.pbr_percentile, pbr_fair, res.pbr_q = _band(d, bps, "pbr")
+        res.pbr_band, res.pbr_percentile, pbr_fair, res.pbr_q, pbr_qual = _band(d, bps, "pbr")
+        res.band_quality = {k: v for k, v in (("per", per_qual), ("pbr", pbr_qual)) if v}
+        if per_qual and per_qual["usable"]:
+            res.per_q_pricing = res.per_q
+    # 다리 선택은 그대로 둔다(흑자면 PER, 적자면 PBR). 관문은 **고른 다리를 쓸 수 있는가**만
+    # 정한다 — PER이 걸렸다고 PBR로 넘어가면 화면의 'PBR(적자로 대체)'가 사실이 아니게 된다.
     fair = per_fair or pbr_fair
+    qual = per_qual if per_fair else pbr_qual
     if mismatch:
         res.skipped.append(("역사적 밴드", ccy_reason))
-    elif fair:
+    elif fair and qual and qual["usable"]:
         basis = "PER" if per_fair else "PBR(적자로 대체)"
-        res.estimates.append(FairValue("역사적 밴드", fair[0], fair[1], fair[2],
-                                       note=f"5년 {basis} 25~75분위 × 현재 펀더멘털"))
+        res.estimates.append(FairValue(
+            "역사적 밴드", fair[0], fair[1], fair[2],
+            note=f"{qual['years']:.1f}년 {basis} 25~75분위 × 현재 펀더멘털"))
+    elif fair and qual:
+        # 계산은 됐지만 그 분위가 배수의 분위가 아니거나 창이 짧다 (ADR-0012).
+        res.skipped.append(("역사적 밴드", qual["short"]))
+        res.notes.append(ValuationNote("info", qual["detail"]))
     else:
         res.skipped.append(("역사적 밴드", "상장기간 짧음 또는 적자 지속"))
         res.notes.append(ValuationNote(
@@ -588,8 +675,10 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         res.skipped.append(("선행 이익(컨센서스)", "애널리스트 커버리지 없음"))
     else:
         peers = comparable_peers(d.peers, d.market_cap)   # 규모 비교가능 피어만
+        # ④는 ②와 **같은** 자기 과거 PER 중앙값을 타깃 배수로 쓴다. ②를 판정에서 뺐는데
+        # 그 배수를 그대로 넘기면 방금 믿을 수 없다고 판단한 값이 병기값으로 돌아온다(ADR-0012).
         fv4 = _forward_value(cons.forward_eps, peer_median(peers, "forward_per", min_n=2),
-                             res.per_q)
+                             res.per_q_pricing)
         if fv4:
             res.estimates.append(fv4)
             res.forward_eps = cons.forward_eps
@@ -614,7 +703,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
                     res.notes.append(ValuationNote(
                         "warn",
                         f"이익이 크게 {updown} 국면입니다(선행 EPS가 TTM 대비 "
-                        f"{res.forward_growth:+.0%}). 곱하는 배수는 '지난 5년 PER의 "
+                        f"{res.forward_growth:+.0%}). 곱하는 배수는 '자기 과거 PER의 "
                         "중앙값'이라 이익이 지금과 다르던 시기에서 나온 값입니다 — 두 값의 "
                         "국면이 어긋나 선행 이익 방법이 실제보다 낙관적(이익 증가 국면)이거나 "
                         "비관적(감소 국면)으로 나올 수 있습니다. 판정은 이 방법을 쓰지 않지만, "
@@ -686,7 +775,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
             f"달라집니다" + (f" — 판정도 '{res.verdict_consensus}'로 갈립니다." if flip else ".") +
             " 이 차이가 곧 '지금 주가가 정당화되려면 시장이 기대하는 만큼의 실적 변화가 "
             "실제로 와야 하는 크기'입니다."))
-        # ②와 ④는 같은 식(자기 5년 PER 중앙값 × EPS)이라 이 배수 하나가 틀리면 둘이
+        # ②와 ④는 같은 식(자기 과거 PER 중앙값 × EPS)이라 이 배수 하나가 틀리면 둘이
         # 같은 방향으로 함께 틀린다. 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한
         # 실효 의존도**를 계산해 화면에 밝힌다. 펀더멘털 종합에는 ②만 들어가므로 이 경고는
         # 병기하는 컨센서스 반영 값에만 붙는다.
@@ -699,7 +788,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
             res.notes.append(ValuationNote(
                 "info",
                 f"위 '컨센서스 반영' 값을 읽을 때: ② 역사적 밴드와 ④ 선행 이익은 같은 "
-                f"배수(자기 5년 PER 중앙값)에 각각 TTM EPS와 컨센서스 EPS를 곱한 값입니다 — "
+                f"배수(자기 과거 PER 중앙값)에 각각 TTM EPS와 컨센서스 EPS를 곱한 값입니다 — "
                 f"서로 다른 관점이 아니라 같은 관점의 과거판·미래판이라, 그 값의 "
                 f"{res.shared_multiple_share:.0%}가 이 배수 하나에 의존합니다. 두 방법이 "
                 "비슷하게 나와도 '독립적으로 합의했다'는 뜻이 아닙니다."))

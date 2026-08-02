@@ -81,7 +81,7 @@ def main(market: str, query: str):
     from src.analysis.scenario import build_scenarios
     from src.analysis.scoring import comparable_peers, peer_median
     scn = build_scenarios(price=d.price, eps_fwd=c.forward_eps if c else None,
-                          eps_ttm=d.latest("eps"), per_q=val.per_q,
+                          eps_ttm=d.latest("eps"), per_q=val.per_q_pricing,
                           peer_per=peer_median(comparable_peers(d.peers, d.market_cap), "per"))
     print("\n[시나리오]")
     if scn is None:
