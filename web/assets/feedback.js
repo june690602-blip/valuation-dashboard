@@ -46,7 +46,7 @@
     '.fb-b1[disabled]{opacity:.5;cursor:default}',
     '.fb-b2{background:transparent;color:var(--ink-2,#514C45);border:1px solid var(--line-strong,#C8C2B4)}',
     '.fb-b2:hover{background:var(--paper-3,#EDE8DE)}',
-    '@media (max-width:600px){#fbBtn{right:12px;bottom:12px}}'
+    '@media (max-width:560px){#fbBtn{right:12px;bottom:12px}}'
   ].join('');
 
   var style = document.createElement('style');

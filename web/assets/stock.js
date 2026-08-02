@@ -670,14 +670,14 @@
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
         '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:11px">' +
-          '<span style="width:38px;height:38px;flex:none;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;font-family:' + disp + ';font-weight:900;font-size:18px">' + esc(initial) + '</span>' +
+          '<span style="width:38px;height:38px;flex:none;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;font-family:' + disp + ';font-weight:900;font-size:17px">' + esc(initial) + '</span>' +
           '<div><div style="display:flex;align-items:center;gap:7px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(m.ticker) + '</span>' + badge(m.market + ' · ' + m.benchmark, 'info') + '</div>' +
           '<div style="font-family:' + disp + ';font-weight:700;font-size:29px;letter-spacing:-0.01em;line-height:1;margin-top:3px">' + esc(m.name) + '</div></div></div>' +
           '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(m.price) + '</div></div>' +
         '<div style="flex:1;min-width:320px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="kick">밸류에이션 판정</span><span style="font-size:12px;color:var(--ink-3)">신뢰도 <b class="na" tabindex="0" data-tip="' + esc(confTip) + '" style="color:var(--ink-2)">' + esc(v.confidence || '—') + '</b></span></div>' +
           // 큰 판정 헤드라인 — 결론(저평가/적정/고평가)이 한눈에
           '<div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap">' +
-            '<span style="font-family:' + disp + ';font-weight:800;font-size:27px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(v.verdict || '—') + '</span>' +
+            '<span style="font-family:' + disp + ';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(v.verdict || '—') + '</span>' +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + verdictLine + '</span></div>' +
           // 판정과 아래 근거가 반대 방향일 때만 뜬다 — 큰 글씨를 본 사람이 스크롤하기 전에
           // "왜 아래는 반대로 말하나"를 먼저 읽게 한다. 반대가 아니면 아무 말도 하지 않는다(#69).
@@ -779,7 +779,7 @@
       }
       return '';
     }).join('');
-    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">종합 적정가 (가중평균)</span><span></span><span class="mono r" style="font-size:15px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
+    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">종합 적정가 (가중평균)</span><span></span><span class="mono r" style="font-size:14px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
     // 동일가중 민감도 — 가중치 선택이 결론을 좌우하지 않는지 투명하게 병기
     var sens = '';
     if (v.fair_mid_equal != null) {
@@ -1239,7 +1239,7 @@
     $('aiContent').innerHTML =
       '<div style="background:var(--navy);color:var(--navy-ink);border-radius:var(--radius-md);padding:26px 28px">' +
         '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--navy-muted)">한 줄 관찰 · 규칙 기반</div>' +
-        '<div style="font-family:var(--font-display);font-weight:700;font-size:28px;letter-spacing:-0.01em;margin-top:8px">' + stance + ' — ' + esc(v.verdict) + ' · 괴리율 ' + fmtSigned(v.gap) + '</div>' +
+        '<div style="font-family:var(--font-display);font-weight:700;font-size:29px;letter-spacing:-0.01em;margin-top:8px">' + stance + ' — ' + esc(v.verdict) + ' · 괴리율 ' + fmtSigned(v.gap) + '</div>' +
         '<div style="font-size:13px;color:var(--navy-ink);margin-top:10px;line-height:1.6">대시보드 산출 사실(적정가 범위·상승여력·업종 백분위·자본비용)을 근거로 한 스탠스입니다.' + (m.ai_available ? ' 아래 버튼으로 Gemini 서술형 종합 평가를 생성할 수 있어요.' : ' 서술형 AI 평가는 Gemini 키를 설정하면 생성됩니다.') + '</div>' +
         (m.ai_available ? '<button id="opBtn" class="btn btn-sm" style="margin-top:16px;background:var(--paper);color:var(--ink)">✦ 종합 투자평가 생성 (Gemini)</button>' : '') + '</div>' +
         '<div id="opOut"></div>' +
@@ -1247,7 +1247,7 @@
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600;color:var(--dv-positive)">강세 논거</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.8">' + li(bulls) + '</ul></div>' +
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600;color:var(--dv-negative)">약세 논거·리스크</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.8">' + li(bears) + '</ul></div></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">' +
-        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">적정가 추정 범위 · 괴리율</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="mono" style="font-size:20px;font-weight:600">' + target + '</span><span style="font-size:13px;color:' + (up ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + upside + '</span></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">3개 모형의 추정 범위이며 추천 목표가가 아닙니다</div></div>' +
+        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">적정가 추정 범위 · 괴리율</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="mono" style="font-size:22px;font-weight:600">' + target + '</span><span style="font-size:13px;color:' + (up ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + upside + '</span></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">3개 모형의 추정 범위이며 추천 목표가가 아닙니다</div></div>' +
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">관찰을 재검토할 기준</div><div style="font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-top:10px">52주 최저 <b class="mono">' + stop + '</b> 이탈 시 현재 추세 해석을 다시 확인하세요. 신뢰도 <b>' + esc(v.confidence || '—') + '</b> — 방법 간 편차가 크면 보수적으로 해석하세요.</div></div></div>' +
       '<div style="font-size:10.5px;color:var(--ink-3);margin-top:14px;line-height:1.6">본 스탠스는 대시보드 산출 데이터에 기반한 규칙적 요약이며, 서술형 AI 평가·최종 판단은 이용자 책임입니다. 특정 종목의 매수·매도 추천이 아닙니다.</div>';
     var ob = $('opBtn'); if (ob) ob.addEventListener('click', function () { aiFetch('opinion', $('opOut'), ob); });
@@ -1309,13 +1309,13 @@
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
         '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:11px">' +
-          '<span style="width:38px;height:38px;flex:none;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;font-family:' + disp + ';font-weight:900;font-size:18px">' + esc(initial) + '</span>' +
+          '<span style="width:38px;height:38px;flex:none;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;font-family:' + disp + ';font-weight:900;font-size:17px">' + esc(initial) + '</span>' +
           '<div><div style="display:flex;align-items:center;gap:7px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(D.symbol) + '</span>' + badge('ETF · ' + D.type_label, 'info') + '</div>' +
-          '<div style="font-family:' + disp + ';font-weight:700;font-size:23px;letter-spacing:-0.01em;line-height:1.15;margin-top:3px">' + esc(D.name) + '</div></div></div>' +
+          '<div style="font-family:' + disp + ';font-weight:700;font-size:22px;letter-spacing:-0.01em;line-height:1.15;margin-top:3px">' + esc(D.name) + '</div></div></div>' +
           '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(D.price) + '</div></div>' +
         '<div style="flex:1;min-width:320px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="kick">ETF 판정</span><span style="font-size:12px;color:var(--ink-3)">신뢰도 <b class="na" tabindex="0" data-tip="' + esc(confTip) + '" style="color:var(--ink-2)">' + esc(D.confidence || '—') + '</b></span></div>' +
           '<div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap">' +
-            '<span style="font-family:' + disp + ';font-weight:800;font-size:25px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(headline) + '</span>' + holdBadge +
+            '<span style="font-family:' + disp + ';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(headline) + '</span>' + holdBadge +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + esc(subline) + '</span></div>' +
           '<div style="position:relative;margin-top:15px;padding-bottom:28px">' +
             // ETF 눈금은 **항상** 관찰 어휘다. ETF는 재무제표가 없어 적정가(내재가치)를 아예
@@ -1412,7 +1412,7 @@
       var tip = a.note && a.lead ? ' <span class="na" tabindex="0" data-tip="' + esc(a.note) + '" style="color:var(--ink-3);cursor:help">ⓘ</span>' : '';
       return '<div style="display:grid;grid-template-columns:186px minmax(190px,1fr) 180px 76px;gap:18px;align-items:center;padding:15px 0' + (i ? ';border-top:1px solid var(--line)' : '') + '">' +
         '<div class="kick" style="color:' + (a.available ? 'var(--dv-navy)' : 'var(--ink-3)') + '">' + esc(a.title) + '</div>' +
-        '<div><div style="font-family:' + EMONO + ';font-size:16px;font-weight:600;color:' + (a.available ? 'var(--ink)' : 'var(--ink-3)') + '">' + esc(a.value) + '</div>' +
+        '<div><div style="font-family:' + EMONO + ';font-size:17px;font-weight:600;color:' + (a.available ? 'var(--ink)' : 'var(--ink-3)') + '">' + esc(a.value) + '</div>' +
           '<div style="font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.5">' + esc(lead) + tip + '</div></div>' +
         '<div>' + etfGauge(a.available ? a.pos : null, tone, i === 0) + '</div>' +
         '<div style="text-align:right"><span style="display:inline-block;padding:3px 9px;border-radius:var(--radius-pill);font-size:11.5px;font-weight:700;color:' + tone.ink + ';background:' + (tone.soft ? 'var(--paper-3)' : (tone.col === 'var(--dv-clay)' ? 'color-mix(in srgb, var(--dv-clay) 14%, var(--paper))' : 'color-mix(in srgb, var(--dv-green) 14%, var(--paper))')) + '">' + tone.label + '</span></div></div>';
@@ -1431,7 +1431,7 @@
       summary = '<div style="border-left:3px solid ' + st.col + ';padding:2px 0 2px 18px;margin-bottom:22px">' +
         '<div class="kick" style="color:var(--ink-3)">종합 신호 · 시장·역사 대비 위치</div>' +
         '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:7px">' +
-          '<span style="font-family:var(--font-display);font-weight:800;font-size:25px;letter-spacing:-0.01em;color:' + st.col + '">' + esc(rel.stance) + '</span>' +
+          '<span style="font-family:var(--font-display);font-weight:800;font-size:24px;letter-spacing:-0.01em;color:' + st.col + '">' + esc(rel.stance) + '</span>' +
           '<span style="font-size:13px;color:var(--ink-2)">' + esc(total ? '지표 ' + total + '개 중 ' + parts.join(', ') + '입니다' : '') + '</span></div>' +
         '<div style="max-width:420px;margin-top:12px">' + etfGauge(rel.pos, st, true) + '</div>' +
         '<div style="font-size:11.5px;color:var(--ink-3);margin-top:9px;line-height:1.6">적정가(펀더멘털) 판정이 아니라 <b>시장 대비 가격비율의 5년 위치</b>입니다 — 성장 우위가 구조적이면 약할 수 있어 방향 참고로만 보세요.</div></div>';
@@ -1575,7 +1575,7 @@
       rows.push(['상장일', fi.listed_date.slice(0, 4) + '.' + fi.listed_date.slice(4, 6) + '.' + fi.listed_date.slice(6, 8), '거래가 시작된 날']);
     }
     var rowHtml = rows.map(function (r) {
-      return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)"><div><div style="font-size:13.5px;color:var(--ink);font-weight:600">' + r[0] + '</div><div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">' + r[2] + '</div></div><div class="mono" style="font-size:16px;text-align:right">' + r[1] + '</div></div>';
+      return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)"><div><div style="font-size:13.5px;color:var(--ink);font-weight:600">' + r[0] + '</div><div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">' + r[2] + '</div></div><div class="mono" style="font-size:17px;text-align:right">' + r[1] + '</div></div>';
     }).join('');
     return '<div style="display:flex;flex-wrap:wrap;gap:34px">' +
       '<div style="flex:1;min-width:300px">' + etfSectionHead('01', '비용·추적 품질', '수수료가 낮고 벤치마크를 잘 따라갈수록 좋습니다.', null) +
