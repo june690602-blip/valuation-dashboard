@@ -11,9 +11,9 @@ from src.analysis.backtest import (_non_overlapping_values, _rim_discount,
                                    run_backtest)
 from src.analysis.indicators import _average_balance
 from src.analysis.portfolio import after_tax_row
-from src.analysis.valuation import (_band, _fundamental_daily, _rim,
-                                    compute_valuation)
-from src.data.models import CompanyData, actual_prices
+from src.analysis.valuation import (_band, _band_quality, _fundamental_daily,
+                                    _rim, compute_valuation)
+from src.data.models import CompanyData, Consensus, actual_prices
 from src.data.opendart import _parse_report
 
 
@@ -70,6 +70,151 @@ class HistoricalPerShareTests(unittest.TestCase):
         company = SimpleNamespace(financials=financials, prices=pd.Series(dtype=float))
 
         self.assertIsNone(_fundamental_daily(company, "total_equity", per_share=True))
+
+
+class BandQualityTests(unittest.TestCase):
+    """② 밴드가 배수를 재는가, 주가를 다시 쓴 것인가 (ADR-0012).
+
+    배수는 `주가 ÷ 펀더멘털`이라, 펀더멘털이 거의 안 움직이면 배수의 분위는 **주가의
+    분위와 같은 말**이 된다. 그러면 밴드는 '자기 역사 대비 싼가'가 아니라 '주가가 자기
+    역사 대비 낮은가'를 답한다 — 한국 소형주의 98%가 그렇다.
+    """
+
+    @staticmethod
+    def _legs(n_days, price, fund, end="2026-06-30"):
+        idx = pd.bdate_range(end=end, periods=n_days)
+        t = np.arange(n_days)
+        px = pd.Series(price(t), index=idx, dtype=float)
+        daily = pd.Series(fund(t), index=idx, dtype=float)
+        return px / daily, px, daily
+
+    def test_flat_fundamental_makes_the_band_a_price_band(self):
+        """펀더멘털이 상수면 배수 = 주가 ÷ 상수 — 분위가 주가의 분위와 같다."""
+        mult, px, daily = self._legs(900, lambda t: 100.0 - 50.0 * t / 899,
+                                     lambda t: np.full(len(t), 10.0))
+
+        q = _band_quality(mult, px, daily)
+
+        self.assertTrue(q["price_band"])
+        self.assertFalse(q["usable"])
+        self.assertGreater(q["corr"], 0.99)
+        self.assertIn("주가", q["detail"])      # 원인을 단정하지 않고 잰 값을 말한다
+
+    def test_moving_fundamental_keeps_the_band(self):
+        """이익이 4배로 늘고 주가는 제자리면 그건 진짜 배수의 재평가다."""
+        rng = np.random.default_rng(7)
+        noise = rng.normal(0.0, 0.01, 900)
+        mult, px, daily = self._legs(900, lambda t: 100.0 * np.exp(noise[t]),
+                                     lambda t: 5.0 + 15.0 * t / 899)
+
+        q = _band_quality(mult, px, daily)
+
+        self.assertFalse(q["price_band"])
+        self.assertTrue(q["usable"])
+        self.assertEqual(q["short"], "")
+
+    def test_window_under_three_years_is_excluded(self):
+        """창이 3년 미만이면 '분위'라 부를 만큼 보지 못한 것이다."""
+        mult, px, daily = self._legs(500, lambda t: 100.0 - 50.0 * t / 499,
+                                     lambda t: 5.0 + 15.0 * t / 499)
+
+        q = _band_quality(mult, px, daily)
+
+        self.assertLess(q["years"], 3.0)
+        self.assertFalse(q["price_band"])       # 짧은 것과 가격 밴드인 것은 다른 사유다
+        self.assertFalse(q["usable"])
+        self.assertIn("년", q["short"])
+
+    def test_sparse_observations_are_excluded_even_over_three_years(self):
+        """기간은 길어도 관측이 드물면(거래정지 등) 분포를 만들 수 없다."""
+        idx = pd.bdate_range(end="2026-06-30", periods=1_000)[::8]   # 3.8년에 125개
+        px = pd.Series(np.linspace(100.0, 50.0, len(idx)), index=idx)
+        daily = pd.Series(np.linspace(5.0, 20.0, len(idx)), index=idx)
+
+        q = _band_quality(px / daily, px, daily)
+
+        self.assertGreater(q["years"], 3.0)
+        self.assertFalse(q["usable"])
+        self.assertIn("관측", q["short"])
+
+
+class BandGateTests(unittest.TestCase):
+    """가격 밴드로 판별된 다리는 판정에서 빠지고, ④도 그 배수를 쓰지 않는다 (ADR-0012).
+
+    ④(컨센서스 선행 이익)는 타깃 배수로 ②와 **같은** 자기 과거 PER 중앙값을 쓴다.
+    ②를 판정에서 뺐는데 그 배수를 ④에 그대로 넘기면, 방금 믿을 수 없다고 판단한
+    값이 병기값으로 되돌아온다.
+    """
+
+    FLAT = [2.0] * 6                              # 이익 그대로 → 배수 = 주가 ÷ 상수
+    GROWING = [1.0, 1.6, 2.6, 4.2, 6.8, 11.0]     # 이익 11배 → 진짜 배수의 재평가
+
+    def test_band_reports_its_own_quality(self):
+        d = _company_for_band(self.FLAT)
+
+        *_, quality = _band(d, current_fund=2.0, kind="per")
+
+        self.assertIn("usable", quality)
+
+    def test_price_band_leg_is_dropped_from_the_verdict(self):
+        res = compute_valuation(_company_for_band(self.FLAT), _flat_indicators(),
+                                r_equity=0.10)
+
+        self.assertNotIn("역사적 밴드", [m.method for m in res.estimates])
+        self.assertIn("주가와 함께", dict(res.skipped)["역사적 밴드"])
+        self.assertTrue(res.band_quality["per"]["price_band"])
+
+    def test_moving_fundamental_leg_stays_in_the_verdict(self):
+        res = compute_valuation(_company_for_band(self.GROWING), _flat_indicators(),
+                                r_equity=0.10)
+
+        self.assertIn("역사적 밴드", [m.method for m in res.estimates])
+        self.assertFalse(res.band_quality["per"]["price_band"])
+
+    def test_band_chart_survives_even_when_the_verdict_drops_it(self):
+        """판정에서 빼는 것과 화면에서 지우는 것은 다른 일이다."""
+        res = compute_valuation(_company_for_band(self.FLAT), _flat_indicators(),
+                                r_equity=0.10)
+
+        self.assertNotIn("역사적 밴드", [m.method for m in res.estimates])
+        self.assertIsNotNone(res.per_band)
+        self.assertIsNotNone(res.per_q)
+
+    def test_band_note_reports_the_measured_window_not_five_years(self):
+        """화면은 '자기 5년'이라고 써 왔지만 실제 창은 종목마다 2.8~5년이다."""
+        res = compute_valuation(_company_for_band(self.GROWING), _flat_indicators(),
+                                r_equity=0.10)
+
+        note = next(m.note for m in res.estimates if m.method == "역사적 밴드")
+        self.assertNotIn("5년", note)
+        self.assertIn(f"{res.band_quality['per']['years']:.1f}년", note)
+
+    def test_dropped_band_multiple_is_withheld_from_every_pricing_path(self):
+        """④·시나리오 표가 모두 같은 per_q를 타깃 배수로 쓴다 — 한 곳에서 끊는다."""
+        res = compute_valuation(_company_for_band(self.FLAT), _flat_indicators(),
+                                r_equity=0.10)
+
+        self.assertIsNotNone(res.per_q)          # 차트는 그대로 그린다
+        self.assertIsNone(res.per_q_pricing)     # 가격을 만드는 경로에는 넘기지 않는다
+
+    def test_surviving_band_multiple_is_passed_to_pricing_paths(self):
+        res = compute_valuation(_company_for_band(self.GROWING), _flat_indicators(),
+                                r_equity=0.10)
+
+        self.assertEqual(res.per_q_pricing, res.per_q)
+
+    def test_forward_value_does_not_reuse_a_dropped_band_multiple(self):
+        """피어 폴백이 없는 상태에서 ②가 빠지면 ④도 나오지 않아야 한다."""
+        res = compute_valuation(_company_for_band(self.FLAT, forward_eps=3.0),
+                                _flat_indicators(), r_equity=0.10)
+
+        self.assertNotIn("선행 이익(컨센서스)", [m.method for m in res.estimates])
+
+    def test_forward_value_keeps_using_a_band_multiple_that_survived(self):
+        res = compute_valuation(_company_for_band(self.GROWING, forward_eps=12.0),
+                                _flat_indicators(), r_equity=0.10)
+
+        self.assertIn("선행 이익(컨센서스)", [m.method for m in res.estimates])
 
 
 class DartPeriodTests(unittest.TestCase):
@@ -203,6 +348,36 @@ class RimAssumptionTests(unittest.TestCase):
         self.assertIn("수익가치(RIM)", [m.method for m in res.estimates])
 
 
+def _company_for_band(eps: list[float], forward_eps: float | None = None) -> CompanyData:
+    """② 밴드 관문(ADR-0012)만 태우기 위한 최소 CompanyData.
+
+    주가는 올랐다 되돌리는 모양으로 고정하고 **이익만 바꾼다** — 이익이 상수면 배수가
+    주가를 다시 쓴 것이 되고, 이익이 크게 움직이면 배수 자체가 재평가된다.
+    피어는 비워 둔다: ④의 피어 선행PER 폴백이 없어야 '②의 배수를 재사용하는가'만 남는다.
+    """
+    years = list(range(2020, 2020 + len(eps)))
+    shares = 100.0
+    fin = pd.DataFrame({
+        "eps": list(eps),
+        "net_income": [e * shares for e in eps],
+        "total_equity": [10_000.0] * len(years),
+        "shares_outstanding": [shares] * len(years),
+        "fiscal_end": [pd.Timestamp(f"{y}-12-31") for y in years],
+    }, index=years)
+    idx = pd.bdate_range("2021-01-04", "2026-06-30")
+    n = len(idx)
+    px = pd.Series(np.interp(np.arange(n), [0, int(n * 0.6), n - 1],
+                             [100.0, 160.0, 120.0]), index=idx)
+    return CompanyData(
+        ticker="B", yahoo_ticker="B", name="B", market="US", currency="USD",
+        sector="", industry="", price=float(px.iloc[-1]),
+        market_cap=float(px.iloc[-1]) * shares, shares_outstanding=shares,
+        financials=fin, ttm=None, prices=px, index_prices=px,
+        benchmark_name="S&P 500", peers=pd.DataFrame(),
+        consensus=Consensus(forward_eps=forward_eps) if forward_eps else None,
+    )
+
+
 def _flat_indicators():
     return SimpleNamespace(profitability={"roe": 0.15}, multiples={}, growth={},
                            stability={}, cashflow={})
@@ -290,8 +465,8 @@ class ActualPricesTests(unittest.TestCase):
         before = copy.copy(d)
         before.prices_raw = None                      # 폴백 = 수정 전 동작
 
-        _, pct_a, fair_a, q_a = _band(d, current_fund=8.0, kind="per")
-        _, pct_b, fair_b, q_b = _band(before, current_fund=8.0, kind="per")
+        _, pct_a, fair_a, q_a, _ = _band(d, current_fund=8.0, kind="per")
+        _, pct_b, fair_b, q_b, _ = _band(before, current_fund=8.0, kind="per")
 
         self.assertGreater(q_a[50], q_b[50])          # 과거 배수가 덜 눌림
         self.assertGreater(fair_a[1], fair_b[1])      # → 적정가가 위로

@@ -166,9 +166,9 @@ def render_summary_tab(d, ind, scores, cc, val):
                     f"{val.consensus_premium * 100:+.1f}%) — 이 차이가 증권가가 보는 실적 전망분이며 "
                     "판정에는 넣지 않습니다.")
             st.caption("공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 · "
-                       "② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS · "
+                       "② 자기 과거 PER·PBR 25~75분위 × 현재 EPS·BPS · "
                        "③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 · "
-                       "④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — "
+                       "④ 컨센서스 12개월 EPS × 자기 과거 PER 중앙값 — "
                        "판정 = ①②③ 가중평균(①38.5·②38.5·③23.1%), 병기 = ①②③④(④35·①25·②25·③15%). "
                        "④를 판정에서 뺀 이유는 docs/adr/0006 (근거: Liu·Nissim·Thomas 2002, JAR) · "
                        "출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)")
@@ -278,7 +278,7 @@ def _render_scenario_section(d, val):
     scn = build_scenarios(
         price=d.price,
         eps_fwd=d.consensus.forward_eps if d.consensus else None,
-        eps_ttm=d.latest("eps"), per_q=val.per_q,
+        eps_ttm=d.latest("eps"), per_q=val.per_q_pricing,
         peer_per=peer_median(comparable_peers(d.peers, d.market_cap), "per"),
         bear_delta=bear, bull_delta=bull, mult_adjust=madj)
     if scn is None:
@@ -325,7 +325,7 @@ def _render_scenario_section(d, val):
 def render_valuation_tab(d, ind, val):
     peers = sanitize_peer_frame(d.peers)
     st.markdown(section_header_html("Multiples", "멀티플 비교",
-                                    "업종 중앙값 · 자기 5년 밴드"),
+                                    "업종 중앙값 · 자기 과거 밴드"),
                 unsafe_allow_html=True)
     rows = []
     band_q50 = {"per": (val.per_q or {}).get(50), "pbr": (val.pbr_q or {}).get(50)}
@@ -335,7 +335,7 @@ def render_valuation_tab(d, ind, val):
         row = {"지표": label(key),
                "현재": fmt_value(key, cur, d.currency),
                "업종 중앙값": fmt_value(key, med, d.currency),
-               "자기 5년 중앙값": fmt_x(band_q50.get(key)) if band_q50.get(key) else "—"}
+               "자기 과거 중앙값": fmt_x(band_q50.get(key)) if band_q50.get(key) else "—"}
         if cur is not None and med:
             diff = cur / med - 1
             cheaper = diff < 0 if key != "div_yield" else diff > 0
@@ -354,13 +354,19 @@ def render_valuation_tab(d, ind, val):
     kind = st.radio("역사적 밴드", ["PER", "PBR"], horizontal=True, label_visibility="collapsed")
     band = val.per_band if kind == "PER" else val.pbr_band
     pct = val.per_percentile if kind == "PER" else val.pbr_percentile
+    # 창은 종목·다리마다 다르다(실측 2.8~5.0년) — "5년"이라 쓰지 않고 잰 값을 쓴다(ADR-0012).
+    qual = val.band_quality.get(kind.lower()) or {}
+    win = f"{qual['years']:.1f}년" if qual.get("years") else "관측 기간"
     if band is not None:
-        st.markdown(f"**5년 {kind} 밴드** — 현재 위치: 하위 {pct:.0f}% "
+        st.markdown(f"**{kind} 밴드** ({win}) — 현재 위치: 하위 {pct:.0f}% "
                     f"({'싼 구간' if pct < 35 else '비싼 구간' if pct > 65 else '중간 구간'})")
         st.plotly_chart(charts.band_chart(band, d.currency, kind),
                         use_container_width=True, config=PLOTLY_CFG_ZOOM)
-        st.caption("분위선 = 지난 5년 배수 분포(10~90분위)를 현재 펀더멘털에 곱한 가격 수준. "
+        st.caption(f"분위선 = 지난 {win} 배수 분포(10~90분위)를 현재 펀더멘털에 곱한 가격 수준. "
                    "주가가 짙은 선 위에 있을수록 역사적으로 비싼 영역입니다.")
+        # 판정에서 빠졌어도 차트는 남긴다 — 대신 왜 뺐는지를 같은 자리에서 밝힌다.
+        if qual and not qual.get("usable"):
+            st.info(f"**판정에서 제외** · {qual['detail'].replace('**', '')}")
     else:
         st.info(f"{kind} 밴드를 계산할 수 없습니다 (적자 지속 또는 데이터 부족).")
 
