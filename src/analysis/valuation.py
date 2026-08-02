@@ -46,7 +46,7 @@ import numpy as np
 import pandas as pd
 
 from ..data.models import CompanyData, actual_prices, currency_mismatch
-from .scoring import comparable_peers, peer_median, sanitize_peer_frame
+from .scoring import comparable_peers, peer_median
 
 VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
 
@@ -203,22 +203,22 @@ def _rel_fairs(peers, d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
 
 def _relative_value(d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
                     revenue_ps=None) -> FairValue | None:
-    """규모 비교가능 피어(시총 1/20~20배) 우선 — 품질 필터를 거쳤으므로 표본 2개부터
-    허용. 부족하면 전체 피어로 폴백하되 규모 차이 경고를 note에 남긴다
-    (AI 피어에 초소형주가 섞이면 중앙값이 소형주 디스카운트에 오염되기 때문)."""
+    """규모 비교가능 피어(시총 1/5~5배)만 쓴다 — 품질 필터를 거쳤으므로 표본 2개부터 허용.
+
+    **표본이 부족하면 전체 피어로 내려가지 않고 ①을 통째로 제외한다(ADR-0011).**
+    예전에는 규모 필터 없는 전체 피어로 폴백했는데, 그 경로가 측정상 가장 나빴다 —
+    시총과 괴리율의 순위상관이 필터 있을 때 −0.261, 폴백 경로가 −0.353이었다.
+    창을 좁히면 폴백에 걸리는 종목이 늘어나므로, 폴백을 그대로 두면 좁힌 만큼
+    더 나쁜 경로로 새어 나간다. comparable_peers의 주석이 이미 적어 둔 원칙
+    ('오염된 값보다 계산 불가가 정직하다')을 여기서도 지킨다.
+    """
     sized = comparable_peers(d.peers, d.market_cap)
     fairs, used = _rel_fairs(sized, d, eps, bps, ebitda_ps, debt_ps, cash_ps,
                              revenue_ps, min_n=2)
-    suffix = ""
-    if not fairs:
-        full = sanitize_peer_frame(d.peers)
-        fairs, used = _rel_fairs(full, d, eps, bps, ebitda_ps, debt_ps, cash_ps,
-                                 revenue_ps, min_n=3)
-        suffix = " · 전체 피어(자사와 규모 차이 커 신뢰 주의)"
     if not fairs:
         return None
     return FairValue("업종 상대가치", min(fairs), float(np.median(fairs)), max(fairs),
-                     note="피어 중앙값 " + ", ".join(used) + suffix)
+                     note="피어 중앙값 " + ", ".join(used))
 
 
 # ── ② 역사적 밴드 ────────────────────────────────────────────────────
@@ -527,8 +527,11 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     elif mismatch:
         res.skipped.append(("업종 상대가치", ccy_reason))
     else:
-        res.skipped.append(("업종 상대가치", "피어 표본 부족"))
-        res.notes.append(ValuationNote("info", "피어 표본이 부족해 상대가치 평가를 제외합니다."))
+        res.skipped.append(("업종 상대가치", "규모 비교가능 피어 부족"))
+        res.notes.append(ValuationNote(
+            "info", "시가총액이 이 회사의 1/5~5배인 동종 기업을 2곳 이상 찾지 못해 상대가치 "
+            "평가를 제외합니다. 규모가 크게 다른 기업의 배수를 끌어오면 적정가가 그 규모 "
+            "차이만큼 밀리기 때문에, 넓혀서 계산하는 대신 이 방법을 빼고 나머지로 판정합니다."))
 
     # ② 역사적 밴드 (PER 우선, 적자면 PBR)
     # 통화가 섞이면 밴드 자체가 무의미하므로 계산하지 않는다 — 차트에도 그려지면 안 된다.

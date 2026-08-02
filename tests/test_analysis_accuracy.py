@@ -241,6 +241,47 @@ class RimAssumptionTests(unittest.TestCase):
         self.assertIsNone(res.book_quality["pbr_5y_median"])
 
 
+class RelativeValuePeerWindowTests(unittest.TestCase):
+    """ADR-0011: ①은 규모 비교가능 피어(1/5~5배)만 쓰고, 부족하면 제외한다.
+
+    예전에는 ±20배 창이었고 표본이 모자라면 **규모 필터 없는 전체 피어**로 내려갔다.
+    전 종목 실측에서 그 폴백 경로가 가장 나빴다(시총-괴리율 순위상관 −0.353 vs −0.261).
+    """
+
+    def test_peers_outside_window_are_not_used(self):
+        """자사의 20배짜리 대형 피어는 창 밖이라 ①에 쓰이지 않는다 — 폴백도 없다."""
+        d = _company_with_peers([(20.0, 30.0), (18.0, 28.0)])   # (시총배수, PER)
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertNotIn("업종 상대가치", [m.method for m in res.estimates])
+        self.assertIn("규모 비교가능 피어 부족", dict(res.skipped)["업종 상대가치"])
+
+    def test_peers_inside_window_are_used(self):
+        """1/5~5배 안에 2곳 이상이면 계산한다."""
+        d = _company_with_peers([(2.0, 12.0), (0.5, 10.0)])
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        rel = [m for m in res.estimates if m.method == "업종 상대가치"]
+        self.assertTrue(rel, "창 안 피어 2곳이면 계산해야 함")
+        self.assertNotIn("전체 피어", rel[0].note)     # 폴백 흔적이 남으면 안 된다
+
+    def test_large_peers_no_longer_leak_in_through_fallback(self):
+        """창 안이 1곳뿐이면(표본 2 미달) 대형 피어로 메우지 않고 제외한다."""
+        d = _company_with_peers([(2.0, 12.0), (20.0, 30.0), (25.0, 33.0)])
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertNotIn("업종 상대가치", [m.method for m in res.estimates])
+
+
+def _company_with_peers(specs) -> CompanyData:
+    """(자사 시총 대비 배수, PER) 목록으로 피어 표를 만든 최소 CompanyData."""
+    d = _company_for_pbr(1.0)
+    rows = [{"ticker": "SELF", "is_self": True, "market_cap": d.market_cap,
+             "per": 10.0, "pbr": 1.0}]
+    for i, (mult, per) in enumerate(specs):
+        rows.append({"ticker": f"P{i}", "is_self": False,
+                     "market_cap": d.market_cap * mult, "per": per, "pbr": 1.0})
+    d.peers = pd.DataFrame(rows)
+    return d
+
+
 def _flat_indicators():
     return SimpleNamespace(profitability={"roe": 0.15}, multiples={}, growth={},
                            stability={}, cashflow={})

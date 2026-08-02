@@ -56,13 +56,20 @@ def sanitize_peer_frame(peers: pd.DataFrame) -> pd.DataFrame:
 
 
 def comparable_peers(peers: pd.DataFrame, self_mcap: float | None,
-                     factor: float = 20.0) -> pd.DataFrame:
+                     factor: float = 5.0) -> pd.DataFrame:
     """밸류에이션용 규모 비교가능 피어 — 시총이 자사의 1/factor~factor 범위만.
 
     AI 업종분류가 초소형주를 섞으면(예: 28조 기업의 피어에 0.1조 기업) 멀티플
     중앙값이 소형주 디스카운트에 오염된다. 필터 후 남는 피어가 3개 미만이면
     해당 지표는 peer_median의 최소표본 규칙에 걸려 자연히 건너뛰게 된다
     (오염된 값보다 '계산 불가'가 정직하다). 점수·비교표는 원본 피어를 유지한다.
+
+    **factor는 20에서 5로 좁혔다(ADR-0011).** 20배는 위아래로 400배 폭이라 필터라고
+    부르기 어려웠다. 게다가 시총 분포가 오른쪽으로 길어 이 창은 **위로만 열린다** —
+    전 종목 실측에서 최소형주의 피어 시총 중앙값이 자사의 2.67배였고, 대형주는 반대로
+    0.21배였다. 대형주가 유동성·커버리지로 받는 높은 멀티플이 소형주 적정가로 흘러
+    들어가, 시총과 괴리율의 순위상관이 −0.261까지 갔다(scripts/check_size_bias.py).
+    5로 좁히면 −0.147이 된다.
     """
     df = sanitize_peer_frame(peers)
     if not self_mcap or "market_cap" not in df.columns or "is_self" not in df.columns:
