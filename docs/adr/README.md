@@ -20,4 +20,5 @@
 | [0007](0007-book-quality-gate-for-rim.md) | RIM 적용 여부는 PBR이 아니라 '장부가가 작아진 흔적'으로 가른다 | 채택됨 |
 | [0008](0008-backtest-observation-not-statistics.md) | 백테스트 탭은 통계를 주장하지 않고 과거 신호를 관찰만 한다 | 대체됨 (→ 0009) |
 | [0009](0009-backtest-tab-indefinitely-deferred.md) | 백테스트 탭을 무기한 보류한다 (코드는 남긴다) | 채택됨 |
+| [0010](0010-book-rejected-gate-for-rim.md) | 시장이 장부가를 오래 거부했으면 RIM을 쓰지 않는다 (0007의 대칭) | 채택됨 |
 | [0012](0012-historical-band-measures-multiple-not-price.md) | ②는 '배수를 재는 밴드'일 때만 판정에 쓴다 | 채택됨 |

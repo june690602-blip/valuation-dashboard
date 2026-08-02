@@ -11,8 +11,8 @@ from src.analysis.backtest import (_non_overlapping_values, _rim_discount,
                                    run_backtest)
 from src.analysis.indicators import _average_balance
 from src.analysis.portfolio import after_tax_row
-from src.analysis.valuation import (_band, _band_quality, _fundamental_daily,
-                                    _rim, compute_valuation)
+from src.analysis.valuation import (BOOK_REJECTED_PBR, _band, _band_quality,
+                                    _fundamental_daily, _rim, compute_valuation)
 from src.data.models import CompanyData, Consensus, actual_prices
 from src.data.opendart import _parse_report
 
@@ -347,6 +347,44 @@ class RimAssumptionTests(unittest.TestCase):
         res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
         self.assertIn("수익가치(RIM)", [m.method for m in res.estimates])
 
+    # ── ADR-0010: 반대편 — 시장이 장부가를 오래 거부한 경우 ──────────
+    # ROE≈r이면 RIM은 V≈B로 수렴해 괴리율이 사실상 1/PBR−1이 된다. 전 종목 실측에서
+    # ③ 괴리율과 1/PBR의 순위상관이 +0.973이었다. 아래 넷은 '싼 것'과 '값어치 없는 것'을
+    # 가르는 두 조건(지속적 할인 + 지속적 자본비용 미달)이 각각 필요한지 고정한다.
+
+    def test_persistent_subbook_and_underearning_skips_rim(self):
+        """5년 내내 장부가 아래 + 자본비용 미달이면 장부가를 닻으로 못 쓴다."""
+        d = _company_for_pbr(0.5, roe=0.04)          # ROE 4% < r 10%
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertNotIn("수익가치(RIM)", [m.method for m in res.estimates])
+        reason = dict(res.skipped)["수익가치(RIM)"]
+        self.assertIn("0.50배", reason)               # 원인 단정이 아니라 잰 값을 말한다
+        self.assertIn("자본비용 미달", reason)
+        self.assertEqual(res.book_quality["underearn_years"], 3)
+
+    def test_cheap_but_earning_keeps_rim(self):
+        """장부가 아래여도 자본비용을 벌고 있으면 RIM이 말할 자리다 — 빼지 않는다."""
+        d = _company_for_pbr(0.5, roe=0.15)          # ROE 15% > r 10%
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertIn("수익가치(RIM)", [m.method for m in res.estimates])
+        self.assertFalse(res.book_quality["distorted"])
+        self.assertEqual(res.book_quality["underearn_years"], 0)
+
+    def test_recent_drop_alone_keeps_rim(self):
+        """오늘만 장부가 아래로 내려온 것은 '거부'가 아니다 — 그때가 RIM의 존재 이유다."""
+        d = _company_for_pbr(0.5, roe=0.04, pbr_history=1.4)
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertIn("수익가치(RIM)", [m.method for m in res.estimates])
+        self.assertGreaterEqual(res.book_quality["pbr_5y_median"], BOOK_REJECTED_PBR)
+
+    def test_unmeasurable_persistence_keeps_rim(self):
+        """5년 PBR을 못 재면 게이트를 열지 않는다 — 상장기간이 짧다고 방법이 사라지면 안 된다."""
+        d = _company_for_pbr(0.5, roe=0.04)
+        d.prices = d.prices.tail(60)                  # 밴드 최소 표본(200) 미달
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertIn("수익가치(RIM)", [m.method for m in res.estimates])
+        self.assertIsNone(res.book_quality["pbr_5y_median"])
+
 
 def _company_for_band(eps: list[float], forward_eps: float | None = None) -> CompanyData:
     """② 밴드 관문(ADR-0012)만 태우기 위한 최소 CompanyData.
@@ -384,16 +422,21 @@ def _flat_indicators():
 
 
 def _company_for_pbr(pbr: float, intangible_share: float | None = None,
-                     buyback_ratio: float | None = None) -> CompanyData:
+                     buyback_ratio: float | None = None, roe: float = 0.15,
+                     pbr_history: float | None = None) -> CompanyData:
     """PBR만 원하는 값으로 맞춘 최소 CompanyData — RIM 가드 분기 확인용.
 
     intangible_share·buyback_ratio를 주면 장부가 품질 판별(ADR-0007)까지 태울 수 있다.
     안 주면 그 컬럼 자체가 없어 '판별 불가' 경로를 탄다(예전 PBR 단독 규칙과 같은 결과).
+
+    roe로 연간 ROE를, pbr_history로 **과거 구간의** PBR을 따로 줄 수 있다(ADR-0010 —
+    5년 PBR 중앙값과 오늘의 PBR을 갈라놔야 '지속'과 '일시'를 구분하는지 확인된다).
     """
     equity, shares = 1_000.0, 100.0
     assets = equity * 2.0
     fin = pd.DataFrame({
-        "eps": [1.5] * 4, "net_income": [150.0] * 4, "total_equity": [equity] * 4,
+        "eps": [equity * roe / shares] * 4, "net_income": [equity * roe] * 4,
+        "total_equity": [equity] * 4,
         "shares_outstanding": [shares] * 4,
         "fiscal_end": [pd.Timestamp(f"{y}-12-31") for y in range(2021, 2025)],
     }, index=list(range(2021, 2025)))
@@ -403,7 +446,9 @@ def _company_for_pbr(pbr: float, intangible_share: float | None = None,
     if buyback_ratio is not None:
         # 판별은 '가용 연도 합계 ÷ 현재 자기자본'이라 4년에 나눠 넣는다.
         fin["buyback"] = equity * buyback_ratio / 4.0
-    px = pd.Series([equity * pbr / shares] * 300,
+    # 과거 250일은 pbr_history, 마지막 50일은 pbr — 안 주면 전 구간 같은 값.
+    hist = pbr if pbr_history is None else pbr_history
+    px = pd.Series([equity * hist / shares] * 250 + [equity * pbr / shares] * 50,
                    index=pd.bdate_range(end="2026-06-30", periods=300))
     return CompanyData(
         ticker="T", yahoo_ticker="T", name="T", market="US", currency="USD",
