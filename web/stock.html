@@ -11,17 +11,17 @@
 <script src="assets/analytics.js" defer></script>
 <style>
   .tabbar { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; }
-  .tabbtn { appearance: none; background: none; border: none; cursor: pointer; padding: 8px 15px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+  .tabbtn { appearance: none; background: none; border: none; cursor: pointer; padding: 8px 14px 12px; border-bottom: 2px solid transparent; margin-bottom: -2px; white-space: nowrap; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
   .tabbtn .tn { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.1em; color: var(--ink-4); }
   .tabbtn .tl { font-family: var(--font-sans); font-size: 13.5px; font-weight: 500; color: var(--ink-2); }
   .tabbtn.on { border-bottom-color: var(--ink); }
   .tabbtn.on .tn { color: var(--ink-3); }
   .tabbtn.on .tl { font-weight: 600; color: var(--ink); }
   .panel { display: none; }
-  .panel.on { display: block; animation: fadeIn .25s ease; padding-top: 26px; }
+  .panel.on { display: block; animation: fadeIn .25s ease; padding-top: 24px; }
   .hv { display: none; }
   .hv.on { display: block; animation: fadeIn .25s ease; }
-  .ma-btn { appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: transparent; border-radius: var(--radius-sm); padding: 4px 9px; font-family: var(--font-sans); font-size: 12px; color: var(--ink-3); }
+  .ma-btn { appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: transparent; border-radius: var(--radius-sm); padding: 4px 8px; font-family: var(--font-sans); font-size: 12px; color: var(--ink-3); }
   .ma-btn .dash { width: 9px; height: 2px; background: var(--line-strong); display: inline-block; }
   .ma-btn.on { background: var(--paper); color: var(--ink); }
   .price-toolbar { display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; margin-top:20px; }
@@ -29,21 +29,21 @@
   .price-period-wrap { gap:8px; }
   .chart-reset { appearance:none; border:1px solid var(--line-strong); background:var(--paper); color:var(--ink-2); border-radius:var(--radius-sm); min-height:32px; padding:4px 10px; font-family:var(--font-sans); font-size:12px; font-weight:500; cursor:pointer; }
   .chart-reset:hover { background:var(--paper-2); color:var(--ink); }
-  .chart-status { display:flex; align-items:center; gap:18px; min-height:66px; margin-top:14px; padding:11px 13px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--paper-2); }
+  .chart-status { display:flex; align-items:center; gap:18px; min-height:66px; margin-top:14px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--paper-2); }
   .chart-status-context { min-width:190px; }
   .chart-status-name { font-size:12.5px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .chart-status-meta { margin-top:3px; font-family:var(--font-mono); font-size:10.5px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .chart-status-quote { min-width:142px; padding-left:17px; border-left:1px solid var(--line); }
+  .chart-status-meta { margin-top:2px; font-family:var(--font-mono); font-size:10.5px; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chart-status-quote { min-width:142px; padding-left:16px; border-left:1px solid var(--line); }
   .chart-status-price { font-family:var(--font-mono); font-size:17px; font-weight:600; line-height:1.15; font-variant-numeric:tabular-nums; }
   .chart-status-change { margin-top:4px; font-family:var(--font-mono); font-size:11px; font-weight:600; }
-  .chart-status-metrics { display:grid; grid-template-columns:repeat(5,minmax(64px,1fr)); gap:7px 14px; flex:1; min-width:390px; }
+  .chart-status-metrics { display:grid; grid-template-columns:repeat(5,minmax(64px,1fr)); gap:6px 14px; flex:1; min-width:390px; }
   .chart-status-metric { min-width:0; }
   .chart-status-metric dt { margin:0; font-size:10px; letter-spacing:.08em; color:var(--ink-3); text-transform:uppercase; }
-  .chart-status-metric dd { margin:3px 0 0; font-family:var(--font-mono); font-size:12px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chart-status-metric dd { margin:2px 0 0; font-family:var(--font-mono); font-size:12px; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #priceChart { width:100%;min-width:0;overflow:hidden; }
   #priceChart canvas { max-width:100%; }
   @media (max-width: 720px) {
-    header { height:auto !important;min-height:58px;padding:9px 14px !important;gap:8px 12px !important;flex-wrap:wrap; }
+    header { height:auto !important;min-height:58px;padding:8px 14px !important;gap:8px 12px !important;flex-wrap:wrap; }
     header nav { order:3;width:100%;max-width:100%;overflow-x:auto; }
     #navSearch { display:none !important; }
     .aside-wrap { display:none;width:0 !important;border-right:0 !important; }
@@ -59,10 +59,10 @@
     .chart-status { flex-wrap:wrap; gap:10px 14px; }
     .chart-status-context { flex:1; min-width:180px; }
     .chart-status-quote { min-width:130px; }
-    .chart-status-metrics { width:100%; min-width:0; grid-template-columns:repeat(5,1fr); padding-top:9px; border-top:1px solid var(--line); }
+    .chart-status-metrics { width:100%; min-width:0; grid-template-columns:repeat(5,1fr); padding-top:8px; border-top:1px solid var(--line); }
   }
   @media (max-width: 560px) {
-    .price-toolbar-main { gap:9px; }
+    .price-toolbar-main { gap:8px; }
     #maToggles { max-width:100%; overflow-x:auto; padding-bottom:2px; }
     .chart-status-context { width:100%; }
     .chart-status-quote { padding-left:0; border-left:0; }
@@ -85,14 +85,14 @@
   }
   /* 테이블 공통(데이터 렌더) */
   .tbl .row.self { background: var(--paper-2); }
-  .tbl .row.total { background: var(--paper-2); padding: 13px 0; }
-  .cmt { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 15px 17px; display: flex; gap: 12px; box-shadow: var(--shadow-card); }
+  .tbl .row.total { background: var(--paper-2); padding: 12px 0; }
+  .cmt { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px 16px; display: flex; gap: 12px; box-shadow: var(--shadow-card); }
   .cmt.key { border-color: var(--dv-navy); background: var(--paper-2); }
   /* '이 판정을 읽을 때' — 근거와 같은 카드 언어를 쓰되 지면을 한 단계 낮춰(paper-2)
      "여긴 다른 종류의 글"임을 배경으로 말한다. 그림자는 주지 않는다 — 근거 카드보다
      앞에 뜨면 안 되고, 뒤에 있다는 사실 자체가 위계다. */
   #readingBlock { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
-  .reading-head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 12px; color: var(--ink); }
+  .reading-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; color: var(--ink); }
   .reading-head svg { flex: none; align-self: center; color: var(--spine-ink); }
   .reading-head > span:first-of-type { font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
   .reading-sub { font-size: 11.5px; color: var(--ink-3); }
@@ -109,12 +109,12 @@
   .aimd h3 { font-size: 14px; font-weight: 700; margin: 18px 0 6px; color: var(--ink); }
   .aimd p { font-size: 13px; color: var(--ink-2); line-height: 1.75; margin: 6px 0; }
   .aimd ul { margin: 6px 0; padding-left: 20px; }
-  .aimd li { font-size: 13px; color: var(--ink-2); line-height: 1.7; margin: 3px 0; }
-  .aimd blockquote { border-left: 2px solid var(--line-strong); margin: 12px 0; padding: 4px 0 4px 13px; color: var(--ink-3); font-size: 11.5px; line-height: 1.6; }
+  .aimd li { font-size: 13px; color: var(--ink-2); line-height: 1.7; margin: 2px 0; }
+  .aimd blockquote { border-left: 2px solid var(--line-strong); margin: 12px 0; padding: 4px 0 4px 12px; color: var(--ink-3); font-size: 11.5px; line-height: 1.6; }
   .aimd strong { color: var(--ink); font-weight: 600; }
   /* 분석 탭 공통 섹션: 카드 대신 선, 번호, 타이포 계층으로 경계를 만든다. */
   .analysis-sections { border-bottom: 1px solid var(--line); }
-  .analysis-section { border-top: 1px solid var(--line); padding: 28px 0 32px; }
+  .analysis-section { border-top: 1px solid var(--line); padding: 24px 0 32px; }
   .analysis-section:first-child { border-top-color: var(--line-strong); }
   /* 섹션 제목 틴트 밴드 — 콘텐츠 폭에 맞춰 아주 연한 웜 틴트를 깔아 영역 전환을 알린다.
      수평 패딩 없이 세로 패딩만 주어 본문(46px 들여쓰기)과 정렬이 유지된다. */
@@ -122,20 +122,20 @@
   .analysis-section-head::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--spine); border-radius: var(--radius-pill); }
   .analysis-section-index { font-family: var(--font-mono); font-size: 11px; color: var(--spine-ink-strong); padding-top: 4px; padding-left: 12px; }
   .analysis-section-title { margin: 0; font-family: var(--font-display); font-size: 17px; line-height: 1.35; font-weight: 700; color: var(--ink); }
-  .analysis-section-desc { margin: 5px 0 0; max-width: 62ch; font-size: 12.5px; line-height: 1.65; color: var(--ink-3); }
+  .analysis-section-desc { margin: 4px 0 0; max-width: 62ch; font-size: 12.5px; line-height: 1.65; color: var(--ink-3); }
   .analysis-section-meta { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); white-space: nowrap; padding-top: 4px; padding-right: 12px; }
-  .analysis-section-body { margin: 20px 0 0 46px; }
-  .analysis-section-chart { max-width: 760px; margin: 20px 0 0 46px; }
+  .analysis-section-body { margin: 20px 0 0 48px; }
+  .analysis-section-chart { max-width: 760px; margin: 20px 0 0 48px; }
   /* 탭 역할 지도 — 각 탭 상단에 "이 탭이 적정가 지표의 어느 부품인지"를 한 줄로 알린다.
      적정가 재료 ①②③(업종 비교·밸류에이션·재무 분석)과 그 외 역할(현재가·결론·검증·맥락)을 구분. */
-  .method-map { display: flex; align-items: baseline; gap: 11px; margin: 2px 0 22px; font-size: 12.5px; color: var(--ink-3); line-height: 1.6; }
-  .method-chip { flex: none; font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--spine-ink-strong); background: var(--spine-band); border: 1px solid color-mix(in srgb, var(--spine) 45%, var(--line)); border-radius: var(--radius-sm); padding: 3px 9px; letter-spacing: .02em; white-space: nowrap; }
+  .method-map { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 22px; font-size: 12.5px; color: var(--ink-3); line-height: 1.6; }
+  .method-chip { flex: none; font-family: var(--font-mono); font-size: 10.5px; font-weight: 600; color: var(--spine-ink-strong); background: var(--spine-band); border: 1px solid color-mix(in srgb, var(--spine) 45%, var(--line)); border-radius: var(--radius-sm); padding: 2px 8px; letter-spacing: .02em; white-space: nowrap; }
   .methods-mno { font-family: var(--font-mono); font-size: 11px; color: var(--spine-ink-strong); margin-right: 6px; }
   .methods-goto { appearance: none; border: none; background: none; padding: 0; cursor: pointer; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
   .methods-goto:hover { text-decoration-color: var(--ink-3); }
   /* 빈 값(—)·신뢰도 말풍선 — 왜 없는지/왜 낮은지 짧게 알린다. 순수 CSS라 추가 요청·스크립트가 없다. */
   /* 자본비용 경고 — 세율을 법정세율로 자르거나 폴백한 사유, 베타 클리핑 등 */
-  .wacc-notes { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; }
+  .wacc-notes { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
   .wacc-note { display: flex; gap: 8px; font-size: 12px; color: var(--ink-3); line-height: 1.65; }
   .wacc-note::before { content: "·"; flex: none; color: var(--ink-4); }
   .na { position: relative; color: var(--ink-3); cursor: help; border-bottom: 1px dotted var(--line-strong); }
@@ -161,9 +161,9 @@
   .peer-addbtn, .peer-reset { appearance: none; background: none; border: none; padding: 4px 2px; cursor: pointer; font-family: var(--font-sans); font-size: 12px; color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
   .peer-addbtn:hover, .peer-reset:hover { color: var(--ink); }
   .peer-reset { color: var(--ink-3); }
-  .peer-addinput { display: none; min-width: 210px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--paper); padding: 6px 9px; font: 12.5px var(--font-sans); color: var(--ink); outline: none; }
+  .peer-addinput { display: none; min-width: 210px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--paper); padding: 6px 8px; font: 12.5px var(--font-sans); color: var(--ink); outline: none; }
   .peer-addinput:focus { border-color: var(--dv-navy); }
-  .analysis-details { margin-top: 28px; border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-card); }
+  .analysis-details { margin-top: 24px; border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-card); }
   /* 판정 히어로·경고 박스는 JS가 채우는 컨테이너라 자식 div에 건다 */
   #hv-B > div, #warnWrap > div { box-shadow: var(--shadow-card); }
   .analysis-details summary::-webkit-details-marker { display: none; }
@@ -203,7 +203,7 @@
     #peerTable .row { min-width: 620px; }
     /* 방법별 표: 폰에서 4열을 620px로 밀어놓으면 '중심·근거'가 오른쪽으로 스크롤해야 보인다.
        열을 옆으로 늘어놓는 대신 방법마다 카드처럼 쌓는다 — 1줄 방법·중심, 2줄 범위, 3줄 근거. */
-    #methodsTable .row { min-width: 0; grid-template-columns: minmax(0, 1fr) auto !important; gap: 9px 12px; padding: 17px 0; line-height: 1.6; }
+    #methodsTable .row { min-width: 0; grid-template-columns: minmax(0, 1fr) auto !important; gap: 8px 12px; padding: 16px 0; line-height: 1.6; }
     #methodsTable .row.head { display: none; }        /* 쌓으면 열 머리가 값과 안 맞는다 → 아래 ::before로 대신 */
     #methodsTable .row > :nth-child(1) { grid-area: 1 / 1; }
     #methodsTable .row > :nth-child(3) { grid-area: 1 / 2; }
@@ -211,10 +211,10 @@
     #methodsTable .row > :nth-child(4) { grid-area: 3 / 1 / auto / -1; }
     #methodsTable .row:not(.total) > :nth-child(2)::before { content: '범위 '; color: var(--ink-4); }
     #methodsTable .row.total > :nth-child(2) { display: none; }
-    .analysis-section { padding: 24px 0 28px; }
+    .analysis-section { padding: 24px 0 24px; }
     .analysis-section-head { grid-template-columns: 26px minmax(0, 1fr); gap: 8px; }
     .analysis-section-meta { grid-column: 2; padding-top: 0; }
-    .analysis-section-body, .analysis-section-chart { margin-left: 34px; margin-top: 16px; }
+    .analysis-section-body, .analysis-section-chart { margin-left: 32px; margin-top: 16px; }
   }
   /* 종목 자동완성 드롭다운 (증권사식 타입어헤드) */
   .ac-item.on .ac-name { color: var(--ink); }
@@ -225,8 +225,8 @@
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
 
   <!-- ══ TOP NAV ══ -->
-  <header class="app-header" style="min-height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:26px;padding:0 26px;background:var(--paper-veil);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
-    <a class="brand" href="home.html" aria-label="투자지표 홈" title="투자지표 홈으로" style="display:flex;align-items:center;gap:9px;flex:none;white-space:nowrap;text-decoration:none;color:inherit">
+  <header class="app-header" style="min-height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:24px;padding:0 24px;background:var(--paper-veil);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
+    <a class="brand" href="home.html" aria-label="투자지표 홈" title="투자지표 홈으로" style="display:flex;align-items:center;gap:8px;flex:none;white-space:nowrap;text-decoration:none;color:inherit">
       <span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
       <span class="brand-name" style="font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing:-0.01em">투자지표</span>
     </a>
@@ -238,7 +238,7 @@
       <a href="guide.html" target="_blank" rel="noopener" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">사용설명서 ↗</a>
     </nav>
     <div class="app-header-actions" style="margin-left:auto;display:flex;align-items:center;gap:14px">
-      <form id="navSearch" autocomplete="off" style="position:relative;display:flex;align-items:center;gap:7px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:5px 10px;min-width:230px;color:var(--ink-3)">
+      <form id="navSearch" autocomplete="off" style="position:relative;display:flex;align-items:center;gap:6px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:4px 10px;min-width:230px;color:var(--ink-3)">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="navSearchInput" placeholder="종목 코드 또는 이름 검색…" style="border:none;outline:none;background:transparent;font-family:var(--font-sans);font-size:13px;color:var(--ink);width:100%" />
       </form>
@@ -253,15 +253,15 @@
     <div class="aside-wrap" id="sidebarWrap">
     <aside style="width:278px;flex:none;padding:22px 20px;display:flex;flex-direction:column;gap:24px;overflow-y:auto;height:100%">
       <div>
-        <div class="kick" style="margin-bottom:9px">시장 · Market</div>
+        <div class="kick" style="margin-bottom:8px">시장 · Market</div>
         <div class="seg" id="marketSeg">
           <button class="on" data-val="KR">KR 한국</button>
           <button data-val="US">US 미국</button>
         </div>
       </div>
       <div>
-        <div class="kick" style="margin-bottom:9px">종목 · Ticker</div>
-        <form id="tickerForm" autocomplete="off" style="position:relative;display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:8px 11px">
+        <div class="kick" style="margin-bottom:8px">종목 · Ticker</div>
+        <form id="tickerForm" autocomplete="off" style="position:relative;display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:8px 10px">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           <input id="tickerInput" value="035420" style="border:none;outline:none;font-family:var(--font-sans);font-size:14px;color:var(--ink);width:100%;background:transparent" />
         </form>
@@ -296,7 +296,7 @@
 
     <!-- ══ MAIN ══ -->
     <main id="main" class="app-main" style="flex:1;min-width:0;display:flex;flex-direction:column">
-      <div class="app-content" style="flex:1;padding:24px 30px 8px 34px;max-width:var(--content-max);width:100%">
+      <div class="app-content" style="flex:1;padding:24px 32px 8px 32px;max-width:var(--content-max);width:100%">
 
         <div class="hv on" id="hv-B"></div>
 
@@ -305,9 +305,9 @@
         <div id="warnWrap" style="margin-top:14px"></div>
 
         <!-- ETF 전용 뷰 (kind=etf일 때만 표시 — 주식 9탭 대신 3축 카드·차트) -->
-        <div id="etfView" style="display:none;margin-top:26px"></div>
+        <div id="etfView" style="display:none;margin-top:24px"></div>
 
-        <div id="tabArea" style="margin-top:26px">
+        <div id="tabArea" style="margin-top:24px">
           <div class="tabbar" id="tabBar">
             <button class="tabbtn" data-tab="company"><span class="tn">01</span><span class="tl">기업·뉴스</span></button>
             <button class="tabbtn on" data-tab="summary"><span class="tn">02</span><span class="tl">요약·판정</span></button>
@@ -537,7 +537,7 @@
           </div>
 
           <details class="analysis-details" id="finTableDetails">
-            <summary style="cursor:pointer;padding:13px 16px;font-size:13.5px;font-weight:600;color:var(--ink);display:flex;align-items:center;justify-content:space-between;list-style:none">
+            <summary style="cursor:pointer;padding:12px 16px;font-size:13.5px;font-weight:600;color:var(--ink);display:flex;align-items:center;justify-content:space-between;list-style:none">
               <span><span class="analysis-section-index" style="margin-right:12px">05</span>연간 재무제표 요약</span>
               <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
             </summary>
@@ -612,7 +612,7 @@
 
       </div>
 
-      <footer style="border-top:1px solid var(--line);background:var(--paper-2);padding:18px 30px;margin-top:20px">
+      <footer style="border-top:1px solid var(--line);background:var(--paper-2);padding:18px 32px;margin-top:20px">
         <div style="max-width:var(--content-max);display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap">
           <div style="font-size:11.5px;color:var(--ink-3);line-height:1.7"><span style="letter-spacing:0.1em;text-transform:uppercase;font-weight:600;color:var(--ink-2)">데이터 출처</span><br/>Yahoo Finance · 네이버금융 · KRX · OpenDART(공시 원본) · FRED</div>
           <div style="font-size:11.5px;color:var(--ink-3);line-height:1.7;max-width:62ch">본 대시보드는 <b style="color:var(--ink-2)">학습·분석 보조 도구</b>이며 특정 종목의 매수·매도를 추천하지 않습니다. 적정주가·판정·점수는 무료 공개 데이터에 기반한 추정치로 결측·오차를 포함할 수 있으며, 최종 투자 판단과 책임은 이용자 본인에게 있습니다.</div>

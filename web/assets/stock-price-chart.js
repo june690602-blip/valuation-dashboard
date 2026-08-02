@@ -19,7 +19,7 @@
     var fullClose = Array.isArray(d.close) ? d.close : [];
     var N = fullClose.length;
     function emptyChart(message) {
-      container.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:28px 0;border-top:1px solid var(--line)">' + esc(message) + '</div>';
+      container.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:24px 0;border-top:1px solid var(--line)">' + esc(message) + '</div>';
       return { destroy: function () {}, reset: function () {} };
     }
     var hasFiniteClose = fullClose.some(function (v) { return v != null && isFinite(v); });
