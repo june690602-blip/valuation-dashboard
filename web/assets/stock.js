@@ -86,6 +86,16 @@
   function na(reason) { return '<span class="na" tabindex="0" data-tip="' + esc(reason) + '">—</span>'; }
   function compactWon(v) { if (v == null) return '—'; return CUR === 'KRW' ? Math.round(v / 1000).toLocaleString('en-US') + '천' : '$' + Math.round(v).toLocaleString('en-US'); }
 
+  /* 공식·인용·출처 접기 — 화면 위에 늘 펼쳐 두면 결론을 읽으러 온 사람에게는 소음이고,
+     지워 버리면 검증하러 온 사람이 근거를 잃는다. 접어서 둘 다 만족시킨다.
+     네이티브 <details>라 innerHTML로 꽂아도 배선이 필요 없다 — 렌더 경로가 늘어도
+     "여기서 wireCollapse를 잊었다"가 생기지 않는다. 키보드·스크린리더도 공짜로 따라온다.
+     html은 우리가 조립한 문자열이라 esc()를 걸지 않는다(라벨만 이스케이프한다). */
+  function fold(label, html) {
+    return '<details class="srcfold"><summary>' + esc(label) + '</summary>' +
+      '<div class="srcfold-body">' + html + '</div></details>';
+  }
+
   var VERDICTS = ['크게 저평가', '저평가', '적정 수준', '고평가', '크게 고평가'];
   function vIdx(v) { var i = VERDICTS.indexOf(v); return i < 0 ? 2 : i; }
   function vPos(v) { return [12, 31, 50, 69, 88][vIdx(v)]; }
@@ -117,7 +127,7 @@
     els.push(el('text', { x: 0, y: 20, fontSize: 12, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, '현재가'));
     els.push(el('text', { x: 0, y: 52, fontSize: 30, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(cur)));
     els.push(el('path', { d: 'M196 43 h44 m-9 -7 l9 7 l-9 7', fill: 'none', stroke: 'var(--ink-3)', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }));
-    els.push(el('text', { x: 256, y: 20, fontSize: 12, fill: accent, fontFamily: 'var(--font-sans)' }, '종합 적정가 · 가중'));
+    els.push(el('text', { x: 256, y: 20, fontSize: 12, fill: accent, fontFamily: 'var(--font-sans)' }, '펀더멘털 적정가 · ①②③'));
     els.push(el('text', { x: 256, y: 52, fontSize: 30, fill: accent, fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(avg)));
     if (upside != null) {
       els.push(el('rect', { x: 452, y: 24, width: 92, height: 34, rx: 17, fill: accent }));
@@ -172,7 +182,7 @@
     var accent = up ? 'var(--dv-green)' : 'var(--dv-clay)';
     els.push(el('text', { x: 0, y: 14, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, '현재가'));
     els.push(el('text', { x: 0, y: 44, fontSize: 22, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(cur)));
-    els.push(el('text', { x: 0, y: 84, fontSize: 11, fill: accent, fontFamily: 'var(--font-sans)' }, '종합 적정가 · 가중'));
+    els.push(el('text', { x: 0, y: 84, fontSize: 11, fill: accent, fontFamily: 'var(--font-sans)' }, '펀더멘털 적정가 · ①②③'));
     els.push(el('text', { x: 0, y: 114, fontSize: 22, fill: accent, fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(avg)));
     if (upside != null) {
       els.push(el('rect', { x: W - 92, y: 14, width: 92, height: 32, rx: 16, fill: accent }));
@@ -318,6 +328,49 @@
   }
 
   /* 범용 그룹막대 / 멀티라인 */
+  /* SVG 차트 hover — 인덱스마다 투명 밴드를 깔고, 그 위에서만 값을 드러낸다.
+     lineMulti가 쓰는 것과 같은 장치(.lm-hband / .lm-hv CSS가 stock.html에 있다)라
+     ETF 차트에도 그대로 쓴다. **이벤트 리스너를 달지 않는 것이 핵심**이다 — ETF 뷰는
+     innerHTML로 통째로 다시 그려지는데, JS로 배선하면 다시 그릴 때마다 배선을 되살려야
+     하고 그 자리를 잊으면 조용히 죽는다. 순수 CSS는 마크업이 살아 있는 한 함께 산다.
+     dotsFor(i) → [{y, col}], rowsFor(i) → [[문자열, 색], …] (첫 줄이 제목 역할). */
+  // 한글은 모노 글꼴에서도 라틴의 약 1.7배 폭을 먹는다. 값판 뒷배경 크기를 재려면
+  // 이 차이를 세야 하는데, SVG 문자열을 만드는 시점에는 실제 측정을 할 수 없다(DOM에 아직
+  // 안 붙었다). 글자당 폭을 어림해서 넉넉히 잡는다 — 조금 넓은 건 문제가 안 되고, 좁으면
+  // 글자가 판 밖으로 새어 막대 위에서 읽히지 않는다.
+  function textW(s, px) {
+    var w = 0;
+    for (var i = 0; i < s.length; i++) w += /[ᄀ-퟿豈-﫿]/.test(s[i]) ? px : px * 0.62;
+    return w;
+  }
+  function hoverBands(n, X, top, plotH, dotsFor, rowsFor) {
+    if (n < 2) return [];
+    var x0 = X(0), span = X(n - 1) - x0, step = span / (n - 1);
+    var out = [];
+    for (var i = 0; i < n; i++) {
+      var hx = X(i);
+      // 오른쪽 끝에서 글자가 잘리지 않게 앵커를 뒤집는다(lineMulti와 같은 0.62 기준).
+      var right = hx > x0 + span * 0.62;
+      var tx = right ? hx - 8 : hx + 8, anchor = right ? 'end' : 'start';
+      var rows = rowsFor(i);
+      // 막대차트에서는 값이 진한 면 위에 떨어진다 — 종이색 판을 깔지 않으면 못 읽는다.
+      var wMax = 0;
+      rows.forEach(function (r) { wMax = Math.max(wMax, textW(r[0], 10.5)); });
+      var padBox = 7, boxW = wMax + padBox * 2, boxH = rows.length * 13 + 7;
+      var hv = [el('line', { x1: hx, x2: hx, y1: top, y2: top + plotH, stroke: 'var(--ink-3)', strokeWidth: 1, strokeDasharray: '3 3' }),
+                el('rect', { x: (anchor === 'end' ? tx + padBox - boxW : tx - padBox), y: top, width: boxW, height: boxH, rx: 3, fill: 'var(--paper)', fillOpacity: 0.9, stroke: 'var(--line)', strokeWidth: 0.8 })];
+      dotsFor(i).forEach(function (dt) {
+        if (dt.y != null) hv.push(el('circle', { cx: hx, cy: dt.y, r: 3.5, fill: dt.col, stroke: 'var(--paper)', strokeWidth: 1.2 }));
+      });
+      rows.forEach(function (r, ri) {
+        hv.push(el('text', { x: tx, y: top + 13 + 13 * ri, fontFamily: EMONO, fontSize: 10.5, fontWeight: ri ? 600 : 700, fill: r[1], textAnchor: anchor }, esc(r[0])));
+      });
+      out.push(el('g', { className: 'lm-hband' },
+        el('rect', { x: hx - step / 2, y: top - 6, width: step, height: plotH + 24, fill: 'transparent' }),
+        el('g', { className: 'lm-hv' }, hv)));
+    }
+    return out;
+  }
   function barGroups(labels, series, opt) {
     opt = opt || {}; var W = opt.W || 760, H = opt.H || 230, padL = 6, padR = 46, top = 16, plotH = H - 46, xw = W - padL - padR, n = labels.length, g = series.length;
     var vmax = 0, vmin = 0; series.forEach(function (s) { s.data.forEach(function (v) { if (v > vmax) vmax = v; if (v < vmin) vmin = v; }); });
@@ -326,6 +379,19 @@
     for (var gg = 0; gg <= 3; gg++) { var val = vmax - (vmax - vmin) * gg / 3, yy = Y(val); els.push(el('line', { x1: padL, x2: padL + xw, y1: yy, y2: yy, stroke: 'var(--line)', strokeWidth: 1 })); els.push(el('text', { x: padL + xw + 6, y: yy + 3.5, fontSize: 10, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }, opt.fmt ? opt.fmt(val) : val.toFixed(1))); }
     if (vmin < 0) { var zy = Y(0); els.push(el('line', { x1: padL, x2: padL + xw, y1: zy, y2: zy, stroke: 'var(--ink-3)', strokeWidth: 1 })); }
     labels.forEach(function (lb, i) { var cx = padL + slot * i + slot / 2; series.forEach(function (s, si) { var v = s.data[i]; if (v == null) return; var bx = cx - (g * bw) / 2 + si * bw, y0 = Y(Math.max(0, v)), y1 = Y(Math.min(0, v)); els.push(el('rect', { x: bx, y: y0, width: bw - 2, height: Math.max(1, y1 - y0), fill: s.color, rx: 1 })); }); els.push(el('text', { x: cx, y: top + plotH + 16, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, lb)); });
+    // 막대 위에 마우스를 올리면 그 해의 계열 값을 전부 띄운다 — 축 눈금만으로는 막대 하나가
+    // 정확히 얼마인지 읽을 수 없고, 계열이 셋이면 눈으로 대조하기도 어렵다.
+    // 점(dot)은 넣지 않는다. 막대가 이미 그 자리에 있어서 점이 겹치기만 한다.
+    els = els.concat(hoverBands(n, function (i) { return padL + slot * i + slot / 2; }, top, plotH,
+      function () { return []; },
+      function (i) {
+        var rows = [[String(labels[i]), 'var(--ink)']];
+        series.forEach(function (s) {
+          var v = s.data[i];
+          rows.push([s.name + '  ' + (v == null ? '—' : (opt.fmt ? opt.fmt(v) : String(v))), s.color]);
+        });
+        return rows;
+      }));
     var lg = el('div', { style: { display: 'flex', gap: '16px', marginTop: '8px', flexWrap: 'wrap' } }, series.map(function (s) { return el('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink-2)' } }, el('span', { style: { width: '10px', height: '10px', borderRadius: '2px', background: s.color, display: 'inline-block' } }), s.name); }).join(''));
     return el('div', {}, el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els), lg);
   }
@@ -339,24 +405,18 @@
     for (var gg = 0; gg <= 3; gg++) { var val = vmax - (vmax - vmin) * gg / 3, yy = Y(val); els.push(el('line', { x1: padL, x2: padL + xw, y1: yy, y2: yy, stroke: 'var(--line)', strokeWidth: 1 })); els.push(el('text', { x: padL + xw + 6, y: yy + 3.5, fontSize: 10, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)' }, opt.fmt ? opt.fmt(val) : val.toFixed(0))); }
     series.forEach(function (s) { var p = ''; s.data.forEach(function (v, i) { if (v == null) return; p += (p ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' '; }); els.push(el('path', { d: p, fill: 'none', stroke: s.color, strokeWidth: 1.8 })); var last = s.data.length - 1; if (s.data[last] != null) els.push(el('circle', { cx: X(last), cy: Y(s.data[last]), r: 3, fill: s.color })); });
     labels.forEach(function (lb, i) { if (i % Math.ceil(n / 6) === 0 || i === n - 1) els.push(el('text', { x: X(i), y: top + plotH + 16, fontSize: 10, fill: 'var(--ink-3)', fontFamily: 'var(--font-mono)', textAnchor: 'middle' }, lb)); });
-    // hover: 인덱스별 투명 밴드 → 세로 가이드 + 라벨·시리즈 값 표시 (.lm-hband CSS가 토글)
-    var step = n <= 1 ? xw : xw / (n - 1);
-    labels.forEach(function (lb, i) {
-      var hx = X(i);
-      var anchor = hx > padL + xw * 0.62 ? 'end' : 'start';
-      var tx = anchor === 'end' ? hx - 7 : hx + 7;
-      var hv = [el('line', { x1: hx, x2: hx, y1: top, y2: top + plotH, stroke: 'var(--ink-3)', strokeWidth: 1, strokeDasharray: '3 3' }),
-                el('text', { x: tx, y: top + 11, fontSize: 10.5, fontWeight: 700, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', textAnchor: anchor }, esc(lb))];
-      series.forEach(function (s, si) {
-        var v = s.data[i];
-        if (v != null) hv.push(el('circle', { cx: hx, cy: Y(v), r: 3.5, fill: s.color, stroke: 'var(--paper)', strokeWidth: 1.2 }));
-        hv.push(el('text', { x: tx, y: top + 11 + 13 * (si + 1), fontSize: 10.5, fontWeight: 600, fill: s.color, fontFamily: 'var(--font-mono)', textAnchor: anchor },
-          esc(s.name.replace(' %', '')) + ' ' + (v == null ? '—' : (opt.fmt ? opt.fmt(v) : String(v)))));
-      });
-      els.push(el('g', { className: 'lm-hband' },
-        el('rect', { x: hx - step / 2, y: top - 6, width: step, height: plotH + 26, fill: 'transparent' }),
-        el('g', { className: 'lm-hv' }, hv)));
-    });
+    // hover — barGroups·ETF 차트와 같은 hoverBands를 쓴다. 예전에는 여기에 같은 로직이
+    // 따로 적혀 있었는데, 값판 배경 같은 개선이 한쪽에만 붙는 자리가 된다(R5 조서 2번 바구니).
+    els = els.concat(hoverBands(n, X, top, plotH,
+      function (i) { return series.map(function (s) { return { y: s.data[i] == null ? null : Y(s.data[i]), col: s.color }; }); },
+      function (i) {
+        var rows = [[String(labels[i]), 'var(--ink)']];
+        series.forEach(function (s) {
+          var v = s.data[i];
+          rows.push([s.name.replace(' %', '') + '  ' + (v == null ? '—' : (opt.fmt ? opt.fmt(v) : String(v))), s.color]);
+        });
+        return rows;
+      }));
     var lg = el('div', { style: { display: 'flex', gap: '16px', marginTop: '8px', flexWrap: 'wrap' } }, series.map(function (s) { return el('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink-2)' } }, el('span', { style: { width: '12px', height: '2px', background: s.color, display: 'inline-block' } }), s.name); }).join(''));
     return el('div', {}, el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els), lg);
   }
@@ -650,12 +710,65 @@
     return el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
 
-  function equityCurve() {
-    var eq = D.backtest && D.backtest.equity;
-    if (!eq) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px' } }, '자산곡선을 계산할 수 없습니다.');
-    var colors = ['var(--dv-navy)', 'var(--dv-slate)', 'var(--dv-clay)'];
-    var series = eq.series.map(function (s, i) { var c = eq.cagr[s.name]; var lbl = s.name + (c != null ? ' (CAGR ' + (c * 100).toFixed(1) + '%)' : ''); return { name: lbl, color: colors[i % 3], data: s.y }; });
-    return lineMulti(eq.dates, series, { fmt: function (v) { return v.toFixed(0); }, H: 240 });
+  /* 과거 신호 관찰 — 모형이 언제 "싸다"고 말했고, 그때 주가가 어디였나(ADR-0008).
+     위 칸: 저평가율(%)과 임계선, 신호가 켜져 있던 구간은 면으로 칠한다.
+     아래 칸: 같은 x축 위의 실제 주가와 그 시점 추정 적정가.
+     통계를 주장하지 않는다 — 비중복 표본이 2~4개뿐이라 평균·승률은 통계가 못 되지만,
+     "언제 켜졌고 그 뒤 어떻게 갔나"는 표본 수와 무관하게 사실 그대로다. */
+  function signalTimeline() {
+    var t = D.backtest && D.backtest.timeline;
+    if (!t || !t.dates || t.dates.length < 2) return '<div style="color:var(--ink-3);font-size:13px">관찰할 시계열이 부족합니다.</div>';
+    var xs = t.dates, ds = t.discount, ps = t.price, fs = t.fair || [];
+    var n = xs.length, th = (D.backtest.threshold != null ? D.backtest.threshold : 0.30);
+    var W = 900, padL = 6, padR = 52, topA = 14, hA = 132, gap = 30, hB = 96;
+    var topB = topA + hA + gap, H = topB + hB + 26, xw = W - padL - padR;
+    function X(i) { return padL + (n <= 1 ? 0 : i / (n - 1) * xw); }
+    var dv = ds.filter(function (v) { return v != null; });
+    var dlo = Math.min.apply(null, dv.concat([0, th])), dhi = Math.max.apply(null, dv.concat([0, th]));
+    var dr = (dhi - dlo) || 1; dlo -= dr * 0.08; dhi += dr * 0.08; dr = dhi - dlo;
+    function YA(v) { return topA + (1 - (v - dlo) / dr) * hA; }
+    var pv = ps.concat(fs).filter(function (v) { return v != null; });
+    var plo = Math.min.apply(null, pv), phi = Math.max.apply(null, pv);
+    var pr = (phi - plo) || 1; plo -= pr * 0.08; phi += pr * 0.08; pr = phi - plo;
+    function YB(v) { return topB + (1 - (v - plo) / pr) * hB; }
+    function path(arr, Y) { var p = '', started = false; arr.forEach(function (v, i) { if (v == null) { started = false; return; } p += (started ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' '; started = true; }); return p; }
+    var els = [];
+    // 신호 구간 — 임계 위로 올라가 있던 날들을 이어 붙여 칠한다. "언제 켜졌나"가 첫인상이 된다.
+    var runStart = null;
+    for (var i = 0; i <= n; i++) {
+      var on = i < n && ds[i] != null && ds[i] >= th;
+      if (on && runStart == null) runStart = i;
+      if (!on && runStart != null) {
+        els.push(el('rect', { x: X(runStart), y: topA, width: Math.max(1, X(i - 1) - X(runStart)), height: hA + gap + hB, fill: 'var(--dv-green)', fillOpacity: 0.09 }));
+        runStart = null;
+      }
+    }
+    // 위 칸 — 눈금은 0선(적정가 = 주가)과 임계선만. 눈금이 많으면 그림이 통계처럼 보인다.
+    els.push(el('line', { x1: padL, x2: padL + xw, y1: YA(0), y2: YA(0), stroke: 'var(--ink-3)', strokeWidth: 1 }));
+    els.push(el('text', { x: padL + xw + 6, y: YA(0) + 3.5, fontSize: 10, fill: 'var(--ink-3)', fontFamily: EMONO }, '0%'));
+    els.push(el('line', { x1: padL, x2: padL + xw, y1: YA(th), y2: YA(th), stroke: 'var(--dv-green)', strokeWidth: 1, strokeDasharray: '4 3' }));
+    els.push(el('text', { x: padL + xw + 6, y: YA(th) + 3.5, fontSize: 10, fill: 'var(--dv-green)', fontFamily: EMONO }, '+' + (th * 100).toFixed(0) + '%'));
+    els.push(el('path', { d: path(ds, YA), fill: 'none', stroke: 'var(--dv-navy)', strokeWidth: 1.7 }));
+    els.push(el('text', { x: padL + 2, y: topA + 10, fontSize: 10.5, fill: 'var(--ink-2)', fontFamily: 'var(--font-sans)' }, '저평가율 — 모형 적정가가 주가보다 얼마나 위였나'));
+    // 아래 칸 — 주가(잉크)와 그 시점 추정 적정가(파선). 둘이 벌어진 폭이 위 칸의 값이다.
+    if (fs.length) els.push(el('path', { d: path(fs, YB), fill: 'none', stroke: 'var(--dv-slate)', strokeWidth: 1.4, strokeDasharray: '4 3' }));
+    els.push(el('path', { d: path(ps, YB), fill: 'none', stroke: 'var(--ink)', strokeWidth: 1.7 }));
+    els.push(el('text', { x: padL + 2, y: topB + 10, fontSize: 10.5, fill: 'var(--ink-2)', fontFamily: 'var(--font-sans)' }, '실제 주가(진한 선) · 그 시점 추정 적정가(파선)'));
+    for (var k = 0; k <= 4; k++) {
+      var xi = Math.round((n - 1) * k / 4);
+      els.push(el('text', { x: X(xi), y: H - 6, fontSize: 10, fill: 'var(--ink-3)', fontFamily: EMONO, textAnchor: k === 0 ? 'start' : k === 4 ? 'end' : 'middle' }, esc((xs[xi] || '').slice(2, 7))));
+    }
+    els = els.concat(hoverBands(n, X, topA, hA + gap + hB,
+      function (i) { return [{ y: ds[i] == null ? null : YA(ds[i]), col: 'var(--dv-navy)' }, { y: ps[i] == null ? null : YB(ps[i]), col: 'var(--ink)' }]; },
+      function (i) {
+        var on = ds[i] != null && ds[i] >= th;
+        return [[esc(xs[i] || ''), 'var(--ink)'],
+                ['저평가율  ' + (ds[i] == null ? '—' : fmtSigned(ds[i])), 'var(--dv-navy)'],
+                ['주가  ' + fmtPrice(ps[i]), 'var(--ink-2)'],
+                ['적정가  ' + (fs[i] == null ? '—' : fmtPrice(fs[i])), 'var(--dv-slate)'],
+                [on ? '신호 켜짐' : '신호 꺼짐', on ? 'var(--dv-green)' : 'var(--ink-3)']];
+      }));
+    return el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
 
   /* ══════════ 섹션 렌더 (HTML) ══════════ */
@@ -668,17 +781,16 @@
     var tone = vTone(v.verdict), pos = vPos(v.verdict), gapCol = v.gap != null && v.gap >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)';
     var mono = 'var(--font-mono)', disp = 'var(--font-display)';
     var sub = [m.sector, m.industry].filter(Boolean).join(' · ');
-    // 신뢰도 툴팁 — 산출 근거(방법 간 편차 = 변동계수)를 실제 수치로 설명
-    var nMeth = (v.estimates || []).length;
-    // 신뢰도는 '값이 모인 정도'이지 '독립적으로 합의한 정도'가 아니다. ②와 ④는 같은 배수
-    // (자기 5년 PER 중앙값)에 서로 다른 EPS를 곱한 값이라 구조적으로 가까이 모인다 — 그래서
-    // 편차가 작다는 사실만으로 신뢰도를 합의로 읽으면 실제보다 높게 받아들이게 된다.
+    // 신뢰도 툴팁 — 산출 근거(방법 간 편차 = 변동계수)를 실제 수치로 설명.
+    // 편차는 **판정에 쓰인 방법들**(①②③)에 대해서만 잰다 — ④는 종합에 안 들어가므로
+    // 방법 수도 v.weights의 키 수로 센다(v.estimates는 ④를 포함한 전부다).
+    var nMeth = Object.keys(v.weights || {}).length || (v.estimates || []).length;
     var confTip = v.dispersion != null
-      ? '방법 간 중심값 편차 ±' + Math.round(v.dispersion * 100) + '% (' + nMeth + '개 방법) — '
+      ? '판정에 쓰인 방법 간 중심값 편차 ±' + Math.round(v.dispersion * 100) + '% (' + nMeth + '개 방법) — '
         + (v.confidence === '높음' ? '방법 간 값이 좁게 모여 있습니다(±15% 미만).'
           : v.confidence === '중간' ? '방법 간 값이 다소 흩어져 있습니다(±15~35%).'
           : '방법 간 값이 크게 흩어져 있습니다(±35% 이상). 판정을 보수적으로 해석하세요.')
-        + ' 값이 모인 정도이지 방법들이 독립적으로 합의했다는 뜻은 아닙니다 — ② 역사적 밴드와 ④ 선행 이익은 같은 배수를 씁니다.'
+        + ' 값이 모인 정도이지 방법들이 독립적으로 합의했다는 뜻은 아닙니다. ④ 선행 이익은 판정에 넣지 않으므로 이 편차에도 들어가지 않습니다.'
       : nMeth <= 1 ? '사용 가능한 평가 방법이 1개뿐이라 낮음으로 처리합니다.'
       : '편차 정보를 계산하지 못했습니다.';
     var finYear = (D.financials && D.financials.years && D.financials.years.length)
@@ -691,10 +803,23 @@
     var mpos = gp == null ? pos : (50 - gp / 0.4 * 40);   // 괴리율(연속)→바 위치. +괴리(상승여력)=왼쪽(저평가)
     var gapAbs = v.gap == null ? null : Math.abs(v.gap * 100).toFixed(1);
     var verdictLine = v.verdict === '적정 수준'
-      ? '현재가가 가중 종합 적정가 범위 안에 있습니다.'
+      ? '현재가가 펀더멘털 적정가 범위 안에 있습니다.'
       : (v.gap != null
-        ? '현재가가 적정가보다 ' + gapAbs + '% ' + (v.gap > 0 ? '낮습니다 — 상승여력' : '높습니다 — 하락위험') + '.'
+        ? '현재가가 펀더멘털 적정가보다 ' + gapAbs + '% ' + (v.gap > 0 ? '낮습니다 — 상승여력' : '높습니다 — 하락위험') + '.'
         : '적정가를 계산하지 못했습니다.');
+    // 판정은 ①②③(회사가 이미 낸 실적·자산)으로만 낸다. ④ 컨센서스를 얹은 값은 판정을
+    // 대신하지 않고 **바로 옆에** 선다 — 두 값의 차이가 "지금 주가가 정당화되려면 시장이
+    // 기대하는 만큼의 실적 변화가 실제로 와야 하는 크기"라서, 붙여 놔야 읽힌다(ADR-0006).
+    // 탭으로 가르지 않는 이유도 같다: 비교가 사라지면 이 숫자는 아무 말도 하지 않는다.
+    var consLine = '';
+    if (v.fair_mid_consensus != null && v.consensus_premium != null) {
+      var cflip = v.verdict_consensus && v.verdict_consensus !== v.verdict;
+      consLine = '<div class="cons-callout">' +
+        '<b>컨센서스까지 반영하면</b> 적정가 <b class="mono">' + fmtPrice(v.fair_mid_consensus) + '</b>' +
+        ' (현재가 대비 ' + fmtSigned(v.gap_consensus) + (cflip ? ' · 판정 <b>' + esc(v.verdict_consensus) + '</b>' : ' · 판정 동일') + ')' +
+        ' — 펀더멘털 대비 <b class="mono">' + fmtSigned(v.consensus_premium) + '</b>. ' +
+        '이 차이가 증권가가 보는 실적 전망분이며, <b>판정에는 넣지 않습니다</b>.</div>';
+    }
     // ── B (기본) ──
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
@@ -732,8 +857,9 @@
           // 현재가 vs 적정가 vs 괴리율 — 수치 요약
           '<div style="margin-top:6px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)">' +
             '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
-            '<span>가중 종합 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b></span>' +
+            '<span>펀더멘털 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b> <span class="na" tabindex="0" data-tip="① 업종 상대가치 · ② 역사적 밴드 · ③ RIM의 가중평균입니다. 셋 다 회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.">ⓘ</span></span>' +
             '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
+          consLine +
           '<div style="margin-top:9px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (D.computed_at ? ' · 계산 ' + esc(D.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button></div></div>';
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
@@ -776,6 +902,24 @@
     wireCollapse('warnToggle', 'warnBody', 'block');
   }
 
+  /* ③ RIM을 쓰거나 뺀 근거를 잰 값으로 밝힌다(ADR-0007).
+     예전에는 PBR 하나로 끊고 화면에는 "무형자산·자사주 때문"이라고 원인을 단정했다 —
+     SK하이닉스(무형 1.8%·자사주 0·유형자산 45%)에서 그 설명이 사실과 달랐다.
+     이제는 실제로 잰 두 값을 그대로 보여주고, 판별에 쓴 임계도 함께 적는다. */
+  function bookQualityLine(v) {
+    var b = v.book_quality;
+    if (!b || b.pbr == null) return '';
+    var bits = ['실제 PBR <b class="mono">' + b.pbr.toFixed(1) + '배</b>'];
+    if (b.intangible_share != null) bits.push('무형자산(영업권 포함) 자산의 <b class="mono">' + (b.intangible_share * 100).toFixed(1) + '%</b>');
+    if (b.buyback_ratio != null) bits.push('최근 ' + (b.years || 0) + '개년 누적 자사주매입 자본의 <b class="mono">' + (b.buyback_ratio * 100).toFixed(0) + '%</b>');
+    return '<b>③ RIM 적용 판별</b> · ' + bits.join(' · ') +
+      ' → ' + (b.distorted ? '<b>제외</b>' : '<b>적용</b>') +
+      '. 기준 · PBR 5배 초과인 종목만 따지고, 그중 무형자산 15% 이상 또는 누적 자사주 30% 이상이면 ' +
+      '장부가가 회사 규모를 대변하지 못한다고 보아 뺍니다. 두 임계는 국내외 종목 패널을 보고 정한 ' +
+      '판단값이며 데이터로 추정한 값이 아닙니다. 영업권으로 장부가가 <b>부풀려진</b> 경우는 이 판별이 ' +
+      '잡지 않습니다 — 상세 · docs/adr/0007<br/>';
+  }
+
   var CMT = { good: ['var(--dv-positive)', 'M20 6 9 17l-5-5'], bad: ['var(--dv-negative)', 'M18 6 6 18M6 6l12 12'], warn: ['var(--warning)', 'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'], info: ['var(--dv-navy)', 'M12 16v-4M12 8h.01'] };
   function renderSummary() {
     $('bulletChart').innerHTML = bulletChart();
@@ -800,7 +944,14 @@
         var wgt = (v.weights || {})[name];
         // 가중 배지는 '방법' 칸 안에 들어가야 한다. 형제 span으로 붙이면 격자 자식이 5개가 되어
         // 4열 표의 열이 한 칸씩 밀린다(범위가 '중심' 머리 아래로, 근거는 다음 줄로).
-        if (wgt != null) nameCell = '<span>' + nameCell + ' <span class="mono" style="font-size:10.5px;color:var(--ink-3)">가중 ' + Math.round(wgt * 100) + '%</span></span>';
+        // ④는 판정에 안 들어가므로 가중 %가 없다 — 빈칸으로 두면 "빠뜨렸나"로 읽히니
+        // 왜 없는지를 배지로 말한다(ADR-0006).
+        var mark = wgt != null
+          ? '<span class="mono" style="font-size:10.5px;color:var(--ink-3)">가중 ' + Math.round(wgt * 100) + '%</span>'
+          : (name === (v.consensus_method || '선행 이익(컨센서스)')
+            ? '<span class="na method-off" tabindex="0" data-tip="컨센서스 선행 이익은 시장의 실적 기대를 입력으로 씁니다. 판정을 시장 기대와 독립적으로 유지하려고 종합에서 빼고, 아래 &#39;컨센서스 반영&#39; 값으로 따로 병기합니다.">판정 제외 · 참고</span>'
+            : '');
+        if (mark) nameCell = '<span>' + nameCell + ' ' + mark + '</span>';
         return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + '</span></div>';
       }
       if (skipMap[name] != null) {
@@ -809,17 +960,33 @@
       }
       return '';
     }).join('');
-    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">종합 적정가 (가중평균)</span><span></span><span class="mono r" style="font-size:15px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
+    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">펀더멘털 적정가 (①②③ 가중평균) <span class="val-sub">— 판정 근거</span></span><span></span><span class="mono r" style="font-size:15px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
+    // 컨센서스 반영 값은 같은 표 안, 종합 바로 아래 한 행으로 선다. 별도 탭·별도 카드로
+    // 떼면 두 값을 나란히 볼 수 없고, 이 도구에서 읽을 거리가 가장 많은 것은 둘의 차이다.
+    if (v.fair_mid_consensus != null) {
+      total += '<div class="row val-consrow" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' +
+        '<span class="val-consname">컨센서스 반영 (④ 포함) <span class="val-sub">— 병기</span></span><span></span>' +
+        '<span class="mono r val-consval">' + won(v.fair_mid_consensus) + '</span>' +
+        '<span class="val-consgap">현재가 대비 ' + fmtSigned(v.gap_consensus) +
+        (v.consensus_premium != null ? ' · 펀더멘털 대비 ' + fmtSigned(v.consensus_premium) : '') + '</span></div>';
+    }
     // 동일가중 민감도 — 가중치 선택이 결론을 좌우하지 않는지 투명하게 병기
     var sens = '';
     if (v.fair_mid_equal != null) {
       var flip = v.verdict_equal && v.verdict_equal !== v.verdict;
-      sens = '<div style="font-size:11.5px;color:var(--ink-3);margin-top:7px;padding-top:8px;border-top:1px dashed var(--line)">민감도 · 동일가중(단순평균)이면 적정가 <b class="mono" style="color:var(--ink-2)">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b style="color:var(--warning)">' + esc(v.verdict_equal) + '</b>로 갈림' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.</div>';
+      sens = '<div style="font-size:11.5px;color:var(--ink-3);margin-top:7px;padding-top:8px;border-top:1px dashed var(--line)">민감도 · 판정 방법(①②③)을 동일가중(단순평균)하면 적정가 <b class="mono" style="color:var(--ink-2)">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b style="color:var(--warning)">' + esc(v.verdict_equal) + '</b>로 갈림' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.</div>';
     }
-    var formula = '<div style="font-size:11px;color:var(--ink-3);line-height:1.75;margin-top:10px">공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — 종합 = 가중평균 ④35 · ①25 · ②25 · ③15% (순위 근거: Liu·Nissim·Thomas 2002·2007 국제 + 국내 가치관련성; 국내 컨센서스 낙관편의 유의 — 상세 docs/adr/0003) · 출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)</div>';
+    var formula = fold('계산식과 출처 · ④를 판정에서 뺀 이유',
+      '<b>계산식</b><br/>' +
+      '① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값<br/>' +
+      '<b>종합</b> · 판정 = ①②③ 가중평균(①38.5 · ②38.5 · ③23.1%, 기본 가중 25·25·15를 셋으로 재정규화) · 병기 = ①②③④ 가중평균(④35 · ①25 · ②25 · ③15%)<br/>' +
+      '<b>④를 판정에서 뺀 이유</b> · ④는 시장의 실적 기대를 입력으로 쓰므로, 섞으면 이 도구의 판정이 시장 기대를 얼마나 따라갔는지 볼 수 없게 됩니다. 게다가 ②와 ④는 같은 배수(자기 5년 PER 중앙값)에 다른 EPS를 곱한 값이라 독립된 관점이 아니고, 사후검증(백테스트)도 ④는 시점별 컨센서스가 없어 불가능합니다. 상세 · docs/adr/0006<br/>' +
+      '<b>가중치 근거</b> · 가격 설명력 순위(선행이익 &gt; 이익 멀티플 &gt; 장부가): Liu·Nissim·Thomas 2002(JAR, 미국)·2007(FAJ, 10개국) + 국내 가치관련성 연구. 수치 자체는 순위의 정성적 인코딩이며 한국 데이터로 추정한 값이 아닙니다. 국내 컨센서스 낙관편의(자본시장연구원 2025) 유의<br/>' +
+      bookQualityLine(v) +
+      '<b>출처</b> · 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)');
     // 건너뛴 방법이 있으면 가중치가 재정규화됐음을 명시 — 각 행의 '가중 %'가 실제 적용값
     var renorm = (v.skipped || []).length && est.length
-      ? '<div style="font-size:11px;color:var(--ink-3);margin-top:6px">제외된 방법의 가중치는 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.</div>' : '';
+      ? '<div style="font-size:11px;color:var(--ink-3);margin-top:8px">제외된 방법의 가중치는 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.</div>' : '';
     $('methodsTable').innerHTML = est.length ? head + rows + total + sens + renorm + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
     // 점수
     $('scoreOverall').textContent = D.scores.overall != null ? Math.round(D.scores.overall) : '—';
@@ -867,7 +1034,7 @@
     var c = D.consensus;
     if (!c || c.error) {
       meta.textContent = '커버리지 없음';
-      body.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:4px 0">애널리스트 컨센서스가 없는 종목입니다 — 증권사가 분석 리포트를 내지 않는 소형주에 흔합니다. 이 경우 위 적정가 추정(①~③)만으로 판단 근거를 삼습니다.</div>';
+      body.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:4px 0">애널리스트 컨센서스가 없는 종목입니다 — 증권사가 분석 리포트를 내지 않는 소형주에 흔합니다. 판정은 원래 ①②③으로만 내므로 판정 자체는 그대로지만, 대조해 볼 시장 시각이 없다는 뜻입니다.</div>';
       return;
     }
     meta.textContent = (c.n_analysts != null ? '애널리스트 ' + c.n_analysts + '명 평균'
@@ -875,7 +1042,7 @@
     function tone(v) { return v == null ? 'var(--ink)' : v >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)'; }
     var tiles = [
       ['현재가', fmtPrice(D.meta.price), '', 'var(--ink)'],
-      ['모형 종합 적정가 · 이 대시보드', fmtPrice(D.verdict.fair_mid), D.verdict.gap != null ? '현재가 대비 ' + fmtSigned(D.verdict.gap) : '', tone(D.verdict.gap)],
+      ['펀더멘털 적정가 · 이 대시보드', fmtPrice(D.verdict.fair_mid), D.verdict.gap != null ? '현재가 대비 ' + fmtSigned(D.verdict.gap) : '', tone(D.verdict.gap)],
       ['컨센서스 목표주가 · 증권가', fmtPrice(c.target_mean), c.target_upside != null ? '현재가 대비 ' + fmtSigned(c.target_upside) : '', tone(c.target_upside)],
       ['투자의견 평균', c.recomm_label || '—', c.recomm_score != null ? c.recomm_score.toFixed(2) + ' / 5.0' : '', 'var(--ink)']
     ];
@@ -885,7 +1052,7 @@
     var rows = [];
     if (c.forward_eps != null) rows.push('12개월 선행 EPS(컨센서스) <b class="mono">' + fmtPrice(c.forward_eps) + '</b>' + (c.implied_growth != null ? ' — 최근 12개월 실적 대비 <b style="color:' + tone(c.implied_growth) + '">' + fmtSigned(c.implied_growth) + '</b>의 이익 변화를 전제합니다' : ''));
     if (c.forward_per != null) rows.push('선행 PER <b class="mono">' + fmtX(c.forward_per) + '</b> — 트레일링 PER와의 차이가 시장이 반영 중인 실적 전망입니다');
-    if (c.model_vs_target != null) rows.push('모형 종합 적정가는 컨센서스 목표주가보다 <b style="color:' + tone(c.model_vs_target) + '">' + fmtSigned(c.model_vs_target) + '</b> — 두 값이 가까울수록 서로 다른 접근이 같은 결론을 가리킨다는 뜻입니다');
+    if (c.model_vs_target != null) rows.push('펀더멘털 적정가(①②③)는 컨센서스 목표주가보다 <b style="color:' + tone(c.model_vs_target) + '">' + fmtSigned(c.model_vs_target) + '</b> — 두 값은 재료가 겹치지 않습니다(우리 쪽은 이미 낸 실적·자산, 증권가 쪽은 앞으로의 전망). 가까울수록 서로 다른 접근이 같은 결론을 가리킨다는 뜻입니다');
     // 목표주가 역산 — 증권가가 어떤 멀티플을 깔았는지 되짚어 차이의 원인을 보여준다
     if (c.target_mean != null && c.forward_eps) {
       var impliedPer = c.target_mean / c.forward_eps;
@@ -899,7 +1066,10 @@
     body.innerHTML =
       '<div style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0">' + tilesHtml + '</div>' +
       (rows.length ? '<ul style="margin:14px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px">' + rows.map(function (r) { return '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.6">' + r + '</li>'; }).join('') + '</ul>' : '') +
-      '<div style="font-size:11.5px;color:var(--ink-3);margin-top:12px">출처: ' + esc(c.source || '') + ' · 목표주가·추정 EPS는 증권사 애널리스트 평균이며 매수 편향이 있을 수 있습니다. 판정에는 ④ 선행 이익 방법(추정 EPS × 시장 멀티플)만 반영하고 목표주가 자체는 계산에 넣지 않습니다.</div>';
+      fold('출처와 주의 · 이 탭의 값이 판정에 들어가지 않는 이유',
+        '<b>출처</b> · ' + esc(c.source || '—') + '<br/>' +
+        '<b>편향</b> · 목표주가·추정 EPS는 증권사 애널리스트 평균이며 매수 편향이 있을 수 있습니다. 국내 실증(자본시장연구원 2025): 목표주가 내재수익 36.1% vs 실현 11.5%, 예측오차 24.5%, 매수의견 비중 93%<br/>' +
+        '<b>판정과의 관계</b> · 이 탭의 값은 <b>어느 것도 판정에 들어가지 않습니다</b>. 추정 EPS는 ④ 선행 이익 방법에만 쓰이고, ④조차 판정이 아니라 요약의 &#39;컨센서스 반영&#39; 값으로만 병기됩니다. 목표주가 자체는 어느 계산에도 들어가지 않습니다 — 상세 · docs/adr/0006');
   }
 
   function renderPriceTab() {
@@ -1008,7 +1178,7 @@
       slider('멀티플 조정', 'scnMultSlider', state.scnMult, -30, 30) +
       '<span style="font-size:11.5px;color:var(--ink-3)">기준 EPS: ' + fmtPrice(s.eps_base) + ' (' + esc(s.eps_basis) + ') · 멀티플: ' + esc(s.multiple_basis) + '</span></div>' +
       gridHtml + howto +
-      ((s.notes || []).length ? '<div style="font-size:11.5px;color:var(--ink-3);margin-top:12px;line-height:1.7">' + s.notes.map(esc).join('<br/>') + '</div>' : '');
+      ((s.notes || []).length ? fold('계산 기준과 주석', s.notes.map(esc).join('<br/>')) : '');
     function bind(id, key) {
       var inp = $(id);
       if (!inp) return;
@@ -1177,37 +1347,69 @@
 
   function renderBacktest() {
     var bt = D.backtest;
-    if (!bt || bt.error || !bt.ok) { $('btTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">' + esc((bt && (bt.warnings || [])[0]) || '백테스트를 수행할 수 없습니다 (표본 부족).') + '</div>'; $('btTable').innerHTML = ''; $('backtestScatter').innerHTML = ''; $('equityCurve').innerHTML = ''; if ($('btScatterGuide')) $('btScatterGuide').innerHTML = ''; if ($('equityGuide')) $('equityGuide').innerHTML = ''; return; }
-    var tiles = [['비중복 12M 표본', (bt.event_count || 0).toLocaleString('en-US') + '개'], ['신호 후 12M 평균', '<span style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</span>'], ['그때 플러스 확률', bt.hit12 != null ? (bt.hit12 * 100).toFixed(0) + '%' : '—'], ['저평가↔수익 상관', '<span style="color:' + (bt.spearman >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + (bt.spearman != null ? (bt.spearman >= 0 ? '+' : '') + bt.spearman.toFixed(2) : '—') + '</span>']];
-    $('btTiles').innerHTML = tiles.map(function (t, i) { return '<div style="flex:1;min-width:130px;padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:20px;font-weight:500;margin-top:6px">' + t[1] + '</div></div>'; }).join('');
-    // 정직한 한 줄 관찰 (저평가 신호 후 vs 아무 때나)
-    var h12 = (bt.horizons || []).filter(function (h) { return h.h === '12개월'; })[0] || {};
-    var lede;
-    if (bt.signal_days > 0 && bt.ret12 != null) {
-      var base12 = h12.base_mean;
-      var cmp = (base12 != null && bt.ret12 > base12) ? '<b style="color:var(--dv-positive)">더 높았</b>' : '<b>특별히 높지는 않았</b>';
-      lede = '저평가 신호는 총 <b class="mono">' + bt.signal_days.toLocaleString('en-US') + '거래일</b> 관찰됐습니다. 겹치는 보유기간을 제거한 <b class="mono">' + (bt.event_count || 0) + '개 표본</b>의 12개월 평균 수익은 <b class="mono" style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</b>' + (bt.hit12 != null ? ' (플러스 확률 ' + (bt.hit12 * 100).toFixed(0) + '%)' : '') + ' — 비중복 전체 표본 평균(' + fmtSigned(base12) + ')보다 ' + cmp + '습니다.';
-    } else {
-      lede = '확보된 기간에 이 종목이 우리 기준 <b>저평가(+30%↑)</b>였던 적은 없었습니다 — 아래 관찰 통계가 비어 있는 이유예요. (다른 종목·기간에서는 신호가 잡히기도 합니다.)';
+    if (!bt || bt.error || !bt.ok) {
+      $('btTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">' + esc((bt && (bt.warnings || [])[0]) || '과거 신호를 복원할 수 없습니다 (표본 부족).') + '</div>';
+      $('btLede').innerHTML = ''; $('signalTimeline').innerHTML = ''; $('backtestScatter').innerHTML = '';
+      if ($('btScatterGuide')) $('btScatterGuide').innerHTML = '';
+      return;
     }
-    var mu = bt.methods_used || [];
-    var methodNote = '';
+    var thPct = ((bt.threshold || 0.3) * 100).toFixed(0);
+    var t = bt.timeline || {}, dts = t.dates || [];
+    var span = dts.length ? esc(dts[0].slice(0, 7)) + ' ~ ' + esc(dts[dts.length - 1].slice(0, 7)) : '—';
+    var onPct = bt.n_obs ? (bt.signal_days / bt.n_obs * 100).toFixed(0) + '%' : '—';
+    // 타일은 '관찰의 규모'만 말한다. 예전에는 여기 '신호 후 12M 평균 +134%'가 있었는데
+    // 그 표본이 2개였다 — 큰 숫자가 먼저 눈에 들어와 표본 수는 아무도 안 봤다(ADR-0008).
+    var nEv = bt.event_count || 0;
+    var tiles = [
+      ['관찰 구간', span],
+      ['관찰 거래일', (bt.n_obs || 0).toLocaleString('en-US') + '일'],
+      ['신호가 켜져 있던 날', (bt.signal_days || 0).toLocaleString('en-US') + '일 <span style="font-size:12px;color:var(--ink-3)">(' + onPct + ')</span>'],
+      ['저평가율↔이후 수익 순위상관', bt.spearman != null ? (bt.spearman >= 0 ? '+' : '') + bt.spearman.toFixed(2) : '—']];
+    $('btTiles').innerHTML = tiles.map(function (x, i) {
+      return '<div style="flex:1;min-width:132px;padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + x[0] + '</div><div class="mono" style="font-size:19px;font-weight:500;margin-top:6px">' + x[1] + '</div></div>';
+    }).join('');
+
+    var mu = bt.methods_used || [], methodNote = '';
     if (mu.length >= 2 && bt.weights) {
       var wB = Math.round((bt.weights['역사적 밴드'] || 0) * 100), wR = Math.round((bt.weights['수익가치(RIM)'] || 0) * 100);
-      methodNote = '<div style="font-size:11.5px;color:var(--ink-3);margin-bottom:8px">검증 신호 = ② 역사적 밴드 + ③ RIM 가중 종합(' + wB + ':' + wR + '). ①·④는 사후검증 불가로 제외.</div>';
+      methodNote = '복원 신호 = ② 역사적 밴드 + ③ RIM 가중 종합(' + wB + ':' + wR + '). ①은 사후 복원 불가로 제외.';
     } else if (mu.length === 1) {
-      methodNote = '<div style="font-size:11.5px;color:var(--ink-3);margin-bottom:8px">검증 신호 = ② 역사적 밴드 단독(③ RIM 복원 불가). 종합 판정 일부만 검증됨.</div>';
+      methodNote = '복원 신호 = ② 역사적 밴드 단독(③ RIM 복원 불가).';
     }
-    if ($('btLede')) $('btLede').innerHTML = methodNote + lede;
-    var head = '<div class="row head" style="grid-template-columns:1fr .7fr 1fr 1fr 1fr"><span class="col-label">보유기간</span><span class="col-label r">표본</span><span class="col-label r">평균수익</span><span class="col-label r">승률</span><span class="col-label r">전체평균</span></div>';
-    var rows = (bt.horizons || []).map(function (h, i) { var last = i === bt.horizons.length - 1; return '<div class="row" style="grid-template-columns:1fr .7fr 1fr 1fr 1fr;font-family:var(--font-mono);font-size:12.5px' + (last ? ';border-bottom:none' : '') + '"><span style="font-family:var(--font-sans)">' + h.h + '</span><span class="r">' + (h.ev_n || 0) + '</span><span class="r" style="color:' + (h.ev_mean >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(h.ev_mean) + '</span><span class="r">' + (h.ev_hit != null ? (h.ev_hit * 100).toFixed(0) + '%' : '—') + '</span><span class="r" style="color:var(--ink-3)">' + fmtSigned(h.base_mean) + '</span></div>'; }).join('');
-    $('btTable').innerHTML = head + rows;
+    // 이 탭이 무엇을 하지 않는지를 먼저 말한다 — 예전엔 통계처럼 보이는 표가 먼저 나왔다.
+    var lede = (bt.signal_days > 0
+      ? '이 기간에 모형은 <b class="mono">' + (bt.signal_days || 0).toLocaleString('en-US') + '거래일</b> 동안 저평가(+' + thPct + '%↑) 신호를 켰습니다. 아래 그림에서 <b>초록 면이 그 구간</b>이고, 그때 주가가 어디였는지는 아래 칸에서 같은 x축으로 확인할 수 있어요.'
+      : '확보된 기간에 이 종목이 우리 기준 <b>저평가(+' + thPct + '%↑)</b>였던 적은 없습니다 — 아래 그림에 초록 면이 없는 이유예요. (다른 종목·기간에서는 신호가 잡히기도 합니다.)')
+      + ' <b>이 탭은 성과를 주장하지 않습니다</b> — 겹치지 않는 12개월 표본이 <b class="mono">' + nEv + '개</b>뿐이라, 평균수익·승률을 내면 숫자만 그럴듯하고 통계가 되지 못합니다.';
+    // 판정(①②③)과 이 신호(②+③)는 재료도 창(window)도 달라 **같은 종목에 반대를 말할 수 있다**.
+    // 그 대비를 화면이 보여주지 않으면 사용자는 "어느 쪽이 맞나"에서 멈춘다. 차이의 이유까지 적는다.
+    var vg = D.verdict && D.verdict.gap, ld = t.latest_discount;
+    if (vg != null && ld != null) {
+      var flip = (vg >= 0) !== (ld >= 0);
+      lede += '<div class="cons-callout' + (flip ? ' clash' : '') + '">' +
+        '<b>지금 이 신호</b>는 ' + fmtSigned(ld) + ' (적정가 환산 <b class="mono">' + fmtPrice(t.latest_fair) + '</b> · 주가 ' + fmtPrice(t.latest_price) + ')이고, ' +
+        '<b>요약 탭 판정</b>은 ' + fmtSigned(vg) + '입니다' +
+        (flip ? ' — <b>방향이 반대입니다.</b>' : '.') +
+        ' 두 값은 재료가 달라 어긋날 수 있어요: 판정에는 <b>① 업종 상대가치</b>가 들어가지만 여기엔 없고(피어 목록을 과거로 되살리면 편향이 낍니다), ' +
+        '②의 기준 배수도 판정은 <b>자기 5년</b> 중앙값인데 여기는 <b>직전 1.5년</b> 롤링 중앙값입니다. ' +
+        '이익이 크게 움직인 종목일수록 이 차이가 벌어집니다. ' +
+        (flip ? '<b>이 신호가 판정을 뒤집지는 않습니다</b> — 판정은 요약 탭 값이고, 여기는 그 하위집합이 과거에 어떻게 움직였는지를 보는 자리입니다.' : '') +
+        '</div>';
+    }
+    var btScope = fold('이 관찰의 범위와 한계 · 왜 승률·전략수익을 안 보여주나',
+      '<b>왜 통계를 내지 않나</b> · 단일 종목의 관찰 기간은 4년 남짓이라 <b>겹치지 않는 12개월 구간이 구조적으로 최대 4개</b>입니다(이 종목은 ' + nEv + '개). 데이터를 더 넣어도 늘지 않는 상한이라, 평균수익·승률은 표본 2~4개짜리 수치가 됩니다. 예전에는 그 값을 표로 크게 보여줬고 n=1에 승률 100%가 뜨기도 했습니다 — 화면에서 내렸습니다(계산 자체는 <span style="font-family:var(--font-mono)">scripts/check_backtest.py</span>에 남아 있습니다)<br/>' +
+      '<b>왜 전략 자산곡선을 안 보여주나</b> · "신호일 때만 보유, 아니면 현금" 곡선은 신호 품질이 아니라 <b>시장에 노출된 시간</b>을 잽니다. 상승장에서는 현금으로 쉰 만큼 무조건 지므로, 낮은 성과가 신호가 나빠서인지 안 사서인지 구분되지 않습니다<br/>' +
+      (methodNote ? '<b>어떤 신호를 복원했나</b> · ' + methodNote + ' ① 업종 상대가치는 피어 목록이 <b>현재</b> 시점 구성이라 과거로 소급하면 선택·생존편향(룩어헤드)이 낍니다. ④ 선행 이익은 과거 <b>시점별</b> 컨센서스 EPS 빈티지가 무료 데이터에 없습니다<br/>' : '') +
+      '<b>판정과의 관계 — 이것은 판정의 검증이 아닙니다</b> · ①이 없을 뿐 아니라 ②③도 <b>계산이 다릅니다</b>: 기준배수가 판정은 자기 5년 분위인데 여기는 직전 1.5년 롤링 중앙값이고(삼성전자 16.04배 vs 25.08배), ③의 지속계수·자본비용·장부가 게이트도 판정과 다릅니다. 그래서 같은 종목에 정반대 값이 나올 수 있습니다 — 상세 · docs/adr/0009<br/>' +
+      '<b>룩어헤드 방지</b> · 정상 배수·ROE·BPS 모두 그 시점까지의 과거 데이터만 씁니다(자본비용 r만 상수 근사)<br/>' +
+      '<b>통계적으로 옳은 길</b> · 여러 종목 × 여러 시점의 <b>횡단면 검증</b>인데, 과거 시점의 종목 유니버스가 무료 데이터에 없어 생존편향을 피할 수 없습니다. 그래서 지금은 통계 대신 관찰로 층위를 내렸습니다');
+    if ($('btLede')) $('btLede').innerHTML = lede + btScope;
+
+    $('signalTimeline').innerHTML = signalTimeline();
     $('backtestScatter').innerHTML = backtestScatter();
-    $('equityCurve').innerHTML = equityCurve();
 
     // ── 산점도 읽는 법 (+ 순위상관 자동 해석) ──
     var li0 = '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">';
-    var thPct = ((bt.threshold || 0.3) * 100).toFixed(0);
     var rho = bt.spearman, rhoRead = '';
     if (rho != null) {
       rhoRead = rho >= 0.3
@@ -1222,32 +1424,9 @@
       '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
       li0 + '점 하나 = 과거의 어느 하루입니다. <b>가로축</b>은 그날의 저평가율(모형 적정가 ÷ 주가 − 1, +30%면 주가가 적정가보다 30% 싸 보였다는 뜻), <b>세로축</b>은 그날 사서 12개월 들고 있었을 때의 실제 수익률입니다.</li>' +
       li0 + '연한 <b>초록 배경</b>이 우리 기준 저평가 신호(+' + thPct + '%↑) 구간입니다. 이 구간의 점들이 가로 0선 위(플러스)에 몰려 있을수록 신호가 과거에 통했다는 뜻입니다.</li>' +
-      li0 + '<b>클레이색 사선</b>은 전체 점의 추세선 — 오른쪽 위로 기울수록 "더 싸 보일 때 살수록 이후 수익이 좋았다"입니다. 상단 타일의 <b>저평가↔수익 상관</b>(순위상관, −1~+1)이 이 관계의 일관성을 숫자 하나로 요약합니다.</li>' +
-      li0 + '주의: 한 종목의 5년 남짓 표본이고 인접한 날들은 사실상 같은 사건이라, 관계가 보여도 우연일 수 있습니다. 방향 참고용이지 매매 규칙이 아닙니다.</li>' +
+      li0 + '<b>클레이색 사선</b>은 전체 점의 추세선 — 오른쪽 위로 기울수록 "더 싸 보일 때 살수록 이후 수익이 좋았다"입니다. 상단 타일의 <b>순위상관</b>(−1~+1)이 이 관계의 일관성을 숫자 하나로 요약합니다.</li>' +
+      li0 + '<b>점 수에 속지 마세요.</b> 점은 하루 단위라 많아 보이지만 인접한 날들은 사실상 같은 사건입니다 — 겹치지 않는 12개월 구간으로 세면 <b class="mono">' + nEv + '개</b>뿐입니다. 방향 참고용이지 매매 규칙이 아닙니다.</li>' +
       '</ul>' + (rhoRead ? '<div style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + rhoRead + '</div>' : '') + '</div>';
-
-    // ── 자산곡선: 선 설명 + CAGR 풀이 + 자동 비교 한 줄 ──
-    var eqd = bt.equity, cag = (eqd && eqd.cagr) || {};
-    var cs = cag['저평가 매수 전략'], cb = cag['단순 보유(Buy&Hold)'];
-    var benchKey = Object.keys(cag).filter(function (k) { return k !== '저평가 매수 전략' && k !== '단순 보유(Buy&Hold)'; })[0];
-    var cbm = benchKey != null ? cag[benchKey] : null;
-    var eqRead = (cs != null && cb != null)
-      ? '이 종목·기간에서는 저평가 매수 전략 CAGR <b>' + (cs * 100).toFixed(1) + '%</b> vs 단순 보유 <b>' + (cb * 100).toFixed(1) + '%</b>' +
-        (cbm != null ? ' vs ' + esc(benchKey) + ' <b>' + (cbm * 100).toFixed(1) + '%</b>' : '') + ' — ' +
-        (cs > cb ? '신호가 종목 보유 대비 초과 성과를 냈습니다. 다만 한 종목의 사후 검증이라 우연·과최적화 가능성은 남습니다.'
-                 : '신호가 단순 보유를 이기지 못했습니다. 저평가 신호는 매매 타이밍 도구가 아니라 "지금 가격이 어느 수준인지" 보는 관찰 보조로 쓰는 게 안전합니다.')
-      : '';
-    if ($('equityGuide')) $('equityGuide').innerHTML =
-      '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
-      '<div class="kick" style="margin-bottom:8px">선과 숫자의 뜻</div>' +
-      '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
-      li0 + '<b>남색 선 · 저평가 매수 전략</b>: 모형이 저평가(+' + thPct + '%↑)로 본 날에만 주식을 보유하고, 아닌 날은 현금(수익 0)으로 쉬는 규칙의 가상 자산 가치입니다. 신호가 뜬 <b>다음 날</b> 진입해 미래 정보를 미리 쓰는 것(룩어헤드)을 막았습니다.</li>' +
-      li0 + '<b>회청색 선 · 단순 보유(Buy&Hold)</b>: 같은 기간 처음에 사서 끝까지 그냥 들고 있었을 때 — 전략을 평가하는 비교 기준선입니다.</li>' +
-      (benchKey ? li0 + '<b>클레이색 선 · ' + esc(benchKey) + '</b>: 같은 기간 시장 전체가 얼마나 움직였는지입니다. 종목·전략의 성과가 시장 상승 덕분인지, 종목 자체의 힘인지 가려주는 배경 기준입니다.</li>' : '') +
-      li0 + '모든 선은 시작을 100으로 맞춘 상대 가치이고, 거래비용·세금·슬리피지는 반영되지 않았습니다.</li>' +
-      li0 + '<b>CAGR</b>(연평균 복리 성장률) = 전체 기간의 최종 결과를 "매년 몇 %씩 복리로 불린 셈인가"로 환산한 값입니다. 예: 5년에 100→200이면 CAGR ≈ 14.9%. 범례 괄호 속 숫자가 이것입니다.</li>' +
-      li0 + '읽는 법: 전략 선이 높다고 무조건 좋은 게 아니라, <b>하락 구간을 신호가 피해 갔는지</b>(전략 선이 덜 꺾였는지)를 보는 게 핵심입니다.</li>' +
-      '</ul>' + (eqRead ? '<div style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + eqRead + '</div>' : '') + '</div>';
   }
 
   function renderAi() {
@@ -1271,7 +1450,7 @@
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600;color:var(--dv-positive)">강세 논거</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.8">' + li(bulls) + '</ul></div>' +
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600;color:var(--dv-negative)">약세 논거·리스크</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.8">' + li(bears) + '</ul></div></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">' +
-        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">적정가 추정 범위 · 괴리율</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="mono" style="font-size:20px;font-weight:600">' + target + '</span><span style="font-size:13px;color:' + (up ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + upside + '</span></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">3개 모형의 추정 범위이며 추천 목표가가 아닙니다</div></div>' +
+        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">적정가 추정 범위 · 괴리율</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="mono" style="font-size:20px;font-weight:600">' + target + '</span><span style="font-size:13px;color:' + (up ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + upside + '</span></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">①②③(회사 실적·자산 기반) 추정 범위이며 추천 목표가가 아닙니다</div></div>' +
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">관찰을 재검토할 기준</div><div style="font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-top:10px">52주 최저 <b class="mono">' + stop + '</b> 이탈 시 현재 추세 해석을 다시 확인하세요. 신뢰도 <b>' + esc(v.confidence || '—') + '</b> — 방법 간 편차가 크면 보수적으로 해석하세요.</div></div></div>' +
       '<div style="font-size:10.5px;color:var(--ink-3);margin-top:14px;line-height:1.6">본 스탠스는 대시보드 산출 데이터에 기반한 규칙적 요약이며, 서술형 AI 평가·최종 판단은 이용자 책임입니다. 특정 종목의 매수·매도 추천이 아닙니다.</div>';
     var ob = $('opBtn'); if (ob) ob.addEventListener('click', function () { aiFetch('opinion', $('opOut'), ob); });
@@ -1398,6 +1577,15 @@
       el('text', { x: X(ys.length - 1) - 5, y: Y(last) - 8, textAnchor: 'end', fontFamily: 'var(--font-mono)', fontSize: 11, fill: 'var(--ink)' }, fmtPrice(last)),
       el('text', { x: padL, y: H - 5, fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--ink-3)' }, esc(xs[0] || '')),
       el('text', { x: W - padR, y: H - 5, textAnchor: 'end', fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--ink-3)' }, esc(xs[xs.length - 1] || ''))];
+    // 마우스를 올린 날의 종가와 시작 대비 수익을 그 자리에 띄운다.
+    var base = ys[0];
+    els = els.concat(hoverBands(ys.length, X, padT, plotH,
+      function (i) { return [{ y: Y(ys[i]), col: col }]; },
+      function (i) {
+        return [[esc(xs[i] || ''), 'var(--ink)'],
+                [fmtPrice(ys[i]), 'var(--ink-2)'],
+                ['시작 대비 ' + (base ? fmtSigned(ys[i] / base - 1) : '—'), 'var(--ink-3)']];
+      }));
     return el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
   var EMONO = 'var(--font-mono)';
@@ -1545,6 +1733,22 @@
       el('text', { x: X(b.length - 1) - 4, y: Y(b[b.length - 1]) + 13, textAnchor: 'end', fontFamily: EMONO, fontSize: 11, fill: 'var(--ink-3)' }, '벤치 ' + b[b.length - 1].toFixed(0)),
       el('text', { x: padL, y: H - 5, fontFamily: EMONO, fontSize: 10, fill: 'var(--ink-3)' }, esc(xs[0] || '')),
       el('text', { x: W - padR, y: H - 5, textAnchor: 'end', fontFamily: EMONO, fontSize: 10, fill: 'var(--ink-3)' }, esc(xs[xs.length - 1] || ''))];
+    // 두 선이 겹쳐 있어 "이 날 몇 %p 앞섰나"를 눈으로 재기 어렵다 — 초과분까지 계산해서 띄운다.
+    // 값은 시작=100 정규화라 (값 − 100)이 그 시점까지의 누적 수익률이다.
+    var benchName = D.metrics && D.metrics.bench_label ? D.metrics.bench_label : '벤치마크';
+    function pp(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; }
+    els = els.concat(hoverBands(e.length, X, padT, plotH,
+      function (i) {
+        return [{ y: e[i] == null ? null : Y(e[i]), col: 'var(--dv-navy)' },
+                { y: b[i] == null ? null : Y(b[i]), col: 'var(--ink-3)' }];
+      },
+      function (i) {
+        var ev = e[i] == null ? null : e[i] - 100, bv = b[i] == null ? null : b[i] - 100;
+        return [[esc(xs[i] || ''), 'var(--ink)'],
+                ['ETF ' + pp(ev), 'var(--dv-navy)'],
+                [esc(benchName.length > 10 ? benchName.slice(0, 10) + '…' : benchName) + ' ' + pp(bv), 'var(--ink-3)'],
+                ['초과 ' + (ev == null || bv == null ? '—' : (ev - bv >= 0 ? '+' : '') + (ev - bv).toFixed(1) + '%p'), 'var(--ink-2)']];
+      }));
     return el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
   function etfPanelPerf() {
@@ -1558,9 +1762,7 @@
       '<div class="analysis-section-body">' + etfRelChart() +
         // 한 화면에 두 계열이 산다 — 종가 라인은 총수익, 배당 밴드·NAV 괴리는 실거래가.
         // 어느 쪽으로 통일해도 한쪽이 틀리므로 통일하는 대신 기준을 밝힌다(#57).
-        (D.priceBasisNote
-          ? '<div style="margin-top:10px;font-size:11.5px;color:var(--ink-3);line-height:1.65">기준 · ' + esc(D.priceBasisNote) + '</div>'
-          : '') + '</div>' +
+        (D.priceBasisNote ? fold('가격 기준', esc(D.priceBasisNote)) : '') + '</div>' +
       etfSectionHead('02', '기간별 수익률', '야후 파이낸스 기준 총수익률(분배금 포함). 과거 실적이며 미래를 보장하지 않습니다.', null) +
       '<div class="analysis-section-body"><div style="display:flex;flex-wrap:wrap;gap:12px">' + retHtml + '</div></div>';
   }

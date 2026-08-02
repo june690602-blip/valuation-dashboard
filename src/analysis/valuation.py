@@ -1,19 +1,41 @@
 """적정주가 삼각측량: ① 업종 상대가치 ② 역사적 밴드 ③ RIM ④ 선행 이익(컨센서스).
 
-①~③은 과거(TTM) 실적 기반, ④는 애널리스트 컨센서스 12개월 선행 EPS 기반 —
-증권사 목표주가의 지배적 산식(선행 EPS × 타깃 멀티플)을 따른다.
-방법별 적정가 중심값을 **가격 설명력 순위 기반 가중평균**(METHOD_WEIGHTS)해
-현재가와 비교해 5단계 판정을 내린다. 설계 근거·대안·한계는 docs/adr/0003 참고
-(0003이 0001의 '동일가중 산술평균'을 대체함). 동일가중 결과도 함께 계산해
-가중치가 결론을 좌우하지 않음을 화면에 병기한다(민감도 노출).
-컨센서스 '목표주가' 자체는 종합에 섞지 않고 외부 교차검증치로만 쓴다.
+**종합을 두 개 낸다(ADR-0006, 0003을 대체).**
 
-**②와 ④는 서로 독립적인 관점이 아니다(R2 실측).** 둘은 같은 식이고 곱하는 EPS만 다르다 —
-  ② = 자기 5년 PER 중앙값 × TTM EPS,  ④ = 자기 5년 PER 중앙값 × 컨센서스 선행 EPS
-그래서 ④÷②는 항상 정확히 (선행EPS ÷ TTM EPS)다(10종목 패널 전부에서 확인).
-'네 관점의 삼각측량'에서 ②·④는 같은 관점의 과거판·미래판이고, 종합 적정가의 실효
-의존도는 명목 가중 0.60이 아니라 **중앙 76%**다(③이 꺼지면 더 오른다). 이 사실을 숨기면
-"방법들이 서로 동의했다"로 오독되므로 `shared_multiple_share`로 계산해 화면에 밝힌다.
+- **펀더멘털 적정가** = ①②③ 가중평균. 이것이 `fair_mid`이고 **판정(`verdict`)의 근거**다.
+  전부 회사가 이미 낸 실적·자산에서 나온 값이라, 시장이 지금 무엇을 기대하든 그것과
+  독립적으로 계산된다.
+- **컨센서스 반영 적정가** = ①②③④ 가중평균. `fair_mid_consensus`로 따로 들고 화면에
+  나란히 보여준다. 판정에는 쓰지 않는다.
+
+왜 갈랐나. ④는 애널리스트의 12개월 선행 EPS 추정을 입력으로 쓴다. 그 자체가 틀린
+재료라서가 아니다 — 내재가치는 원래 미래지향적이고, 선행 이익 배수가 가격 설명력이
+가장 높다는 실증도 확고하다(Liu·Nissim·Thomas 2002·2007). 문제는 **④를 종합에 섞으면
+도구의 판정이 시장 기대를 얼마나 따라갔는지 아무도 볼 수 없게 된다**는 것이다.
+이 도구가 만드는 유일한 상품은 '가격과 독립된 의견'인데, 그 의견 안에 시장 기대를
+녹여 넣으면 남는 정보가 없다. 갈라 놓으면 **두 값의 차이 자체가 정보**가 된다 —
+"지금 주가가 정당화되려면 시장이 기대하는 만큼의 실적 개선이 실제로 와야 한다"는 크기다.
+
+갈라야 할 이유가 세 개 더 있다.
+
+1. **④는 독립된 네 번째 관점이 아니다(R2 실측).** ②와 ④는 같은 식이고 곱하는 EPS만 다르다 —
+   ② = 자기 5년 PER 중앙값 × TTM EPS,  ④ = 자기 5년 PER 중앙값 × 컨센서스 선행 EPS.
+   그래서 ④÷②는 항상 정확히 (선행EPS ÷ TTM EPS)다(10종목 패널 전부에서 확인).
+   ④를 빼면 잃는 것은 '한 관점'이 아니라 '②의 미래판'이다. 남은 ①②③이 오히려 서로
+   더 다른 것을 본다(피어 / 자기 역사 / 장부가).
+2. **④의 고장이 사이클 종목에 몰려 있다.** 이익이 눌렸던 시기의 높은 PER을 회복된 선행
+   EPS에 곱해 한 번의 회복을 두 번 센다(`_forward_value` 독스트링의 실측: 삼성전자 +45.6%,
+   SK하이닉스 +48.7%). 이 결함이 종합에 섞이면 판정 자체가 오염된다.
+3. **④는 사후검증이 불가능하다(ADR-0004).** 시점별 컨센서스 빈티지가 무료 데이터에 없다.
+   백테스트는 ②+③만 복원해 검증한다 — 판정을 ①②③으로 내리면 **화면이 보여주는 판정과
+   백테스트가 검증하는 신호가 훨씬 가까워진다**(종합가중 기준 0.40 → 0.615).
+
+동일가중 결과(`fair_mid_equal`)도 함께 계산해 가중치가 결론을 좌우하지 않음을 화면에
+병기한다(민감도 노출). 컨센서스 '목표주가' 자체는 어느 종합에도 섞지 않고 외부
+교차검증치로만 쓴다.
+
+`shared_multiple_share`는 이제 **컨센서스 반영 값**이 자기 5년 PER 중앙값 하나에 얼마나
+매달려 있는지를 잰다(펀더멘털 종합에는 ②만 들어가 이 문제가 없다).
 근거·실측은 docs/review/R2-가정적합성.md, 재현은 scripts/check_sensitivity.py.
 """
 from __future__ import annotations
@@ -46,13 +68,32 @@ def _verdict(gap: float) -> str:
 # **낙관편의가 직접 들어오지는 않지만**, R2 실측에서 자기 5년 PER 중앙값이 사이클 전환
 # 종목에서 목표가 내재배수보다 45~49% 높게 나왔다 — '차단'이 아니라 '다른 종류의 오차로
 # 바꾼 것'에 가깝다(_forward_value 도크스트링·이슈 #62).
-# 상세·대안·한계·인용은 docs/adr/0003. 사용 가능한 방법만으로 재정규화해 합이 1이 되게 쓴다.
+# 상세·대안·한계·인용은 docs/adr/0006(0003을 대체). 사용 가능한 방법만으로 재정규화해
+# 합이 1이 되게 쓴다. ④의 가중 0.35는 **컨센서스 반영 종합에서만** 쓰이고, 판정을 내는
+# 펀더멘털 종합에는 들어가지 않는다 — 위 낙관편의·국면 불일치가 판정을 오염시키지
+# 않게 하려는 것이 ADR-0006의 요지다.
 METHOD_WEIGHTS = {
     "선행 이익(컨센서스)": 0.35,
     "업종 상대가치": 0.25,
     "역사적 밴드": 0.25,
     "수익가치(RIM)": 0.15,
 }
+
+# 회사가 이미 낸 실적·자산만으로 서는 방법들 — **판정은 이 셋으로만 낸다**(ADR-0006).
+# 위 가중치를 이 셋에 대해 재정규화해 쓴다(0.25/0.25/0.15 → 0.385/0.385/0.231).
+# 순위(이익 멀티플 > 장부가)는 그대로 유지되고, 빠지는 것은 ④의 몫뿐이다.
+FUNDAMENTAL_METHODS = ("업종 상대가치", "역사적 밴드", "수익가치(RIM)")
+CONSENSUS_METHOD = "선행 이익(컨센서스)"
+
+
+def _weighted(estimates: list) -> tuple[float, float, float, dict]:
+    """(low, mid, high, 재정규화 가중치) — 주어진 방법들만으로 가중평균한다."""
+    w = np.array([METHOD_WEIGHTS.get(e.method, 0.25) for e in estimates], dtype=float)
+    w = w / w.sum()
+    return (float(np.dot(w, [e.low for e in estimates])),
+            float(np.dot(w, [e.mid for e in estimates])),
+            float(np.dot(w, [e.high for e in estimates])),
+            {e.method: float(wi) for e, wi in zip(estimates, w)})
 
 
 @dataclass
@@ -79,7 +120,8 @@ class ValuationNote:
 
 @dataclass
 class ValuationResult:
-    estimates: list = field(default_factory=list)   # [FairValue]
+    estimates: list = field(default_factory=list)   # [FairValue] — ④ 포함, 전부
+    # ── 펀더멘털 종합 (①②③) — 판정의 근거 ──
     fair_low: float | None = None
     fair_mid: float | None = None
     fair_high: float | None = None
@@ -90,6 +132,19 @@ class ValuationResult:
     gap_equal: float | None = None       # 동일가중 괴리율
     verdict_equal: str | None = None     # 동일가중 판정
     dispersion: float | None = None      # 방법 간 중심값 변동계수(σ/|μ|) — 신뢰도 산출 근거
+    # ── 컨센서스 반영 종합 (①②③④) — 병기용, 판정에는 쓰지 않는다 ──
+    # 값 자체보다 `consensus_premium`(펀더멘털 대비 얼마나 위인가)이 읽을 거리다:
+    # "지금 주가가 정당화되려면 시장이 기대하는 실적 개선이 실제로 와야 한다"는 크기.
+    fair_low_consensus: float | None = None
+    fair_mid_consensus: float | None = None
+    fair_high_consensus: float | None = None
+    gap_consensus: float | None = None
+    verdict_consensus: str | None = None
+    weights_consensus: dict = field(default_factory=dict)
+    consensus_premium: float | None = None   # fair_mid_consensus / fair_mid - 1
+    # ④가 판정에서 빠졌는데도 헤드라인이 ④에 기대고 있는 예외 상황(①②③이 전부 계산
+    # 불가능해 ④만 남은 경우). True면 화면이 "판정이 컨센서스에 의존한다"고 밝혀야 한다.
+    fundamental_only: bool = True
     per_band: pd.DataFrame | None = None   # 밴드 차트용 (price + 분위선)
     pbr_band: pd.DataFrame | None = None
     per_percentile: float | None = None    # 현재 PER의 5년 내 백분위
@@ -99,13 +154,17 @@ class ValuationResult:
     rim_fair_pbr: float | None = None
     rim_roe: float | None = None
     rim_r: float | None = None
+    # 장부가 품질 판별 결과(ADR-0007) — {pbr, intangible_share, buyback_ratio, years,
+    # distorted, short, detail}. RIM을 왜 쓰거나 뺐는지의 실측 근거라 화면에 그대로 내보낸다.
+    book_quality: dict = field(default_factory=dict)
     forward_eps: float | None = None       # ④에 사용한 컨센서스 12개월 EPS
     forward_growth: float | None = None    # 선행 EPS / TTM EPS - 1 (내재 성장률)
-    weights: dict = field(default_factory=dict)   # 종합에 쓴 방법별 가중치 (재정규화)
+    weights: dict = field(default_factory=dict)   # 펀더멘털 종합에 쓴 가중치 (재정규화)
     skipped: list = field(default_factory=list)   # [(방법명, 건너뛴 사유)] — 번호 자리 유지용
-    # ②·④가 함께 쓰는 '자기 5년 PER 중앙값' 하나에 종합 적정가가 실제로 얼마나 매달려 있나
-    # (0~1). 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한 실효 의존도**다 —
-    # 이 배수가 10% 틀리면 종합도 이 비율만큼 틀린다.
+    # ②·④가 함께 쓰는 '자기 5년 PER 중앙값' 하나에 **컨센서스 반영 적정가**가 실제로 얼마나
+    # 매달려 있나(0~1). 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한 실효 의존도**다 —
+    # 이 배수가 10% 틀리면 그 값도 이 비율만큼 틀린다. 펀더멘털 종합에는 ②만 들어가므로
+    # 이 지표는 병기값 쪽에만 붙는다.
     shared_multiple_share: float | None = None
     # [ValuationNote] — 계산이 스스로 남긴 '이 판정을 읽는 법'.
     # 지표 해설(commentary.py)과 성격이 다르다: 저건 판정의 **근거**고 이건 판정을 **읽는 법**이다.
@@ -247,6 +306,76 @@ def _rim(bps: float | None, roe: float | None, r: float):
                      note=f"ROE {roe:.1%}, r {r:.1%}, 지속계수 0.6~1.0"), fair_pbr
 
 
+# ── 장부가 품질 — RIM을 쓸 수 있는 회사인가 (ADR-0007) ───────────────
+# RIM은 장부가를 닻으로 삼는 모형이라, 장부가가 회사 가치를 못 담으면 성립하지 않는다.
+# 예전에는 그 신호로 **실제 PBR 5배 초과** 하나만 봤다. 그런데 PBR이 높은 이유는 둘로 갈린다:
+#   ㉠ 장부가가 실제보다 작다 — 브랜드·특허가 장부에 없거나(무형자산), 자사주로 자본이 줄었거나
+#   ㉡ 장부가는 멀쩡한데 이익이 크다 — 이익 사이클 고점이거나 성장 기대가 실렸거나
+# ㉠에서는 RIM이 성립하지 않지만 **㉡에서는 RIM이 오히려 필요한 반대 목소리**다.
+# PBR 하나로는 둘을 못 가르는데(예전 코드 주석도 이 한계를 적어 두었다), 화면에는
+# "무형자산·자사주 때문"이라고 원인을 단정해 내보내고 있었다 — SK하이닉스가 그 오진의 실례다
+# (무형자산 자산의 1.8%, 자사주 0, 유형자산 45% — 장부가가 오히려 잘 측정되는 회사).
+# 그래서 원인을 **직접 잰다**. 임계는 국내외 10여 종목 패널을 보고 정한 판단값이지
+# 데이터로 추정한 값이 아니다(METHOD_WEIGHTS와 같은 성격).
+PBR_GATE = 5.0                  # 이 아래면 애초에 따지지 않는다
+INTANGIBLE_SHARE_LIMIT = 0.15   # 무형자산(영업권 포함) / 총자산
+BUYBACK_RATIO_LIMIT = 0.30      # 가용 연도 누적 자사주매입 / 현재 자기자본
+EXTREME_ROE = 0.60              # 자기자본이 이익 규모 대비 비정상적으로 작다는 신호
+
+
+def _book_quality(d: CompanyData, pbr: float | None, roe: float | None) -> dict:
+    """장부가가 회사 가치를 담고 있는가 → {distorted, short, detail, 근거 수치}.
+
+    `short`는 방법표의 '제외 사유' 칸(짧게), `detail`은 해설 카드에 들어간다.
+    둘 다 **원인을 단정하지 않고 잰 값을 말한다** — 판별에 쓴 수치를 문장에 그대로 넣는다.
+    """
+    fin = d.financials
+    ta, eq = d.latest("total_assets"), d.latest("total_equity")
+    intan = d.latest("intangibles")
+    share = (intan / ta) if (intan is not None and ta and ta > 0) else None
+    bb = fin["buyback"].dropna() if "buyback" in fin.columns else None
+    ratio = (float(bb.sum()) / eq) if (bb is not None and len(bb) and eq and eq > 0) else None
+    out = {"pbr": pbr, "intangible_share": share, "buyback_ratio": ratio,
+           "years": int(len(bb)) if bb is not None else 0}
+
+    def done(distorted, short, detail):
+        out.update({"distorted": distorted, "short": short, "detail": detail})
+        return out
+
+    if pbr is None:
+        return done(True, "자기자본을 확인하지 못함",
+                    "자기자본(장부가)을 받지 못해 장부가 기반 모형(RIM)을 적용할 수 없습니다.")
+    if pbr <= PBR_GATE and (roe is None or roe <= EXTREME_ROE):
+        return done(False, "", "")
+    if share is None or ratio is None:
+        return done(True, f"실제 PBR {pbr:.1f}배 · 원인 판별 자료 없음",
+                    f"실제 PBR이 {pbr:.1f}배로 높은데, 그 원인이 장부가 과소평가(무형자산·자사주)인지 "
+                    "이익 사이클·성장 기대인지 가릴 재무 항목을 받지 못했습니다. 장부가 기반 "
+                    "모형(RIM)을 보수적으로 제외합니다 — 나머지 방법으로 판정하며 가중치는 다시 배분합니다.")
+    if share >= INTANGIBLE_SHARE_LIMIT:
+        return done(True, f"무형자산이 자산의 {share:.0%} — 장부가 과소",
+                    f"무형자산(영업권 포함)이 총자산의 {share:.0%}입니다. 브랜드·특허처럼 장부에 "
+                    f"온전히 잡히지 않는 가치가 커서 장부가를 닻으로 삼는 RIM이 성립하지 않습니다"
+                    f"(실제 PBR {pbr:.1f}배). 나머지 방법으로 판정하며 가중치는 다시 배분합니다.")
+    if ratio >= BUYBACK_RATIO_LIMIT:
+        return done(True, f"누적 자사주매입이 자본의 {ratio:.0%} — 장부가 과소",
+                    f"최근 {out['years']}개년 자사주 매입액 합계가 현재 자기자본의 {ratio:.0%}입니다. "
+                    f"자사주를 사면 그만큼 자본이 줄어 장부가가 회사 규모를 대변하지 못합니다"
+                    f"(실제 PBR {pbr:.1f}배). RIM을 제외하고 가중치는 다시 배분합니다.")
+    if roe is not None and roe > EXTREME_ROE:
+        return done(True, f"ROE {roe:.0%} — 자기자본이 이익 대비 비정상적으로 작음",
+                    f"ROE가 {roe:.0%}입니다. 이익이 뛰어난 것일 수도 있지만, 자기자본이 이익 규모에 "
+                    "비해 지나치게 작다는 뜻이기도 해서 장부가를 닻으로 삼는 RIM이 불안정해집니다. "
+                    "RIM을 제외하고 가중치는 다시 배분합니다.")
+    # 살아남았다 — PBR은 높은데 장부가가 작아진 흔적은 못 찾았다.
+    return done(False, "",
+                f"실제 PBR이 {pbr:.1f}배로 높지만, 무형자산은 총자산의 {share:.0%}뿐이고 최근 "
+                f"{out['years']}개년 누적 자사주 매입도 자본의 {ratio:.0%}에 그쳐 **장부가가 작아진 "
+                "흔적은 찾지 못했습니다**. 높은 PBR이 이익 사이클 고점이나 성장 기대에서 온 것으로 "
+                "보여 RIM을 그대로 적용합니다 — 다만 RIM은 '지금 수준의 초과이익이 서서히 사라진다'는 "
+                "가정이라 이런 종목에서 보수적인(낮은) 값을 냅니다. 반대편 시각으로 읽으세요.")
+
+
 def _recent_roe(d: CompanyData, ttm_roe: float | None) -> float | None:
     """TTM과 최근 3개년 평균을 절반씩 섞은 ROE (클리핑 없이 원값 반환)."""
     fin = d.financials
@@ -361,28 +490,24 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
         res.notes.append(ValuationNote(
             "info", "상장기간이 짧거나 적자가 길어 역사적 밴드를 계산하지 못했습니다."))
 
-    # ③ RIM — 장부자본이 왜곡된 기업(대규모 자사주 매입 등)은 건너뜀
+    # ③ RIM — 장부가가 회사 가치를 담고 있을 때만 쓴다(ADR-0007).
     ttm_roe = ind.profitability.get("roe")
     roe_raw = _recent_roe(d, ttm_roe)
     pbr_actual = d.market_cap / equity if equity and equity > 0 else None
-    # RIM은 장부가를 닻으로 삼는 모델이라, 장부가가 회사의 실제 가치를 못 담으면 성립하지 않는다.
-    # PBR이 높다는 건 그 신호다 — 브랜드·특허 같은 무형자산이 장부에 안 잡히거나, 자사주 매입으로
-    # 자본이 줄었거나. 임계를 12→5로 낮춘다: 12는 너무 느슨해 정작 걸러야 할 종목이 통과했다
-    # (실측: 코카콜라 PBR 10.5가 통과해 현재가의 1/4을, J&J PBR 7.6이 1/3을 적정가로 냈다).
-    # PBR은 완벽한 판별자가 아니다 — 성장 기대가 높아 PBR이 높은 정상 케이스도 걸러진다.
-    # 다만 그 경우 RIM을 빼도 나머지 세 방법이 남고, 틀린 값을 15% 가중으로 섞는 것보다 낫다.
-    book_distorted = (roe_raw is not None and roe_raw > 0.6) or \
-                     (pbr_actual is not None and pbr_actual > 5) or pbr_actual is None
+    book = _book_quality(d, pbr_actual, roe_raw)
+    res.book_quality = book
     if mismatch:
         res.skipped.append(("수익가치(RIM)", ccy_reason))
         res.rim_r = r_equity
-    elif book_distorted:
-        res.skipped.append(("수익가치(RIM)", "장부가가 실제 가치를 담지 못함(무형자산·자사주)"))
-        res.notes.append(ValuationNote("info", "무형자산이 장부에 잡히지 않거나 자사주 매입으로 장부자본이 작아 "
-                         "RIM(장부가치 기반) 평가에서 제외합니다 — 나머지 방법으로 판정하며 "
-                         "가중치는 다시 배분합니다."))
+    elif book["distorted"]:
+        res.skipped.append(("수익가치(RIM)", book["short"]))
+        res.notes.append(ValuationNote("info", book["detail"]))
         res.rim_r = r_equity
     else:
+        # PBR이 높은데도 살아남은 경우 — 장부가 왜곡 근거를 실제로 찾지 못했다는 뜻이다.
+        # 이때 RIM은 '지금 이익이 지속된다면' 기준의 보수적인 값을 내므로 그 성격을 먼저 밝힌다.
+        if pbr_actual is not None and pbr_actual > PBR_GATE:
+            res.notes.append(ValuationNote("info", book["detail"]))
         roe_used = float(np.clip(roe_raw, -0.5, 0.6)) if roe_raw is not None else None
         rim, fair_pbr = _rim(bps, roe_used, r_equity)
         res.rim_roe, res.rim_r, res.rim_fair_pbr = roe_used, r_equity, fair_pbr
@@ -393,7 +518,8 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
             res.notes.append(ValuationNote(
                     "info", "ROE가 0 이하라 RIM 평가를 제외합니다(적자 기업)."))
 
-    # ④ 선행 이익 — 애널리스트 컨센서스가 있을 때만 (판정이 미래 추정을 반영하게)
+    # ④ 선행 이익 — 애널리스트 컨센서스가 있을 때만. **판정에는 들어가지 않는다**(ADR-0006):
+    # 계산해서 estimates에 넣되, 종합은 '컨센서스 반영' 값에만 반영해 병기한다.
     cons = d.consensus
     if cons is None or not cons.forward_eps or cons.forward_eps <= 0:
         res.skipped.append(("선행 이익(컨센서스)", "애널리스트 커버리지 없음"))
@@ -410,9 +536,10 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
                 res.forward_growth = cons.forward_eps / eps - 1
                 res.notes.append(ValuationNote(
                     "info",
-                    f"선행 이익 방법은 컨센서스 12개월 EPS(현 TTM 대비 "
+                    f"④ 선행 이익 방법은 컨센서스 12개월 EPS(현 TTM 대비 "
                     f"{res.forward_growth:+.0%})를 사용합니다 — 시장의 실적 전망이 "
-                    "빗나가면 함께 빗나갑니다."))
+                    "빗나가면 함께 빗나갑니다. 그래서 판정에는 넣지 않고 '컨센서스 반영' "
+                    "값으로만 병기합니다."))
                 # 이익이 크게 움직이면 배수와 이익이 서로 다른 국면을 보게 된다. 이익이
                 # 눌려 있던 기간은 PER이 높게 깔리는데(분모가 작아서), 그 배수를 회복된
                 # 이익에 곱하면 한 번의 회복을 두 번 센다. 임계 ±50%는 R2 패널 실측에서
@@ -427,22 +554,31 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
                         f"{res.forward_growth:+.0%}). 곱하는 배수는 '지난 5년 PER의 "
                         "중앙값'이라 이익이 지금과 다르던 시기에서 나온 값입니다 — 두 값의 "
                         "국면이 어긋나 선행 이익 방법이 실제보다 낙관적(이익 증가 국면)이거나 "
-                        "비관적(감소 국면)으로 나올 수 있습니다. 아래 컨센서스 목표주가와 "
+                        "비관적(감소 국면)으로 나올 수 있습니다. 판정은 이 방법을 쓰지 않지만, "
+                        "'컨센서스 반영' 값은 이만큼 흔들립니다 — 아래 컨센서스 목표주가와 "
                         "반드시 함께 보세요."))
         else:
             res.skipped.append(("선행 이익(컨센서스)", "밴드·피어 멀티플 부족"))
 
-    # 종합 판정 — 방법별 **가중평균**. 가중치는 가격 설명력 순위(선행이익 > 이익 멀티플
-    # > 장부가 기반)를 인코딩한 METHOD_WEIGHTS(근거·한계는 docs/adr/0003). 없는 방법은
-    # 제외하고 재정규화한다. 동일가중 결과도 함께 계산해 가중치 민감도를 화면에 병기한다.
+    # ── 종합 (ADR-0006) ─────────────────────────────────────────────
+    # 두 개를 낸다. **판정은 ①②③(펀더멘털)으로만** 내고, ④를 얹은 값은 따로 들어
+    # 화면에 나란히 세운다. 가중치는 둘 다 METHOD_WEIGHTS를 각자의 방법 집합에 대해
+    # 재정규화해 쓴다 — 순위(선행이익 > 이익 멀티플 > 장부가)는 그대로다.
+    core = [e for e in res.estimates if e.method in FUNDAMENTAL_METHODS]
     if res.estimates:
-        mids = [e.mid for e in res.estimates]
-        w = np.array([METHOD_WEIGHTS.get(e.method, 0.25) for e in res.estimates])
-        w = w / w.sum()
-        res.weights = {e.method: float(wi) for e, wi in zip(res.estimates, w)}
-        res.fair_low = float(np.dot(w, [e.low for e in res.estimates]))
-        res.fair_mid = float(np.dot(w, mids))
-        res.fair_high = float(np.dot(w, [e.high for e in res.estimates]))
+        # 컨센서스 반영 종합 — ④가 실제로 있을 때만 펀더멘털과 다른 값이 된다.
+        (res.fair_low_consensus, res.fair_mid_consensus,
+         res.fair_high_consensus, res.weights_consensus) = _weighted(res.estimates)
+        res.gap_consensus = res.fair_mid_consensus / d.price - 1
+        res.verdict_consensus = _verdict(res.gap_consensus)
+
+    # ①②③이 하나도 없으면(통화 불일치 등으로 전부 제외) 판정을 낼 재료가 ④뿐이다.
+    # 이때는 화면을 비우는 대신 ④에 기대되, 그 사실을 감추지 않는다.
+    res.fundamental_only = bool(core)
+    basis = core or res.estimates
+    if basis:
+        mids = [e.mid for e in basis]
+        res.fair_low, res.fair_mid, res.fair_high, res.weights = _weighted(basis)
         res.gap = res.fair_mid / d.price - 1
         res.verdict = _verdict(res.gap)
         # 동일가중(단순평균) 민감도 — 가중치 선택이 결론을 좌우하는지 투명하게 노출
@@ -455,22 +591,12 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
                 f"가중 방식에 따라 판정이 갈립니다(가중 '{res.verdict}' vs "
                 f"동일가중 '{res.verdict_equal}'). 가중치는 순위 근거의 정성적 인코딩이니 "
                 "참고로만 보세요."))
-        # ②와 ④는 같은 식(자기 5년 PER 중앙값 × EPS)이라 이 배수 하나가 틀리면 둘이
-        # 같은 방향으로 함께 틀린다. 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한
-        # 실효 의존도**를 계산해 화면에 밝힌다 — 배수가 10% 틀리면 종합도 이만큼 틀린다.
-        shared = [(m, w) for m, w in res.weights.items()
-                  if m in ("역사적 밴드", "선행 이익(컨센서스)")]
-        if len(shared) == 2 and res.fair_mid:
-            mid_of = {e.method: e.mid for e in res.estimates}
-            res.shared_multiple_share = float(
-                sum(w * mid_of[m] for m, w in shared) / res.fair_mid)
+        if not res.fundamental_only:
             res.notes.append(ValuationNote(
                 "warn",
-                f"② 역사적 밴드와 ④ 선행 이익은 같은 배수(자기 5년 PER 중앙값)에 각각 "
-                f"TTM EPS와 컨센서스 EPS를 곱한 값입니다 — 서로 다른 관점이 아니라 같은 "
-                f"관점의 과거판·미래판입니다. 그래서 종합 적정가의 "
-                f"{res.shared_multiple_share:.0%}가 이 배수 하나에 의존합니다. 두 방법이 "
-                "비슷하게 나와도 '독립적으로 합의했다'는 뜻이 아닙니다."))
+                "회사 실적·자산으로 서는 방법(①②③)이 전부 계산되지 않아, 판정을 "
+                "컨센서스 선행 이익(④) 하나에만 의존해 냈습니다 — 이 판정은 시장 기대와 "
+                "독립적이지 않습니다. 보수적으로 해석하세요."))
 
         if len(mids) >= 2 and res.fair_mid:
             disp = float(np.std(mids) / abs(np.mean(mids)))
@@ -483,4 +609,35 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
             res.confidence = "낮음"
             res.notes.append(ValuationNote(
                 "warn", "사용 가능한 평가 방법이 1개뿐이라 신뢰도가 낮습니다."))
+
+    # 두 종합의 차이 — 이 도구에서 읽을 거리가 가장 많은 숫자다.
+    # ④가 없는 종목(커버리지 없음)이면 두 값이 같으므로 아무 말도 하지 않는다.
+    has_fwd = any(e.method == CONSENSUS_METHOD for e in res.estimates)
+    if has_fwd and res.fundamental_only and res.fair_mid and res.fair_mid_consensus:
+        res.consensus_premium = res.fair_mid_consensus / res.fair_mid - 1
+        flip = res.verdict_consensus != res.verdict
+        res.notes.append(ValuationNote(
+            "info",
+            f"판정은 회사가 이미 낸 실적·자산(①②③)만으로 냈습니다. 애널리스트 컨센서스 "
+            f"선행 이익(④)까지 넣으면 적정가가 {res.consensus_premium:+.0%} "
+            f"달라집니다" + (f" — 판정도 '{res.verdict_consensus}'로 갈립니다." if flip else ".") +
+            " 이 차이가 곧 '지금 주가가 정당화되려면 시장이 기대하는 만큼의 실적 변화가 "
+            "실제로 와야 하는 크기'입니다."))
+        # ②와 ④는 같은 식(자기 5년 PER 중앙값 × EPS)이라 이 배수 하나가 틀리면 둘이
+        # 같은 방향으로 함께 틀린다. 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한
+        # 실효 의존도**를 계산해 화면에 밝힌다. 펀더멘털 종합에는 ②만 들어가므로 이 경고는
+        # 병기하는 컨센서스 반영 값에만 붙는다.
+        shared = [(m, w) for m, w in res.weights_consensus.items()
+                  if m in ("역사적 밴드", CONSENSUS_METHOD)]
+        if len(shared) == 2:
+            mid_of = {e.method: e.mid for e in res.estimates}
+            res.shared_multiple_share = float(
+                sum(w * mid_of[m] for m, w in shared) / res.fair_mid_consensus)
+            res.notes.append(ValuationNote(
+                "info",
+                f"위 '컨센서스 반영' 값을 읽을 때: ② 역사적 밴드와 ④ 선행 이익은 같은 "
+                f"배수(자기 5년 PER 중앙값)에 각각 TTM EPS와 컨센서스 EPS를 곱한 값입니다 — "
+                f"서로 다른 관점이 아니라 같은 관점의 과거판·미래판이라, 그 값의 "
+                f"{res.shared_multiple_share:.0%}가 이 배수 하나에 의존합니다. 두 방법이 "
+                "비슷하게 나와도 '독립적으로 합의했다'는 뜻이 아닙니다."))
     return res
