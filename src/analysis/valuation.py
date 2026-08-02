@@ -167,6 +167,10 @@ class ValuationResult:
     book_quality: dict = field(default_factory=dict)
     forward_eps: float | None = None       # ④에 사용한 컨센서스 12개월 EPS
     forward_growth: float | None = None    # 선행 EPS / TTM EPS - 1 (내재 성장률)
+    # ①의 중앙값이 다리 하나에 얼마나 매달려 있나 — 다리를 하나씩 빼봤을 때의 최대 변화율.
+    # 값을 고치지 않고 밝히기만 한다(다리를 빼면 범위가 좁아져 신뢰도만 부풀기 때문).
+    relative_legs: int | None = None
+    relative_leg_sensitivity: float | None = None
     weights: dict = field(default_factory=dict)   # 펀더멘털 종합에 쓴 가중치 (재정규화)
     skipped: list = field(default_factory=list)   # [(방법명, 건너뛴 사유)] — 번호 자리 유지용
     # ②·④가 함께 쓰는 '자기 과거 PER 중앙값' 하나에 **컨센서스 반영 적정가**가 실제로 얼마나
@@ -210,7 +214,7 @@ def _rel_fairs(peers, d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
 
 
 def _relative_value(d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
-                    revenue_ps=None) -> FairValue | None:
+                    revenue_ps=None) -> tuple[FairValue | None, dict]:
     """규모 비교가능 피어(시총 1/5~5배)만 쓴다 — 품질 필터를 거쳤으므로 표본 2개부터 허용.
 
     **표본이 부족하면 전체 피어로 내려가지 않고 ①을 통째로 제외한다(ADR-0011).**
@@ -224,9 +228,32 @@ def _relative_value(d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
     fairs, used = _rel_fairs(sized, d, eps, bps, ebitda_ps, debt_ps, cash_ps,
                              revenue_ps, min_n=2)
     if not fairs:
+        return None, {}
+    sens = _leg_sensitivity(fairs)
+    note = f"피어 중앙값 {', '.join(used)} · 다리 {len(fairs)}개"
+    return (FairValue("업종 상대가치", min(fairs), float(np.median(fairs)), max(fairs), note=note),
+            {"legs": len(fairs), "sensitivity": sens})
+
+
+def _leg_sensitivity(fairs: list[float]) -> float | None:
+    """다리 하나를 빼면 ①의 중앙값이 최대 몇 % 움직이나. 다리가 1개면 None.
+
+    ①은 다리(PER·PBR·EV/EBITDA)가 2~3개뿐이라 **중앙값이 이상치 하나에 그대로 끌려간다.**
+    20종목 실측에서 다리 하나를 빼자 중앙값이 최대 99% 움직였다(LG화학 +99.1%,
+    삼성바이오 +66.8%, 위메이드 +65.1%).
+
+    그렇다고 다리를 빼는 것은 답이 아니다 — 같은 실측에서 다리를 빼면 ①의 범위폭이
+    1.00에서 0.05로 무너졌다. **근거는 줄었는데 확신만 커지는** 모양이고, 방법 간 편차로
+    계산하는 신뢰도가 그만큼 부풀려진다. 그래서 값도 신뢰도 산식도 건드리지 않고,
+    이 값이 얼마나 다리 하나에 매달려 있는지만 화면에 밝힌다.
+    """
+    if len(fairs) < 2:
         return None
-    return FairValue("업종 상대가치", min(fairs), float(np.median(fairs)), max(fairs),
-                     note="피어 중앙값 " + ", ".join(used))
+    base = float(np.median(fairs))
+    if base <= 0:
+        return None
+    return max(abs(float(np.median(fairs[:i] + fairs[i + 1:])) / base - 1)
+               for i in range(len(fairs)))
 
 
 # ── ② 역사적 밴드 ────────────────────────────────────────────────────
@@ -596,10 +623,20 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     # ① 상대가치
     revenue = d.latest("revenue")
     revenue_ps = revenue / shares if revenue else None
-    fv = None if mismatch else _relative_value(
+    fv, rel_meta = (None, {}) if mismatch else _relative_value(
         d, eps, bps, ebitda_ps, debt_ps, cash_ps, revenue_ps)
+    res.relative_legs = rel_meta.get("legs")
+    res.relative_leg_sensitivity = rel_meta.get("sensitivity")
     if fv:
         res.estimates.append(fv)
+        # 값도 신뢰도 산식도 건드리지 않는다 — 이 값이 다리 하나에 얼마나 매달려 있는지만
+        # 밝힌다. 다리를 빼면 범위가 좁아져 신뢰도가 오히려 부풀기 때문이다(20종목 실측).
+        if (s := res.relative_leg_sensitivity) is not None and s >= 0.30:
+            res.notes.append(ValuationNote(
+                "info",
+                f"① 업종 상대가치는 배수 {res.relative_legs}개의 중앙값입니다. 그중 하나만 빼도 "
+                f"중앙값이 {s:.0%} 움직입니다 — 다리가 적어 배수 하나가 결론을 좌우한다는 뜻이니, "
+                "①의 중심값 하나보다 범위와 다른 방법과의 차이를 함께 보세요."))
     elif mismatch:
         res.skipped.append(("업종 상대가치", ccy_reason))
     else:

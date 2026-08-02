@@ -415,6 +415,41 @@ class RelativeValuePeerWindowTests(unittest.TestCase):
         self.assertNotIn("업종 상대가치", [m.method for m in res.estimates])
 
 
+class RelativeLegSensitivityTests(unittest.TestCase):
+    """①은 다리가 2~3개뿐이라 중앙값이 다리 하나에 그대로 끌려간다.
+
+    20종목 실측에서 다리 하나를 빼자 중앙값이 최대 99% 움직였다(LG화학 +99.1%,
+    삼성바이오 +66.8%). 그러다고 다리를 빼면 범위가 좋아져 신뢰도만 부풀린다 —
+    근거는 줄었는데 확신은 커지는 모양이다. 값은 그대로 두고 **얼마나 매달려
+    있는지를 화면에 밝힌다**.
+    """
+
+    def test_sensitivity_is_reported_with_the_leg_count(self):
+        d = _company_with_peers([(2.0, 12.0), (0.5, 10.0)])   # PER 중앙 11 · PBR 중앙 1.0
+
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+
+        self.assertEqual(res.relative_legs, 2)
+        # 다리 = [11×1.5=16.5, 1.0×10=10.0] → 중앙 13.25, 하나 빼면 ±24.5%
+        self.assertAlmostEqual(res.relative_leg_sensitivity, 0.2453, places=3)
+
+    def test_agreeing_legs_report_near_zero_sensitivity(self):
+        """다리가 서로 같은 값을 내면 하나를 빼도 중앙값이 안 움직인다."""
+        d = _company_with_peers([(2.0, 20.0 / 3.0), (0.5, 20.0 / 3.0)])   # 6.667×1.5 = 1.0×10
+
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+
+        self.assertLess(res.relative_leg_sensitivity, 0.01)
+
+    def test_note_says_how_many_legs_the_median_rests_on(self):
+        d = _company_with_peers([(2.0, 12.0), (0.5, 10.0)])
+
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+
+        note = next(m.note for m in res.estimates if m.method == "업종 상대가치")
+        self.assertIn("다리 2개", note)
+
+
 def _company_with_peers(specs) -> CompanyData:
     """(자사 시총 대비 배수, PER) 목록으로 피어 표를 만든 최소 CompanyData."""
     d = _company_for_pbr(1.0)
