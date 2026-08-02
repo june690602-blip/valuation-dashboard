@@ -141,19 +141,16 @@
   </footer>
 </div>
 
+<script src="assets/common.js"></script>
 <script>
 (function () {
   'use strict';
-  function $(id) { return document.getElementById(id); }
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]; }); }
+  /* 공용 헬퍼는 common.js 한 벌 — 사본은 조용히 갈라진다(#83). */
+  var DV = window.DV;
+  var $ = DV.$, esc = DV.esc, tiles = DV.tiles;
   function n(v) { var x = Number(v); return isNaN(x) ? 0 : x; }
   function fmt(v) { return n(v).toLocaleString('en-US'); }
 
-  function tiles(el, items) {
-    el.innerHTML = items.map(function (t, i) {
-      return '<div class="tile" style="padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + esc(t[0]) + '</div><div class="v">' + t[1] + '</div>' + (t[2] ? '<div class="s">' + esc(t[2]) + '</div>' : '') + '</div>';
-    }).join('');
-  }
   function barTable(el, headA, headB, rows) {
     // rows: [label, value] — 최대값 기준 가로 막대
     if (!rows.length) { el.innerHTML = '<div class="note" style="padding:14px 0">데이터가 아직 없습니다.</div>'; return; }

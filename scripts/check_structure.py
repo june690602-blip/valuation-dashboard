@@ -58,18 +58,18 @@ OK, BAD, NA = "[확인]", "[문제]", "[불가]"
 _tally = {OK: 0, BAD: 0, NA: 0}
 
 # 지금 열려 있는 문제의 수 — 전부 R5 조서 2번 바구니의 것이고 이슈로 등록해 순서대로 닫는다.
-#   1 공용 헬퍼 9종이 최대 4벌     (㉲ common.js)
-#   2 CSS의 73%가 페이지 안        (㉵ #74의 선행 조건)
-#   3 stock.js 인라인 밀도 17.1    (㉱ 타일 스트립 6벌)
-#   4 같은 수식이 두 언어에 4곳    (㉳ 대조 테스트 부재)
-#   5 bond_math를 웹이 안 씀       (㉳)
-#   6 serialize.py의 계산 3자리    (㉳)
+#   1 CSS의 73%가 페이지 안        (#74의 선행 조건)
+#   2 stock.js 인라인 밀도          (#82 타일 스트립 6벌)
+#   3 같은 수식이 두 언어에 4곳    (#84 대조 테스트 부재)
+#   4 bond_math를 웹이 안 씀       (#84)
+#   5 serialize.py의 계산 3자리    (#84)
 # 이 수보다 늘어날 때만 실패한다. **이슈를 닫으면 이 값을 함께 내린다.**
-# 7 → 6: 파일 크기 예산(㉮ stock.js 분할)을 관문에서 뺐다. 크기는 A에서 표로만 보여준다.
-KNOWN_OPEN = 6
+#   7 → 6: #83이 공용 헬퍼를 common.js 한 벌로 모았다(esc 6벌·$ 5벌·el 3벌·wireSeg 3벌·tiles 3벌).
+#   6 → 5: 파일 크기 예산(㉮ stock.js 분할)을 관문에서 뺐다. 크기는 A에서 표로만 보여준다.
+KNOWN_OPEN = 5
 
-WEB_JS = ["stock.js", "stock-price-chart.js", "portfolio.js", "bond.js", "test.js",
-          "feedback.js", "analytics.js"]
+WEB_JS = ["common.js", "stock.js", "stock-price-chart.js", "portfolio.js", "bond.js",
+          "test.js", "feedback.js", "analytics.js"]
 PAGES = ["home.html", "stock.html", "guide.html", "test.html", "bond.html",
          "portfolio.html", "admin.html"]
 
@@ -100,16 +100,17 @@ def nlines(rel: str) -> int:
 # 넘으면 [문제]로 떨어뜨렸지만(stock.js 2,001줄 규칙), 그 관문을 없앴다. 줄 수는 계속
 # 출력해서 "지금 어디가 커지고 있나"는 보이게 하되, 그 수 자체로 실패시키지 않는다.
 FILE_SIZES = {
-    "web/assets/stock.js": "9탭 렌더 + ETF 뷰 + SVG 차트가 한 IIFE에 산다",
+    "web/assets/common.js": "공용 헬퍼 한 벌(#83). 여기 밖에 사본이 생기면 B 검사가 잡는다",
+    "web/assets/stock.js": "8탭 렌더 + ETF 뷰 + SVG 차트가 한 IIFE에 산다",
     "web/assets/stock-price-chart.js": "주가 캔버스 차트. (container, D, state, fmt)만 받는다",
     "web/assets/portfolio.js": "차트 3종 + 바스켓 관리",
     "web/assets/bond.js": "채권 수학 이식 + 차트 3종",
     "web/assets/test.js": "성향진단 위저드",
     "web/assets/feedback.js": "전 페이지 공용 위젯",
     "web/assets/analytics.js": "추적 스니펫 주입",
-    "src/web/serialize.py": "9탭 + ETF + 채권 + 포트폴리오 직렬화가 한 파일",
+    "src/web/serialize.py": "8탭 + ETF + 채권 + 포트폴리오 직렬화가 한 파일",
     "server.py": "정적 서빙 + API 라우팅",
-    "src/ui/pages/stock.py": "Streamlit 9탭 렌더러",
+    "src/ui/pages/stock.py": "Streamlit 8탭 렌더러",
     "src/ui/charts.py": "Plotly 차트 모음",
 }
 
@@ -117,6 +118,7 @@ FILE_SIZES = {
 # 지금 값은 '현실'이 아니라 '규약'이다. 1을 적어 두었으면 지금 3벌이어도 1을 적는다 —
 # 그래야 [문제]로 떨어지고 조서에 남는다.
 SHARED_HELPERS = {
+    "$": (1, "web/assets/common.js", "getElementById 줄임말. 한때 5벌이었다(인라인 스크립트 포함)"),
     "esc": (1, "web/assets/common.js", "HTML 이스케이프. 벌마다 규칙이 다르면 같은 이름이 다른 안전성을 뜻한다"),
     "el": (1, "web/assets/common.js", "SVG/HTML 문자열 빌더. var() 폴백 처리 같은 판단이 벌마다 갈린다"),
     "kebab": (1, "web/assets/common.js", "el()의 부속"),
@@ -131,7 +133,8 @@ SHARED_HELPERS = {
 # 인라인 스타일 예산 — 값이 JS 문자열 안에 있으면 R4의 토큰이 닿지 않는다(R4 한계 3).
 # 내려가기만 한다.
 INLINE_BUDGET = {
-    "web/assets/stock.js": 339,
+    "web/assets/common.js": 2,
+    "web/assets/stock.js": 326,
     "web/assets/stock-price-chart.js": 1,
     "web/assets/portfolio.js": 30,
     "web/assets/bond.js": 19,
@@ -256,9 +259,23 @@ def _alpha_rename(body: str, outer_params: str) -> str:
     return body
 
 
+def _inline_scripts(html: str) -> str:
+    """페이지 안 <script>…</script> 본문만 이어붙인다(src= 태그는 본문이 없다)."""
+    return "\n".join(m.group(1) for m in
+                     re.finditer(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", html, re.S))
+
+
 def check_duplicate_helpers() -> None:
     head("B. 중복 헬퍼 — 한 헬퍼가 한 벌인가")
+    # 자산 파일뿐 아니라 **페이지 안 인라인 스크립트**도 센다.
+    # 처음에는 web/assets/*.js만 훑었는데, 그 사이 home.html·admin.html의 인라인
+    # 스크립트에 esc·$ 사본이 각각 살아 있었다(#83에서 발견). 세는 범위가 좁으면
+    # 레지스트리가 "한 벌"이라고 말해도 실제로는 여러 벌이다.
     sources = {f: read("web/assets/" + f) for f in WEB_JS}
+    for page in PAGES:
+        body = _inline_scripts(read("web/" + page))
+        if body.strip():
+            sources[page + " (인라인)"] = body
     rows = []
     for name, (allowed, home, why) in SHARED_HELPERS.items():
         raws, codes = {}, {}

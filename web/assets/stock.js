@@ -6,35 +6,12 @@
 (function () {
   'use strict';
 
-  /* ── SVG/HTML 문자열 빌더 ── */
-  var ATTR = { strokeWidth: 'stroke-width', strokeDasharray: 'stroke-dasharray', strokeLinecap: 'stroke-linecap', strokeLinejoin: 'stroke-linejoin', strokeOpacity: 'stroke-opacity', fillOpacity: 'fill-opacity', textAnchor: 'text-anchor', fontFamily: 'font-family', fontSize: 'font-size', fontWeight: 'font-weight', className: 'class' };
-  function kebab(s) { return s.replace(/[A-Z]/g, function (m) { return '-' + m.toLowerCase(); }); }
-  function styleStr(o) { var s = ''; for (var k in o) s += kebab(k) + ':' + o[k] + ';'; return s; }
-  function el(tag, attrs) {
-    var kids = Array.prototype.slice.call(arguments, 2);
-    attrs = attrs || {};
-    var style = {};
-    if (attrs.style) for (var sk in attrs.style) style[sk] = attrs.style[sk];
-    var s = '<' + tag;
-    for (var k in attrs) {
-      if (k === 'style' || attrs[k] == null) continue;
-      var val = attrs[k];
-      // var()는 프레젠테이션 속성에서 Firefox/Safari가 해석하지 못한다 → 인라인 style로.
-      if (typeof val === 'string' && val.indexOf('var(') >= 0) { style[k] = val; continue; }
-      s += ' ' + (ATTR[k] || k) + '="' + String(val).replace(/"/g, '&quot;') + '"';
-    }
-    var st = styleStr(style);
-    if (st) s += ' style="' + st + '"';
-    s += '>';
-    for (var i = 0; i < kids.length; i++) { var c = kids[i]; if (c == null || c === false) continue; s += Array.isArray(c) ? c.join('') : c; }
-    return s + '</' + tag + '>';
-  }
-  // 홑따옴표(')까지 이스케이프한다 — 네 프런트 파일이 같은 규칙을 써야 한다(R5).
-  // 지금은 속성을 " 로만 감싸서 없어도 악용되지 않지만, 같은 이름의 함수가 파일마다
-  // 다른 안전성을 뜻하는 상태를 남기지 않는다. 인라인 핸들러(onclick=)는 쓰지 않으므로
-  // &#39;이 JS 문맥으로 새어 들어갈 자리가 없다.
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
-  function $(id) { return document.getElementById(id); }
+  /* 공용 헬퍼는 common.js 한 벌 — 사본을 만들면 조용히 갈라진다(#83 · R5 발견 ㉲). */
+  var DV = window.DV;
+  var ATTR = DV.ATTR, el = DV.el, esc = DV.esc, $ = DV.$, niceStep = DV.niceStep,
+      wireSeg = DV.wireSeg, tiles = DV.tiles, loadBasket = DV.loadBasket,
+      saveBasket = DV.saveBasket;
+
 
   /* ── 미니 마크다운 (Gemini 응답: ### 제목 · **굵게** · - 목록 · > 인용) ── */
   function mdToHtml(md) {
@@ -421,12 +398,6 @@
     return el('div', {}, el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els), lg);
   }
 
-  /* 축 눈금 간격 — 1·2·5·10 계열의 읽기 좋은 값으로 */
-  function niceStep(range, target) {
-    var raw = Math.max(range, 1e-9) / target;
-    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), n = raw / mag;
-    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
-  }
 
   /* 가격과 수익성 지도 — 주가차트와 같은 문법(헤어라인 그리드·모노 축라벨·절제된 팔레트).
      업종 중앙값 십자선이 사분면을 정의하고, 라벨은 겹치면 숨겼다가 hover 때 드러낸다. */
@@ -865,13 +836,12 @@
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
   }
 
-  /* 포트폴리오 담기 — localStorage 공유(채권·포트폴리오 페이지와 동일 키) */
+  /* 포트폴리오 담기 — 채권·포트폴리오 화면과 같은 바스켓(common.js의 loadBasket/saveBasket) */
   function addToBasket() {
-    var m = D.meta, b;
-    try { b = JSON.parse(localStorage.getItem('invportfolio') || '{}'); } catch (e) { b = {}; }
+    var m = D.meta, b = loadBasket();
     b[m.yahoo_ticker] = { name: m.name, yahoo: m.yahoo_ticker, ticker: m.ticker,
       type: (m.market === 'KR' ? '국내주식' : '해외주식'), currency: m.currency, 'class': '주식' };
-    localStorage.setItem('invportfolio', JSON.stringify(b));
+    saveBasket(b);
     var btn = $('basketBtn'); if (btn) { btn.textContent = '✓ 담았어요 — 🧺 포트폴리오에서 확인'; setTimeout(function () { btn.textContent = '＋ 포트폴리오에 담기'; }, 1800); }
   }
 
@@ -1476,12 +1446,12 @@
     return 50 - g * 40;                                 // gap>0(쌈)=왼쪽(저평가)
   }
   function addEtfToBasket() {
-    var b; try { b = JSON.parse(localStorage.getItem('invportfolio') || '{}'); } catch (e) { b = {}; }
+    var b = loadBasket();
     // 포트폴리오는 야후 티커를 키로 쓴다 — 국내 ETF는 6자리 코드에 .KS를 붙여야 시세가 붙는다.
     var kr = D.currency === 'KRW', yahoo = kr ? D.symbol + '.KS' : D.symbol;
     b[yahoo] = { name: D.name, yahoo: yahoo, ticker: D.symbol,
       type: kr ? '국내기타ETF' : '해외ETF', currency: D.currency, 'class': 'ETF' };
-    localStorage.setItem('invportfolio', JSON.stringify(b));
+    saveBasket(b);
     var btn = $('etfBasketBtn'); if (btn) { btn.textContent = '✓ 담았어요 — 🧺 포트폴리오에서 확인'; setTimeout(function () { btn.textContent = '＋ 포트폴리오에 담기'; }, 1800); }
   }
   function renderEtfHeader() {
@@ -1921,16 +1891,6 @@
       .catch(function (e) { if (seq !== _reqSeq) return; stopProgress(); setStatus(true, '서버에 연결하지 못했습니다: ' + e.message, true); });
   }
 
-  /* ══════════ 인터랙션 ══════════ */
-  function wireSeg(id, onChange) {
-    var seg = $(id); if (!seg) return;
-    seg.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x.classList.contains('on') ? 'true' : 'false'); });
-    seg.addEventListener('click', function (e) {
-      var b = e.target.closest('button'); if (!b) return;
-      seg.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
-      b.classList.add('on'); b.setAttribute('aria-pressed', 'true'); onChange(b.getAttribute('data-val'));
-    });
-  }
   function wireCollapse(btnId, bodyId, disp) { var btn = $(btnId), body = $(bodyId); if (!btn || !body) return; btn.addEventListener('click', function () { var open = body.style.display !== 'none' && body.style.display !== ''; body.style.display = open ? 'none' : (disp || 'block'); var ch = btn.querySelector('.chev'); if (ch) ch.classList.toggle('open', !open); }); }
   function renderExamples() {
     $('examples').innerHTML = EXAMPLES[state.market].map(function (e) { var on = e[1] === state.query; return '<span data-code="' + e[1] + '" style="font-size:12px;cursor:pointer;border-radius:var(--radius-sm);padding:4px 9px;' + (on ? 'color:var(--ink);font-weight:600;border:1px solid var(--ink)' : 'color:var(--ink-2);border:1px solid var(--line)') + '">' + esc(e[0]) + '</span>'; }).join('');
