@@ -20,3 +20,4 @@
 | [0007](0007-book-quality-gate-for-rim.md) | RIM 적용 여부는 PBR이 아니라 '장부가가 작아진 흔적'으로 가른다 | 채택됨 |
 | [0008](0008-backtest-observation-not-statistics.md) | 백테스트 탭은 통계를 주장하지 않고 과거 신호를 관찰만 한다 | 대체됨 (→ 0009) |
 | [0009](0009-backtest-tab-indefinitely-deferred.md) | 백테스트 탭을 무기한 보류한다 (코드는 남긴다) | 채택됨 |
+| [0011](0011-peer-size-window-and-no-fallback.md) | ①은 규모 비교가능 피어(1/5~5배)만 쓰고 부족하면 제외한다 | 채택됨 |
