@@ -55,6 +55,7 @@ jobs:
           python scripts/check_screen_language.py
           python scripts/check_design.py
           python scripts/check_structure.py
+          python scripts/check_adr_index.py
 
       - name: Run deterministic finance checks
         run: |
