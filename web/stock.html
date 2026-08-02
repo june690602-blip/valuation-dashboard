@@ -200,7 +200,7 @@
        (clip은 y축 visible을 유지해 아래로 열리는 드롭다운·툴팁은 안 잘린다). */
     .app-content { overflow-x: clip; }
     .tbl { overflow-x: auto; }
-    #peerTable .row, #btTable .row { min-width: 620px; }
+    #peerTable .row { min-width: 620px; }
     /* 방법별 표: 폰에서 4열을 620px로 밀어놓으면 '중심·근거'가 오른쪽으로 스크롤해야 보인다.
        열을 옆으로 늘어놓는 대신 방법마다 카드처럼 쌓는다 — 1줄 방법·중심, 2줄 범위, 3줄 근거. */
     #methodsTable .row { min-width: 0; grid-template-columns: minmax(0, 1fr) auto !important; gap: 8px 12px; padding: 16px 0; line-height: 1.6; }
@@ -316,8 +316,18 @@
             <button class="tabbtn" data-tab="financials"><span class="tn">05</span><span class="tl">재무 분석</span></button>
             <button class="tabbtn" data-tab="peers"><span class="tn">06</span><span class="tl">업종 비교</span></button>
             <button class="tabbtn" data-tab="wacc"><span class="tn">07</span><span class="tl">자본비용</span></button>
+            <!-- 08 백테스트 — **무기한 보류**(ADR-0009). 버튼만 막아 입구를 닫았고, 아래 패널
+                 마크업과 renderBacktest()·signalTimeline()·backtest.py는 **그대로 살아 있다**.
+                 되살리려면 이 주석만 풀면 된다(패널·렌더러·직렬화는 손댈 필요 없음).
+                 보류 이유: 이 탭은 '우리 툴이 맞는지' 검증한다고 약속하는데 실제로는 판정과
+                 다른 계산을 검증한다 — ①은 아예 없고(과거 피어 복원 불가), ②의 기준배수도
+                 판정은 자기 5년 분위인데 여기는 직전 1.5년 롤링 중앙값이다(삼성전자 실측
+                 16.04배 vs 25.08배, 56% 차이). ③도 지속계수·자본비용·장부가 게이트가 다르다.
+                 창을 맞추려면 테스트 시작 전에 5년치가 더 필요한데 주가 데이터가 총 5년뿐이라
+                 데이터가 길어지기 전에는 정렬이 불가능하다. 상세·재개 조건은 docs/adr/0009.
             <button class="tabbtn" data-tab="backtest"><span class="tn">08</span><span class="tl">백테스트</span></button>
-            <button class="tabbtn" data-tab="ai"><span class="tn">09</span><span class="tl">종합 평가</span></button>
+            -->
+            <button class="tabbtn" data-tab="ai"><span class="tn">08</span><span class="tl">종합 평가</span></button>
           </div>
         </div>
 
@@ -575,31 +585,23 @@
 
         <!-- 08 백테스트 -->
         <section class="panel" data-tab="backtest" id="panel-backtest">
-          <div class="method-map"><span class="method-chip">사후 검증 · ②+③</span><span>복원 가능한 두 방법(② 역사적 밴드 + ③ RIM)을 기본가중으로 합친 저평가 신호가 과거에 유효했는지 되돌아봅니다. ① 피어(현재 목록의 소급 편향)·④ 컨센서스(과거 시점값 부재)는 사후검증 밖이라, 종합 판정 전체가 아닌 그 하위집합의 검증입니다.</span></div>
+          <div class="method-map"><span class="method-chip">과거 신호 관찰 · ②+③</span><span>복원 가능한 두 방법(② 역사적 밴드 + ③ RIM)으로 과거 매일의 저평가율을 되살려, <b>모형이 언제 싸다고 말했고 그때 주가가 어디였는지</b>를 봅니다. 성과를 주장하지 않습니다 — 단일 종목의 겹치지 않는 12개월 표본은 구조적으로 0~4개뿐이라 평균수익·승률이 통계가 되지 못합니다.</span></div>
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="bt-setup-title">
-              <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="bt-setup-title">관찰 기준과 표본</h3><p class="analysis-section-desc">종합(②+③) 적정가보다 주가가 크게 낮았던 시점을 골라 이후 수익을 관찰합니다.</p></div><span class="analysis-section-meta">저평가 기준 · 적정가 대비 +30%</span></div>
+              <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="bt-setup-title">관찰의 규모</h3><p class="analysis-section-desc">얼마나 긴 기간을, 그중 신호가 켜져 있던 날이 며칠인지 먼저 확인합니다.</p></div><span class="analysis-section-meta">저평가 기준 · 적정가 대비 +30%</span></div>
               <div class="analysis-section-body"><div id="btTiles" class="tile-strip"></div><div id="btLede" style="font-size:13px;color:var(--ink-2);margin-top:14px;line-height:1.65"></div></div>
             </section>
-            <section class="analysis-section" aria-labelledby="bt-return-title">
-              <div class="analysis-section-head"><span class="analysis-section-index">02</span><div><h3 class="analysis-section-title" id="bt-return-title">기간별 미래수익</h3><p class="analysis-section-desc">저평가 표본과 전체 비중복 표본의 3·6·12개월 수익을 같은 기준으로 비교합니다.</p></div><span class="analysis-section-meta">평균수익 · 승률 · 표본 수</span></div>
-              <div class="analysis-section-body"><div id="btTable" class="tbl"></div></div>
+            <section class="analysis-section" aria-labelledby="bt-timeline-title">
+              <div class="analysis-section-head"><span class="analysis-section-index">02</span><div><h3 class="analysis-section-title" id="bt-timeline-title">모형이 언제 싸다고 했나</h3><p class="analysis-section-desc">위 칸은 매일의 저평가율과 신호 구간(초록 면), 아래 칸은 같은 날의 실제 주가와 그 시점 추정 적정가입니다. 그래프에 마우스를 올리면 그날의 값이 보입니다.</p></div><span class="analysis-section-meta">일별 저평가율 · 주가</span></div>
+              <div class="analysis-section-chart" id="signalTimeline"></div>
             </section>
             <section class="analysis-section" aria-labelledby="bt-relation-title">
-              <div class="analysis-section-head"><span class="analysis-section-index">03</span><div><h3 class="analysis-section-title" id="bt-relation-title">저평가율과 이후 수익의 관계</h3><p class="analysis-section-desc">더 크게 저평가된 시점일수록 이후 수익이 높았는지 산점도와 순위상관으로 봅니다.</p></div><span class="analysis-section-meta">저평가율 × 12개월 수익</span></div>
+              <div class="analysis-section-head"><span class="analysis-section-index">03</span><div><h3 class="analysis-section-title" id="bt-relation-title">저평가율과 이후 수익의 관계</h3><p class="analysis-section-desc">더 크게 저평가된 시점일수록 이후 수익이 높았는지 산점도와 순위상관으로 봅니다. 방향 참고용이며 표본이 겹친다는 점에 유의하세요.</p></div><span class="analysis-section-meta">저평가율 × 12개월 수익</span></div>
               <div class="analysis-section-chart" id="backtestScatter"></div>
               <div class="analysis-section-body" style="margin-top:16px" id="btScatterGuide"></div>
             </section>
-            <section class="analysis-section" aria-labelledby="bt-equity-title">
-              <div class="analysis-section-head"><span class="analysis-section-index">04</span><div><h3 class="analysis-section-title" id="bt-equity-title">예시 전략 자산곡선</h3><p class="analysis-section-desc">"저평가 신호일 때만 보유"라는 규칙을 과거에 적용했다면 어땠을지, 그냥 들고만 있었을 때와 비교합니다.</p></div><span class="analysis-section-meta">시작 = 100 · 거래비용 미반영</span></div>
-              <div class="analysis-section-body">
-                <div style="font-size:11.5px;color:var(--warning);line-height:1.6;margin-bottom:10px">사후 규칙은 과최적화에 취약하므로 곡선의 절대 높이보다 방향성만 참고하세요.</div>
-                <div id="equityCurve" style="max-width:760px"></div>
-                <div id="equityGuide" style="margin-top:16px"></div>
-              </div>
-            </section>
           </div>
-          <div style="font-size:11.5px;color:var(--ink-3);line-height:1.65;margin-top:14px">단일 종목·짧은 표본이며 거래비용·세금이 반영되지 않았습니다. 과거 결과는 미래 성과를 보장하지 않습니다.</div>
+          <div style="font-size:11.5px;color:var(--ink-3);line-height:1.65;margin-top:14px">단일 종목의 짧은 관찰이며, 과거의 모습이 미래 성과를 보장하지 않습니다.</div>
         </section>
 
         <!-- 09 AI -->

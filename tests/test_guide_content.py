@@ -67,9 +67,15 @@ class GuideContentTests(unittest.TestCase):
         for text in (self.static, self.streamlit):
             self.assertNotIn("최대낙폭", text)
             self.assertNotIn("문장으로 정리할 때만", text)
-            self.assertIn("역사적 밴드 신호 하나", text)
+            # ADR-0009: 백테스트 탭은 무기한 보류다. 안내가 아직 '검증한다'고 말하면
+            # 닫아 둔 화면과 어긋나므로, 두 안내가 모두 '보류'를 말하는지 고정한다.
+            self.assertIn("보류", text)
+            self.assertNotIn("역사적 밴드 신호 하나만 점검", text)
+            self.assertNotIn("과거 예측력", text)
             self.assertIn("목표가·손절선", text)
-        self.assertIn("순위상관**이 양수(+)", docs)
+        # 왜 보류인지(표본 한계)가 설명서에 남아 있어야 한다 — 이유 없는 삭제는 은폐다.
+        self.assertIn("겹치지 않는 12개월 구간이", docs)
+        self.assertIn("무기한 보류", docs)
 
     def test_streamlit_guide_renders_without_errors(self) -> None:
         from streamlit.testing.v1 import AppTest

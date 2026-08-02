@@ -15,10 +15,13 @@
 
 ## 이 스크립트가 지키는 규약
 
-**하나. 파일은 예산 안에 산다.**
-`SIZE_BUDGET`이 파일마다 줄 수 상한을 적어 둔다. 예산은 **내려가기만 한다** — 파일을
-쪼개면 예산도 같이 내려 적는다. 상한을 넘으면 [문제]다. "크다"는 인상이 아니라 숫자가
-되게 하려는 장치다.
+**하나. 파일 크기는 재되, 관문이 아니다.**
+`FILE_SIZES`가 파일마다 '이 파일이 무엇을 담는가'를 적어 두고, 실제 줄 수를 함께 출력한다.
+예전에는 파일마다 줄 수 상한(`SIZE_BUDGET`)을 두고 넘으면 [문제]로 떨어뜨렸다 —
+그 상한을 없앴다. 줄 수는 '읽기 어려움'의 대리 지표일 뿐이라, 상한을 지키려고 경계가
+어색한 자리에서 파일을 자르면 파일 수만 늘고 의존 방향이 꼬인다(아래 I의 두 번째 [불가]가
+바로 그 이야기다). 크기는 계속 **보여주되** 판정하지 않는다. 분할은 읽는 사람이 실제로
+헤맬 때 그 이유를 근거로 한다.
 
 **둘. 한 헬퍼는 한 벌이다.**
 `esc`·`el`·`$`가 파일마다 복사돼 있으면, 한 곳을 고쳐도 나머지가 따라오지 않는다.
@@ -55,15 +58,15 @@ OK, BAD, NA = "[확인]", "[문제]", "[불가]"
 _tally = {OK: 0, BAD: 0, NA: 0}
 
 # 지금 열려 있는 문제의 수 — 전부 R5 조서 2번 바구니의 것이고 이슈로 등록해 순서대로 닫는다.
-#   1 stock.js 1,755줄            (#79 ㉮ 분할 — 1단계 완료, 9탭 렌더·ETF 뷰가 남았다)
-#   2 CSS의 73%가 페이지 안        (#74의 선행 조건)
-#   3 stock.js 인라인 밀도 19.4    (#82 타일 스트립 6벌)
-#   4 같은 수식이 두 언어에 4곳    (#84 대조 테스트 부재)
-#   5 bond_math를 웹이 안 씀       (#84)
-#   6 serialize.py의 계산 3자리    (#84)
+#   1 CSS의 67%가 페이지 안        (#74의 선행 조건)
+#   2 stock.js 인라인 밀도          (#82가 타일 6벌을 tiles()로 모았지만 형제 대비 2배는 남았다)
+#   3 같은 수식이 두 언어에 4곳    (#84 대조 테스트 부재)
+#   4 bond_math를 웹이 안 씀       (#84)
+#   5 serialize.py의 계산 3자리    (#84)
 # 이 수보다 늘어날 때만 실패한다. **이슈를 닫으면 이 값을 함께 내린다.**
 #   7 → 6: #83이 공용 헬퍼를 common.js 한 벌로 모았다(esc 6벌·$ 5벌·el 3벌·wireSeg 3벌·tiles 3벌).
-KNOWN_OPEN = 6
+#   6 → 5: 파일 크기 예산(㉮ stock.js 분할)을 관문에서 뺐다. 크기는 A에서 표로만 보여준다.
+KNOWN_OPEN = 5
 
 WEB_JS = ["common.js", "stock.js", "stock-price-chart.js", "portfolio.js", "bond.js",
           "test.js", "feedback.js", "analytics.js"]
@@ -93,32 +96,22 @@ def nlines(rel: str) -> int:
 
 
 # ── 레지스트리 ───────────────────────────────────────────────────────
-# 줄 수 상한. 기준 커밋 fbf971a의 실측값에 여유를 두고 적었다.
-# **예산은 내려가기만 한다** — 파일을 쪼개면 여기도 같이 내려 적는다.
-SIZE_BUDGET = {
-    # 기준 커밋 실측은 1,990줄이었다. R5 수정에서 주석 11줄이 늘어(산점도 십자선이 왜 자사를
-    # 빼는지·esc의 이스케이프 규칙이 왜 넷 다 같아야 하는지) 2,001로 한 번 올려 적는다.
-    # **이 방향의 조정은 이번이 마지막이다** — 분할 PR에서 이 값을 크게 내린다.
-    # 1순위 분할(#79) 1단계로 주가차트 294줄을 stock-price-chart.js로 뺐다: 2,079 → 1,795.
-    # 예산도 실측에 맞춰 내려 적는다 — 다음 단계(ETF 뷰·9탭 렌더)에서 더 내린다.
-    # #83이 공용 헬퍼를 common.js 한 벌로 모으면서 네 파일이 함께 줄었다 — 예산도 내려 적는다.
-    # #82는 인라인 타일 6벌을 tiles() 호출로 바꿨다. 인라인 19건이 빠졌지만 호출부를 형제
-    # 파일(bond.js·portfolio.js)과 같은 여러 줄 형식으로 적어 **줄 수는 6줄 늘었다**
-    # (1,755 → 1,761 · common.js 131 → 136). 줄이려면 400자짜리 한 줄로 되돌려야 하는데
-    # 그건 이 이슈가 없애려던 바로 그 밀도다. 그래서 예산을 **여유 없이 실측 그대로** 적는다 —
-    # 다음 한 줄이 곧바로 [문제]가 된다. 크게 내리는 것은 #79 분할의 몫이다.
-    "web/assets/common.js": (136, "공용 헬퍼 한 벌. 여기 밖에 사본이 생기면 B 검사가 잡는다"),
-    "web/assets/stock.js": (1761, "#79 ㉮ 진행 중. 아직 9탭 렌더·ETF 뷰·SVG 차트가 한 IIFE에 있다"),
-    "web/assets/stock-price-chart.js": (300, "주가 캔버스 차트. (container, D, state, fmt)만 받는다"),
-    "web/assets/portfolio.js": (430, "차트 3종 + 바스켓 관리"),
-    "web/assets/bond.js": (370, "채권 수학 이식 + 차트 3종"),
-    "web/assets/test.js": (365, "성향진단 위저드"),
-    "web/assets/feedback.js": (200, "전 페이지 공용 위젯"),
-    "web/assets/analytics.js": (100, "추적 스니펫 주입"),
-    "src/web/serialize.py": (1150, "9탭 + ETF + 채권 + 포트폴리오 직렬화가 한 파일"),
-    "server.py": (500, "정적 서빙 + API 라우팅"),
-    "src/ui/pages/stock.py": (1000, "Streamlit 9탭 렌더러"),
-    "src/ui/charts.py": (800, "Plotly 차트 모음"),
+# 큰 파일들이 각각 무엇을 담는가. **상한은 없다** — 예전에는 여기에 줄 수 예산을 적고
+# 넘으면 [문제]로 떨어뜨렸지만(stock.js 2,001줄 규칙), 그 관문을 없앴다. 줄 수는 계속
+# 출력해서 "지금 어디가 커지고 있나"는 보이게 하되, 그 수 자체로 실패시키지 않는다.
+FILE_SIZES = {
+    "web/assets/common.js": "공용 헬퍼 한 벌(#83). 여기 밖에 사본이 생기면 B 검사가 잡는다",
+    "web/assets/stock.js": "8탭 렌더 + ETF 뷰 + SVG 차트가 한 IIFE에 산다",
+    "web/assets/stock-price-chart.js": "주가 캔버스 차트. (container, D, state, fmt)만 받는다",
+    "web/assets/portfolio.js": "차트 3종 + 바스켓 관리",
+    "web/assets/bond.js": "채권 수학 이식 + 차트 3종",
+    "web/assets/test.js": "성향진단 위저드",
+    "web/assets/feedback.js": "전 페이지 공용 위젯",
+    "web/assets/analytics.js": "추적 스니펫 주입",
+    "src/web/serialize.py": "8탭 + ETF + 채권 + 포트폴리오 직렬화가 한 파일",
+    "server.py": "정적 서빙 + API 라우팅",
+    "src/ui/pages/stock.py": "Streamlit 8탭 렌더러",
+    "src/ui/charts.py": "Plotly 차트 모음",
 }
 
 # 공용이어야 하는 헬퍼 — (허용 벌 수, 정본이 있어야 할 곳, 왜)
@@ -141,8 +134,9 @@ SHARED_HELPERS = {
 # 내려가기만 한다.
 INLINE_BUDGET = {
     "web/assets/common.js": 2,
-    # #82가 타일 6벌을 tiles()로 바꾸며 19건이 빠졌다: 343 → 324.
-    "web/assets/stock.js": 324,
+    # #82가 타일 6벌을 tiles()로 바꾸며 19건이 빠졌다(343 → 324). 이 PR이 공식·출처 접기와
+    # 병기 블록을 CSS 클래스로 올리며 다시 내려갔다: 324 → 308.
+    "web/assets/stock.js": 308,
     "web/assets/stock-price-chart.js": 1,
     "web/assets/portfolio.js": 30,
     "web/assets/bond.js": 19,
@@ -205,29 +199,19 @@ ANALYSIS_SMELLS = [
 ]
 
 
-# ── A. 파일 크기 예산 ────────────────────────────────────────────────
-def check_file_size() -> None:
-    head("A. 파일 크기 — 예산 안에 있는가")
-    over = []
-    for rel, (budget, why) in SIZE_BUDGET.items():
-        n = nlines(rel)
-        if n > budget:
-            over.append(f"{rel}: {n}줄 > 예산 {budget}줄 — {why}")
-    if over:
-        say(BAD, f"예산을 넘은 파일 {len(over)}개", "\n".join(over))
-    else:
-        say(OK, f"{len(SIZE_BUDGET)}개 파일이 모두 예산 안",
-            "예산은 내려가기만 한다 — 파일을 쪼개면 SIZE_BUDGET도 같이 내려 적는다.")
+# ── A. 파일 크기 (참고 표 · 판정하지 않음) ───────────────────────────
+def report_file_size() -> None:
+    """줄 수를 보여만 준다. [확인]/[문제]를 찍지 않으므로 집계에도 들어가지 않는다.
 
-    # 가장 큰 파일이 무엇인지는 첫인상을 지배하므로 따로 말한다.
-    biggest = max(SIZE_BUDGET, key=nlines)
-    n = nlines(biggest)
-    if biggest.endswith(".js") and n > 900:
-        say(BAD, f"레포에서 가장 큰 프런트 파일: {biggest} {n}줄",
-            "빌드 도구가 없어(순수 정적 서빙) 한 파일에 다 넣는 것이 가능했다.\n"
-            "레포를 처음 여는 사람이 만나는 첫 파일이라 이슈 #54가 1순위로 지목했다.")
-    else:
-        say(OK, f"가장 큰 프런트 파일 {biggest} {n}줄 — 한 화면 분량 안")
+    상한을 두던 시절에는 주석 한 줄만 늘어도 CI가 빨개졌고, 그걸 피하려고 예산을 올려
+    적는 일이 반복됐다(1,990 → 2,001). 상한이 실제로 지킨 것은 '읽기 쉬움'이 아니라
+    '숫자'였다. 크기는 신호로 남기고 판정은 사람이 한다.
+    """
+    head("A. 파일 크기 — 참고 (관문 아님)")
+    rows = sorted(FILE_SIZES.items(), key=lambda kv: -nlines(kv[0]))
+    for rel, why in rows:
+        print(f"  {rel:<34}{nlines(rel):>6}줄   {why}")
+    print("\n         상한은 두지 않는다. 분할은 줄 수가 아니라 '읽는 사람이 어디서 헤매는가'로 정한다.")
 
 
 # ── B. 중복 헬퍼 ─────────────────────────────────────────────────────
@@ -555,8 +539,9 @@ def declare_limits() -> None:
         "줄 수·중복 수는 세지만 '이 파일을 처음 여는 사람이 얼마나 헤매는가'는 세지 못한다.\n"
         "1,990줄이 200줄 10개보다 나쁘다는 것은 숫자가 아니라 판단이다.")
     say(NA, "분할이 옳은 경계로 갈렸는가",
-        "파일이 쪼개졌는지는 SIZE_BUDGET이 보지만, 렌더/차트/포맷 경계가 자연스러운지는\n"
-        "사람이 읽어야 안다. 잘못 자르면 파일 수만 늘고 의존 방향이 꼬인다.")
+        "파일이 몇 줄인지는 A가 보여주지만, 렌더/차트/포맷 경계가 자연스러운지는\n"
+        "사람이 읽어야 안다. 잘못 자르면 파일 수만 늘고 의존 방향이 꼬인다.\n"
+        "줄 수 상한을 관문에서 뺀 이유이기도 하다 — 상한은 이 판단을 대신해 주지 못한다.")
     say(NA, "테스트가 회귀를 실제로 잡는가",
         "테스트 개수와 임포트하는 모듈은 세지만, 각 단정이 의미 있는 회귀를 잡는지는\n"
         "테스트를 읽어야 안다. 커버리지 도구도 '실행됐다'만 말하고 '검증됐다'는 말하지 않는다.")
@@ -567,12 +552,10 @@ def declare_limits() -> None:
 
 # ── 레지스트리 출력 ──────────────────────────────────────────────────
 def print_registry() -> None:
-    print("\n파일 크기 예산")
+    print("\n파일 크기 (참고 · 상한 없음)")
     print("─" * 76)
-    for rel, (budget, why) in SIZE_BUDGET.items():
-        n = nlines(rel)
-        flag = "넘음" if n > budget else "안"
-        print(f"{rel:<32}{n:>6}줄 / 예산 {budget:>5}  {flag}")
+    for rel, why in FILE_SIZES.items():
+        print(f"{rel:<32}{nlines(rel):>6}줄")
         print(f"{'':<32}{why}")
 
     print("\n공용 헬퍼 (허용 벌 수)")
@@ -607,7 +590,7 @@ def main() -> int:
     print("R5 검증 — 남이 열어서 읽을 수 있는가")
     print("=" * 76)
 
-    check_file_size()
+    report_file_size()
     check_duplicate_helpers()
     check_css_home()
     check_inline_density()

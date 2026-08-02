@@ -32,3 +32,6 @@ docs/*.pdf
 # OS
 Thumbs.db
 .DS_Store
+
+# gstack 브라우즈 도구 로그 (로컬 전용)
+.gstack/

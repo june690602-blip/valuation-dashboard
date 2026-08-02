@@ -47,13 +47,20 @@ _ITEM_CANDIDATES: dict[str, list[str]] = {
     "da": ["Depreciation And Amortization", "Depreciation Amortization Depletion",
            "Depreciation"],
     "dividends_paid": ["Cash Dividends Paid", "Common Stock Dividend Paid"],
+    # 장부가 왜곡 판별용(RIM 적용 여부). 항목이 없는 것과 못 받은 것은 뜻이 다르다 —
+    # 대차대조표·현금흐름표 자체는 받았는데 이 줄만 없으면 그 회사에 그 항목이 없다는 뜻이다.
+    # 그 구분은 extract_financials가 아래에서 0으로 채우며 처리한다.
+    "goodwill": ["Goodwill"],
+    "intangibles": ["Goodwill And Other Intangible Assets"],
+    "buyback": ["Repurchase Of Capital Stock", "Common Stock Payments"],
 }
 # 손익·현금흐름(연간 합산형) vs 재무상태(시점형) 구분 — TTM 계산 방식이 다름
 _FLOW_COLS = ["revenue", "gross_profit", "operating_income", "net_income", "ebitda",
               "pretax_income", "tax_expense", "interest_expense", "eps",
-              "ocf", "capex", "fcf", "da", "dividends_paid"]
+              "ocf", "capex", "fcf", "da", "dividends_paid", "buyback"]
 _STOCK_COLS = ["total_assets", "total_equity", "total_liabilities",
-               "current_assets", "current_liabilities", "total_debt", "cash"]
+               "current_assets", "current_liabilities", "total_debt", "cash",
+               "goodwill", "intangibles"]
 
 
 def _pick(df: pd.DataFrame, names: list[str]) -> pd.Series | None:
@@ -99,11 +106,24 @@ def extract_financials(tk: yf.Ticker) -> tuple[pd.DataFrame, list[str]]:
         fin["ebitda"] = fin["operating_income"] + fin["da"]
         if fin["ebitda"].isna().all():
             warnings.append("EBITDA 항목이 없어 관련 지표(EV/EBITDA 등)는 N/A 처리됩니다.")
-    # capex/배당은 yfinance에서 음수 → 양수로 정규화
+    # capex/배당/자사주는 yfinance에서 음수(유출) → 양수로 정규화
     fin["capex"] = fin["capex"].abs()
     fin["dividends_paid"] = fin["dividends_paid"].abs()
+    fin["buyback"] = fin["buyback"].abs()
     if fin["fcf"].isna().all():
         fin["fcf"] = fin["ocf"] - fin["capex"]
+
+    # 무형자산·영업권·자사주는 **'없음'과 '못 받음'을 갈라야** 한다.
+    # 애플은 영업권 줄이 아예 없는데, 그건 데이터 결측이 아니라 영업권이 실제로 없다는 뜻이다.
+    # 이걸 결측으로 두면 "판별 불가"가 되어 장부가 왜곡 판정이 PBR 단독 규칙으로 되돌아간다.
+    # 판별 기준: **그 표를 읽어내긴 했는가**(총자산이 있으면 대차대조표, ocf가 있으면 현금흐름표).
+    # 표를 읽었는데 그 줄이 없으면 0으로 채우고, 표 자체를 못 받았으면 결측으로 남긴다.
+    got_bs, got_cf = fin["total_assets"].notna(), fin["ocf"].notna()
+    for col, got in (("goodwill", got_bs), ("intangibles", got_bs), ("buyback", got_cf)):
+        fin.loc[got & fin[col].isna(), col] = 0.0
+    # 'Goodwill And Other Intangible Assets'가 없고 'Goodwill'만 있는 회사가 있다 — 둘 중 큰 쪽을
+    # 무형자산 총액으로 삼는다(영업권은 정의상 무형자산에 포함되므로 합계보다 클 수 없다).
+    fin["intangibles"] = fin[["intangibles", "goodwill"]].max(axis=1)
 
     fin["fiscal_end"] = periods  # 역사적 밴드 계산용 회계연도 종료일
     fin.index = [p.year for p in periods]

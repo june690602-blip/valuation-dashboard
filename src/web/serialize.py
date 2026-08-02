@@ -17,13 +17,14 @@ from functools import lru_cache
 import numpy as np
 import pandas as pd
 
-from src.analysis.backtest import HORIZONS, run_backtest
+from src.analysis.backtest import run_backtest
 from src.analysis.capital_cost import compute_capital_cost
 from src.analysis.commentary import GROUP_BASIS, build_commentary, verdict_conflict
 from src.analysis.etf import compute_etf
 from src.analysis.indicators import compute_indicators
 from src.analysis.scoring import (comparable_peers, peer_median,
                                    rank_peers_cheapness, sanitize_peer_frame)
+from src.analysis.valuation import CONSENSUS_METHOD as VAL_CONSENSUS_METHOD
 from src.analysis.valuation import compute_valuation
 from src.data.models import actual_prices
 
@@ -472,38 +473,67 @@ def _wacc(d, cc, ind) -> dict:
     }
 
 
+def _signal_timeline(bt, d) -> dict | None:
+    """일별 저평가율 + 그때의 주가·추정 적정가 (~200포인트로 다운샘플).
+
+    ADR-0008로 이 탭의 중심이 된 그림이다. 통계를 주장하지 않고 **모형이 언제 싸다고
+    말했고 그 뒤 주가가 어떻게 갔는지**만 보여준다 — 표본이 2~4개뿐이라 통계로는 아무것도
+    말할 수 없지만, 시계열은 표본 수와 무관하게 사실 그대로다.
+    """
+    disc = bt.discount.dropna() if bt.discount is not None else None
+    if disc is None or len(disc) < 10:
+        return None
+    # 저평가율의 분모는 미조정(그날 실제로 내야 했던) 주가다 — backtest._rim_discount·
+    # run_backtest와 같은 기준이라야 두 값이 서로 환산된다.
+    px = actual_prices(d).reindex(disc.index)
+    # **적정가는 종합 저평가율에서 되돌려 만든다.** bt.fair_price는 ② 밴드 레그 전용값이라
+    # ②+③ 종합인 discount와 다른 값이다 — 그대로 그리면 같은 그림의 위·아래 칸이 서로
+    # 맞지 않는다(하이닉스 실측: 종합 −47.2%인데 밴드 적정가는 주가 대비 −26.8%).
+    # 정의상 discount = 적정가/주가 − 1 이므로 적정가 = 주가 × (1 + discount)로 환산하면
+    # 두 칸이 항상 일치한다.
+    fair = px * (1.0 + disc)
+    step = max(1, len(disc) // 200)
+    # [::step]은 마지막 원소를 놓칠 수 있다 — 최신 상태가 화면에 안 나오면 안 되므로 붙인다.
+    pos = list(range(0, len(disc), step))
+    if pos[-1] != len(disc) - 1:
+        pos.append(len(disc) - 1)
+    idx = disc.index[pos]
+    return {
+        "dates": [t.strftime("%Y-%m-%d") for t in idx],
+        "discount": [num(v) for v in disc.reindex(idx).values],
+        "price": [num(v) for v in px.reindex(idx).values],
+        "fair": [num(v) for v in fair.reindex(idx).values],
+        # 판정(①②③)과 이 신호(②+③)가 같은 종목에 반대를 말할 수 있다 — 화면이 그 대비를
+        # 보여주려면 '지금 이 신호가 뭐라고 하는가'를 숫자로 들고 있어야 한다.
+        "latest_discount": num(disc.iloc[-1]),
+        "latest_price": num(px.iloc[-1]),
+        "latest_fair": num(fair.iloc[-1]),
+    }
+
+
 def _backtest(d, r_equity=None) -> dict | None:
+    """과거 신호 관찰용 데이터.
+
+    **이벤트 스터디 통계와 전략 자산곡선은 계산은 하되 화면으로 내보내지 않는다**(ADR-0008).
+    단일 종목 4년치에서 12개월 비중복 표본은 구조적으로 0~4개라 평균수익·승률이 통계가 되지
+    못하고, 전략 자산곡선은 신호 품질이 아니라 시장 노출 시간을 재기 때문이다. 두 값은
+    `scripts/check_backtest.py`에서 여전히 볼 수 있다 — 없앤 것이 아니라 화면에서 내렸다.
+    """
     bt = run_backtest(d, kind="PER", threshold=0.30, r_equity=r_equity)
     if not bt.ok:
         return {"ok": False, "warnings": list(bt.warnings)}
-    horizons = []
-    for hz in HORIZONS.keys():
-        ev, bs = bt.event_stats.get(hz, {}), bt.baseline_stats.get(hz, {})
-        horizons.append({"h": hz, "ev_mean": num(ev.get("mean")), "ev_hit": num(ev.get("hit")),
-                         "ev_n": int(ev.get("n", 0)), "base_mean": num(bs.get("mean"))})
     scatter = []
     if bt.scatter is not None:
         for _, r in bt.scatter.iterrows():
             scatter.append([num(r.get("discount") * 100), num(r.get("fwd_252") * 100)])
-    equity = None
-    if bt.equity is not None and not bt.equity.empty:
-        eq = bt.equity
-        step = max(1, len(eq) // 80)
-        eq = eq.iloc[::step]
-        cols = list(bt.equity.columns)
-        equity = {"dates": [t.strftime("%y.%m") for t in eq.index],
-                  "series": [{"name": c, "y": [num(v) for v in (eq[c] * 100).values]} for c in cols],
-                  "cagr": {c: num(bt.cagr.get(c)) for c in cols}}
-    ev12 = bt.event_stats.get("12개월", {})
     return {
         "ok": True, "kind": bt.kind, "threshold": num(bt.threshold),
         "methods_used": list(bt.methods_used),
         "weights": {k: num(v) for k, v in (bt.weights or {}).items()},
         "signal_days": int(bt.signal_days), "event_count": int(bt.event_count),
-        "spearman": num(bt.spearman),
-        "ret12": num(ev12.get("mean")), "hit12": num(ev12.get("hit")),
-        "horizons": horizons, "scatter": scatter, "equity": equity,
-        "never_traded": bool(bt.strategy_never_traded), "warnings": list(bt.warnings),
+        "n_obs": int(bt.n_obs), "spearman": num(bt.spearman),
+        "scatter": scatter, "timeline": _signal_timeline(bt, d),
+        "warnings": list(bt.warnings),
     }
 
 
@@ -667,6 +697,26 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "fair_mid_equal": num(val.fair_mid_equal), "gap_equal": num(val.gap_equal),
             "verdict_equal": val.verdict_equal,
             "weights": {k: num(v) for k, v in (val.weights or {}).items()},
+            # 컨센서스 반영 종합(①②③④) — 판정에는 쓰지 않고 화면에 나란히 세우는 값(ADR-0006).
+            "fair_low_consensus": num(val.fair_low_consensus),
+            "fair_mid_consensus": num(val.fair_mid_consensus),
+            "fair_high_consensus": num(val.fair_high_consensus),
+            "gap_consensus": num(val.gap_consensus),
+            "verdict_consensus": val.verdict_consensus,
+            "weights_consensus": {k: num(v) for k, v in (val.weights_consensus or {}).items()},
+            "consensus_premium": num(val.consensus_premium),
+            "consensus_method": VAL_CONSENSUS_METHOD,
+            "fundamental_only": bool(val.fundamental_only),
+            "shared_multiple_share": num(val.shared_multiple_share),
+            # RIM을 쓰거나 뺀 실측 근거(ADR-0007). 화면이 원인을 단정하지 않고 잰 값을 보이게 한다.
+            "book_quality": {
+                "pbr": num((val.book_quality or {}).get("pbr")),
+                "intangible_share": num((val.book_quality or {}).get("intangible_share")),
+                "buyback_ratio": num((val.book_quality or {}).get("buyback_ratio")),
+                "years": (val.book_quality or {}).get("years"),
+                "distorted": (val.book_quality or {}).get("distorted"),
+                "detail": (val.book_quality or {}).get("detail") or "",
+            },
             "skipped": [{"method": m, "reason": r} for m, r in (val.skipped or [])],
             "estimates": [{"method": e.method, "low": num(e.low), "mid": num(e.mid),
                            "high": num(e.high), "note": e.note} for e in val.estimates],

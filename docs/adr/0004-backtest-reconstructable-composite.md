@@ -3,6 +3,14 @@
 - 상태: 채택됨
 - 날짜: 2026-07-21
 - 관련: [ADR-0002](0002-backtest-statistics.md)(백테스트 통계 방법론 — **유효, 변경 없음**),
+
+> **2026-08-02 보완** — 이 신호를 쓰던 백테스트 탭은 **무기한 보류**됐습니다
+> ([ADR-0009](0009-backtest-tab-indefinitely-deferred.md)). 복원 대상을 ②+③으로
+> 한정한 이 결정 자체는 유효하지만, **복원된 ②③이 판정의 ②③과 같은 계산이 아니라는
+> 것**이 뒤늦게 드러났습니다 — 기준배수 창(5년 분위 vs 1.5년 롤링)·지속계수·자본비용·
+> 장부가 게이트가 모두 다릅니다. 코드(`backtest.py`)는 그대로 살아 있고
+> `scripts/check_backtest.py`로 돌려볼 수 있습니다.
+
   [ADR-0003](0003-fair-value-weighted-average.md)(적정가 4방법 가중 종합)
 - 관련 코드: `src/analysis/backtest.py`의 `run_backtest()`, `_rim_discount()`, `_composite_discount()`
 
