@@ -58,7 +58,13 @@ def main(market: str, query: str):
     print("\n[적정주가]")
     for e in val.estimates:
         print(f"  {e.method}: {e.low:,.0f} ~ {e.mid:,.0f} ~ {e.high:,.0f}  ({e.note})")
-    print(f"  종합: {fmt(val.fair_mid)} | 괴리율 {fmt(val.gap, 'pct')} → {val.verdict} (신뢰도 {val.confidence})")
+    print(f"  펀더멘털 종합(①②③ · 판정 근거): {fmt(val.fair_mid)} | 괴리율 "
+          f"{fmt(val.gap, 'pct')} → {val.verdict} (신뢰도 {val.confidence})")
+    if val.fair_mid_consensus is not None:
+        print(f"  컨센서스 반영(①②③④ · 병기): {fmt(val.fair_mid_consensus)} | 괴리율 "
+              f"{fmt(val.gap_consensus, 'pct')} → {val.verdict_consensus}"
+              + (f" | 펀더멘털 대비 {fmt(val.consensus_premium, 'pct')}"
+                 if val.consensus_premium is not None else ""))
     print(f"  PER밴드 백분위={fmt(val.per_percentile)} PBR밴드 백분위={fmt(val.pbr_percentile)}")
 
     c = d.consensus
