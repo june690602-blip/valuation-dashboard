@@ -392,6 +392,27 @@ def _search_key(yt, market: str):
     return s                            # US 심볼은 그대로(AAPL)
 
 
+def _cap_scale(values, market: str, at: str = "max") -> tuple[float, str]:
+    """(나눗수, 단위표기) — 금액 단위는 시장이 아니라 **이 값들의 크기**로 정한다.
+
+    '조'로 고정하면 소형주가 전부 0.x로 뭉개져 서로 구별되지 않는다. 실측: NHN KCP의
+    피어 표에서 다날(3,419억)과 KG이니시스(2,561억)가 둘 다 '0.3'으로 찍혔다 — 34%
+    차이인데 같은 숫자다. 재무 막대 쪽은 더 심해서 '0조'까지 나왔다(주성엔지니어링).
+
+    임계는 Streamlit 쪽 `charts._money_scale`과 같게 맞춘다 — 같은 값을 두 프런트가
+    다른 단위로 보여주면 그게 또 다른 버그다.
+    """
+    vals = [abs(float(v)) for v in values if v is not None and float(v) == float(v)]
+    # `at`은 "무엇을 읽히게 할 것인가"다. 한 회사의 시계열(재무 막대)은 가장 큰 값이 안 잘리게
+    # max로 잡고, **여러 회사를 세로로 늘어놓는 표**는 median으로 잡는다 — 표는 행끼리
+    # 구별되는 게 목적이라, 큰 피어 하나가 단위를 끌어올리면 나머지가 전부 0.x로 뭉개진다.
+    peak = 0.0 if not vals else (
+        float(np.median(vals)) if at == "median" else max(vals))
+    if market == "KR":
+        return (1e12, "조") if peak >= 2e12 else (1e8, "억")
+    return (1e9, "B") if peak >= 2e9 else (1e6, "M")
+
+
 def _peers(d) -> dict:
     peers = d.peers.copy()
     rows = []
@@ -424,7 +445,10 @@ def _peers(d) -> dict:
                         "is_self": bool(r.get("is_self", False)),
                         "q": _search_key(yt, d.market), "key": str(yt)})
     basis = next((w for w in d.warnings if w.startswith("피어 기준")), None)
+    # 시총 단위는 이 피어 집단의 크기로 정한다 — '조' 고정이면 소형주가 전부 0.x가 된다.
+    cap_div, cap_unit = _cap_scale([r["market_cap"] for r in rows], d.market, at="median")
     return {"rows": rows, "scatter": scatter, "ranking": ranking,
+            "cap_div": cap_div, "cap_unit": cap_unit,
             "sector": d.sector or d.industry or "", "basis": basis}
 
 
@@ -438,10 +462,7 @@ def _financials(d, ind) -> dict:
                   if c in fin]
     peak = max((abs(float(v)) for c in money_cols
                 for v in pd.to_numeric(fin[c], errors="coerce").dropna()), default=0.0)
-    if d.market == "KR":
-        unit, unit_div = ("조", 1e12) if peak >= 2e12 else ("억", 1e8)
-    else:
-        unit, unit_div = ("B", 1e9) if peak >= 2e9 else ("M", 1e6)
+    unit_div, unit = _cap_scale([peak], d.market)
     years = [str(int(y)) for y in fin.index]
 
     def col_scaled(c):

@@ -8,7 +8,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from src.web.serialize import _financials, _price
+from src.web.serialize import _cap_scale, _financials, _price
 
 
 class PriceSerializationTests(unittest.TestCase):
@@ -213,6 +213,37 @@ class FinancialUnitTests(unittest.TestCase):
 
         self.assertEqual(out["unit"], "M")
         self.assertAlmostEqual(out["revenue"][1], 510.0, places=0)
+
+
+class PeerMarketCapUnitTests(unittest.TestCase):
+    """피어 표의 시총 단위도 피어 집단의 크기로 정한다.
+
+    '조'로 고정하면 소형주 피어가 전부 0.x로 뜼어 서로 구별이 안 된다 — 실측:
+    NHN KCP 피어에서 다날(3,419억)과 KG이니시스(2,561억)이 둘 다 '0.3'으로 찍혔다.
+    """
+
+    def test_small_peer_group_is_shown_in_eok(self):
+        self.assertEqual(_cap_scale([5_706e8, 3_419e8, 2_561e8], "KR"), (1e8, "억"))
+
+    def test_large_peer_group_stays_in_jo(self):
+        self.assertEqual(_cap_scale([172e12, 121e12, 20e12], "KR"), (1e12, "조"))
+
+    def test_us_peer_group_falls_back_to_millions_when_small(self):
+        self.assertEqual(_cap_scale([4.2e8, 5.1e8], "US"), (1e6, "M"))
+
+    def test_peer_table_unit_follows_the_middle_row_not_the_biggest(self):
+        """표는 행끼리 구별되는 게 목적이다 — 큰 피어 하나가 단위를 끌어올리면 안 된다.
+
+        실측(NHN KCP 피어): 카카오페이 5.8조 하나 때문에 단위가 '조'로 잡혀
+        다날(3,419억)과 KG이니시스(2,561억)가 둘 다 '0.3'으로 찍혔다.
+        """
+        caps = [5.8e12, 1.1e12, 0.6e12, 0.5e12, 0.3e12]
+
+        self.assertEqual(_cap_scale(caps, "KR", at="median"), (1e8, "억"))
+        self.assertEqual(_cap_scale(caps, "KR"), (1e12, "조"))   # 기본은 최댓값
+
+    def test_missing_values_do_not_crash(self):
+        self.assertEqual(_cap_scale([None, float("nan")], "KR"), (1e8, "억"))
 
 
 if __name__ == "__main__":
