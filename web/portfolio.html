@@ -12,23 +12,8 @@
 <style>
   /* σ-E(r) 평면 라벨의 종이 후광 — 구름·선 위에서도 글자가 읽히게 */
   #planeChart .plbl { paint-order: stroke; stroke: var(--paper); stroke-width: 3px; stroke-linejoin: round; }
-  .navlink { color: var(--ink-3); cursor: pointer; }
-  .navlink:hover { color: var(--ink); text-decoration: none; }
-  .sec { padding: 36px 0; border-bottom: 1px solid var(--line); }
-  .tbl { border-top: 1px solid var(--line-strong); }
-  .tbl .row { display: grid; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: center; }
-  .tbl .row.head .col-label { font-size: 11px; }
-  .tbl .mono { font-family: var(--font-mono); }
-  .tbl .r { text-align: right; }
-  .num { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 6px 9px; font-family: var(--font-mono); font-size: 13px; color: var(--ink); background: var(--paper); outline: none; width: 100%; }
-  .num:focus { border-color: var(--ink); }
-  select.num { cursor: pointer; }
   .delx { appearance: none; border: none; background: none; cursor: pointer; color: var(--ink-3); font-size: 15px; }
   .delx:hover { color: var(--danger); }
-  #status { position: fixed; inset: 58px 0 0 0; background: var(--paper-scrim); display: none; align-items: center; justify-content: center; z-index: 40; }
-  #status.on { display: flex; }
-  .spin { width: 24px; height: 24px; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite; }
-  @keyframes sp { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>

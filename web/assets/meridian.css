@@ -252,6 +252,92 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 }
 .badge-info { color: var(--dv-navy); border-color: color-mix(in srgb, var(--dv-navy) 35%, var(--line)); }
 
+/* ══ 화면이 나눠 쓰는 부품 ═══════════════════════════════════════════════
+   여기 아래는 페이지 `<style>`에 흩어져 있던 것을 모은 것이다. 같은 부품이 장마다
+   다시 적혀 있었고, 적을 때마다 값이 조금씩 달랐다 — 표 행 패딩 9/10px, 입력 패딩
+   6·7·9px, 스피너 24/26px, 섹션 여백 34/36/40px. 눈금은 **한 값**으로 모으고,
+   의도가 다른 것만 변형 클래스로 남긴다(.ac-drop.hero).
+   셸(헤더·브랜드·네비)은 여기 없다 — 그건 이슈 #73이 통째로 다룬다. */
+
+/* ── 표 ── */
+/* .row는 grid다. 열 너비는 자리마다 다르므로 grid-template-columns만 부르는 쪽이 준다. */
+.tbl { border-top: 1px solid var(--line-strong); }
+.tbl .row {
+  display: grid; gap: 10px; padding: 10px 0;
+  border-bottom: 1px solid var(--line); align-items: center;
+}
+.tbl .row.head { padding: 9px 0; }
+.tbl .mono { font-family: var(--font-mono); }
+.tbl .r { text-align: right; }
+.tbl .c { text-align: center; }
+
+/* ── 숫자 입력 ── */
+/* 폭은 100%가 기본(표 칸 안에 들어간다). 단독으로 놓는 자리는 인라인으로 폭을 준다. */
+.num {
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  padding: 7px 10px; font-family: var(--font-mono); font-size: 14px;
+  color: var(--ink); background: var(--paper); outline: none; width: 100%;
+}
+.num:focus { border-color: var(--ink); }
+select.num { cursor: pointer; }
+
+/* ── 종목 자동완성 드롭다운 ── */
+/* 기본은 헤더의 좁은 검색창(주식 화면). 홈 히어로의 큰 검색창은 .hero를 얹어
+   한 단 키운다 — 이건 값이 갈린 게 아니라 자리가 다른 것이다. */
+.ac-drop {
+  position: absolute; left: 0; right: 0; top: calc(100% + 5px);
+  background: var(--paper); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+  z-index: 60; max-height: 340px; overflow-y: auto; text-align: left;
+}
+.ac-item {
+  display: flex; align-items: baseline; gap: 9px; padding: 8px 11px;
+  cursor: pointer; border-bottom: 1px solid var(--line);
+}
+.ac-item:last-child { border-bottom: none; }
+.ac-item.on, .ac-item:hover { background: var(--paper-2); }
+.ac-name {
+  font-size: 13px; color: var(--ink); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ac-code { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); flex: none; }
+.ac-sub {
+  margin-left: auto; font-size: 10px; color: var(--ink-3);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 1px 5px;
+  flex: none; white-space: nowrap; max-width: 96px; overflow: hidden; text-overflow: ellipsis;
+}
+.ac-sub.ac-etf {
+  color: var(--paper); background: var(--ink); border-color: var(--ink);
+  font-weight: 600; letter-spacing: 0.04em;
+}
+/* 홈 히어로의 큰 검색창 — 자리가 달라서 한 단 크다(값이 갈린 게 아니다). */
+.ac-drop.hero { top: calc(100% + 8px); border-radius: var(--radius-md); max-height: 350px; }
+.ac-drop.hero .ac-item { padding: 10px 13px; }
+.ac-drop.hero .ac-name { font-size: 13.5px; }
+.ac-drop.hero .ac-sub { max-width: 110px; }
+
+/* ── 수집 중 오버레이 ── */
+/* 무료 데이터를 여러 곳에서 긁어오느라 첫 화면까지 몇 초가 걸린다. 그 몇 초 동안
+   무엇을 하는 중인지 말해 주는 자리라 네 화면이 같은 모양이어야 한다. */
+#status {
+  position: fixed; inset: 58px 0 0 0; background: var(--paper-scrim);
+  backdrop-filter: blur(2px); display: none;
+  align-items: center; justify-content: center; z-index: 40;
+}
+#status.on { display: flex; }
+#status .box { text-align: center; color: var(--ink-2); }
+.spin {
+  width: 24px; height: 24px; border: 2px solid var(--line-strong);
+  border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite;
+}
+#status .box .spin { margin: 0 auto 14px; }
+@keyframes sp { to { transform: rotate(360deg); } }
+
+/* ── 섹션 구분 ── */
+/* .sec의 세로 여백은 34·36·40px으로 갈려 있었다. 가운데 값 하나로 모은다 —
+   간격에 눈금을 세우는 일 자체는 #74다. */
+.sec { padding: 36px 0; border-bottom: 1px solid var(--line); }
+
 /* range 슬라이더 */
 input[type=range] {
   -webkit-appearance: none; appearance: none; height: 3px;
