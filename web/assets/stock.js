@@ -1270,10 +1270,10 @@
     $('peerLabel').textContent = '피어 비교 — ' + (pr.sector || '업종');
     if (pr.basis) $('peerBasis').textContent = pr.basis;
     var cols = '1.3fr 0.9fr 0.7fr 0.7fr 0.8fr';
-    var head = '<div class="row head" style="grid-template-columns:' + cols + '"><span class="col-label">종목</span><span class="col-label r">시총' + (CUR === 'KRW' ? '(조)' : '') + '</span><span class="col-label r">PER</span><span class="col-label r">PBR</span><span class="col-label r">ROE</span></div>';
+    var head = '<div class="row head" style="grid-template-columns:' + cols + '"><span class="col-label">종목</span><span class="col-label r">시총(' + (pr.cap_unit || (CUR === 'KRW' ? '조' : 'B')) + ')</span><span class="col-label r">PER</span><span class="col-label r">PBR</span><span class="col-label r">ROE</span></div>';
     var naPeer = '이 종목의 해당 지표가 원천 데이터(Yahoo·KRX)에 없습니다 — 적자 기업은 PER가 비게 됩니다.';
     var body = pr.rows.map(function (p, i) {
-      var mc = p.market_cap == null ? na('주가 또는 상장주식수를 받지 못해 시가총액을 계산할 수 없습니다.') : CUR === 'KRW' ? (p.market_cap / 1e12).toFixed(1) : (p.market_cap / 1e9).toFixed(1);
+      var mc = p.market_cap == null ? na('주가 또는 상장주식수를 받지 못해 시가총액을 계산할 수 없습니다.') : (p.market_cap / (pr.cap_div || (CUR === 'KRW' ? 1e12 : 1e9))).toFixed(1);
       var last = i === pr.rows.length - 1;
       // 제외 키: KR은 상장목록 이름, US는 심볼(data-key) — 서버 exclude 매칭과 동일 기준
       var exKey = CUR === 'KRW' ? p.name : (p.key || p.name);
