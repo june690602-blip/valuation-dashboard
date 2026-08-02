@@ -53,14 +53,6 @@
   .hero-search-input::placeholder { color: var(--ink-4); }
   .hero-search-input[aria-invalid="true"]::placeholder { color: var(--danger); }
   /* 종목 자동완성 드롭다운 (stock 페이지와 동일 규약) */
-  .ac-drop { position: absolute; left: 0; right: 0; top: calc(100% + 8px); background: var(--paper); border: 1px solid var(--line-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); z-index: 60; max-height: 350px; overflow-y: auto; text-align: left; }
-  .ac-item { display: flex; align-items: baseline; gap: 9px; padding: 10px 13px; cursor: pointer; border-bottom: 1px solid var(--line); }
-  .ac-item:last-child { border-bottom: none; }
-  .ac-item.on, .ac-item:hover { background: var(--paper-2); }
-  .ac-name { font-size: 13.5px; color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ac-code { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); flex: none; }
-  .ac-sub { margin-left: auto; font-size: 10px; color: var(--ink-3); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 1px 5px; flex: none; white-space: nowrap; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
-  .ac-sub.ac-etf { color: var(--paper); background: var(--ink); border-color: var(--ink); font-weight: 600; letter-spacing: 0.04em; }
   .search-button { height: 42px; gap: 8px; padding-inline: 18px; }
   .search-button:hover { color: var(--paper); text-decoration: none; }
   .quick-examples { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 12px; margin-top: 15px; }
@@ -273,7 +265,7 @@
     function pickItem(it) { if (it) goStock(it.code, it.kind); }
 
     /* ── 자동완성 (stock 페이지와 동일 규약) ── */
-    var box = document.createElement('div'); box.className = 'ac-drop'; box.style.display = 'none';
+    var box = document.createElement('div'); box.className = 'ac-drop hero'; box.style.display = 'none';
     input.parentNode.appendChild(box);   // .search-input-wrap 이 position:relative
     var items = [], sel = -1, seq = 0, timer = null, lastQ = null;
     function close() { box.style.display = 'none'; items = []; sel = -1; }

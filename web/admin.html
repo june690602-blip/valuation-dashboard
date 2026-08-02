@@ -10,14 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/meridian.css">
 <style>
-  .sec { padding: 34px 0; border-bottom: 1px solid var(--line); }
-  .tbl { border-top: 1px solid var(--line-strong); margin-top: 12px; }
-  .tbl .row { display: grid; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
-  .tbl .row.head span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
-  .tbl .mono { font-family: var(--font-mono); }
-  .tbl .r { text-align: right; }
-  .num { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 9px 12px; font-family: var(--font-mono); font-size: 14px; color: var(--ink); background: var(--paper); outline: none; }
-  .num:focus { border-color: var(--ink); }
+  .tbl { margin-top: 12px; }
   .note { font-size: 12px; color: var(--ink-3); line-height: 1.65; }
   .warn { border: 1px solid var(--line-strong); background: var(--paper-2); border-radius: var(--radius-md); padding: 14px 16px; font-size: 13px; color: var(--ink-2); line-height: 1.7; }
   .linkbtns { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -152,7 +145,7 @@
     // rows: [label, value] — 최대값 기준 가로 막대
     if (!rows.length) { el.innerHTML = '<div class="note" style="padding:14px 0">데이터가 아직 없습니다.</div>'; return; }
     var max = Math.max.apply(null, rows.map(function (r) { return r[1]; })) || 1;
-    var head = '<div class="row head" style="grid-template-columns:1.3fr 70px 1fr"><span>' + esc(headA) + '</span><span class="r">' + esc(headB) + '</span><span></span></div>';
+    var head = '<div class="row head" style="grid-template-columns:1.3fr 70px 1fr"><span class="col-label">' + esc(headA) + '</span><span class="col-label r">' + esc(headB) + '</span><span></span></div>';
     el.innerHTML = head + rows.map(function (r) {
       return '<div class="row" style="grid-template-columns:1.3fr 70px 1fr"><span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r[0]) + '</span><span class="mono r" style="font-size:12.5px">' + fmt(r[1]) + '</span><div class="bar"><i style="width:' + (r[1] / max * 100).toFixed(1) + '%"></i></div></div>';
     }).join('');
