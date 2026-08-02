@@ -15,8 +15,8 @@
   /* 로딩 카드 — 실제 네트워크 완료에 연동된 단계 표시(가짜 진행률 없음) */
   .ld-card { width: min(360px, 88vw); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 22px 22px 16px; box-shadow: var(--shadow-lg); }
   .ld-title { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--ink); }
-  .ld-row { display: flex; gap: 11px; align-items: flex-start; margin-top: 15px; }
-  .ld-ic { flex: none; width: 16px; height: 16px; margin-top: 1px; box-sizing: border-box; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite; }
+  .ld-row { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; }
+  .ld-ic { flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite; }
   .ld-row.done .ld-ic { border: none; animation: none; text-align: center; }
   .ld-row.done .ld-ic::after { content: '✓'; color: var(--dv-positive); font-size: 14px; font-weight: 700; line-height: 16px; }
   .ld-lbl { font-size: 13px; color: var(--ink); font-weight: 600; }
@@ -39,8 +39,8 @@
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
 
   <!-- ══ TOP NAV (공통) ══ -->
-  <header class="app-header" style="min-height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:26px;padding:0 26px;background:var(--paper-veil);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
-    <a class="brand" href="home.html" aria-label="투자지표 홈" style="display:flex;align-items:center;gap:9px;flex:none;white-space:nowrap;color:inherit;text-decoration:none"><span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
+  <header class="app-header" style="min-height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:24px;padding:0 24px;background:var(--paper-veil);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
+    <a class="brand" href="home.html" aria-label="투자지표 홈" style="display:flex;align-items:center;gap:8px;flex:none;white-space:nowrap;color:inherit;text-decoration:none"><span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
       <span class="brand-name" style="font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing:-0.01em">투자지표</span>
     </a>
     <nav style="display:flex;gap:2px;align-items:center;white-space:nowrap;overflow-x:auto;scrollbar-width:none">
@@ -55,9 +55,9 @@
     </div>
   </header>
 
-  <main id="main" style="flex:1;width:100%;max-width:var(--content-max);margin:0 auto;padding:0 30px">
+  <main id="main" style="flex:1;width:100%;max-width:var(--content-max);margin:0 auto;padding:0 32px">
 
-    <section style="padding:44px 0 8px">
+    <section style="padding:40px 0 8px">
       <div class="kick section-spine" style="color:var(--dv-navy)">금리 · Rates &amp; scenarios</div>
       <h1 style="font-family:var(--font-display);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:-0.02em;margin:12px 0 0">국채 금리 · 시나리오</h1>
       <p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:12px 0 0;max-width:64ch">주식이 "적정가 vs 시장가"라면, 채권은 <b style="color:var(--ink)">금리가 움직이면 가격이 얼마나 변하나</b>를 듀레이션·볼록성·DV01로 봅니다. 국공채 현물 금리 기준(회사채·신용스프레드는 무료 신뢰 소스가 없어 제외).</p>
@@ -110,7 +110,7 @@
         <span id="addBondNote" style="font-size:11.5px;color:var(--ink-3)"></span>
       </div>
 
-      <div class="duo" style="margin-top:26px">
+      <div class="duo" style="margin-top:24px">
         <div>
           <span class="kick">금리 충격 시나리오 — 근사 vs 정확</span>
           <div id="scTable" class="tbl"></div>
@@ -122,8 +122,8 @@
         </div>
       </div>
       <div style="border:1px solid var(--line);border-radius:var(--radius-md);margin-top:22px">
-        <details><summary style="cursor:pointer;padding:12px 15px;font-size:13px;color:var(--ink-2);font-weight:600">무이표채(제로쿠폰)로 직관 확인하기</summary>
-          <div style="padding:2px 15px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.7">쿠폰율을 <b>0</b>으로 두면 맥컬리 듀레이션이 <b>정확히 잔존만기와 같아</b>집니다 — 현금흐름이 만기 한 번뿐이라 가중평균 회수기간=만기이기 때문입니다. 쿠폰을 올릴수록 중간에 돈을 돌려받아 듀레이션이 짧아지는 것도 확인해 보세요.</div>
+        <details><summary style="cursor:pointer;padding:12px 14px;font-size:13px;color:var(--ink-2);font-weight:600">무이표채(제로쿠폰)로 직관 확인하기</summary>
+          <div style="padding:2px 14px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.7">쿠폰율을 <b>0</b>으로 두면 맥컬리 듀레이션이 <b>정확히 잔존만기와 같아</b>집니다 — 현금흐름이 만기 한 번뿐이라 가중평균 회수기간=만기이기 때문입니다. 쿠폰을 올릴수록 중간에 돈을 돌려받아 듀레이션이 짧아지는 것도 확인해 보세요.</div>
         </details>
       </div>
     </section>
@@ -135,7 +135,7 @@
     </section>
   </main>
 
-  <footer style="border-top:1px solid var(--line);background:var(--paper-2);padding:20px 30px">
+  <footer style="border-top:1px solid var(--line);background:var(--paper-2);padding:20px 32px">
     <div style="max-width:var(--content-max);margin:0 auto;font-size:11.5px;color:var(--ink-3);line-height:1.7">ⓘ 학습·분석 보조 도구입니다. 금리: 네이버 시장지표(한·미 국채) — 고시·체결 기준에 따라 실제 거래 금리와 다를 수 있습니다. 개인의 채권 매매차익은 비과세(이자만 과세)라는 점도 참고하세요.</div>
   </footer>
 </div>

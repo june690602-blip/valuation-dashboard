@@ -669,14 +669,14 @@
     // ── B (기본) ──
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
-        '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:11px">' +
+        '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:10px">' +
           '<span style="width:38px;height:38px;flex:none;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;font-family:' + disp + ';font-weight:900;font-size:17px">' + esc(initial) + '</span>' +
-          '<div><div style="display:flex;align-items:center;gap:7px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(m.ticker) + '</span>' + badge(m.market + ' · ' + m.benchmark, 'info') + '</div>' +
-          '<div style="font-family:' + disp + ';font-weight:700;font-size:29px;letter-spacing:-0.01em;line-height:1;margin-top:3px">' + esc(m.name) + '</div></div></div>' +
+          '<div><div style="display:flex;align-items:center;gap:6px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(m.ticker) + '</span>' + badge(m.market + ' · ' + m.benchmark, 'info') + '</div>' +
+          '<div style="font-family:' + disp + ';font-weight:700;font-size:29px;letter-spacing:-0.01em;line-height:1;margin-top:2px">' + esc(m.name) + '</div></div></div>' +
           '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(m.price) + '</div></div>' +
         '<div style="flex:1;min-width:320px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="kick">밸류에이션 판정</span><span style="font-size:12px;color:var(--ink-3)">신뢰도 <b class="na" tabindex="0" data-tip="' + esc(confTip) + '" style="color:var(--ink-2)">' + esc(v.confidence || '—') + '</b></span></div>' +
           // 큰 판정 헤드라인 — 결론(저평가/적정/고평가)이 한눈에
-          '<div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap">' +
+          '<div style="display:flex;align-items:baseline;gap:12px;margin-top:8px;flex-wrap:wrap">' +
             '<span style="font-family:' + disp + ';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(v.verdict || '—') + '</span>' +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + verdictLine + '</span></div>' +
           // 판정과 아래 근거가 반대 방향일 때만 뜬다 — 큰 글씨를 본 사람이 스크롤하기 전에
@@ -685,13 +685,13 @@
           // esc()를 걸지 않는 이유: 이 문자열은 판정 어휘(고정 목록)와 숫자 포맷만으로
           // 서버가 조립한 것이라 외부 입력이 섞이지 않는다. <b> 강조를 살리려고 그대로 넣는다.
           (v.conflict && v.conflict.short
-            ? '<div style="margin-top:11px;padding:9px 12px;border:1px solid var(--line-strong);border-left:3px solid var(--warning);border-radius:var(--radius-sm);background:var(--paper-2);font-size:12px;color:var(--ink-2);line-height:1.6">' + v.conflict.short + '</div>'
+            ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--line-strong);border-left:3px solid var(--warning);border-radius:var(--radius-sm);background:var(--paper-2);font-size:12px;color:var(--ink-2);line-height:1.6">' + v.conflict.short + '</div>'
             : '') +
           // 3존 라벨(저평가·적정·고평가) + 연속 마커
           // 지금 어느 구간인지는 **진하기**로 말한다 — 활성 --ink(굵게) / 비활성 --ink-3.
           // 눈금 막대 자체는 자(scale)라서 초록·클레이를 유지한다(판단이 아니라 눈금이다).
-          '<div style="position:relative;margin-top:15px;padding-bottom:28px">' +
-            '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:7px">' +
+          '<div style="position:relative;margin-top:14px;padding-bottom:24px">' +
+            '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:6px">' +
               '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--ink);font-weight:700' : '') + '">저평가</span>' +
               '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">적정</span>' +
               '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--ink);font-weight:700' : '') + '">고평가</span></div>' +
@@ -705,7 +705,7 @@
             '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
             '<span>가중 종합 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b></span>' +
             '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
-          '<div style="margin-top:9px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (D.computed_at ? ' · 계산 ' + esc(D.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>' +
+          '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (D.computed_at ? ' · 계산 ' + esc(D.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button></div></div>';
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
   }
@@ -729,7 +729,7 @@
       ['베타 (β)', t.beta != null ? t.beta.toFixed(2) : na('상장 기간이 짧아 회귀 표본이 부족합니다 — 자본비용 탭은 β=1을 가정합니다.')],
       ['WACC', t.wacc != null ? fmtPct(t.wacc) : na(fin ? '금융업은 자금조달 구조가 달라 WACC를 제공하지 않습니다.' : '부채·베타 재료가 부족해 WACC를 계산하지 못했습니다.')]];
     $('tiles').innerHTML = items.map(function (it, i) {
-      return '<div style="padding:0 16px' + (i === 0 ? ' 0 0' : '') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + it[0] + '</div><div class="mono" style="font-size:22px;font-weight:500;margin-top:7px;white-space:nowrap">' + it[1] + '</div></div>';
+      return '<div style="padding:0 16px' + (i === 0 ? ' 0 0' : '') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + it[0] + '</div><div class="mono" style="font-size:22px;font-weight:500;margin-top:6px;white-space:nowrap">' + it[1] + '</div></div>';
     }).join('');
   }
 
@@ -738,11 +738,11 @@
     if (!w.length) { $('warnWrap').innerHTML = ''; return; }
     $('warnWrap').innerHTML =
       '<div style="border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--paper-2)">' +
-        '<button id="warnToggle" style="appearance:none;background:none;border:none;cursor:pointer;width:100%;display:flex;align-items:center;gap:9px;padding:10px 13px;color:var(--warning)">' +
+        '<button id="warnToggle" style="appearance:none;background:none;border:none;cursor:pointer;width:100%;display:flex;align-items:center;gap:8px;padding:10px 12px;color:var(--warning)">' +
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>' +
         '<span style="font-size:13px;font-weight:600;color:var(--ink-2)">데이터 품질 경고 ' + w.length + '건</span>' +
         '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto"><path d="m6 9 6 6 6-6"/></svg></button>' +
-        '<div id="warnBody" style="display:none;padding:0 13px 12px 38px;font-size:12.5px;color:var(--ink-2);line-height:1.9">' + w.map(function (x) { return '· ' + esc(x); }).join('<br/>') + '</div></div>';
+        '<div id="warnBody" style="display:none;padding:0 12px 12px 40px;font-size:12.5px;color:var(--ink-2);line-height:1.9">' + w.map(function (x) { return '· ' + esc(x); }).join('<br/>') + '</div></div>';
     wireCollapse('warnToggle', 'warnBody', 'block');
   }
 
@@ -784,7 +784,7 @@
     var sens = '';
     if (v.fair_mid_equal != null) {
       var flip = v.verdict_equal && v.verdict_equal !== v.verdict;
-      sens = '<div style="font-size:11.5px;color:var(--ink-3);margin-top:7px;padding-top:8px;border-top:1px dashed var(--line)">민감도 · 동일가중(단순평균)이면 적정가 <b class="mono" style="color:var(--ink-2)">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b style="color:var(--warning)">' + esc(v.verdict_equal) + '</b>로 갈림' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.</div>';
+      sens = '<div style="font-size:11.5px;color:var(--ink-3);margin-top:6px;padding-top:8px;border-top:1px dashed var(--line)">민감도 · 동일가중(단순평균)이면 적정가 <b class="mono" style="color:var(--ink-2)">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b style="color:var(--warning)">' + esc(v.verdict_equal) + '</b>로 갈림' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.</div>';
     }
     var formula = '<div style="font-size:11px;color:var(--ink-3);line-height:1.75;margin-top:10px">공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — 종합 = 가중평균 ④35 · ①25 · ②25 · ③15% (순위 근거: Liu·Nissim·Thomas 2002·2007 국제 + 국내 가치관련성; 국내 컨센서스 낙관편의 유의 — 상세 docs/adr/0003) · 출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)</div>';
     // 건너뛴 방법이 있으면 가중치가 재정규화됐음을 명시 — 각 행의 '가중 %'가 실제 적용값
@@ -812,7 +812,7 @@
       var m = CMT[c.kind] || CMT.info, key = c.text.indexOf('밸류트랩') >= 0 || c.text.indexOf('순수한 저평가') >= 0;
       var strokeW = c.kind === 'good' ? 1.9 : 1.75;
       var icon = c.kind === 'info' ? '<circle cx="12" cy="12" r="10"/><path d="' + m[1] + '"/>' : c.kind === 'warn' ? '<path d="' + m[1] + '"/><path d="M12 9v4"/><path d="M12 17h.01"/>' : '<path d="' + m[1] + '"/>';
-      return '<div class="cmt' + (key ? ' key' : '') + (extraClass || '') + '"><span style="color:' + m[0] + ';flex:none;margin-top:1px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round">' + icon + '</svg></span><div style="font-size:12.5px;color:var(--ink-2);line-height:1.55">' + esc(c.text) + '</div></div>';
+      return '<div class="cmt' + (key ? ' key' : '') + (extraClass || '') + '"><span style="color:' + m[0] + ';flex:none;margin-top:2px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + strokeW + '" stroke-linecap="round" stroke-linejoin="round">' + icon + '</svg></span><div style="font-size:12.5px;color:var(--ink-2);line-height:1.55">' + esc(c.text) + '</div></div>';
     }
 
     $('commentary').innerHTML = basis.map(function (c) { return cmtCard(c); }).join('')
@@ -864,7 +864,7 @@
     }
     body.innerHTML =
       '<div class="tile-strip">' + strip + '</div>' +
-      (rows.length ? '<ul style="margin:14px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px">' + rows.map(function (r) { return '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.6">' + r + '</li>'; }).join('') + '</ul>' : '') +
+      (rows.length ? '<ul style="margin:14px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:4px">' + rows.map(function (r) { return '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.6">' + r + '</li>'; }).join('') + '</ul>' : '') +
       '<div style="font-size:11.5px;color:var(--ink-3);margin-top:12px">출처: ' + esc(c.source || '') + ' · 목표주가·추정 EPS는 증권사 애널리스트 평균이며 매수 편향이 있을 수 있습니다. 판정에는 ④ 선행 이익 방법(추정 EPS × 시장 멀티플)만 반영하고 목표주가 자체는 계산에 넣지 않습니다.</div>';
   }
 
@@ -888,7 +888,7 @@
     var head = '<div class="row head" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr"><span class="col-label">지표</span><span class="col-label r">현재</span><span class="col-label r">업종 중앙값</span><span class="col-label r">자기 5년</span><span class="col-label r">vs 업종</span></div>';
     var rows = (D.multiples || []).map(function (r, i) {
       var vs = '<span style="color:var(--ink-3)">— 참고</span>';
-      if (r.vs != null && r.cheaper != null) { var col = r.cheaper ? 'var(--dv-positive)' : 'var(--dv-negative)'; vs = '<span style="color:' + col + '"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + col + ';margin-right:5px"></span>' + r.vs.toFixed(0) + '% ' + (r.cheaper ? '낮음' : '높음') + '</span>'; }
+      if (r.vs != null && r.cheaper != null) { var col = r.cheaper ? 'var(--dv-positive)' : 'var(--dv-negative)'; vs = '<span style="color:' + col + '"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + col + ';margin-right:4px"></span>' + r.vs.toFixed(0) + '% ' + (r.cheaper ? '낮음' : '높음') + '</span>'; }
       var last = i === D.multiples.length - 1;
       return '<div class="row" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr' + (last ? ';border-bottom:none' : '') + '"><span style="font-size:13.5px">' + esc(r.label) + '</span><span class="mono r" style="font-size:13.5px">' + fmtMult(r.key, r.current) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + fmtMult(r.key, r.med) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + (r.own5y != null ? fmtX(r.own5y) : '—') + '</span><span class="r" style="font-size:12.5px">' + vs + '</span></div>';
     }).join('');
@@ -962,14 +962,14 @@
     var howto =
       '<div style="margin-top:18px;border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
       '<div class="kick" style="margin-bottom:8px">어떻게 읽나</div>' +
-      '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
+      '<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:4px">' +
       '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">이 표는 예측이 아니라 <b>가정 조합의 지도</b>입니다. 초록 칸이 많다 = 표에 깔린 가정 범위(EPS ±30% × 자기 5년 배수 폭) 안에서 이론 가격이 현재가보다 높은 조합이 많다는 뜻 — 현재가가 그 가정들 대비 낮게 거래된다는 신호이지 상승 보장이 아닙니다.</li>' +
       '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65"><b>비관 케이스까지 플러스</b>면 가정이 다소 빗나가도 버티는 하방 완충(안전마진)이 있다고 읽고, <b>낙관에서만 플러스</b>면 수익이 낙관 가정의 실현에 의존한다고 읽습니다.</li>' +
       '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">출발점이 컨센서스 EPS라서 시장의 이익 전망 자체가 꺾이면 표 전체가 아래로 이동합니다. 멀티플 슬라이더는 위 케이스 카드에 적용되며, 민감도 표는 열 자체가 멀티플 축이라 고정입니다.</li>' +
       '</ul><div id="scnRead" style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + readLine() + '</div></div>';
     body.innerHTML =
       '<div id="scnTiles" class="tile-strip">' + caseTiles() + '</div>' +
-      '<div style="display:flex;gap:26px;flex-wrap:wrap;margin-top:14px;align-items:center">' +
+      '<div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:14px;align-items:center">' +
       slider('비관 EPS 조정', 'scnBearSlider', state.scnBear, -40, 0) +
       slider('낙관 EPS 조정', 'scnBullSlider', state.scnBull, 0, 40) +
       slider('멀티플 조정', 'scnMultSlider', state.scnMult, -30, 30) +
@@ -996,10 +996,10 @@
     var c = D.company;
     var info = '';
     if (c && c.summary && !c.error) {
-      info += '<p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:0">' + esc(c.summary) + '</p><div style="display:flex;gap:26px;margin-top:18px;border-top:1px solid var(--line);padding-top:16px">';
-      info += '<div><div class="kick">출처</div><div style="font-size:13px;margin-top:5px">' + esc(c.source || '—') + '</div></div>';
-      if (c.website) info += '<div><div class="kick">웹사이트</div><div style="font-size:13px;margin-top:5px">' + esc(c.website) + '</div></div>';
-      if (c.employees) info += '<div><div class="kick">직원 수</div><div class="mono" style="font-size:13px;margin-top:5px">' + Number(c.employees).toLocaleString('en-US') + '명</div></div>';
+      info += '<p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:0">' + esc(c.summary) + '</p><div style="display:flex;gap:24px;margin-top:18px;border-top:1px solid var(--line);padding-top:16px">';
+      info += '<div><div class="kick">출처</div><div style="font-size:13px;margin-top:4px">' + esc(c.source || '—') + '</div></div>';
+      if (c.website) info += '<div><div class="kick">웹사이트</div><div style="font-size:13px;margin-top:4px">' + esc(c.website) + '</div></div>';
+      if (c.employees) info += '<div><div class="kick">직원 수</div><div class="mono" style="font-size:13px;margin-top:4px">' + Number(c.employees).toLocaleString('en-US') + '명</div></div>';
       info += '</div>';
     } else info += '<p style="font-size:13px;color:var(--ink-3);margin:0">기업 소개를 불러오지 못했습니다. (무료 데이터 특성상 일부 종목은 개요가 없습니다)</p>';
     $('companyInfo').innerHTML = info;
@@ -1023,11 +1023,11 @@
       var group = news.filter(function (it) { return it.category === cat; });
       if (!group.length) return;
       var cc = CATCOL[cat];
-      html += '<div style="' + (ci ? 'margin-top:18px;border-top:1px solid var(--line);padding-top:14px' : '') + '"><div style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:' + cc[0] + '"></span><span style="font-size:12px;font-weight:600">' + cat + '</span><span style="font-size:11px;color:var(--ink-3)">' + cc[1] + '</span></div>';
+      html += '<div style="' + (ci ? 'margin-top:18px;border-top:1px solid var(--line);padding-top:14px' : '') + '"><div style="display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:' + cc[0] + '"></span><span style="font-size:12px;font-weight:600">' + cat + '</span><span style="font-size:11px;color:var(--ink-3)">' + cc[1] + '</span></div>';
       group.forEach(function (it) {
-        var tags = (it.tags || []).map(function (t) { var macro = cat === '거시'; return '<span style="font-family:var(--font-mono);font-size:10px;' + (macro ? 'color:var(--ink);border:1px solid var(--dv-navy)' : 'color:#fff;background:var(--dv-navy)') + ';border-radius:var(--radius-sm);padding:1px 6px;margin-left:4px">' + esc(t) + '</span>'; }).join('');
+        var tags = (it.tags || []).map(function (t) { var macro = cat === '거시'; return '<span style="font-family:var(--font-mono);font-size:10px;' + (macro ? 'color:var(--ink);border:1px solid var(--dv-navy)' : 'color:#fff;background:var(--dv-navy)') + ';border-radius:var(--radius-sm);padding:2px 6px;margin-left:4px">' + esc(t) + '</span>'; }).join('');
         var meta = [it.source, it.date].filter(Boolean).join(' · ');
-        html += '<a href="' + esc(it.link || '#') + '" target="_blank" rel="noopener" style="display:block;font-size:13.5px;margin-top:10px;line-height:1.5">' + esc(it.title) + tags + '</a><div style="font-size:11px;color:var(--ink-3);margin-top:3px">' + esc(meta) + '</div>';
+        html += '<a href="' + esc(it.link || '#') + '" target="_blank" rel="noopener" style="display:block;font-size:13.5px;margin-top:10px;line-height:1.5">' + esc(it.title) + tags + '</a><div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + esc(meta) + '</div>';
       });
       html += '</div>';
     });
@@ -1074,12 +1074,12 @@
     }
     // 표
     var tb = f.table, cols = '1.4fr repeat(' + tb.years.length + ',1fr)';
-    var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:9px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + (unit === 'B' ? '10억 달러' : unit + '원') + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
+    var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:8px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + (unit === 'B' ? '10억 달러' : unit + '원') + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
     var body = Object.keys(tb.rows).map(function (name, ri) {
       var isEps = name === 'EPS', krw = CUR === 'KRW';
       // EPS는 통화 원단위(스케일 무관) — KR은 원(정수), US는 달러(센트까지)
       var cells = tb.rows[name].map(function (v) { return '<span style="text-align:right">' + (v == null ? '—' : isEps ? (krw ? Math.round(v).toLocaleString('en-US') : v.toFixed(2)) : v.toFixed(2)) + '</span>'; }).join('');
-      return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 0;' + (ri < 3 ? 'border-bottom:1px solid var(--line);' : '') + 'font-family:var(--font-mono);font-size:12.5px"><span style="font-family:var(--font-sans)">' + name + (isEps ? (krw ? '(원)' : '($)') : '') + '</span>' + cells + '</div>';
+      return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:8px 0;' + (ri < 3 ? 'border-bottom:1px solid var(--line);' : '') + 'font-family:var(--font-mono);font-size:12.5px"><span style="font-family:var(--font-sans)">' + name + (isEps ? (krw ? '(원)' : '($)') : '') + '</span>' + cells + '</div>';
     }).join('');
     $('finTableBody').innerHTML = head + body;
   }
@@ -1195,7 +1195,7 @@
     if ($('btScatterGuide')) $('btScatterGuide').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
       '<div class="kick" style="margin-bottom:8px">이 그래프 읽는 법</div>' +
-      '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
+      '<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:4px">' +
       li0 + '점 하나 = 과거의 어느 하루입니다. <b>가로축</b>은 그날의 저평가율(모형 적정가 ÷ 주가 − 1, +30%면 주가가 적정가보다 30% 싸 보였다는 뜻), <b>세로축</b>은 그날 사서 12개월 들고 있었을 때의 실제 수익률입니다.</li>' +
       li0 + '연한 <b>초록 배경</b>이 우리 기준 저평가 신호(+' + thPct + '%↑) 구간입니다. 이 구간의 점들이 가로 0선 위(플러스)에 몰려 있을수록 신호가 과거에 통했다는 뜻입니다.</li>' +
       li0 + '<b>클레이색 사선</b>은 전체 점의 추세선 — 오른쪽 위로 기울수록 "더 싸 보일 때 살수록 이후 수익이 좋았다"입니다. 상단 타일의 <b>저평가↔수익 상관</b>(순위상관, −1~+1)이 이 관계의 일관성을 숫자 하나로 요약합니다.</li>' +
@@ -1216,7 +1216,7 @@
     if ($('equityGuide')) $('equityGuide').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px">' +
       '<div class="kick" style="margin-bottom:8px">선과 숫자의 뜻</div>' +
-      '<ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px">' +
+      '<ul style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:4px">' +
       li0 + '<b>남색 선 · 저평가 매수 전략</b>: 모형이 저평가(+' + thPct + '%↑)로 본 날에만 주식을 보유하고, 아닌 날은 현금(수익 0)으로 쉬는 규칙의 가상 자산 가치입니다. 신호가 뜬 <b>다음 날</b> 진입해 미래 정보를 미리 쓰는 것(룩어헤드)을 막았습니다.</li>' +
       li0 + '<b>회청색 선 · 단순 보유(Buy&Hold)</b>: 같은 기간 처음에 사서 끝까지 그냥 들고 있었을 때 — 전략을 평가하는 비교 기준선입니다.</li>' +
       (benchKey ? li0 + '<b>클레이색 선 · ' + esc(benchKey) + '</b>: 같은 기간 시장 전체가 얼마나 움직였는지입니다. 종목·전략의 성과가 시장 상승 덕분인지, 종목 자체의 힘인지 가려주는 배경 기준입니다.</li>' : '') +
@@ -1237,7 +1237,7 @@
     var stop = (p && p.lo52 != null) ? won(p.lo52) : '—';
     function li(arr) { return arr.length ? arr.map(function (c) { return '<li>' + esc(c.text) + '</li>'; }).join('') : '<li>—</li>'; }
     $('aiContent').innerHTML =
-      '<div style="background:var(--navy);color:var(--navy-ink);border-radius:var(--radius-md);padding:26px 28px">' +
+      '<div style="background:var(--navy);color:var(--navy-ink);border-radius:var(--radius-md);padding:24px 24px">' +
         '<div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--navy-muted)">한 줄 관찰 · 규칙 기반</div>' +
         '<div style="font-family:var(--font-display);font-weight:700;font-size:29px;letter-spacing:-0.01em;margin-top:8px">' + stance + ' — ' + esc(v.verdict) + ' · 괴리율 ' + fmtSigned(v.gap) + '</div>' +
         '<div style="font-size:13px;color:var(--navy-ink);margin-top:10px;line-height:1.6">대시보드 산출 사실(적정가 범위·상승여력·업종 백분위·자본비용)을 근거로 한 스탠스입니다.' + (m.ai_available ? ' 아래 버튼으로 Gemini 서술형 종합 평가를 생성할 수 있어요.' : ' 서술형 AI 평가는 Gemini 키를 설정하면 생성됩니다.') + '</div>' +
@@ -1308,22 +1308,22 @@
     var confTip = 'ETF 판정 신뢰도 — 주 신호(' + esc(D.primary) + ')의 데이터 충실도와 유형 적합성 기준입니다.';
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
-        '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:11px">' +
+        '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:10px">' +
           '<span style="width:38px;height:38px;flex:none;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;font-family:' + disp + ';font-weight:900;font-size:17px">' + esc(initial) + '</span>' +
-          '<div><div style="display:flex;align-items:center;gap:7px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(D.symbol) + '</span>' + badge('ETF · ' + D.type_label, 'info') + '</div>' +
-          '<div style="font-family:' + disp + ';font-weight:700;font-size:22px;letter-spacing:-0.01em;line-height:1.15;margin-top:3px">' + esc(D.name) + '</div></div></div>' +
+          '<div><div style="display:flex;align-items:center;gap:6px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(D.symbol) + '</span>' + badge('ETF · ' + D.type_label, 'info') + '</div>' +
+          '<div style="font-family:' + disp + ';font-weight:700;font-size:22px;letter-spacing:-0.01em;line-height:1.15;margin-top:2px">' + esc(D.name) + '</div></div></div>' +
           '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(D.price) + '</div></div>' +
         '<div style="flex:1;min-width:320px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="kick">ETF 판정</span><span style="font-size:12px;color:var(--ink-3)">신뢰도 <b class="na" tabindex="0" data-tip="' + esc(confTip) + '" style="color:var(--ink-2)">' + esc(D.confidence || '—') + '</b></span></div>' +
-          '<div style="display:flex;align-items:baseline;gap:12px;margin-top:9px;flex-wrap:wrap">' +
+          '<div style="display:flex;align-items:baseline;gap:12px;margin-top:8px;flex-wrap:wrap">' +
             '<span style="font-family:' + disp + ';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(headline) + '</span>' + holdBadge +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + esc(subline) + '</span></div>' +
-          '<div style="position:relative;margin-top:15px;padding-bottom:28px">' +
+          '<div style="position:relative;margin-top:14px;padding-bottom:24px">' +
             // ETF 눈금은 **항상** 관찰 어휘다. ETF는 재무제표가 없어 적정가(내재가치)를 아예
             // 계산하지 않고, 세 축(NAV 괴리·바스켓 상대·배당 밴드) 모두 '이미 있는 기준 안에서의
             // 위치'를 잴 뿐이다. 예전에는 적정가 판정을 보류한 경우에만 싼/비싼 구간으로 바꿔 달았는데
             // (PR #47), 그러면 배당 밴드로 판정한 ETF는 헤드라인이 "다소 비싼 구간"인데 눈금은
             // "저평가·적정·고평가"가 되어 한 화면에서 층위가 갈렸다(R3 발견 1의 뒤끝).
-            '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:7px">' +
+            '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:6px">' +
               '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--ink);font-weight:700' : '') + '">싼 구간</span>' +
               '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">보통</span>' +
               '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--ink);font-weight:700' : '') + '">비싼 구간</span></div>' +
@@ -1335,7 +1335,7 @@
                 '<div style="position:absolute;left:' + mpos + '%;top:22px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:var(--ink);border:2px solid var(--paper);box-shadow:var(--shadow-sm)"></div>' +
                 '<div style="position:absolute;left:' + mpos + '%;top:51px;transform:translateX(-50%);white-space:nowrap;font-family:' + mono + ';font-size:10.5px;font-weight:700;color:' + (relHead ? vColor : 'var(--ink)') + '">' + (relHead ? '상대 위치(참고)' : '현재가') + '</div>') +
           '</div>' +
-          '<div style="margin-top:9px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc((D.asOf && D.asOf.price) || '—') + ' · 벤치마크 ' + esc(D.metrics.bench_label || '—') + '</div></div>' +
+          '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc((D.asOf && D.asOf.price) || '—') + ' · 벤치마크 ' + esc(D.metrics.bench_label || '—') + '</div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="etfBasketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button></div></div>';
     var bb = $('etfBasketBtn'); if (bb) bb.addEventListener('click', addEtfToBasket);
   }
@@ -1351,7 +1351,7 @@
       ['52주 위치', tr.w52_pos != null ? Math.round(tr.w52_pos) + '%' : na('시세 이력이 짧습니다.')],
       ['순자산(AUM)', mt.aum != null ? fmtMoney(mt.aum) : na('운용사 순자산(AUM) 공시를 무료 소스에서 받지 못했습니다 — 펀드 규모는 판단에서 빼세요.')]];
     $('tiles').innerHTML = items.map(function (it, i) {
-      return '<div style="padding:0 16px' + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + it[0] + '</div><div class="mono" style="font-size:22px;font-weight:500;margin-top:7px;white-space:nowrap">' + it[1] + '</div></div>';
+      return '<div style="padding:0 16px' + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + it[0] + '</div><div class="mono" style="font-size:22px;font-weight:500;margin-top:6px;white-space:nowrap">' + it[1] + '</div></div>';
     }).join('');
   }
   function etfChart() {
@@ -1400,7 +1400,7 @@
       (pos == null ? '' :
         '<span style="position:absolute;left:' + pos.toFixed(0) + '%;top:-4px;transform:translateX(-50%);width:11px;height:14px;border-radius:var(--radius-sm);background:' + tone.col + ';border:2px solid var(--paper);box-shadow:var(--shadow-sm)' + (tone.soft ? ';opacity:.75' : '') + '"></span>') +
       '</div>';
-    var ends = showEnds ? '<div style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:.02em;color:var(--ink-3);margin-top:5px"><span>싼 구간</span><span>비싼 구간</span></div>' : '';
+    var ends = showEnds ? '<div style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:.02em;color:var(--ink-3);margin-top:4px"><span>싼 구간</span><span>비싼 구간</span></div>' : '';
     return track + ends;
   }
   // ① 판정 — 종합 신호 한 줄 + 축별 게이지 행
@@ -1410,12 +1410,12 @@
       var tone = etfSigTone(a.available ? a.pos : null, a.weak);
       var lead = a.available ? (a.lead || a.note) : a.note;
       var tip = a.note && a.lead ? ' <span class="na" tabindex="0" data-tip="' + esc(a.note) + '" style="color:var(--ink-3);cursor:help">ⓘ</span>' : '';
-      return '<div style="display:grid;grid-template-columns:186px minmax(190px,1fr) 180px 76px;gap:18px;align-items:center;padding:15px 0' + (i ? ';border-top:1px solid var(--line)' : '') + '">' +
+      return '<div style="display:grid;grid-template-columns:186px minmax(190px,1fr) 180px 76px;gap:18px;align-items:center;padding:14px 0' + (i ? ';border-top:1px solid var(--line)' : '') + '">' +
         '<div class="kick" style="color:' + (a.available ? 'var(--dv-navy)' : 'var(--ink-3)') + '">' + esc(a.title) + '</div>' +
         '<div><div style="font-family:' + EMONO + ';font-size:17px;font-weight:600;color:' + (a.available ? 'var(--ink)' : 'var(--ink-3)') + '">' + esc(a.value) + '</div>' +
           '<div style="font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.5">' + esc(lead) + tip + '</div></div>' +
         '<div>' + etfGauge(a.available ? a.pos : null, tone, i === 0) + '</div>' +
-        '<div style="text-align:right"><span style="display:inline-block;padding:3px 9px;border-radius:var(--radius-pill);font-size:11.5px;font-weight:700;color:' + tone.ink + ';background:' + (tone.soft ? 'var(--paper-3)' : (tone.col === 'var(--dv-clay)' ? 'color-mix(in srgb, var(--dv-clay) 14%, var(--paper))' : 'color-mix(in srgb, var(--dv-green) 14%, var(--paper))')) + '">' + tone.label + '</span></div></div>';
+        '<div style="text-align:right"><span style="display:inline-block;padding:2px 8px;border-radius:var(--radius-pill);font-size:11.5px;font-weight:700;color:' + tone.ink + ';background:' + (tone.soft ? 'var(--paper-3)' : (tone.col === 'var(--dv-clay)' ? 'color-mix(in srgb, var(--dv-clay) 14%, var(--paper))' : 'color-mix(in srgb, var(--dv-green) 14%, var(--paper))')) + '">' + tone.label + '</span></div></div>';
     }).join('');
 
     // 종합 — 판정 보류 유형에서도 "그래서 지금 어느 쪽인가"를 먼저 보여준다.
@@ -1430,14 +1430,14 @@
       if (sc.neutral) parts.push(sc.neutral + '개는 중립');
       summary = '<div style="border-left:3px solid ' + st.col + ';padding:2px 0 2px 18px;margin-bottom:22px">' +
         '<div class="kick" style="color:var(--ink-3)">종합 신호 · 시장·역사 대비 위치</div>' +
-        '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:7px">' +
+        '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:6px">' +
           '<span style="font-family:var(--font-display);font-weight:800;font-size:24px;letter-spacing:-0.01em;color:' + st.col + '">' + esc(rel.stance) + '</span>' +
           '<span style="font-size:13px;color:var(--ink-2)">' + esc(total ? '지표 ' + total + '개 중 ' + parts.join(', ') + '입니다' : '') + '</span></div>' +
         '<div style="max-width:420px;margin-top:12px">' + etfGauge(rel.pos, st, true) + '</div>' +
-        '<div style="font-size:11.5px;color:var(--ink-3);margin-top:9px;line-height:1.6">적정가(펀더멘털) 판정이 아니라 <b>시장 대비 가격비율의 5년 위치</b>입니다 — 성장 우위가 구조적이면 약할 수 있어 방향 참고로만 보세요.</div></div>';
+        '<div style="font-size:11.5px;color:var(--ink-3);margin-top:8px;line-height:1.6">적정가(펀더멘털) 판정이 아니라 <b>시장 대비 가격비율의 5년 위치</b>입니다 — 성장 우위가 구조적이면 약할 수 있어 방향 참고로만 보세요.</div></div>';
     }
     var notesHtml = (D.notes || []).length
-      ? '<div style="margin-top:18px;border-left:3px solid var(--dv-navy);background:var(--paper-2);border-radius:var(--radius-sm);padding:13px 16px;font-size:12.5px;color:var(--ink-2);line-height:1.7">' +
+      ? '<div style="margin-top:18px;border-left:3px solid var(--dv-navy);background:var(--paper-2);border-radius:var(--radius-sm);padding:12px 16px;font-size:12.5px;color:var(--ink-2);line-height:1.7">' +
         (D.notes || []).map(function (n) { return '· ' + esc(n); }).join('<br/>') + '</div>' : '';
     return '<div class="method-map"><span class="method-chip">ETF 적정가</span><span>기업 재무가 없는 ETF는 여러 축을 <b>같은 자(싼 구간 ↔ 비싼 구간)</b>로 환산해 함께 봅니다 — ①NAV 괴리 ②바스켓 지표(벤치마크 대비) ③배당수익률 역사밴드 ④금리 대비 이익수익률(ERP).</span></div>' +
       '<div style="margin-top:18px">' + summary + rows + '</div>' + notesHtml;
@@ -1446,7 +1446,7 @@
   function etfAssetClasses() {
     var ac = D.assetClasses || []; if (!ac.length) return '';
     return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">' + ac.map(function (a) {
-      return '<span style="font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px 11px">' + esc(a.label) + ' <b class="mono">' + (a.weight * 100).toFixed(1) + '%</b></span>';
+      return '<span style="font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px 10px">' + esc(a.label) + ' <b class="mono">' + (a.weight * 100).toFixed(1) + '%</b></span>';
     }).join('') + '</div>';
   }
   // 국가 비중 — 한국(네이버)에서만 온다. 해외형이 실제로 어디에 투자하는지 확인용.
@@ -1455,7 +1455,7 @@
     if (!cs.length) return '';
     return '<div style="margin-top:14px"><div class="kick" style="margin-bottom:6px">투자 국가</div>' +
       '<div style="display:flex;flex-wrap:wrap;gap:8px">' + cs.map(function (c) {
-        return '<span style="font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px 11px">' + esc(c.label) + ' <b class="mono">' + (c.weight * 100).toFixed(1) + '%</b></span>';
+        return '<span style="font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px 10px">' + esc(c.label) + ' <b class="mono">' + (c.weight * 100).toFixed(1) + '%</b></span>';
       }).join('') + '</div></div>';
   }
   function etfPanelHoldings() {
@@ -1486,7 +1486,7 @@
       return '<div style="display:grid;grid-template-columns:22px 1fr 96px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)">' +
         '<span class="mono" style="font-size:11.5px;color:var(--ink-3)">' + (i + 1) + '</span>' +
         '<span style="min-width:0">' + cell + '</span>' +
-        '<span style="display:flex;align-items:center;gap:7px;justify-content:flex-end">' + bar + '</span></div>';
+        '<span style="display:flex;align-items:center;gap:6px;justify-content:flex-end">' + bar + '</span></div>';
     }).join('');
     var maxS = secs.length ? Math.max.apply(null, secs.map(function (s) { return s.weight; })) : 1;
     var secRows = secs.map(function (s) {
@@ -1495,7 +1495,7 @@
         '<span style="height:8px;background:var(--paper-3);border-radius:var(--radius-md);overflow:hidden"><span style="display:block;height:100%;width:' + (s.weight / maxS * 100).toFixed(0) + '%;background:var(--dv-gold)"></span></span>' +
         '<b class="mono" style="font-size:12px;text-align:right">' + (s.weight * 100).toFixed(1) + '%</b></div>';
     }).join('');
-    return '<div style="display:flex;flex-wrap:wrap;gap:34px">' +
+    return '<div style="display:flex;flex-wrap:wrap;gap:32px">' +
       '<div style="flex:1;min-width:320px">' + etfSectionHead('01', '상위 보유 종목', '비중이 큰 순서입니다. 상위 종목이 성과를 좌우합니다. 종목을 누르면 그 기업 분석으로 이동합니다.', '상위 ' + h.length + '개') +
         '<div class="analysis-section-body">' + (holdRows || '<span style="color:var(--ink-3)">보유 종목 데이터가 없습니다.</span>') + '</div></div>' +
       '<div style="flex:1;min-width:300px">' + etfSectionHead('02', '섹터 비중', '어느 산업에 얼마나 노출돼 있는지입니다.', null) +
@@ -1577,7 +1577,7 @@
     var rowHtml = rows.map(function (r) {
       return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)"><div><div style="font-size:13.5px;color:var(--ink);font-weight:600">' + r[0] + '</div><div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">' + r[2] + '</div></div><div class="mono" style="font-size:17px;text-align:right">' + r[1] + '</div></div>';
     }).join('');
-    return '<div style="display:flex;flex-wrap:wrap;gap:34px">' +
+    return '<div style="display:flex;flex-wrap:wrap;gap:32px">' +
       '<div style="flex:1;min-width:300px">' + etfSectionHead('01', '비용·추적 품질', '수수료가 낮고 벤치마크를 잘 따라갈수록 좋습니다.', null) +
         '<div class="analysis-section-body">' + rowHtml + '</div></div>' +
       '<div style="flex:1;min-width:300px">' + etfSectionHead('02', '분배금(배당) 이력', '연도별 주당 분배금입니다. 꾸준할수록 인컴 관점에서 안정적입니다.', '연간') +
@@ -1589,9 +1589,9 @@
     if (!news.length) return etfSectionHead('01', '관련 뉴스', null, null) + '<div class="analysis-section-body"><span style="color:var(--ink-3)">최근 관련 뉴스를 가져오지 못했습니다.</span></div>';
     var list = news.map(function (n) {
       var cat = n.category ? '<span style="flex:none;font-size:10.5px;color:var(--dv-navy);border:1px solid var(--line);border-radius:var(--radius-pill);padding:2px 8px">' + esc(n.category) + '</span>' : '';
-      return '<a href="' + esc(n.link || '#') + '" target="_blank" rel="noopener" style="display:flex;gap:12px;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--line);color:inherit;text-decoration:none">' +
+      return '<a href="' + esc(n.link || '#') + '" target="_blank" rel="noopener" style="display:flex;gap:12px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line);color:inherit;text-decoration:none">' +
         cat + '<span style="flex:1;min-width:0"><span style="font-size:13.5px;color:var(--ink);line-height:1.5">' + esc(n.title) + '</span>' +
-        '<div style="font-size:11px;color:var(--ink-3);margin-top:3px">' + esc(n.source || '') + (n.date ? ' · ' + esc(n.date) : '') + '</div></span></a>';
+        '<div style="font-size:11px;color:var(--ink-3);margin-top:2px">' + esc(n.source || '') + (n.date ? ' · ' + esc(n.date) : '') + '</div></span></a>';
     }).join('');
     return etfSectionHead('01', '관련 뉴스', 'Google News 헤드라인입니다. 클릭하면 새 탭에서 원문이 열립니다.', news.length + '건') +
       '<div class="analysis-section-body">' + list + '</div>';
@@ -1697,7 +1697,7 @@
 
   function wireCollapse(btnId, bodyId, disp) { var btn = $(btnId), body = $(bodyId); if (!btn || !body) return; btn.addEventListener('click', function () { var open = body.style.display !== 'none' && body.style.display !== ''; body.style.display = open ? 'none' : (disp || 'block'); var ch = btn.querySelector('.chev'); if (ch) ch.classList.toggle('open', !open); }); }
   function renderExamples() {
-    $('examples').innerHTML = EXAMPLES[state.market].map(function (e) { var on = e[1] === state.query; return '<span data-code="' + e[1] + '" style="font-size:12px;cursor:pointer;border-radius:var(--radius-sm);padding:4px 9px;' + (on ? 'color:var(--ink);font-weight:600;border:1px solid var(--ink)' : 'color:var(--ink-2);border:1px solid var(--line)') + '">' + esc(e[0]) + '</span>'; }).join('');
+    $('examples').innerHTML = EXAMPLES[state.market].map(function (e) { var on = e[1] === state.query; return '<span data-code="' + e[1] + '" style="font-size:12px;cursor:pointer;border-radius:var(--radius-sm);padding:4px 8px;' + (on ? 'color:var(--ink);font-weight:600;border:1px solid var(--ink)' : 'color:var(--ink-2);border:1px solid var(--line)') + '">' + esc(e[0]) + '</span>'; }).join('');
   }
 
   function switchTab(tab) {

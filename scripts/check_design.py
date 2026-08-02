@@ -53,9 +53,9 @@ _tally = {OK: 0, BAD: 0, NA: 0}
 # CI에 걸어도 머지를 막지 못해 보고서에 그친다. 반대로 열린 이슈까지 실패로 처리하면 CI가
 # 늘 빨간 상태가 되어 아무도 보지 않게 된다 — 그래서 기준선을 적어 두고 회귀만 막는다.
 # **이슈를 닫으면 이 값을 함께 내린다.**
-# #74가 타이포 사다리와 브레이크포인트 둘을 닫았다 — 5 → 3.
-# 남은 셋: 네비 규격 4가지(#73) · 카드 그림자(#75) · 간격 토큰(#74 후속 PR).
-KNOWN_OPEN = 3
+# #74가 타이포·브레이크포인트·간격 셋을 닫았다 — 5 → 2.
+# 남은 둘: 네비 규격 4가지(#73) · 카드 그림자(#75).
+KNOWN_OPEN = 2
 
 
 def say(verdict: str, title: str, detail: str = "") -> None:
@@ -681,6 +681,15 @@ TYPE_SCALE = {10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 17, 22, 24, 29, 36}
 # 순번(탭의 01~09)만 예외 — 옆에 실제 라벨이 있어 못 읽어도 잃는 정보가 없다(아래 NUMBERING).
 TYPE_SCALE_EXEMPT = {9.5}
 
+# 간격 사다리 (#74) — meridian.css의 --space-* 토큰과 같은 값이다.
+# 24까지 2px · 24 위 8px · 64 위 16px 단계. 이유는 meridian.css 주석에 적었다.
+SPACE_SCALE = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 32, 40, 48, 56, 64, 80, 96}
+# `scroll-margin-top`처럼 앞에 다른 낱말이 붙은 것은 간격이 아니다 —
+# 스티키 헤더 아래 앵커가 멈추는 자리다. 경계를 막지 않으면 그 값까지 센다.
+SPACE_RE = re.compile(
+    r'(?<![-\w])(?:padding|margin|gap|row-gap|column-gap)'
+    r'(?:-(?:top|right|bottom|left|inline|block))?(?:-(?:start|end))?:\s*([^;"\'{}\n]+)')
+
 
 def check_type_scale() -> None:
     head("G. 타이포·간격 — 토큰이 있는가")
@@ -714,12 +723,29 @@ def check_type_scale() -> None:
             "사다리: " + " ".join(f"{v:g}" for v in sorted(TYPE_SCALE))
             + "\n토큰은 meridian.css의 --fs-*. 값과 토큰이 어긋나면 여기서 잡힌다.")
 
+    spaces: dict[float, int] = {}
+    off_space: dict[float, list[str]] = {}
+    for rel in _targets():
+        text = read(rel)
+        for m in SPACE_RE.finditer(text):
+            for raw in re.findall(r"-?[0-9.]+px", m.group(1)):
+                v = abs(float(raw[:-2]))
+                spaces[v] = spaces.get(v, 0) + 1
+                if v not in SPACE_SCALE:
+                    off_space.setdefault(v, []).append(f"{rel}:{line_of(text, m.start())}")
+
     if not has_space_token:
         say(BAD, "간격 토큰이 meridian.css에 없다",
             "padding·gap이 1px 단위로 흩어져 있다(gap만 24가지). 카드 안쪽 여백이\n"
             "화면마다 15/16/18/20/22/26px으로 갈리는 이유다.")
+    elif off_space:
+        say(BAD, f"사다리 밖 간격 {sum(len(v) for v in off_space.values())}건",
+            "\n".join(f"{v:g}px — " + " · ".join(sites[:6]) for v, sites in sorted(off_space.items()))
+            + "\n사다리: 24까지 2px · 24 위 8px · 64 위 16px 단계 (--space-*)")
     else:
-        say(OK, "간격 토큰이 있다")
+        say(OK, f"간격이 전부 사다리 {len(SPACE_SCALE) - 1}단 안 (선언 {sum(spaces.values())}건)",
+            "24까지 2px · 24 위 8px · 64 위 16px 단계. 토큰은 --space-*.\n"
+            "scroll-margin처럼 앞에 다른 낱말이 붙은 속성은 간격이 아니라 세지 않는다.")
 
     # 정보를 나르는 글자의 바닥은 10px로 둔다. 순번(탭의 01~09)만 예외인데,
     # 바로 옆에 실제 라벨("기업·뉴스")이 있어 그 숫자를 못 읽어도 잃는 정보가 없기 때문이다.
