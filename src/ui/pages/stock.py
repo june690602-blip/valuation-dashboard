@@ -1,4 +1,4 @@
-"""주식 가치평가 페이지 — 종목 하나를 넣으면 판정·9개 분석 탭.
+"""주식 가치평가 페이지 — 종목 하나를 넣으면 판정·8개 분석 탭.
 
 (구 app.py 본문. 멀티페이지 전환으로 이동 — 로직 변경 없음, render()로 감쌌을 뿐.)
 """
@@ -96,8 +96,11 @@ def render_landing(market: str):
     st.markdown(
         "**종목 하나를 입력하면** 재무제표·주가·업종 데이터를 자동 수집해 다음을 보여줍니다.\n"
         "- 5개 카테고리(밸류에이션·수익성·성장성·안정성·현금흐름) **업종 상대 점수**\n"
-        "- 최대 4가지 방법(업종 상대가치 · 역사적 밴드 · RIM · 컨센서스 선행 이익)으로 삼각측량한 "
-        "**적정주가와 판정** — 종목의 특성상 성립하지 않는 방법은 제외하고 가중치를 다시 배분합니다\n"
+        "- 3가지 방법(업종 상대가치 · 역사적 밴드 · RIM)으로 삼각측량한 **적정주가와 판정** — "
+        "셋 다 회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적입니다. "
+        "종목의 특성상 성립하지 않는 방법은 제외하고 가중치를 다시 배분합니다\n"
+        "- 컨센서스 선행 이익을 더한 **'컨센서스 반영' 적정가를 나란히 병기** — 판정에는 넣지 않고, "
+        "두 값의 차이로 '지금 주가에 얼마만큼의 실적 기대가 실려 있나'를 봅니다\n"
         "- 증권가 **컨센서스(목표주가·선행 EPS)와 교차검증**, 비관·기준·낙관 **시나리오 분석**\n"
         "- 과거 시세로 회귀한 **베타 → 영업위험 자본비용 → WACC** 분해\n"
         "- 낮은 멀티플이 기회인지 밸류트랩인지 가려주는 **자동 해설**"
@@ -128,7 +131,7 @@ def render_summary_tab(d, ind, scores, cc, val):
     c1, c2 = st.columns([3, 2])
     with c1:
         st.markdown(section_header_html("Fair Value", "적정주가 vs 현재가",
-                                        "상대가치 · 역사적 밴드 · RIM · 선행 이익 삼각측량"),
+                                        "판정 = 상대가치 · 역사적 밴드 · RIM (선행 이익은 병기)"),
                     unsafe_allow_html=True)
         if val.estimates:
             st.plotly_chart(charts.fair_value_bullet(val.estimates, val.fair_mid,
@@ -144,19 +147,30 @@ def render_summary_tab(d, ind, scores, cc, val):
             for name in order:
                 e = est_map.get(name)
                 if e is not None:
+                    # 판정 가중이 없는 방법(④)은 0%가 아니라 왜 없는지를 적는다
+                    w = val.weights.get(name)
                     rows.append({"방법": name,
-                                 "가중": f"{val.weights.get(name, 0) * 100:.0f}%",
+                                 "판정 가중": f"{w * 100:.0f}%" if w is not None else "판정 제외 · 참고",
                                  "적정가 범위": f"{fmt_price(e.low, d.currency)} ~ {fmt_price(e.high, d.currency)}",
                                  "중심": fmt_price(e.mid, d.currency), "근거": e.note})
                 elif name in skip_map:
-                    rows.append({"방법": name, "가중": "—", "적정가 범위": "제외",
+                    rows.append({"방법": name, "판정 가중": "—", "적정가 범위": "제외",
                                  "중심": "—", "근거": skip_map[name]})
             st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            if val.fair_mid_consensus is not None and val.consensus_premium is not None:
+                st.caption(
+                    f"판정 = ①②③ 가중평균 **{fmt_price(val.fair_mid, d.currency)}** "
+                    f"({val.gap * 100:+.1f}%) · 컨센서스(④)까지 반영하면 "
+                    f"**{fmt_price(val.fair_mid_consensus, d.currency)}** "
+                    f"({val.gap_consensus * 100:+.1f}% · 펀더멘털 대비 "
+                    f"{val.consensus_premium * 100:+.1f}%) — 이 차이가 증권가가 보는 실적 전망분이며 "
+                    "판정에는 넣지 않습니다.")
             st.caption("공식 · ① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 · "
                        "② 자기 5년 PER·PBR 25~75분위 × 현재 EPS·BPS · "
                        "③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 · "
                        "④ 컨센서스 12개월 EPS × 자기 5년 PER 중앙값 — "
-                       "종합 = 가중평균 ④35·①25·②25·③15% (근거: Liu·Nissim·Thomas 2002, JAR) · "
+                       "판정 = ①②③ 가중평균(①38.5·②38.5·③23.1%), 병기 = ①②③④(④35·①25·②25·③15%). "
+                       "④를 판정에서 뺀 이유는 docs/adr/0006 (근거: Liu·Nissim·Thomas 2002, JAR) · "
                        "출처: 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)")
         else:
             st.info("적정주가를 계산할 수 있는 방법이 없습니다 (데이터 부족).")
@@ -197,18 +211,22 @@ def render_summary_tab(d, ind, scores, cc, val):
 
 
 def _render_consensus_summary(d, val):
-    """요약 탭 — 증권가 컨센서스 vs 우리 모형 교차검증 (목표주가는 판정 계산에 미포함)."""
+    """요약 탭 — 증권가 컨센서스 vs 우리 모형 교차검증.
+
+    이 탭의 값은 **어느 것도 판정에 들어가지 않는다**(ADR-0006). 목표주가는 어느 계산에도
+    쓰지 않고, 추정 EPS는 ④ 선행 이익 방법에만 쓰이며 그 ④도 판정이 아니라 병기값이다.
+    """
     st.markdown(section_header_html("Consensus", "시장 컨센서스 교차검증",
                                     "증권가 애널리스트 평균 vs 이 대시보드 모형"),
                 unsafe_allow_html=True)
     c = d.consensus
     if c is None or not c.has_any():
         st.caption("애널리스트 컨센서스가 없는 종목입니다 — 증권사 커버리지가 없는 소형주에 흔합니다. "
-                   "이 경우 위 적정가 삼각측량만으로 판단 근거를 삼습니다.")
+                   "판정은 원래 ①②③으로만 내므로 판정 자체는 그대로지만, 대조해 볼 시장 시각이 없다는 뜻입니다.")
         return
     cols = st.columns(4)
     cols[0].metric("현재가", fmt_price(d.price, d.currency))
-    cols[1].metric("모형 종합 적정가", fmt_price(val.fair_mid, d.currency),
+    cols[1].metric("펀더멘털 적정가 (①②③)", fmt_price(val.fair_mid, d.currency),
                    delta=f"{val.gap * 100:+.1f}%" if val.gap is not None else None)
     tgt_up = c.target_mean / d.price - 1 if c.target_mean and d.price else None
     cols[2].metric("컨센서스 목표주가", fmt_price(c.target_mean, d.currency),
@@ -225,7 +243,7 @@ def _render_consensus_summary(d, val):
         bits.append(f"선행 PER {fmt_x(c.forward_per)}")
     if val.fair_mid and c.target_mean:
         diff = val.fair_mid / c.target_mean - 1
-        bits.append(f"모형 적정가는 컨센서스 목표가 대비 {diff * 100:+.1f}%")
+        bits.append(f"펀더멘털 적정가(①②③)는 컨센서스 목표가 대비 {diff * 100:+.1f}%")
     # 목표주가 역산 — 증권가가 어떤 멀티플을 깔았는지 되짚어 차이의 원인을 보여준다
     if c.target_mean and c.forward_eps:
         implied = c.target_mean / c.forward_eps
@@ -452,7 +470,7 @@ def render_peers_tab(d, scores, all_peer_names=None):
             hide_index=True, use_container_width=True)
         st.caption("점수는 이 업종 피어 안에서의 상대 백분위입니다(100=업종 최고). "
                    "‘가치’는 PER·PBR·PSR·EV/EBITDA가 낮을수록, ‘수익성’은 ROE·영업이익률이 높을수록 높습니다. "
-                   "⚠️ 저PER이 밸류트랩일 수 있으니 ⑤ 재무·⑧ 백테스트로 교차 확인하세요.")
+                   "⚠️ 저PER이 밸류트랩일 수 있으니 ⑤ 재무·⑥ 업종 비교로 교차 확인하세요.")
     else:
         st.info("피어 표본이 적어 랭킹을 만들 수 없습니다.")
     with st.expander("카테고리 점수 상세 (지표별 백분위)"):
@@ -816,7 +834,7 @@ def render_news_tab(d):
                 st.error(f"AI 분석 실패: {e}")
         if st.session_state.get(ai_key):
             st.markdown(st.session_state[ai_key])
-            st.caption("이 요약은 ⑨ 종합 투자평가 탭에도 반영됩니다.")
+            st.caption("이 요약은 ⑧ 종합 투자평가 탭에도 반영됩니다.")
     else:
         st.info("💡 **Gemini API 키**를 설정하면 위 헤드라인을 AI가 감성·핵심이슈·촉매·리스크로 "
                 "분석해 줍니다. `.streamlit/secrets.toml`에 `GEMINI_API_KEY`를 넣으세요 (README 참고).")
@@ -950,8 +968,10 @@ def render():
     with hcol2:
         render_help(expanded=False)
 
+    # ⑧ 백테스트는 **무기한 보류**(ADR-0009) — 탭 목록에서만 뺐고 render_backtest_tab()과
+    # backtest.py는 그대로 살아 있다. 되살리려면 아래 두 줄의 주석을 원상복구하면 된다.
     tabs = st.tabs(["① 기업·뉴스", "② 요약·판정", "③ 주가차트", "④ 밸류에이션", "⑤ 재무 분석",
-                    "⑥ 업종 비교", "⑦ 자본비용(WACC)", "⑧ 백테스트", "⑨ 종합 투자평가(AI)"])
+                    "⑥ 업종 비교", "⑦ 자본비용(WACC)", "⑧ 종합 투자평가(AI)"])
     with tabs[0]:
         render_intro_news_tab(d)
     with tabs[1]:
@@ -966,9 +986,8 @@ def render():
         render_peers_tab(d, scores, all_peer_names)
     with tabs[6]:
         render_capital_tab(d, cc, ind)
+    # with tabs[?]:                      # ← 보류: render_backtest_tab(d)
     with tabs[7]:
-        render_backtest_tab(d)
-    with tabs[8]:
         render_ai_tab(d, ind, val, cc, scores)
 
     st.divider()

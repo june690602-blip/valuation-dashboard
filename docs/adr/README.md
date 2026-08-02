@@ -13,5 +13,10 @@
 |---|---|---|
 | [0001](0001-fair-value-simple-average.md) | 적정가 종합은 동일가중 산술평균으로 한다 | 대체됨 (→ 0003) |
 | [0002](0002-backtest-statistics.md) | 백테스트 통계는 비중복 표본과 순위상관으로 계산한다 | 채택됨 |
-| [0003](0003-fair-value-weighted-average.md) | 적정가 종합은 가격 설명력 순위 기반 가중평균으로 한다 | 채택됨 |
+| [0003](0003-fair-value-weighted-average.md) | 적정가 종합은 가격 설명력 순위 기반 가중평균으로 한다 | 대체됨 (→ 0006) |
 | [0004](0004-backtest-reconstructable-composite.md) | 백테스트 신호는 복원 가능한 ②+③ 가중 종합으로 한다 | 채택됨 |
+| [0005](0005-peer-ranking-weights.md) | 업종 내 종합 순위는 가치 60 · 수익성 40 백분위 가중으로 한다 | 채택됨 |
+| [0006](0006-fundamental-verdict-consensus-alongside.md) | 판정은 펀더멘털 3방법으로 내고, 컨센서스 반영값은 나란히 병기한다 | 채택됨 |
+| [0007](0007-book-quality-gate-for-rim.md) | RIM 적용 여부는 PBR이 아니라 '장부가가 작아진 흔적'으로 가른다 | 채택됨 |
+| [0008](0008-backtest-observation-not-statistics.md) | 백테스트 탭은 통계를 주장하지 않고 과거 신호를 관찰만 한다 | 대체됨 (→ 0009) |
+| [0009](0009-backtest-tab-indefinitely-deferred.md) | 백테스트 탭을 무기한 보류한다 (코드는 남긴다) | 채택됨 |

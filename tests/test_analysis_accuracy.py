@@ -145,9 +145,10 @@ class RimAssumptionTests(unittest.TestCase):
         self.assertAlmostEqual(fair_pbr, 1.0, places=6)
 
     def test_rim_is_skipped_when_book_value_is_not_meaningful(self):
-        """PBR이 높으면 장부가가 실제 가치를 못 담는다는 신호 — RIM을 건너뛴다.
+        """PBR이 높은데 원인을 가릴 재무 항목이 없으면 보수적으로 건너뛴다.
 
         실측: 임계가 12일 때 코카콜라(PBR 10.5)가 통과해 현재가의 1/4을 적정가로 냈다.
+        여기 합성 데이터에는 무형자산·자사주 컬럼이 없으므로 '판별 불가 → 제외' 경로다.
         """
         for pbr, should_skip in ((10.5, True), (7.6, True), (3.1, False), (1.0, False)):
             d = _company_for_pbr(pbr)
@@ -160,20 +161,73 @@ class RimAssumptionTests(unittest.TestCase):
             else:
                 self.assertIn("수익가치(RIM)", methods, f"PBR {pbr}은 계산해야 함")
 
+    # ── ADR-0007: PBR이 높은 이유를 실제로 가른다 ────────────────────
+    # 예전에는 PBR > 5 하나로 끊고 화면에는 "무형자산·자사주 때문"이라고 원인을 단정했다.
+    # SK하이닉스가 그 오진의 실례였다 — 무형자산 자산의 1.8%, 자사주 0, 유형자산 45%.
+    # 아래 셋은 '장부가가 작아진 흔적이 있는가'를 각 경로별로 고정한다.
+
+    def test_high_pbr_with_clean_book_keeps_rim(self):
+        """PBR 7.6배라도 무형자산·자사주 흔적이 없으면 RIM을 살린다 (SK하이닉스 형)."""
+        d = _company_for_pbr(7.6, intangible_share=0.018, buyback_ratio=0.0)
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertIn("수익가치(RIM)", [m.method for m in res.estimates])
+        self.assertFalse(res.book_quality["distorted"])
+        # 값을 그대로 쓰지 않고 '보수적으로 나온다'는 성격을 알려야 한다.
+        self.assertIn("보수적인", res.book_quality["detail"])
+
+    def test_high_pbr_with_large_intangibles_skips_rim(self):
+        """무형자산이 자산의 15% 이상이면 장부가가 가치를 못 담는다 (코카콜라·J&J 형)."""
+        d = _company_for_pbr(7.6, intangible_share=0.26, buyback_ratio=0.0)
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertNotIn("수익가치(RIM)", [m.method for m in res.estimates])
+        reason = dict(res.skipped)["수익가치(RIM)"]
+        self.assertIn("무형자산", reason)
+        self.assertIn("26%", reason)          # 원인 단정이 아니라 잰 값을 말한다
+
+    def test_high_pbr_with_heavy_buybacks_skips_rim(self):
+        """누적 자사주 매입이 자본의 30% 이상이면 자본이 줄어 장부가가 작다 (애플 형)."""
+        d = _company_for_pbr(7.6, intangible_share=0.01, buyback_ratio=3.28)
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertNotIn("수익가치(RIM)", [m.method for m in res.estimates])
+        reason = dict(res.skipped)["수익가치(RIM)"]
+        self.assertIn("자사주", reason)
+        self.assertNotIn("무형자산", reason)   # 원인을 뭉뚱그리지 않는다
+
+    def test_low_pbr_is_not_examined_at_all(self):
+        """PBR이 임계 아래면 무형자산이 많아도 따지지 않는다 — 진입 조건은 PBR 그대로다.
+
+        (장부가가 영업권으로 **부풀려진** 경우는 이 판별의 사정권 밖이다 — ADR-0007 한계.)
+        """
+        d = _company_for_pbr(2.5, intangible_share=0.61, buyback_ratio=0.0)
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.10)
+        self.assertIn("수익가치(RIM)", [m.method for m in res.estimates])
+
 
 def _flat_indicators():
     return SimpleNamespace(profitability={"roe": 0.15}, multiples={}, growth={},
                            stability={}, cashflow={})
 
 
-def _company_for_pbr(pbr: float) -> CompanyData:
-    """PBR만 원하는 값으로 맞춘 최소 CompanyData — RIM 가드 분기 확인용."""
+def _company_for_pbr(pbr: float, intangible_share: float | None = None,
+                     buyback_ratio: float | None = None) -> CompanyData:
+    """PBR만 원하는 값으로 맞춘 최소 CompanyData — RIM 가드 분기 확인용.
+
+    intangible_share·buyback_ratio를 주면 장부가 품질 판별(ADR-0007)까지 태울 수 있다.
+    안 주면 그 컬럼 자체가 없어 '판별 불가' 경로를 탄다(예전 PBR 단독 규칙과 같은 결과).
+    """
     equity, shares = 1_000.0, 100.0
+    assets = equity * 2.0
     fin = pd.DataFrame({
         "eps": [1.5] * 4, "net_income": [150.0] * 4, "total_equity": [equity] * 4,
         "shares_outstanding": [shares] * 4,
         "fiscal_end": [pd.Timestamp(f"{y}-12-31") for y in range(2021, 2025)],
     }, index=list(range(2021, 2025)))
+    if intangible_share is not None:
+        fin["total_assets"] = assets
+        fin["intangibles"] = assets * intangible_share
+    if buyback_ratio is not None:
+        # 판별은 '가용 연도 합계 ÷ 현재 자기자본'이라 4년에 나눠 넣는다.
+        fin["buyback"] = equity * buyback_ratio / 4.0
     px = pd.Series([equity * pbr / shares] * 300,
                    index=pd.bdate_range(end="2026-06-30", periods=300))
     return CompanyData(

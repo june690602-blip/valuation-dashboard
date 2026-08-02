@@ -180,24 +180,36 @@ def shake(d, ind, cc, val, rf, mrp) -> list[dict]:
         add(axis, label, v2.fair_mid, v2.gap, v2.verdict)
         return v2
 
-    # ① 방법 가중치 (ADR-0003) — 재계산만으로 되므로 estimates를 그대로 쓴다
-    add("가중치", "동일가중 25×4", *aggregate(val.estimates, {}, price))
-    for delta in (-0.10, +0.10):
-        w = dict(V.METHOD_WEIGHTS)
-        w["선행 이익(컨센서스)"] = round(w["선행 이익(컨센서스)"] + delta, 2)
-        add("가중치", f"④ 0.35→{w['선행 이익(컨센서스)']:.2f}",
-            *aggregate(val.estimates, w, price))
+    # ① 방법 가중치 — 기준(val.verdict)이 ①②③ 종합이므로 흔드는 대상도 그 집합이다.
+    # ADR-0006 이전에는 여기서 ④를 포함한 네 방법을 흔들었는데, 그러면 기준과 비교 대상이
+    # 서로 다른 방법 집합이라 '가중치 때문에 뒤집혔다'가 사실은 '④를 넣어서 뒤집혔다'가 된다.
+    core = [e for e in val.estimates if e.method in V.FUNDAMENTAL_METHODS]
+    add("가중치", "동일가중 ①②③", *aggregate(core, {}, price))
+    for m, base_w in (("업종 상대가치", 0.25), ("역사적 밴드", 0.25), ("수익가치(RIM)", 0.15)):
+        for delta in (-0.10, +0.10):
+            w = dict(V.METHOD_WEIGHTS)
+            w[m] = round(base_w + delta, 2)
+            add("가중치", f"{m} {base_w:.2f}→{w[m]:.2f}", *aggregate(core, w, price))
+    # ④를 얹으면 어떻게 되는가 — 이제 '가중치'가 아니라 '방법 추가' 축이다(ADR-0006).
+    if len(core) < len(val.estimates):
+        add("방법 추가", "④ 컨센서스 포함 (병기값)",
+            *aggregate(val.estimates, V.METHOD_WEIGHTS, price))
+        for delta in (-0.10, +0.10):
+            w = dict(V.METHOD_WEIGHTS)
+            w["선행 이익(컨센서스)"] = round(w["선행 이익(컨센서스)"] + delta, 2)
+            add("방법 추가", f"④ 포함 · 0.35→{w['선행 이익(컨센서스)']:.2f}",
+                *aggregate(val.estimates, w, price))
     # 방법 하나를 통째로 빼 본다 — 그 방법이 판정을 혼자 끌고 있는지 드러난다
-    for drop, name in (("선행 이익(컨센서스)", "④ 제외"), ("역사적 밴드", "② 제외")):
-        w = {k: (0.0 if k == drop else v) for k, v in V.METHOD_WEIGHTS.items()}
-        if any(e.method != drop for e in val.estimates):
-            add("방법 제외", name, *aggregate([e for e in val.estimates
-                                             if e.method != drop],
+    for drop, name in (("업종 상대가치", "① 제외"), ("역사적 밴드", "② 제외"),
+                       ("수익가치(RIM)", "③ 제외")):
+        if any(e.method != drop for e in core):
+            add("방법 제외", name, *aggregate([e for e in core if e.method != drop],
                                             V.METHOD_WEIGHTS, price))
-    if any(e.method not in ("역사적 밴드", "선행 이익(컨센서스)") for e in val.estimates):
-        add("방법 제외", "②·④ 동시 제외 (PER 중앙값 의존 제거)",
-            *aggregate([e for e in val.estimates
-                        if e.method not in ("역사적 밴드", "선행 이익(컨센서스)")],
+    # ADR-0006으로 판정에서 ④가 빠지면서 '자기 5년 PER 중앙값' 의존은 판정 안에서는 ② 하나로
+    # 줄었다. 그래도 ②를 빼면 그 배수 의존이 완전히 사라지므로 축은 남긴다(이름만 정정).
+    if any(e.method != "역사적 밴드" for e in core):
+        add("방법 제외", "② 제외 (PER 중앙값 의존 제거)",
+            *aggregate([e for e in core if e.method != "역사적 밴드"],
                        V.METHOD_WEIGHTS, price))
 
     # ② RIM 지속계수 (현행 중심 0.8)

@@ -773,7 +773,7 @@ def check_a11y() -> None:
     if without:
         say(BAD, f"본문 건너뛰기 링크가 {len(without)}장에 없다",
             f"있음: {', '.join(with_skip) or '없음'}\n없음: {', '.join(without)}\n"
-            "주식 화면은 헤더 + 9개 탭바를 지나야 본문에 닿는다.")
+            "주식 화면은 헤더 + 탭바를 지나야 본문에 닿는다.")
     else:
         say(OK, "본문 건너뛰기 링크가 전 화면에 있다")
 
