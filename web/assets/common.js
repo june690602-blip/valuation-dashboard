@@ -2,11 +2,9 @@
    공용 헬퍼 — 모든 화면이 같은 한 벌을 쓴다 (이슈 #83 · R5 조서 발견 ㉲)
 
    왜 만들었나: 같은 함수가 파일마다 복사돼 있었다 — esc 6벌 · $ 5벌 · el 3벌 ·
-   wireSeg 3벌 · tiles 3벌. 복사본은 조용히 갈라진다. 실제로 갈라져 있었다:
-   - esc: test.js만 홑따옴표를 이스케이프했다 (R5에서 넷은 맞췄지만 home·admin은 남아 있었다)
-   - wireSeg: stock.js만 aria-pressed를 관리했다 (스크린리더가 선택 상태를 못 읽었다)
-   - el: var() 폴백 처리의 이유를 적은 주석이 한 벌에만 있었다
-   - tiles: admin만 세 번째 줄(.s)을 지원했다
+   wireSeg 3벌 · tiles 3벌. 복사본은 조용히 갈라진다. 실제로 갈라져 있었다 — esc는 한 벌만
+   홑따옴표를 막았고, wireSeg는 한 벌만 aria-pressed를 관리했다(나머지 화면에서는
+   스크린리더가 선택 상태를 못 읽었다). 벌마다 무엇이 달랐는지는 이슈 #83에 적어 뒀다.
 
    빌드 도구가 없으므로(순수 정적 서빙) window에 이름 하나만 얹는다.
    stock-price-chart.js가 쓴 방식(window.makePriceChart + 인자 주입)과 같은 관례다.
@@ -94,23 +92,30 @@
   }
 
   /* ── 지표 타일 스트립 ── */
-  /* items = [[라벨, 값HTML, 부제?], …]. 라벨·부제는 이스케이프하고 값은 그대로 둔다
-     (값에는 부호 색 span 같은 마크업이 들어온다).
+  /* items = [[라벨, 값HTML, 부제?, 옵션?], …]. 라벨·부제는 이스케이프하고 값은 그대로 둔다
+     (값에는 부호 색 span 같은 마크업이 들어온다). 띠 옵션은 { lead: true } 하나 —
+     테두리 박스 안에 놓이는 결론 띠(150/24). 칸 옵션(넷째 자리, 전부 선택):
+       vColor·kickColor  글자색. **숫자의 부호이거나 축 자체인 자리 전용**이다 — 판정을
+                         색으로 말하지 않는다(R4). 값이 정해져 있지 않아 여기만 인라인이다.
+       subHtml           부제에 마크업을 넣는다(esc 안 함). 외부 문자열은 t[2]로 줄 것.
+       long              값이 길어 한 단 작게(.v.long) · accent 결론 칸의 지면(.tile.accent)
 
-     주의: 이 함수는 `.tile`·`.tile .v`(·`.s`) 클래스가 있다고 전제한다. 지금 그 값은
-     페이지마다 다르다 — admin 150px/24px · bond 130px/22px · portfolio 120px/22px.
-     눈금을 하나로 모으는 일은 #74(타이포·간격 토큰)와 #82(stock.js의 인라인 타일 6벌)의
-     것이라 여기서는 손대지 않는다. */
-  function tiles(container, items) {
-    container.innerHTML = items.map(function (t, i) {
-      return '<div class="tile" style="padding:' + (i === 0 ? '0 16px 0 0' : '0 16px')
-        + (i ? ';border-left:1px solid var(--line)' : '') + '">'
-        + '<div class="kick">' + esc(t[0]) + '</div>'
-        + '<div class="v">' + t[1] + '</div>'
-        + (t[2] ? '<div class="s">' + esc(t[2]) + '</div>' : '')
+     폭·글자·패딩·세로선은 전부 `meridian.css`의 `.tile`이 갖는다 — 그 값을 부르는 쪽에서
+     적는 것이 열세 자리로 갈라졌던 경로였다(#82). */
+  function tilesHtml(items, opts) {
+    var lead = opts && opts.lead ? ' lead' : '';
+    function ink(c) { return c ? ' style="color:' + c + '"' : ''; }
+    return items.map(function (t) {
+      var o = t[3] || {};
+      return '<div class="tile' + lead + (o.accent ? ' accent' : '') + '">'
+        + '<div class="kick"' + ink(o.kickColor) + '>' + esc(t[0]) + '</div>'
+        + '<div class="v' + (o.long ? ' long' : '') + '"' + ink(o.vColor) + '>' + t[1] + '</div>'
+        + (o.subHtml ? '<div class="s">' + o.subHtml + '</div>' : t[2] ? '<div class="s">' + esc(t[2]) + '</div>' : '')
         + '</div>';
     }).join('');
   }
+  /* 띠를 문자열로 조립해 다른 마크업과 함께 넣는 자리가 있어 둘로 나눠 둔다. */
+  function tiles(container, items, opts) { container.innerHTML = tilesHtml(items, opts); }
 
   /* ── 포트폴리오 바스켓 (localStorage) ── */
   /* 'invportfolio'는 주식·ETF·채권·포트폴리오 네 화면이 공유하는 계약이다.
@@ -125,7 +130,7 @@
   window.DV = {
     $: $, esc: esc,
     ATTR: ATTR, kebab: kebab, styleStr: styleStr, el: el,
-    niceStep: niceStep, wireSeg: wireSeg, tiles: tiles,
+    niceStep: niceStep, wireSeg: wireSeg, tiles: tiles, tilesHtml: tilesHtml,
     BASKET_KEY: BASKET_KEY, loadBasket: loadBasket, saveBasket: saveBasket
   };
 })();

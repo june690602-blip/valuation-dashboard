@@ -53,7 +53,7 @@
     main > div:first-child { padding:18px 14px 8px !important; }
     #tiles { grid-template-columns:repeat(6,minmax(132px,1fr)) !important;max-width:100%;overflow-x:auto;padding-bottom:8px; }
     #priceTiles { flex-wrap:nowrap !important;overflow-x:auto; }
-    #priceTiles > div { min-width:145px !important;padding-bottom:4px !important; }
+    #priceTiles .tile { padding-bottom:4px !important; }
     .price-toolbar { align-items:flex-start; }
     .price-toolbar-main { width:100%; }
     .price-period-wrap { width:100%; flex-wrap:nowrap; overflow-x:auto; padding:2px 0 4px; }
@@ -435,7 +435,7 @@
                 <div><h3 class="analysis-section-title" id="price-position-title">현재 시장 위치</h3><p class="analysis-section-desc">최근 가격, 52주 범위와 거래 정보를 먼저 확인합니다.</p></div>
                 <span class="analysis-section-meta">최근 거래일 기준</span>
               </div>
-              <div class="analysis-section-body"><div id="priceTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0"></div><div id="priceBasisNote" style="font-size:11px;color:var(--ink-3);line-height:1.7;margin-top:10px"></div></div>
+              <div class="analysis-section-body"><div id="priceTiles" class="tile-strip"></div><div id="priceBasisNote" style="font-size:11px;color:var(--ink-3);line-height:1.7;margin-top:10px"></div></div>
             </section>
             <section class="analysis-section" aria-labelledby="price-trend-title">
               <div class="analysis-section-head">
@@ -593,7 +593,7 @@
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="wacc-input-title">
               <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="wacc-input-title">자본비용 요약</h3><p class="analysis-section-desc">무위험이자율, 베타와 부채비용 등 WACC 계산의 핵심 입력값을 확인합니다.</p></div><span class="analysis-section-meta" id="waccPeriod"></span></div>
-              <div class="analysis-section-body"><div id="waccTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0"></div><div id="waccNotes"></div></div>
+              <div class="analysis-section-body"><div id="waccTiles" class="tile-strip"></div><div id="waccNotes"></div></div>
             </section>
             <section class="analysis-section" aria-labelledby="wacc-calc-title">
               <div class="analysis-section-head"><span class="analysis-section-index">02</span><div><h3 class="analysis-section-title" id="wacc-calc-title">산출 과정</h3><p class="analysis-section-desc">시장 민감도인 베타에서 자기자본비용과 가중평균자본비용으로 이어지는 과정을 봅니다.</p></div><span class="analysis-section-meta">회귀 베타 · WACC 구성</span></div>
@@ -601,7 +601,7 @@
             </section>
             <section class="analysis-section" aria-labelledby="wacc-value-title">
               <div class="analysis-section-head"><span class="analysis-section-index">03</span><div><h3 class="analysis-section-title" id="wacc-value-title">가치 창출 여부</h3><p class="analysis-section-desc">투하자본수익률이 자본비용을 웃도는지 현재 값과 시계열로 확인합니다.</p></div><span class="analysis-section-meta">ROIC − WACC</span></div>
-              <div class="analysis-section-body"><div id="waccSummary" style="display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden"></div><div style="margin-top:24px;max-width:760px"><div id="roicSeries"></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:4px" id="roicCaption">ROIC가 WACC 위에 있어야 성장이 가치 창출로 이어집니다.</div></div></div>
+              <div class="analysis-section-body"><div id="waccSummary" class="tile-strip boxed"></div><div style="margin-top:24px;max-width:760px"><div id="roicSeries"></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:4px" id="roicCaption">ROIC가 WACC 위에 있어야 성장이 가치 창출로 이어집니다.</div></div></div>
             </section>
           </div>
         </section>
@@ -612,7 +612,7 @@
           <div class="analysis-sections">
             <section class="analysis-section" aria-labelledby="bt-setup-title">
               <div class="analysis-section-head"><span class="analysis-section-index">01</span><div><h3 class="analysis-section-title" id="bt-setup-title">관찰의 규모</h3><p class="analysis-section-desc">얼마나 긴 기간을, 그중 신호가 켜져 있던 날이 며칠인지 먼저 확인합니다.</p></div><span class="analysis-section-meta">저평가 기준 · 적정가 대비 +30%</span></div>
-              <div class="analysis-section-body"><div id="btTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0"></div><div id="btLede" style="font-size:13px;color:var(--ink-2);margin-top:14px;line-height:1.65"></div></div>
+              <div class="analysis-section-body"><div id="btTiles" class="tile-strip"></div><div id="btLede" style="font-size:13px;color:var(--ink-2);margin-top:14px;line-height:1.65"></div></div>
             </section>
             <section class="analysis-section" aria-labelledby="bt-timeline-title">
               <div class="analysis-section-head"><span class="analysis-section-index">02</span><div><h3 class="analysis-section-title" id="bt-timeline-title">모형이 언제 싸다고 했나</h3><p class="analysis-section-desc">위 칸은 매일의 저평가율과 신호 구간(초록 면), 아래 칸은 같은 날의 실제 주가와 그 시점 추정 적정가입니다. 그래프에 마우스를 올리면 그날의 값이 보입니다.</p></div><span class="analysis-section-meta">일별 저평가율 · 주가</span></div>

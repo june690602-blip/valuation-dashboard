@@ -58,8 +58,8 @@ OK, BAD, NA = "[확인]", "[문제]", "[불가]"
 _tally = {OK: 0, BAD: 0, NA: 0}
 
 # 지금 열려 있는 문제의 수 — 전부 R5 조서 2번 바구니의 것이고 이슈로 등록해 순서대로 닫는다.
-#   1 CSS의 73%가 페이지 안        (#74의 선행 조건)
-#   2 stock.js 인라인 밀도          (#82 타일 스트립 6벌)
+#   1 CSS의 67%가 페이지 안        (#74의 선행 조건)
+#   2 stock.js 인라인 밀도          (#82가 타일 6벌을 tiles()로 모았지만 형제 대비 2배는 남았다)
 #   3 같은 수식이 두 언어에 4곳    (#84 대조 테스트 부재)
 #   4 bond_math를 웹이 안 씀       (#84)
 #   5 serialize.py의 계산 3자리    (#84)
@@ -134,7 +134,9 @@ SHARED_HELPERS = {
 # 내려가기만 한다.
 INLINE_BUDGET = {
     "web/assets/common.js": 2,
-    "web/assets/stock.js": 326,
+    # #82가 타일 6벌을 tiles()로 바꾸며 19건이 빠졌다(343 → 324). 이 PR이 공식·출처 접기와
+    # 병기 블록을 CSS 클래스로 올리며 다시 내려갔다: 324 → 308.
+    "web/assets/stock.js": 308,
     "web/assets/stock-price-chart.js": 1,
     "web/assets/portfolio.js": 30,
     "web/assets/bond.js": 19,
