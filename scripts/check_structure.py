@@ -102,8 +102,13 @@ SIZE_BUDGET = {
     # 1순위 분할(#79) 1단계로 주가차트 294줄을 stock-price-chart.js로 뺐다: 2,079 → 1,795.
     # 예산도 실측에 맞춰 내려 적는다 — 다음 단계(ETF 뷰·9탭 렌더)에서 더 내린다.
     # #83이 공용 헬퍼를 common.js 한 벌로 모으면서 네 파일이 함께 줄었다 — 예산도 내려 적는다.
-    "web/assets/common.js": (135, "공용 헬퍼 한 벌. 여기 밖에 사본이 생기면 B 검사가 잡는다"),
-    "web/assets/stock.js": (1760, "#79 ㉮ 진행 중. 아직 9탭 렌더·ETF 뷰·SVG 차트가 한 IIFE에 있다"),
+    # #82는 인라인 타일 6벌을 tiles() 호출로 바꿨다. 인라인 19건이 빠졌지만 호출부를 형제
+    # 파일(bond.js·portfolio.js)과 같은 여러 줄 형식으로 적어 **줄 수는 6줄 늘었다**
+    # (1,755 → 1,761 · common.js 131 → 136). 줄이려면 400자짜리 한 줄로 되돌려야 하는데
+    # 그건 이 이슈가 없애려던 바로 그 밀도다. 그래서 예산을 **여유 없이 실측 그대로** 적는다 —
+    # 다음 한 줄이 곧바로 [문제]가 된다. 크게 내리는 것은 #79 분할의 몫이다.
+    "web/assets/common.js": (136, "공용 헬퍼 한 벌. 여기 밖에 사본이 생기면 B 검사가 잡는다"),
+    "web/assets/stock.js": (1761, "#79 ㉮ 진행 중. 아직 9탭 렌더·ETF 뷰·SVG 차트가 한 IIFE에 있다"),
     "web/assets/stock-price-chart.js": (300, "주가 캔버스 차트. (container, D, state, fmt)만 받는다"),
     "web/assets/portfolio.js": (430, "차트 3종 + 바스켓 관리"),
     "web/assets/bond.js": (370, "채권 수학 이식 + 차트 3종"),
@@ -136,7 +141,8 @@ SHARED_HELPERS = {
 # 내려가기만 한다.
 INLINE_BUDGET = {
     "web/assets/common.js": 2,
-    "web/assets/stock.js": 342,
+    # #82가 타일 6벌을 tiles()로 바꾸며 19건이 빠졌다: 343 → 324.
+    "web/assets/stock.js": 324,
     "web/assets/stock-price-chart.js": 1,
     "web/assets/portfolio.js": 30,
     "web/assets/bond.js": 19,

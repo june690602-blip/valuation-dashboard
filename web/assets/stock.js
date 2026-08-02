@@ -9,7 +9,7 @@
   /* 공용 헬퍼는 common.js 한 벌 — 사본을 만들면 조용히 갈라진다(#83 · R5 발견 ㉲). */
   var DV = window.DV;
   var ATTR = DV.ATTR, el = DV.el, esc = DV.esc, $ = DV.$, niceStep = DV.niceStep,
-      wireSeg = DV.wireSeg, tiles = DV.tiles, loadBasket = DV.loadBasket,
+      wireSeg = DV.wireSeg, tiles = DV.tiles, tilesHtml = DV.tilesHtml, loadBasket = DV.loadBasket,
       saveBasket = DV.saveBasket;
 
 
@@ -843,15 +843,11 @@
     meta.textContent = (c.n_analysts != null ? '애널리스트 ' + c.n_analysts + '명 평균'
       : D.meta.market === 'KR' ? 'FnGuide · 42개 증권사 집계' : '애널리스트 평균') + (c.as_of ? ' · ' + c.as_of : '');
     function tone(v) { return v == null ? 'var(--ink)' : v >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)'; }
-    var tiles = [
-      ['현재가', fmtPrice(D.meta.price), '', 'var(--ink)'],
-      ['모형 종합 적정가 · 이 대시보드', fmtPrice(D.verdict.fair_mid), D.verdict.gap != null ? '현재가 대비 ' + fmtSigned(D.verdict.gap) : '', tone(D.verdict.gap)],
-      ['컨센서스 목표주가 · 증권가', fmtPrice(c.target_mean), c.target_upside != null ? '현재가 대비 ' + fmtSigned(c.target_upside) : '', tone(c.target_upside)],
-      ['투자의견 평균', c.recomm_label || '—', c.recomm_score != null ? c.recomm_score.toFixed(2) + ' / 5.0' : '', 'var(--ink)']
-    ];
-    var tilesHtml = tiles.map(function (t, i) {
-      return '<div style="flex:1;min-width:168px;padding:' + (i === 0 ? '0 18px 0 0' : '0 18px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:21px;font-weight:500;margin-top:6px;color:' + t[3] + '">' + t[1] + '</div><div style="font-size:11.5px;color:var(--ink-3);margin-top:3px">' + t[2] + '</div></div>';
-    }).join('');
+    var strip = tilesHtml([['현재가', fmtPrice(D.meta.price)],
+      ['모형 종합 적정가 · 이 대시보드', fmtPrice(D.verdict.fair_mid), D.verdict.gap != null ? '현재가 대비 ' + fmtSigned(D.verdict.gap) : '', { vColor: tone(D.verdict.gap) }],
+      ['컨센서스 목표주가 · 증권가', fmtPrice(c.target_mean), c.target_upside != null ? '현재가 대비 ' + fmtSigned(c.target_upside) : '', { vColor: tone(c.target_upside) }],
+      ['투자의견 평균', c.recomm_label || '—', c.recomm_score != null ? c.recomm_score.toFixed(2) + ' / 5.0' : '']
+    ]);
     var rows = [];
     if (c.forward_eps != null) rows.push('12개월 선행 EPS(컨센서스) <b class="mono">' + fmtPrice(c.forward_eps) + '</b>' + (c.implied_growth != null ? ' — 최근 12개월 실적 대비 <b style="color:' + tone(c.implied_growth) + '">' + fmtSigned(c.implied_growth) + '</b>의 이익 변화를 전제합니다' : ''));
     if (c.forward_per != null) rows.push('선행 PER <b class="mono">' + fmtX(c.forward_per) + '</b> — 트레일링 PER와의 차이가 시장이 반영 중인 실적 전망입니다');
@@ -867,7 +863,7 @@
         '. 증권사 리포트의 정성적 근거(수주·신제품·업황 전망)는 무료 데이터에 포함되지 않아 이렇게 역산으로만 추정합니다');
     }
     body.innerHTML =
-      '<div style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0">' + tilesHtml + '</div>' +
+      '<div class="tile-strip">' + strip + '</div>' +
       (rows.length ? '<ul style="margin:14px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px">' + rows.map(function (r) { return '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.6">' + r + '</li>'; }).join('') + '</ul>' : '') +
       '<div style="font-size:11.5px;color:var(--ink-3);margin-top:12px">출처: ' + esc(c.source || '') + ' · 목표주가·추정 EPS는 증권사 애널리스트 평균이며 매수 편향이 있을 수 있습니다. 판정에는 ④ 선행 이익 방법(추정 EPS × 시장 멀티플)만 반영하고 목표주가 자체는 계산에 넣지 않습니다.</div>';
   }
@@ -875,8 +871,11 @@
   function renderPriceTab() {
     var p = D.price;
     if (!p || p.error) { $('priceTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">주가 데이터를 불러오지 못했습니다.</div>'; $('priceChart').innerHTML = ''; return; }
-    var tiles = [['현재가', fmtPrice(p.cur)], ['52주 최고 / 최저', won(p.hi52) + ' <span style="color:var(--ink-3)">/</span> ' + won(p.lo52)], ['최근 1년 수익률', '<span style="color:' + (p.ret1y >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(p.ret1y) + '</span>'], ['52주 밴드 내 위치', p.pos52 != null ? p.pos52.toFixed(0) + '%' : '—']];
-    $('priceTiles').innerHTML = tiles.map(function (t, i) { return '<div style="flex:1;min-width:150px;padding:' + (i === 0 ? '0 18px 0 0' : '0 18px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:' + (i === 1 ? 17 : 22) + 'px;font-weight:500;margin-top:6px">' + t[1] + '</div></div>'; }).join('');
+    tiles($('priceTiles'), [
+      ['현재가', fmtPrice(p.cur)],
+      ['52주 최고 / 최저', won(p.hi52) + ' <span style="color:var(--ink-3)">/</span> ' + won(p.lo52), '', { long: true }],
+      ['최근 1년 수익률', '<span style="color:' + (p.ret1y >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(p.ret1y) + '</span>'], ['52주 밴드 내 위치', p.pos52 != null ? p.pos52.toFixed(0) + '%' : '—']
+    ]);
     // 같은 블록 안에서 52주(실거래가)와 최근 1년 수익률(수정주가)이 다른 기준을 쓴다.
     // 차트 출처 문구는 차트만 설명하므로 여기서 한 번 더 밝힌다(R3 발견 6 · #57).
     // 타일 컨테이너는 모바일에서 가로 스크롤이라 안내문은 그 바깥에 둔다.
@@ -909,18 +908,16 @@
     }
     var CASE_TONE = { '비관': 'var(--dv-clay)', '기준': 'var(--ink)', '낙관': 'var(--dv-green)' };
     function caseDelta(name) { return name === '비관' ? state.scnBear : name === '낙관' ? state.scnBull : 0; }
-    function tilesHtml() {
-      return s.cases.map(function (cs, i) {
-        var dlt = caseDelta(cs.name);
-        var m = cs.multiple * (1 + state.scnMult);
-        var p = s.eps_base * (1 + dlt) * m;
+    function caseTiles() {
+      return tilesHtml(s.cases.map(function (cs) {
+        var dlt = caseDelta(cs.name), m = cs.multiple * (1 + state.scnMult), p = s.eps_base * (1 + dlt) * m;
         var up = D.meta.price ? p / D.meta.price - 1 : null;
-        return '<div style="flex:1;min-width:168px;padding:' + (i === 0 ? '0 18px 0 0' : '0 18px') + (i ? ';border-left:1px solid var(--line)' : '') + '">' +
-          '<div class="kick" style="color:' + CASE_TONE[cs.name] + '">' + cs.name + '</div>' +
-          '<div class="mono" style="font-size:22px;font-weight:500;margin-top:6px">' + fmtPrice(p) + '</div>' +
-          '<div style="font-size:11.5px;color:var(--ink-3);margin-top:3px">EPS ' + fmtSigned(dlt) + ' × ' + fmtX(m) +
-          (up != null ? ' · 현재가 대비 <b style="color:' + (up >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">' + fmtSigned(up) + '</b>' : '') + '</div></div>';
-      }).join('');
+        return [cs.name, fmtPrice(p), '', {
+          kickColor: CASE_TONE[cs.name],
+          subHtml: 'EPS ' + fmtSigned(dlt) + ' × ' + fmtX(m) +
+            (up != null ? ' · 현재가 대비 <b style="color:' + (up >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">' + fmtSigned(up) + '</b>' : '')
+        }];
+      }));
     }
     // 자동 해석 한 줄 — 그리드에서 현재가 위 칸 수 + 비관 케이스의 완충 여부
     function readLine() {
@@ -971,7 +968,7 @@
       '<li style="font-size:12.5px;color:var(--ink-2);line-height:1.65">출발점이 컨센서스 EPS라서 시장의 이익 전망 자체가 꺾이면 표 전체가 아래로 이동합니다. 멀티플 슬라이더는 위 케이스 카드에 적용되며, 민감도 표는 열 자체가 멀티플 축이라 고정입니다.</li>' +
       '</ul><div id="scnRead" style="font-size:12.5px;color:var(--ink);margin-top:10px;line-height:1.6">' + readLine() + '</div></div>';
     body.innerHTML =
-      '<div id="scnTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0">' + tilesHtml() + '</div>' +
+      '<div id="scnTiles" class="tile-strip">' + caseTiles() + '</div>' +
       '<div style="display:flex;gap:26px;flex-wrap:wrap;margin-top:14px;align-items:center">' +
       slider('비관 EPS 조정', 'scnBearSlider', state.scnBear, -40, 0) +
       slider('낙관 EPS 조정', 'scnBullSlider', state.scnBull, 0, 40) +
@@ -985,7 +982,7 @@
       inp.addEventListener('input', function () {
         state[key] = Number(inp.value) / 100;
         $(id + 'Val').textContent = fmtSigned(state[key]);
-        $('scnTiles').innerHTML = tilesHtml();
+        $('scnTiles').innerHTML = caseTiles();
         var rd = $('scnRead');
         if (rd) rd.innerHTML = readLine();
       });
@@ -1127,8 +1124,11 @@
     var w = D.wacc;
     if (!w || w.error) { $('waccTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">자본비용을 계산하지 못했습니다.</div>'; return; }
     $('waccPeriod').textContent = w.period_label ? '회귀 표본 · ' + w.period_label + ' (벤치마크 ' + D.meta.benchmark + ')' : '';
-    var tiles = [['레버드 β_L', w.beta_l != null ? w.beta_l.toFixed(2) : '—'], ['무부채 β_U', w.beta_u != null ? w.beta_u.toFixed(2) : '—'], ['유효세율 t', fmtPct(w.tax, 0)], ['D/E (시가)', fmtPct(w.de, 0)], ['k_e (CAPM)', fmtPct(w.k_e)], ['k_d (세후)', fmtPct(w.k_d_after)]];
-    $('waccTiles').innerHTML = tiles.map(function (t, i) { return '<div style="flex:1;min-width:120px;padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:20px;font-weight:500;margin-top:6px">' + t[1] + '</div></div>'; }).join('');
+    tiles($('waccTiles'), [
+      ['레버드 β_L', w.beta_l != null ? w.beta_l.toFixed(2) : '—'], ['무부채 β_U', w.beta_u != null ? w.beta_u.toFixed(2) : '—'],
+      ['유효세율 t', fmtPct(w.tax, 0)], ['D/E (시가)', fmtPct(w.de, 0)],
+      ['k_e (CAPM)', fmtPct(w.k_e)], ['k_d (세후)', fmtPct(w.k_d_after)]
+    ]);
     // 자본비용 경고(세율 폴백·법정세율 상한, 베타 클리핑 등). 직렬화만 되고 화면엔
     // 안 나오던 값이라, 타일 아래에 사유로 붙인다 — 특히 t는 왜 그 값인지가 중요하다.
     var wn = w.warnings || [];
@@ -1139,8 +1139,11 @@
     $('betaScatter').innerHTML = betaScatter();
     $('waccWaterfall').innerHTML = waccWaterfall();
     var sp = w.spread;
-    var summary = [['WACC', w.wacc != null ? fmtPct(w.wacc) : 'N/A', ''], ['ROIC (TTM)', fmtPct(w.roic), ''], ['ROIC − WACC 스프레드', sp != null ? (sp >= 0 ? '+' : '') + (sp * 100).toFixed(1) + '%p' : '—', sp != null ? (sp >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') : '']];
-    $('waccSummary').innerHTML = summary.map(function (t, i) { return '<div style="flex:1;min-width:150px;padding:16px 18px' + (i ? ';border-left:1px solid var(--line)' : '') + (i === 2 ? ';background:var(--paper-2)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:24px;font-weight:500;margin-top:6px' + (t[2] ? ';color:' + t[2] : '') + '">' + t[1] + '</div></div>'; }).join('');
+    tiles($('waccSummary'), [
+      ['WACC', w.wacc != null ? fmtPct(w.wacc) : 'N/A'], ['ROIC (TTM)', fmtPct(w.roic)],
+      ['ROIC − WACC 스프레드', sp != null ? (sp >= 0 ? '+' : '') + (sp * 100).toFixed(1) + '%p' : '—', '',
+        { accent: true, vColor: sp != null ? (sp >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') : null }]
+    ], { lead: true });
     $('roicSeries').innerHTML = roicSeries();
     if (sp != null) $('roicCaption').innerHTML = 'ROIC가 WACC 위에 있어야 성장이 곧 가치 창출. 현재 스프레드 <b style="color:' + (sp >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + (sp >= 0 ? '양(+)' : '음(−)') + '</b> — ' + (sp >= 0 ? '가치 창출 구간.' : '가치 잠식 구간.');
   }
@@ -1148,8 +1151,11 @@
   function renderBacktest() {
     var bt = D.backtest;
     if (!bt || bt.error || !bt.ok) { $('btTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">' + esc((bt && (bt.warnings || [])[0]) || '백테스트를 수행할 수 없습니다 (표본 부족).') + '</div>'; $('btTable').innerHTML = ''; $('backtestScatter').innerHTML = ''; $('equityCurve').innerHTML = ''; if ($('btScatterGuide')) $('btScatterGuide').innerHTML = ''; if ($('equityGuide')) $('equityGuide').innerHTML = ''; return; }
-    var tiles = [['비중복 12M 표본', (bt.event_count || 0).toLocaleString('en-US') + '개'], ['신호 후 12M 평균', '<span style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</span>'], ['그때 플러스 확률', bt.hit12 != null ? (bt.hit12 * 100).toFixed(0) + '%' : '—'], ['저평가↔수익 상관', '<span style="color:' + (bt.spearman >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + (bt.spearman != null ? (bt.spearman >= 0 ? '+' : '') + bt.spearman.toFixed(2) : '—') + '</span>']];
-    $('btTiles').innerHTML = tiles.map(function (t, i) { return '<div style="flex:1;min-width:130px;padding:' + (i === 0 ? '0 16px 0 0' : '0 16px') + (i ? ';border-left:1px solid var(--line)' : '') + '"><div class="kick">' + t[0] + '</div><div class="mono" style="font-size:20px;font-weight:500;margin-top:6px">' + t[1] + '</div></div>'; }).join('');
+    tiles($('btTiles'), [
+      ['비중복 12M 표본', (bt.event_count || 0).toLocaleString('en-US') + '개'], ['신호 후 12M 평균', '<span style="color:' + (bt.ret12 >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + fmtSigned(bt.ret12) + '</span>'],
+      ['그때 플러스 확률', bt.hit12 != null ? (bt.hit12 * 100).toFixed(0) + '%' : '—'],
+      ['저평가↔수익 상관', '<span style="color:' + (bt.spearman >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + (bt.spearman != null ? (bt.spearman >= 0 ? '+' : '') + bt.spearman.toFixed(2) : '—') + '</span>']
+    ]);
     // 정직한 한 줄 관찰 (저평가 신호 후 vs 아무 때나)
     var h12 = (bt.horizons || []).filter(function (h) { return h.h === '12개월'; })[0] || {};
     var lede;
