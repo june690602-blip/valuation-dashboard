@@ -11,9 +11,6 @@
 <link rel="stylesheet" href="assets/meridian.css">
 <style>
   .sec { padding: 34px 0; border-bottom: 1px solid var(--line); }
-  .tile { flex: 1; min-width: 150px; }
-  .tile .v { font-family: var(--font-mono); font-size: 24px; font-weight: 500; margin-top: 6px; }
-  .tile .s { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
   .tbl { border-top: 1px solid var(--line-strong); margin-top: 12px; }
   .tbl .row { display: grid; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
   .tbl .row.head span { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
@@ -78,7 +75,7 @@
           <span class="kick section-spine">한눈에 — 최근 28일</span>
           <span class="note" id="asofNote"></span>
         </div>
-        <div id="kpiTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:14px"></div>
+        <div id="kpiTiles" class="tile-strip" style="margin-top:14px"></div>
       </section>
 
       <!-- 일별 추이 -->
@@ -122,7 +119,7 @@
           <span class="kick section-spine">행동 품질 (Clarity · 최근 3일)</span>
           <span class="note">Clarity 무료 API는 최근 1~3일 집계만 제공 · 6시간마다 갱신</span>
         </div>
-        <div id="clarityTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:14px"></div>
+        <div id="clarityTiles" class="tile-strip" style="margin-top:14px"></div>
         <div id="clarityNote" class="note" style="margin-top:10px"></div>
       </section>
 
@@ -248,7 +245,7 @@
     }
     var rt = d.realtime || {};
     k.push(['지금 접속', rt.error ? '—' : fmt(rt.active_users), rt.error ? '' : '최근 30분 · 5분마다 갱신']);
-    tiles($('kpiTiles'), k);
+    tiles($('kpiTiles'), k, { lead: true });
     $('asofNote').textContent = '갱신 ' + new Date().toLocaleString('ko-KR');
 
     dailyChart(ga.daily);

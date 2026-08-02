@@ -15,8 +15,6 @@
   .navlink { color: var(--ink-3); cursor: pointer; }
   .navlink:hover { color: var(--ink); text-decoration: none; }
   .sec { padding: 36px 0; border-bottom: 1px solid var(--line); }
-  .tile { flex: 1; min-width: 120px; }
-  .tile .v { font-family: var(--font-mono); font-size: 22px; font-weight: 500; margin-top: 6px; }
   .tbl { border-top: 1px solid var(--line-strong); }
   .tbl .row { display: grid; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: center; }
   .tbl .row.head .col-label { font-size: 11px; }
@@ -115,14 +113,14 @@
       <section class="sec">
         <span class="kick section-spine">σ-기대수익 평면 — CML은 시장+무위험 혼합의 참고선</span>
         <div id="planeChart" style="margin-top:14px"></div>
-        <div id="portTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:16px"></div>
+        <div id="portTiles" class="tile-strip" style="margin-top:16px"></div>
         <div style="font-size:11.5px;color:var(--ink-3);margin-top:8px;line-height:1.6">회색 구름은 지금 담긴 자산들로 만들 수 있는 공매도 없는 조합들입니다. 지배원리에 따라 최소분산점 위쪽 경계만 <b style="color:var(--ink-2)">효율적 프론티어</b>(보라 실선)이고, 아래 경계는 같은 σ에서 더 나은 조합이 존재하는 지배당하는 영역(흐린 점선)입니다. 보라 긴 점선은 무위험이자율에서 이 프론티어에 그은 <b style="color:var(--ink-2)">접선</b>이며 접점이 최대 샤프 조합입니다. 청록/골드 CML은 '시장지수+무위험 혼합'의 별도 참고선이라 이 접선과 다를 수 있습니다 — 교과서의 'CML=접선'은 시장 포트폴리오를 포함한 전체 자산 기준일 때 성립합니다. 모두 과거 실측 기반 교육용 참고선이며 최적 비중 처방이 아닙니다.</div>
       </section>
 
       <!-- 성과지표 -->
       <section class="sec">
         <span class="kick section-spine">성과지표 — 벤치마크 대비 (과거 실측)</span>
-        <div id="perfTiles" style="display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0;margin-top:14px"></div>
+        <div id="perfTiles" class="tile-strip" style="margin-top:14px"></div>
         <div id="perfCaption" style="font-size:11.5px;color:var(--ink-3);margin-top:8px"></div>
       </section>
 
@@ -130,7 +128,7 @@
       <section class="sec">
         <span class="kick section-spine">세금 참고 — 분석은 세전, 세후는 어림값</span>
         <div id="taxTable" class="tbl" style="margin-top:14px"></div>
-        <div id="taxTiles" style="display:flex;flex-wrap:wrap;padding:16px 0;margin-top:6px"></div>
+        <div id="taxTiles" class="tile-strip bare" style="margin-top:6px"></div>
         <div style="font-size:11.5px;color:var(--ink-3);margin-top:4px;line-height:1.6">⚠️ 어림 규칙: 2026년 개인 기준(금투세 폐지 반영). 해외주식 연 250만원 공제·손익통산은 미반영. <b>금융소득(이자+배당) 연 2천만원 초과 시 종합과세</b> 대상이 될 수 있습니다 — 정확한 세액은 세무 전문가와 확인하세요.</div>
       </section>
     </div>
