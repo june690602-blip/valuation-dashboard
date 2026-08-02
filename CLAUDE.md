@@ -20,6 +20,8 @@ Streamlit(`app.py`). 두 프런트 모두 같은 분석 엔진(`src/analysis`)�
 - 실행: `pip install -r requirements.txt` → `streamlit run app.py`
 - 헤드리스 검증(키 없이 됨): `python scripts/check_analysis.py KR 005930` / `US AAPL`,
   `python scripts/check_backtest.py KR 005930`
+- 규모 편향 진단(수동·네트워크 필요, CI 아님): `python scripts/check_size_bias.py --limit 400`.
+  판정이 '싸다'가 아니라 '작다'를 재고 있지 않은지 시총 구간별로 전수 측정한다.
 - 코드 수정 후에는 최소한 `python -c "import py_compile; py_compile.compile('바꾼파일')"`로 문법 확인,
   가능하면 위 헤드리스 스크립트로 실제 동작을 확인할 것.
 

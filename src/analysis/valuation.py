@@ -322,12 +322,52 @@ INTANGIBLE_SHARE_LIMIT = 0.15   # 무형자산(영업권 포함) / 총자산
 BUYBACK_RATIO_LIMIT = 0.30      # 가용 연도 누적 자사주매입 / 현재 자기자본
 EXTREME_ROE = 0.60              # 자기자본이 이익 규모 대비 비정상적으로 작다는 신호
 
+# ── 반대편 — 시장이 장부가를 오래 거부한 경우 (ADR-0010) ─────────────
+# ADR-0007은 '장부가가 실제보다 작은' 쪽(㉠)만 막았다. 그 대칭이 비어 있었다.
+#
+# RIM은 ROE가 r에 가까우면 V ≈ B로 수렴한다. 그러면 괴리율이 사실상 1/PBR − 1이 되어
+# **PBR 0.5인 회사는 계산하기 전에 이미 '+100% 저평가'**다. 전 종목(2,688) 실측에서
+# ③ 괴리율과 1/PBR의 순위상관이 +0.973이었다 — 독립된 관점이 아니라 PBR을 되읽고 있었다
+# (재현: python scripts/check_size_bias.py). 국내 PBR이 시총을 따라 0.50↔1.44로 갈리므로,
+# 이 되읽기가 그대로 규모 편향이 된다.
+#
+# 오늘 하루 장부가 아래인 것은 RIM이 말할 자리다 — 그게 이 모형의 존재 이유다.
+# 그러나 시장이 **5년 내내** 장부가 아래로 매겨 왔고 회사가 그동안 **자본비용도 못 벌었다면**,
+# 그 장부가는 되찾을 수 있는 값이 아니다. 그때 RIM의 답은 밸류에이션이 아니라
+# '시장이 5년째 틀렸다'는 주장이고, 삼각측량의 독립된 한 표로 세울 수 없다.
+#
+# 둘 다 만족할 때만 제외한다(하나로는 부족하다 — 싼 것과 값어치 없는 것은 다르다).
+# 임계는 ADR-0007의 값들과 같은 성격이다. 국내 시장 분포를 보고 정한 **판단값**이지
+# 데이터로 추정한 값이 아니다.
+BOOK_REJECTED_PBR = 0.7    # 5년 PBR 중앙값이 이 아래 = 오늘의 일시적 하락이 아니다
+UNDEREARN_YEARS = 2        # 최근 3개년 중 ROE가 자본비용에 못 미친 해가 이 이상
 
-def _book_quality(d: CompanyData, pbr: float | None, roe: float | None) -> dict:
+
+def _underearning(d: CompanyData, r: float | None) -> tuple[int | None, int]:
+    """최근 3개년 중 ROE가 자본비용 r에 못 미친 해의 수 → (미달 연수, 센 연수).
+
+    잴 수 없으면 (None, 0). 못 재는 것과 '미달 0년'은 다르다 — 앞은 게이트를 열지 않는다.
+    """
+    fin = d.financials
+    if r is None or not {"net_income", "total_equity"} <= set(fin.columns):
+        return None, 0
+    eq = fin["total_equity"]
+    avg = ((eq + eq.shift(1)) / 2).fillna(eq)
+    s = (fin["net_income"] / avg.where(avg > 0)).dropna().tail(3)
+    if len(s) < 2:                     # 2개년도 못 보면 '지속'을 말할 수 없다
+        return None, 0
+    return int((s < r).sum()), len(s)
+
+
+def _book_quality(d: CompanyData, pbr: float | None, roe: float | None,
+                  r: float | None = None, pbr_q: dict | None = None) -> dict:
     """장부가가 회사 가치를 담고 있는가 → {distorted, short, detail, 근거 수치}.
 
     `short`는 방법표의 '제외 사유' 칸(짧게), `detail`은 해설 카드에 들어간다.
     둘 다 **원인을 단정하지 않고 잰 값을 말한다** — 판별에 쓴 수치를 문장에 그대로 넣는다.
+
+    두 방향을 본다: 장부가가 실제보다 **작은** 경우(ADR-0007)와, 시장이 그 장부가를
+    **오래 거부한** 경우(ADR-0010). 둘 다 RIM의 닻이 성립하지 않는 자리다.
     """
     fin = d.financials
     ta, eq = d.latest("total_assets"), d.latest("total_equity")
@@ -335,8 +375,11 @@ def _book_quality(d: CompanyData, pbr: float | None, roe: float | None) -> dict:
     share = (intan / ta) if (intan is not None and ta and ta > 0) else None
     bb = fin["buyback"].dropna() if "buyback" in fin.columns else None
     ratio = (float(bb.sum()) / eq) if (bb is not None and len(bb) and eq and eq > 0) else None
+    pbr_5y = (pbr_q or {}).get(50)
+    under, of_years = _underearning(d, r)
     out = {"pbr": pbr, "intangible_share": share, "buyback_ratio": ratio,
-           "years": int(len(bb)) if bb is not None else 0}
+           "years": int(len(bb)) if bb is not None else 0,
+           "pbr_5y_median": pbr_5y, "underearn_years": under, "underearn_of": of_years}
 
     def done(distorted, short, detail):
         out.update({"distorted": distorted, "short": short, "detail": detail})
@@ -345,6 +388,22 @@ def _book_quality(d: CompanyData, pbr: float | None, roe: float | None) -> dict:
     if pbr is None:
         return done(True, "자기자본을 확인하지 못함",
                     "자기자본(장부가)을 받지 못해 장부가 기반 모형(RIM)을 적용할 수 없습니다.")
+
+    # ── 반대편 게이트 (ADR-0010) — 둘 다여야 한다 ──
+    # 잴 수 없으면 열지 않는다. '시장이 거부했다'는 근거 없이 방법을 빼면,
+    # 상장기간이 짧다는 이유만으로 RIM이 사라진다.
+    if (pbr_5y is not None and pbr_5y < BOOK_REJECTED_PBR
+            and under is not None and under >= UNDEREARN_YEARS):
+        return done(True, f"5년 PBR 중앙값 {pbr_5y:.2f}배 · {of_years}년 중 {under}년 자본비용 미달",
+                    f"시장이 최근 5년 내내 이 회사를 장부가의 {pbr_5y:.2f}배 수준으로 매겨 왔고"
+                    f"(오늘 {pbr:.2f}배), 최근 {of_years}개년 중 {under}년은 ROE가 자본비용"
+                    f"({r:.1%})에 못 미쳤습니다. RIM은 장부가를 닻으로 삼는 모형이라 "
+                    "이 조건에서는 '장부가만큼은 된다'는 답을 내는데, 그건 밸류에이션이 아니라 "
+                    "5년치 시장 판단이 틀렸다는 주장에 가깝습니다. 장부가를 되찾을 수 있다고 "
+                    "볼 근거를 찾지 못해 RIM을 제외하고 나머지 방법으로 판정하며, 가중치는 "
+                    "다시 배분합니다. 자산 매각·구조조정처럼 장부가가 실현될 계기가 있다면 "
+                    "이 판단은 보수적인 쪽으로 틀린 것입니다.")
+
     if pbr <= PBR_GATE and (roe is None or roe <= EXTREME_ROE):
         return done(False, "", "")
     if share is None or ratio is None:
@@ -497,7 +556,8 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     ttm_roe = ind.profitability.get("roe")
     roe_raw = _recent_roe(d, ttm_roe)
     pbr_actual = d.market_cap / equity if equity and equity > 0 else None
-    book = _book_quality(d, pbr_actual, roe_raw)
+    # pbr_q는 위 ②에서 이미 만든 5년 PBR 분위다 — 새로 받아올 것이 없다.
+    book = _book_quality(d, pbr_actual, roe_raw, r_equity, res.pbr_q)
     res.book_quality = book
     if mismatch:
         res.skipped.append(("수익가치(RIM)", ccy_reason))
