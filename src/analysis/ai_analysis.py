@@ -243,18 +243,28 @@ def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "",
     lines = [
         f"기업: {d.name} ({d.ticker}), 시장 {d.market}, 업종 {d.sector or d.industry}",
         f"현재가 {d.price:,.0f} {cur}, 시가총액 {d.market_cap:,.0f}",
-        f"종합 판정: {val.verdict} (적정가 대비 괴리율 {pct(val.gap)}, 신뢰도 {val.confidence})",
+        f"판정: {val.verdict} (펀더멘털 적정가 ①②③ 대비 괴리율 {pct(val.gap)}, "
+        f"신뢰도 {val.confidence})",
     ]
     # 적정주가(목표가 근거) + 상승여력
     if val.fair_mid:
         upside = val.fair_mid / d.price - 1 if d.price else None
         lines.append(
-            f"적정주가 범위(방법별 가중평균, =목표가 근거): {val.fair_low:,.0f} ~ {val.fair_high:,.0f} {cur}"
+            f"펀더멘털 적정주가 범위(①②③ 가중평균, =목표가 근거): "
+            f"{val.fair_low:,.0f} ~ {val.fair_high:,.0f} {cur}"
             + (f", 중심 {val.fair_mid:,.0f} → 현재가 대비 상승여력 {pct(upside)}" if upside is not None else ""))
         # 방법별 세부 (편차=신뢰도 판단 근거)
         if getattr(val, "estimates", None):
             per_method = "; ".join(f"{e.method} {e.mid:,.0f}" for e in val.estimates)
             lines.append(f"방법별 적정가 중심: {per_method}")
+        # ④는 판정에 들어가지 않는다(ADR-0006). 그 사실을 프롬프트에 명시하지 않으면
+        # AI가 위 '방법별 적정가 중심'에 있는 ④를 판정 재료로 착각해 서술한다.
+        if getattr(val, "fair_mid_consensus", None) and val.consensus_premium is not None:
+            lines.append(
+                f"단, 판정에는 ①②③만 쓴다(컨센서스 선행 이익 ④는 시장 기대라 제외). "
+                f"④까지 반영하면 적정가 {val.fair_mid_consensus:,.0f} {cur} "
+                f"(펀더멘털 대비 {pct(val.consensus_premium)}, 판정 {val.verdict_consensus}) — "
+                f"이 차이는 증권가가 보는 실적 전망분이며 판정이 아니다.")
     else:
         lines.append("적정주가: 계산 불가")
     # 증권가 컨센서스 (모형과의 교차검증용 — 시장 전문가 평균 시각)

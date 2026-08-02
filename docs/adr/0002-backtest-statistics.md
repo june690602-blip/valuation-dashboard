@@ -4,6 +4,12 @@
 - 날짜: 2026-07-15
 - 관련 코드: `src/analysis/backtest.py`의 `run_backtest()`, `_non_overlapping_values()`
 
+> **2026-08-02 보완** — [ADR-0008](0008-backtest-observation-not-statistics.md)이 이 결정 위에
+> 층위를 하나 내렸습니다. 비중복 표본·순위상관이라는 **계산 규약은 그대로 유효**하지만,
+> 그렇게 계산한 이벤트 스터디 통계를 **화면에 내보내지 않습니다**(단일 종목 표본 0~4개).
+> `scripts/check_backtest.py`에는 그대로 남아 있습니다.
+
+
 ## 맥락
 
 백테스트 탭은 "우리 도구가 '저평가'라고 판정했던 과거의 날에 실제로 샀다면
