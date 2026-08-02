@@ -62,6 +62,14 @@ PR 상태도 MERGED가 되기 때문에 눈으로는 성공한 것처럼 보인�
 - 머지 뒤에는 반드시 실제 반영을 확인한다: `git fetch origin && git log --oneline origin/main -5`
 - 위 규칙은 `.github/workflows/pr-base-guard.yml`이 PR마다 자동 검사한다(죽은 base면 CI 실패).
 
+**ADR 인덱스는 충돌하지 않는다 — 손으로 풀지 말 것.** `docs/adr/README.md`는 PR마다 자기
+ADR 한 줄을 표 끝에 붙이는 append-only 표라, 기본 머지 전략이 이걸 매번 충돌로 봤다
+(#99·#100·#101에서 세 번 반복). `.gitattributes`의 `docs/adr/README.md merge=union`이
+양쪽 줄을 모두 남겨 충돌 자체를 없앤다. **표에 줄을 넣을 때 순서를 맞추려고 애쓰지 않아도
+된다** — union이 번호순을 흐트러뜨릴 수 있고, `scripts/check_adr_index.py`가 그건 알림만
+한다. 실패시키는 건 셋뿐이다: 같은 줄이 두 번(union이 프로즈까지 겹쳤을 때) · 파일은
+있는데 표에 없음 · 표에는 있는데 파일이 없음.
+
 ## 보안 (중요)
 - **API 키를 절대 코드/커밋에 넣지 말 것.** 키는 `.streamlit/secrets.toml`(=`.gitignore`로 제외)
   또는 환경변수(`OPENDART_API_KEY`, `GEMINI_API_KEY`)로만 읽는다.
