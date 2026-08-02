@@ -105,6 +105,40 @@
   --font-display: 'Noto Sans KR','IBM Plex Sans KR',system-ui,sans-serif;
   --font-sans:    'IBM Plex Sans KR','IBM Plex Sans',system-ui,sans-serif;
   --font-mono:    'Noto Sans KR',ui-monospace,monospace;
+
+  /* ── 타이포 사다리 (#74) ──────────────────────────────────────────
+     여기 없던 유일한 축이었다. 색·반경·그림자에는 토큰이 있는데 글자 크기에는 없어서
+     **화면마다 자기 값을 정했다** — 26가지 423건. 자를 안 쓰고 눈대중으로 그린 것이다.
+
+     본문 층(10~14)은 손대지 않았다. 이미 0.5px 간격의 사다리였고 그건 의도다 —
+     한 화면에 숫자·라벨·주석이 층층이 쌓이는 재무 화면에서 1px 단계는 너무 굵다.
+     여기서는 이름만 붙인다. 눈대중이 벌어진 곳은 **15px 위**였다(16가지가 38건).
+     같은 역할이 27px과 25px로 갈리는 식이라, 표제 층만 5단으로 모았다.
+
+     새 값을 만들지 말 것. 사다리 밖 값은 scripts/check_design.py가 [문제]로 떨어뜨린다. */
+  --fs-micro:     10px;    /* 순번·초소형 표기 — 옆에 실제 라벨이 있는 자리 전용 */
+  --fs-micro-2:   10.5px;  /* 배지 안 글자 */
+  --fs-kick:      11px;    /* 이바로우(.kick)·표 헤더(.col-label) */
+  --fs-caption:   11.5px;  /* 타일 부제·출처·각주 */
+  --fs-note:      12px;    /* 보조 설명 */
+  --fs-note-2:    12.5px;  /* 보조 설명(조금 큰) — 해설 리스트 */
+  --fs-body:      13px;    /* 본문 기본 · 표 셀 */
+  --fs-body-2:    13.5px;  /* 본문(조금 큰) — 뉴스 제목·강조 셀 */
+  --fs-body-lead: 14px;    /* 리드 문장·입력 글자 */
+  --fs-title-sm:  17px;    /* 소제목·긴 값(타일 .v.long) */
+  --fs-title:     22px;    /* 지표 타일 값(#82) · 워드마크 */
+  --fs-title-lg:  24px;    /* 요약 타일 값(.tile.lead) · 섹션 표제 */
+  --fs-headline:  29px;    /* 판정 헤드라인 — 화면에서 가장 큰 글자 */
+  --fs-display:   36px;    /* 홈 히어로 */
+
+  /* ── 브레이크포인트 ──
+     미디어 쿼리는 var()를 읽지 못한다. 그래서 토큰이 아니라 **약속**으로 적어 둔다 —
+     지키는 것은 check_design.py의 F 검사다(사다리 밖 지점이 생기면 [문제]).
+       560px  좁은 폰 — 표는 가로 스크롤, 타일 띠는 접지 않고 흘린다
+       720px  큰 폰·세로 태블릿 — 2단 그리드를 1단으로
+       900px  가로 태블릿 — 앱 헤더 접힘·사이드바 숨김
+     이전에는 13가지였다(430·520·560·600·720·740·760·800·860·900·901·940·980).
+     둘 이상이 공유하는 지점은 셋뿐이었고, 그래서 창을 줄이면 화면마다 다른 폭에서 접혔다. */
 }
 
 * { box-sizing: border-box; }
@@ -124,7 +158,7 @@ html::after {
   position: fixed; top: 10px; left: 10px; z-index: 100;
   transform: translateY(-160%); padding: 9px 14px;
   border-radius: var(--radius-sm); background: var(--ink); color: var(--paper);
-  font-size: 13px; font-weight: 600; text-decoration: none;
+  font-size: var(--fs-body); font-weight: 600; text-decoration: none;
 }
 .skip-link:focus, .skip-link:focus-visible { transform: none; color: var(--paper); text-decoration: none; }
 
@@ -138,7 +172,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--fs-body-lead);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: 'tnum' 1;   /* 숫자 tabular */
@@ -163,7 +197,7 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 
 /* 이바로우(kicker) — 대문자·와이드 트래킹 라벨 */
 .kick {
-  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  font-size: var(--fs-kick); letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--ink-3); font-family: var(--font-sans); white-space: nowrap;
 }
 
@@ -202,21 +236,21 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 .tile { flex: 1; min-width: 140px; padding: 0 16px; }
 .tile:first-child { padding-left: 0; }
 .tile + .tile { border-left: 1px solid var(--line); }
-.tile .v { font-family: var(--font-mono); font-size: 22px; font-weight: 500; margin-top: 6px; }
+.tile .v { font-family: var(--font-mono); font-size: var(--fs-title); font-weight: 500; margin-top: 6px; }
 /* 한 칸에 숫자가 둘 들어가는 자리(예: "52주 최고 / 최저")만 한 단 내린다 —
    좁은 화면에서 줄바꿈으로 띠 높이가 들쭉날쭉해지는 것을 막는다. */
-.tile .v.long { font-size: 17px; }
-.tile .s { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; }
+.tile .v.long { font-size: var(--fs-title-sm); }
+.tile .s { font-size: var(--fs-caption); color: var(--ink-3); margin-top: 3px; }
 .tile.lead { min-width: 150px; padding: 16px 18px; }
 .tile.lead:first-child { padding-left: 18px; }
-.tile.lead .v { font-size: 24px; }
+.tile.lead .v { font-size: var(--fs-title-lg); }
 /* 요약 띠에서 결론에 해당하는 칸(예: ROIC−WACC 스프레드)만 지면을 한 겹 올린다.
    색이 아니라 지면으로 말한다 — 판정에는 색을 쓰지 않는다(R4). */
 .tile.accent { background: var(--paper-2); }
 
 /* 표 헤더용 소캡스 라벨 */
 .col-label {
-  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
+  font-size: var(--fs-kick); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
 }
 
 /* 세그먼트 컨트롤 (KR/US, A/B/C, 3M/6M/1Y, PER/PBR …) */
@@ -226,7 +260,7 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 }
 .seg button {
   appearance: none; border: none; cursor: pointer; font-family: var(--font-sans);
-  font-size: 12.5px; white-space: nowrap; font-weight: 500; padding: 5px 13px;
+  font-size: var(--fs-note-2); white-space: nowrap; font-weight: 500; padding: 5px 13px;
   border-radius: var(--radius-pill); line-height: 1.3; background: transparent; color: var(--ink-2);
 }
 .seg button.on { font-weight: 600; background: var(--ink); color: #fff; }
@@ -234,7 +268,7 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 /* Meridian 버튼 */
 .btn {
   appearance: none; cursor: pointer; font-family: var(--font-sans); font-weight: 600;
-  font-size: 13px; border-radius: var(--radius-pill); padding: 0 16px; height: 36px;
+  font-size: var(--fs-body); border-radius: var(--radius-pill); padding: 0 16px; height: 36px;
   display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
   border: 1px solid transparent; transition: background var(--dur-fast) var(--ease-out);
 }
@@ -242,12 +276,12 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 .btn-primary:hover { background: var(--cta-hover); }
 .btn-secondary { background: var(--paper); color: var(--ink); border-color: var(--line-strong); }
 .btn-secondary:hover { background: var(--paper-3); }
-.btn-sm { height: 32px; font-size: 12.5px; padding: 0 13px; }
+.btn-sm { height: 32px; font-size: var(--fs-note-2); padding: 0 13px; }
 
 /* Meridian 배지 */
 .badge {
   display: inline-flex; align-items: center; height: 20px; padding: 0 8px;
-  font-size: 11px; font-weight: 600; border-radius: var(--radius-sm);
+  font-size: var(--fs-kick); font-weight: 600; border-radius: var(--radius-sm);
   border: 1px solid var(--line-strong); color: var(--ink-2); background: var(--paper);
 }
 .badge-info { color: var(--dv-navy); border-color: color-mix(in srgb, var(--dv-navy) 35%, var(--line)); }
@@ -319,7 +353,7 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 /* 폭은 100%가 기본(표 칸 안에 들어간다). 단독으로 놓는 자리는 인라인으로 폭을 준다. */
 .num {
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
-  padding: 7px 10px; font-family: var(--font-mono); font-size: 14px;
+  padding: 7px 10px; font-family: var(--font-mono); font-size: var(--fs-body-lead);
   color: var(--ink); background: var(--paper); outline: none; width: 100%;
 }
 .num:focus { border-color: var(--ink); }
@@ -341,12 +375,12 @@ select.num { cursor: pointer; }
 .ac-item:last-child { border-bottom: none; }
 .ac-item.on, .ac-item:hover { background: var(--paper-2); }
 .ac-name {
-  font-size: 13px; color: var(--ink); font-weight: 600;
+  font-size: var(--fs-body); color: var(--ink); font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.ac-code { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); flex: none; }
+.ac-code { font-family: var(--font-mono); font-size: var(--fs-caption); color: var(--ink-3); flex: none; }
 .ac-sub {
-  margin-left: auto; font-size: 10px; color: var(--ink-3);
+  margin-left: auto; font-size: var(--fs-micro); color: var(--ink-3);
   border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 1px 5px;
   flex: none; white-space: nowrap; max-width: 96px; overflow: hidden; text-overflow: ellipsis;
 }
@@ -357,7 +391,7 @@ select.num { cursor: pointer; }
 /* 홈 히어로의 큰 검색창 — 자리가 달라서 한 단 크다(값이 갈린 게 아니다). */
 .ac-drop.hero { top: calc(100% + 8px); border-radius: var(--radius-md); max-height: 350px; }
 .ac-drop.hero .ac-item { padding: 10px 13px; }
-.ac-drop.hero .ac-name { font-size: 13.5px; }
+.ac-drop.hero .ac-name { font-size: var(--fs-body-2); }
 .ac-drop.hero .ac-sub { max-width: 110px; }
 
 /* ── 수집 중 오버레이 ── */

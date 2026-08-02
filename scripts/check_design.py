@@ -53,7 +53,9 @@ _tally = {OK: 0, BAD: 0, NA: 0}
 # CI에 걸어도 머지를 막지 못해 보고서에 그친다. 반대로 열린 이슈까지 실패로 처리하면 CI가
 # 늘 빨간 상태가 되어 아무도 보지 않게 된다 — 그래서 기준선을 적어 두고 회귀만 막는다.
 # **이슈를 닫으면 이 값을 함께 내린다.**
-KNOWN_OPEN = 5
+# #74가 타이포 사다리와 브레이크포인트 둘을 닫았다 — 5 → 3.
+# 남은 셋: 네비 규격 4가지(#73) · 카드 그림자(#75) · 간격 토큰(#74 후속 PR).
+KNOWN_OPEN = 3
 
 
 def say(verdict: str, title: str, detail: str = "") -> None:
@@ -113,7 +115,7 @@ SHELL_SITES = {
         "role": "관문",
         "height": "64px(min-height)",
         "bg": "--paper-veil",
-        "brand_px": "21px",
+        "brand_px": "22px",
         "brand_mark": True,             # 원형 잉크 로고마크
         "nav": ".nav-link 13px / gap 2px",
     },
@@ -122,7 +124,7 @@ SHELL_SITES = {
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
-        "brand_px": "21px",
+        "brand_px": "22px",
         "brand_mark": True,
         "nav": ".top-nav a 13.5px / gap 4px",
     },
@@ -131,7 +133,7 @@ SHELL_SITES = {
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
-        "brand_px": "21px",
+        "brand_px": "22px",
         "brand_mark": True,
         "nav": ".site-nav a 13.5px / gap 4px",
     },
@@ -140,7 +142,7 @@ SHELL_SITES = {
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
-        "brand_px": "21px",
+        "brand_px": "22px",
         "brand_mark": True,
         "nav": "inline a 13px / gap 2px",
     },
@@ -149,7 +151,7 @@ SHELL_SITES = {
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
-        "brand_px": "21px",
+        "brand_px": "22px",
         "brand_mark": True,
         "nav": "inline a 13px / gap 2px",
     },
@@ -158,7 +160,7 @@ SHELL_SITES = {
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
-        "brand_px": "21px",
+        "brand_px": "22px",
         "brand_mark": True,
         "nav": "inline a 13px / gap 2px",
     },
@@ -167,7 +169,7 @@ SHELL_SITES = {
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
-        "brand_px": "21px",
+        "brand_px": "22px",
         "brand_mark": True,
         "nav": "inline a 13px / gap 2px",
     },
@@ -318,11 +320,27 @@ def check_shell() -> None:
         say(OK, f"로고마크가 {len(SHELL_SITES)}장 전부에 있다",
             "meridian.css의 .brand-mark 한 곳에서 정의한다 — 한 번 고치면 7장이 함께 움직인다.")
 
+    # 레지스트리에 적힌 크기가 실제 파일과 같은가. 여기까지 보지 않으면 레지스트리는
+    # **자기 자신하고만 비교**한다 — #74에서 워드마크를 21 → 22px로 옮겼을 때
+    # 화면은 22px인데 레지스트리는 21px이라고 말하면서도 [확인]이 떴다.
+    # 기준은 각 화면의 base 선언이라 미디어 쿼리 안의 축소값은 제외한다(가장 큰 값).
+    actual: dict[str, str] = {}
+    for page in SHELL_SITES:
+        found = [float(m.group(1))
+                 for line in read(page).splitlines() if "brand-name" in line
+                 for m in FONT_SIZE_RE.finditer(line)]
+        actual[Path(page).name] = f"{max(found):g}px" if found else "없음"
     sizes = {r["brand_px"] for r in SHELL_SITES.values()}
+    drift = {name: got for (page, r), (name, got) in zip(SHELL_SITES.items(), actual.items())
+             if got != r["brand_px"]}
     if len(sizes) > 1:
         say(BAD, f"브랜드 워드마크 크기가 {len(sizes)}가지", " · ".join(sorted(sizes)))
+    elif drift:
+        say(BAD, f"레지스트리와 화면이 어긋난다 — 워드마크 {len(drift)}장",
+            "\n".join(f"{name}: 화면 {got} · 레지스트리 {sizes and sorted(sizes)[0]}"
+                      for name, got in drift.items()))
     else:
-        say(OK, f"브랜드 워드마크 크기가 하나 ({sizes.pop()})")
+        say(OK, f"브랜드 워드마크 크기가 하나 ({sorted(sizes)[0]}) — 7장 실측과 일치")
 
     # ── 여기부터는 **의도적으로 남긴 차이**다 ──
     heights: dict[str, list[str]] = {}
@@ -601,6 +619,11 @@ def check_contrast() -> None:
 # ══════════════════════════════════════════════════════════════════════
 MEDIA_RE = re.compile(r"@media\s*\(\s*(max|min)-width:\s*(\d+)px")
 
+# 접히는 지점의 약속 (#74) — 560 좁은 폰 · 720 큰 폰·세로 태블릿 · 900 가로 태블릿.
+# 901은 900의 짝이다(max-width:900과 min-width:901). 이전에는 13가지였고,
+# 둘 이상이 공유하는 지점은 셋뿐이라 창을 줄이면 화면마다 다른 폭에서 접혔다.
+BREAKPOINTS = {560, 720, 900, 901}
+
 
 def check_breakpoints() -> None:
     head("F. 브레이크포인트 — 화면이 같은 지점에서 접히는가")
@@ -615,13 +638,20 @@ def check_breakpoints() -> None:
 
     lines = [f"{bp:>5}px — {', '.join(sorted(files))}" for bp, files in sorted(found.items())]
     shared = [bp for bp, files in found.items() if len(files) > 1]
+    stray = sorted(set(found) - BREAKPOINTS)
     if len(found) > 4:
         detail = "\n".join(lines)
         detail += f"\n공유되는 지점은 {len(shared)}개뿐이다: {', '.join(f'{b}px' for b in sorted(shared)) or '없음'}"
         detail += "\n토큰이 없어 각 파일이 자기 지점을 정했다. 창을 줄이면 화면마다 다른 폭에서 접힌다."
         say(BAD, f"브레이크포인트가 {len(found)}가지", detail)
+    elif stray:
+        say(BAD, f"약속 밖 브레이크포인트 {len(stray)}개",
+            "\n".join(f"{bp:>5}px — {', '.join(sorted(found[bp]))}" for bp in stray)
+            + f"\n약속: {', '.join(f'{b}px' for b in sorted(BREAKPOINTS))}"
+            + "\n미디어 쿼리는 var()를 읽지 못해 토큰으로 못 박을 수 없다 — 그래서 여기서 지킨다.")
     else:
-        say(OK, f"브레이크포인트가 {len(found)}가지로 수렴")
+        say(OK, f"브레이크포인트가 {len(found)}가지로 수렴",
+            "\n".join(lines) + "\n900/901은 max·min 한 쌍이라 한 지점이다.")
 
     # 공용 CSS가 페이지 구조를 직접 겨냥하는가
     css = read("web/assets/meridian.css")
@@ -641,6 +671,16 @@ def check_breakpoints() -> None:
 # ══════════════════════════════════════════════════════════════════════
 FONT_SIZE_RE = re.compile(r"font-size:\s*([0-9.]+)px")
 
+# 타이포 사다리 (#74) — meridian.css의 --fs-* 토큰과 **같은 값이어야 한다**.
+# 토큰이 있는지만 보면 토큰은 장식이 된다. 실제로 쓰이는 값이 사다리 안에 있는지를 센다.
+# 색·반경이 지금 이 방식으로 지켜지고 있다(B 검사).
+#
+# 본문 층에 0.5px 단계가 있는 것은 의도다 — 숫자·라벨·주석이 층층이 쌓이는 재무 화면에서
+# 1px 단계는 너무 굵다. 눈대중이 벌어졌던 곳은 15px 위였고(16가지 38건) 그쪽만 5단으로 모았다.
+TYPE_SCALE = {10, 10.5, 11, 11.5, 12, 12.5, 13, 13.5, 14, 17, 22, 24, 29, 36}
+# 순번(탭의 01~09)만 예외 — 옆에 실제 라벨이 있어 못 읽어도 잃는 정보가 없다(아래 NUMBERING).
+TYPE_SCALE_EXEMPT = {9.5}
+
 
 def check_type_scale() -> None:
     head("G. 타이포·간격 — 토큰이 있는가")
@@ -650,18 +690,29 @@ def check_type_scale() -> None:
     has_space_token = bool(re.search(r"--(space|spacing|gap)-", css))
 
     sizes: dict[float, int] = {}
+    off: dict[float, list[str]] = {}
     for rel in _targets():
-        for m in FONT_SIZE_RE.finditer(read(rel)):
+        text = read(rel)
+        for m in FONT_SIZE_RE.finditer(text):
             v = float(m.group(1))
             sizes[v] = sizes.get(v, 0) + 1
+            if v not in TYPE_SCALE and v not in TYPE_SCALE_EXEMPT:
+                off.setdefault(v, []).append(f"{rel}:{line_of(text, m.start())}")
 
     if not has_fs_token:
         ladder = " ".join(f"{v:g}" for v in sorted(sizes))
         detail = f"실제로 쓰이는 크기 {len(sizes)}가지 · 선언 {sum(sizes.values())}건\n{ladder}"
         detail += "\n9~14px 구간은 0.5px 간격의 사다리라 의도가 보이지만, 15px 위로는 눈금이 없다."
         say(BAD, "타이포 크기 토큰이 meridian.css에 없다", detail)
+    elif off:
+        say(BAD, f"사다리 밖 글자 크기 {sum(len(v) for v in off.values())}건",
+            "\n".join(f"{v:g}px — " + " · ".join(sites) for v, sites in sorted(off.items()))
+            + "\n사다리: " + " ".join(f"{v:g}" for v in sorted(TYPE_SCALE))
+            + "\n가까운 단으로 옮기거나, 새 단이 정말 필요하면 --fs-* 토큰과 TYPE_SCALE에 함께 등록할 것.")
     else:
-        say(OK, "타이포 크기 토큰이 있다")
+        say(OK, f"글자 크기가 전부 사다리 {len(TYPE_SCALE)}단 안 (선언 {sum(sizes.values())}건)",
+            "사다리: " + " ".join(f"{v:g}" for v in sorted(TYPE_SCALE))
+            + "\n토큰은 meridian.css의 --fs-*. 값과 토큰이 어긋나면 여기서 잡힌다.")
 
     if not has_space_token:
         say(BAD, "간격 토큰이 meridian.css에 없다",

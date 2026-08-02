@@ -21,7 +21,7 @@
   .header-inner { min-height: 64px; display: flex; align-items: center; gap: 28px; }
   .brand { display: inline-flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
   .brand:hover { text-decoration: none; }
-  .brand-name { font-family: var(--font-display); font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand-name { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
   .site-nav { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
   .nav-link { position: relative; padding: 8px 10px; color: var(--ink-3); font-size: 13px; font-weight: 500; text-decoration: none; }
   .nav-link:hover { color: var(--ink); text-decoration: none; }
@@ -75,7 +75,7 @@
   .ent.lead { grid-row: 1 / span 2; justify-content: space-between; background: linear-gradient(157deg, var(--paper) 0%, var(--paper-2) 100%); border: 1.5px solid var(--line-strong); box-shadow: var(--shadow-lg); }
   .ent.lead::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--dv-gold), color-mix(in srgb, var(--dv-gold) 45%, var(--spine-ink))); }
   .ent.lead .ico { width: 52px; height: 52px; background: var(--ink); border-color: var(--ink); color: var(--paper); }
-  .ent.lead h3 { margin-top: 24px; font-size: 31px; }
+  .ent.lead h3 { margin-top: 24px; font-size: 29px; }
   .ent.lead p { color: var(--ink-2); font-size: 14px; max-width: 34ch; }
   .ent.lead .no { top: 22px; }
   .ent.lead .no { color: var(--spine-ink); font-weight: 700; }
@@ -104,7 +104,7 @@
   .footer-copy { margin: 7px 0 0; color: var(--ink-3); font-size: 11.5px; line-height: 1.75; }
   .footer-copy strong { color: var(--ink-2); }
 
-  @media (max-width: 980px) {
+  @media (max-width: 900px) {
     .header-inner { min-height: 60px; flex-wrap: wrap; gap: 0 16px; }
     .site-nav { order: 3; flex-basis: 100%; width: 100%; overflow-x: auto; border-top: 1px solid var(--line); scrollbar-width: none; }
     .site-nav::-webkit-scrollbar { display: none; }
@@ -113,12 +113,12 @@
     .header-guide { margin-right: var(--page-pad); }
     .nav-link:first-child { margin-left: calc(var(--page-pad) - 10px); }
   }
-  @media (max-width: 860px) {
+  @media (max-width: 900px) {
     .entry-band { grid-template-columns: 1fr; grid-template-rows: none; }
     .ent.lead { grid-row: auto; }
     .ent.lead p { max-width: none; }
   }
-  @media (max-width: 740px) {
+  @media (max-width: 720px) {
     .header-guide span { display: none; }
     .header-guide { width: 38px; height: 38px; justify-content: center; border: 1px solid var(--line); border-radius: 50%; }
     .hero h1 { font-size: clamp(37px, 10.5vw, 52px); }
@@ -128,11 +128,11 @@
     .risk-go { grid-column: 1 / -1; justify-content: center; }
     .footer-inner { grid-template-columns: 1fr; gap: 20px; }
   }
-  @media (max-width: 430px) {
-    .brand-name { font-size: 19px; }
+  @media (max-width: 560px) {
+    .brand-name { font-size: 17px; }
     .market-options label { min-width: 42px; padding-inline: 9px; }
     .hero-search-input { font-size: 13px; }
-    .ent.lead h3 { font-size: 27px; }
+    .ent.lead h3 { font-size: 24px; }
   }
 </style>
 </head>
