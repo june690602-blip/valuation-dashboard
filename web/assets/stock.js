@@ -1216,13 +1216,15 @@
     var f = D.financials;
     if (!f || f.error) { $('finGrowth').innerHTML = '<div style="color:var(--ink-3);font-size:13px">재무 데이터를 불러오지 못했습니다.</div>'; return; }
     var unit = f.unit;
-    // 단위 설명 — KR은 조원, US의 B는 '10억 달러'임을 명시(모르는 사용자 배려)
-    var unitLabel = unit === 'B' ? 'B (10억 달러)' : unit + '원';
+    // 단위 설명 — 서버가 회사 크기로 고른다(조/억 · B/M). 달러 단위는 뜻을 밝힌다.
+    var unitLabel = unit === 'B' ? 'B (10억 달러)' : unit === 'M' ? 'M (백만 달러)' : unit + '원';
+    // 단위가 커서 값이 한 자리면 소수 첫째 자리까지 — 1.4조가 '1조'로 뭉개지지 않게.
+    var fmtUnit = function (v) { return (Math.abs(v) < 10 ? v.toFixed(1) : v.toFixed(0)) + unit; };
     $('finGrowthUnit').textContent = '단위 · ' + unitLabel;
     $('finCashUnit').textContent = '단위 · ' + unitLabel;
     $('finGrowth').innerHTML = barGroups(f.years, [
       { name: '매출액', color: 'var(--dv-navy)', data: f.revenue }, { name: '영업이익', color: 'var(--dv-teal)', data: f.operating_income }, { name: '순이익', color: 'var(--dv-gold)', data: f.net_income }
-    ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 230 });
+    ], { fmt: fmtUnit, H: 230 });
     var om = f.op_margin, nm = f.net_margin;
     $('finProfitability').innerHTML = lineMulti((om && om.x) || (nm && nm.x) || f.years, [
       { name: '영업이익률 %', color: 'var(--dv-teal)', data: (om ? om.y : []).map(function (v) { return v == null ? null : v * 100; }) },
@@ -1241,7 +1243,7 @@
     else {
       $('finCash').innerHTML = barGroups(f.years, [
         { name: '영업현금흐름', color: 'var(--dv-green)', data: f.ocf }, { name: '잉여현금흐름 FCF', color: 'var(--dv-plum)', data: f.fcf }
-      ], { fmt: function (v) { return v.toFixed(0) + unit; }, H: 210 });
+      ], { fmt: fmtUnit, H: 210 });
       // 영업현금흐름 음수 해 — 규칙 기반 고정 문구(AI·추가 요청 없음). 어느 해인지 짚고 해석 방향만 알린다.
       var negY = (f.years || []).filter(function (y, i) { return f.ocf && f.ocf[i] != null && f.ocf[i] < 0; });
       if (negY.length) {
@@ -1252,7 +1254,7 @@
     }
     // 표
     var tb = f.table, cols = '1.4fr repeat(' + tb.years.length + ',1fr)';
-    var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:8px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + (unit === 'B' ? '10억 달러' : unit + '원') + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
+    var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:8px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + (unit === 'B' ? '10억 달러' : unit === 'M' ? '백만 달러' : unit + '원') + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
     var body = Object.keys(tb.rows).map(function (name, ri) {
       var isEps = name === 'EPS', krw = CUR === 'KRW';
       // EPS는 통화 원단위(스케일 무관) — KR은 원(정수), US는 달러(센트까지)

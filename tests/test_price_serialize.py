@@ -8,7 +8,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 
-from src.web.serialize import _price
+from src.web.serialize import _financials, _price
 
 
 class PriceSerializationTests(unittest.TestCase):
@@ -174,6 +174,45 @@ class PriceSerializationTests(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertEqual(payload[key], [None, None])
         json.dumps(payload, ensure_ascii=False, allow_nan=False)
+
+
+class FinancialUnitTests(unittest.TestCase):
+    """재무 막대의 단위는 시장이 아니라 **이 회사의 크기**로 정한다.
+
+    KR을 늘 '조'로 고정하면 매출 4,000억짜리 중소형주가 화면에서 '0조'로 찍힌다
+    (주성엔지니어링 실측: 매출 1,185~4,379억). Streamlit 쪽 `charts._money_scale`은
+    이미 크기로 고르고 있었고, 웹만 시장으로 고정하고 있었다.
+    """
+
+    @staticmethod
+    def _company(market, revenue):
+        fin = pd.DataFrame({"revenue": revenue, "operating_income": [v * 0.1 for v in revenue]},
+                           index=[2022, 2023])
+        return SimpleNamespace(market=market, financials=fin, is_financial=False)
+
+    def test_small_korean_company_is_shown_in_eok(self):
+        d = self._company("KR", [1_185e8, 4_379e8])          # 1,185억 ~ 4,379억
+
+        out = _financials(d, SimpleNamespace(series={}))
+
+        self.assertEqual(out["unit"], "억")
+        self.assertAlmostEqual(out["revenue"][1], 4_379.0, places=0)
+
+    def test_large_korean_company_stays_in_jo(self):
+        d = self._company("KR", [250e12, 300e12])            # 250조 ~ 300조
+
+        out = _financials(d, SimpleNamespace(series={}))
+
+        self.assertEqual(out["unit"], "조")
+        self.assertAlmostEqual(out["revenue"][1], 300.0, places=0)
+
+    def test_small_us_company_is_shown_in_millions(self):
+        d = self._company("US", [4.2e8, 5.1e8])              # $420M ~ $510M
+
+        out = _financials(d, SimpleNamespace(series={}))
+
+        self.assertEqual(out["unit"], "M")
+        self.assertAlmostEqual(out["revenue"][1], 510.0, places=0)
 
 
 if __name__ == "__main__":

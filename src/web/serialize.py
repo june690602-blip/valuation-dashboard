@@ -429,9 +429,19 @@ def _peers(d) -> dict:
 
 
 def _financials(d, ind) -> dict:
-    unit_div = 1e12 if d.market == "KR" else 1e9
-    unit = "조" if d.market == "KR" else "B"
     fin = d.financials
+    # 단위는 시장이 아니라 **이 회사의 크기**로 정한다. KR을 늘 '조'로 고정하면 매출
+    # 4,000억짜리 중소형주가 화면에서 `v.toFixed(0) + '조'` = "0조"로 찍힌다(주성엔지니어링
+    # 실측: 매출 1,185~4,379억 → 전부 0조). 임계는 Streamlit 쪽 `charts._money_scale`과
+    # 같게 맞춘다 — 같은 값을 두 프런트가 다른 단위로 보여주면 그게 또 다른 버그다.
+    money_cols = [c for c in ("revenue", "operating_income", "net_income", "ocf", "fcf")
+                  if c in fin]
+    peak = max((abs(float(v)) for c in money_cols
+                for v in pd.to_numeric(fin[c], errors="coerce").dropna()), default=0.0)
+    if d.market == "KR":
+        unit, unit_div = ("조", 1e12) if peak >= 2e12 else ("억", 1e8)
+    else:
+        unit, unit_div = ("B", 1e9) if peak >= 2e9 else ("M", 1e6)
     years = [str(int(y)) for y in fin.index]
 
     def col_scaled(c):
