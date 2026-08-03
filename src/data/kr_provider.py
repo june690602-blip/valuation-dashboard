@@ -271,7 +271,22 @@ class KRProvider(DataProvider):
 
     @staticmethod
     def _patch_kr_peers(peers: pd.DataFrame, listing: pd.DataFrame) -> pd.DataFrame:
-        """yfinance info 결측을 KRX(시총)·네이버(멀티플) 값으로 보정."""
+        """yfinance info 결측을 네이버(멀티플)로 보정하고, **시총은 KRX로 덮어쓴다.**
+
+        시총만 '결측 보완'이 아니라 '덮어쓰기'인 이유 — KRX Marcap은 거래소가 내는
+        `상장주식수 × 종가`이고 yfinance는 그것을 옮겨 적은 값이라 틀릴 때가 있다.
+        무작위 200종목 실측에서 45%가 2% 넘게, 10%가 10% 넘게 어긋났고 **최소형
+        구간의 6%는 2배 넘게** 틀렸다. 양방향이다 — 참엔지니어링(009310)은 yfinance가
+        5.0배 작고(주가 1,065 대 5,330), 남성(004270)은 10.8배 크다.
+
+        결측일 때만 채우면 **틀린 값이 있는 종목은 영영 안 고쳐진다.** 게다가 판정은
+        이미 KRX Marcap을 쓰므로(`d.market_cap`) 피어 표만 yfinance면 규모 창
+        비교(`comparable_peers`)가 두 원천을 가로지르고, ADR-0014의 회귀도 KRX
+        Marcap으로 학습하므로 기준이 셋으로 갈린다. 한국 시총의 기준을 KRX 하나로 모은다.
+
+        상장목록에 없는 종목(신규 상장·데이터 지연)은 yfinance 값을 남긴다 —
+        지우면 그 피어가 규모 창에서 통째로 사라진다.
+        """
         if peers.empty:
             return peers
         for yt in peers.index:
@@ -282,7 +297,7 @@ class KRProvider(DataProvider):
                     peers.at[yt, col] = val
 
             if code in listing.index and pd.notna(listing.loc[code].get("Marcap")):
-                _fill("market_cap", float(listing.loc[code]["Marcap"]))
+                peers.at[yt, "market_cap"] = float(listing.loc[code]["Marcap"])
             try:
                 nv = fetch_naver_fundamental(code)
             except Exception:
