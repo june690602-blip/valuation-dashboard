@@ -151,6 +151,13 @@ def fit_leg(df: pd.DataFrame, leg: str) -> dict | None:
 # 외삽은 소형주를 체계적으로 '저평가'로 밀어 올린다.
 EXTRAPOLATION_LIMIT = 5.0
 
+# fit_leg이 반드시 채우는 키들. 계수는 24시간 JSON 캐시를 거쳐 오므로, 스키마가 바뀐
+# 뒤 남아 있는 옛 캐시가 얕은 검증(`"pbr" in d`)을 통과해 들어올 수 있다. 그때 예외로
+# 판정을 무너뜨리는 대신 '계산 불가'로 떨어뜨린다(ADR-0011).
+_REQUIRED_COEF_KEYS = frozenset((
+    "intercept", "beta_size", "roe_coef", "sector_coef", "n",
+    "mcap_min", "sector_median_mcap", "sector_median_roe_coef"))
+
 
 def warranted_multiple(coef: dict | None, mcap: float | None,
                        sector: str | None, roe: float | None) -> dict:
@@ -163,34 +170,50 @@ def warranted_multiple(coef: dict | None, mcap: float | None,
     blank = {"multiple": None, "sector_base": None, "size_adj": None, "roe_adj": None,
              "sector_used": None, "below_range": False, "too_small": False,
              "beta_size": None, "n": None}
-    if not coef or not mcap or mcap <= 0 or not math.isfinite(mcap):
+    if not isinstance(coef, dict) or not _REQUIRED_COEF_KEYS <= coef.keys():
+        return blank
+    try:
+        mcap = float(mcap)
+    except (TypeError, ValueError):
+        return blank
+    if not mcap or mcap <= 0 or not math.isfinite(mcap):
         return blank
 
+    # fit_leg이 sector_coef에 OTHER_SECTOR를 항상 채우므로(그리고 위에서 스키마를
+    # 확인했으므로) 이 조회는 반드시 성공한다.
     sec = sector if sector in coef["sector_coef"] else OTHER_SECTOR
-    if sec not in coef["sector_coef"]:
-        return blank
     too_small = mcap < coef["mcap_min"] / EXTRAPOLATION_LIMIT
     if too_small:
-        return {**blank, "too_small": True, "sector_used": sec,
+        # 하한의 1/5 미만이면 하한 미만인 것도 당연히 참이다 — 두 값은 같은 축 위에 있다
+        return {**blank, "too_small": True, "below_range": True, "sector_used": sec,
                 "beta_size": coef["beta_size"], "n": coef["n"]}
 
-    base_mcap = coef["sector_median_mcap"].get(sec) or mcap
-    base_rc = coef["sector_median_roe_coef"].get(sec, 0.0)
-    # ROE를 모르면 **조정하지 않는다** — 기준값을 그대로 써서 roe_adj가 정확히 0이 된다.
-    # 0.0을 넣으면 '기준 구간과 같다'는 판단을 한 셈이 되는데, 우리는 그걸 모른다.
-    # 규모는 항상 알므로 시총 조정은 그대로 적용된다.
-    rb = roe_bucket(roe)
-    rc = coef["roe_coef"].get(rb, base_rc) if rb else base_rc
-    fitted = (coef["intercept"] + coef["beta_size"] * math.log(mcap)
-              + rc + coef["sector_coef"][sec])
+    try:
+        base_mcap = coef["sector_median_mcap"].get(sec) or mcap
+        base_rc = coef["sector_median_roe_coef"].get(sec, 0.0)
+        # ROE를 모르면 **조정하지 않는다** — 기준값을 그대로 써서 roe_adj가 정확히 0이 된다.
+        # 0.0을 넣으면 '기준 구간과 같다'는 판단을 한 셈이 되는데, 우리는 그걸 모른다.
+        # 규모는 항상 알므로 시총 조정은 그대로 적용된다.
+        rb = roe_bucket(roe)
+        rc = coef["roe_coef"].get(rb, base_rc) if rb else base_rc
+        fitted = (coef["intercept"] + coef["beta_size"] * math.log(mcap)
+                  + rc + coef["sector_coef"][sec])
+        base = math.exp(coef["intercept"] + coef["beta_size"] * math.log(base_mcap)
+                        + base_rc + coef["sector_coef"][sec])
+        multiple = math.exp(fitted)
+        size_adj = math.exp(coef["beta_size"] * (math.log(mcap) - math.log(base_mcap))) - 1
+        roe_adj = math.exp(rc - base_rc) - 1
+    except (TypeError, ValueError, OverflowError, ZeroDivisionError):
+        # 손상된 계수(음수 기준 시총, 발산하는 β 등) — 값을 지어내지 않고 물러난다
+        return blank
+    if not all(math.isfinite(v) for v in (multiple, base, size_adj, roe_adj)):
+        return blank
 
-    base = math.exp(coef["intercept"] + coef["beta_size"] * math.log(base_mcap)
-                    + base_rc + coef["sector_coef"][sec])
     return {
-        "multiple": math.exp(fitted),
+        "multiple": multiple,
         "sector_base": base,
-        "size_adj": math.exp(coef["beta_size"] * (math.log(mcap) - math.log(base_mcap))) - 1,
-        "roe_adj": math.exp(rc - base_rc) - 1,
+        "size_adj": size_adj,
+        "roe_adj": roe_adj,
         "sector_used": sec,
         "below_range": mcap < coef["mcap_min"],
         "too_small": False,

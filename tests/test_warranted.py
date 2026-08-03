@@ -179,3 +179,36 @@ class PredictTests(unittest.TestCase):
         out = warranted_multiple(None, mcap=5e10, sector="A", roe=0.08)
         self.assertIsNone(out["multiple"])
         self.assertFalse(out["too_small"])
+
+    def test_too_small_is_also_below_range(self):
+        out = warranted_multiple(self.coef,
+                                 mcap=self.coef["mcap_min"] / (EXTRAPOLATION_LIMIT + 1),
+                                 sector="A", roe=0.08)
+        self.assertTrue(out["too_small"])
+        self.assertTrue(out["below_range"])   # 같은 축의 더 극단이다
+
+    def test_malformed_coefficients_degrade_to_blank(self):
+        # 계수는 24시간 JSON 캐시를 거쳐 온다. 스키마가 바뀐 뒤 남은 옛 캐시가
+        # 얕은 검증을 통과해 들어와도 예외 대신 '계산 불가'가 나와야 한다.
+        for missing in ("sector_coef", "mcap_min", "intercept", "beta_size",
+                        "roe_coef", "n", "sector_median_mcap",
+                        "sector_median_roe_coef"):
+            broken = {k: v for k, v in self.coef.items() if k != missing}
+            with self.subTest(missing=missing):
+                out = warranted_multiple(broken, mcap=5e10, sector="A", roe=0.08)
+                self.assertIsNone(out["multiple"])
+
+    def test_corrupt_numbers_degrade_to_blank(self):
+        bad = dict(self.coef)
+        bad["sector_median_mcap"] = dict(bad["sector_median_mcap"], A=-5e9)
+        self.assertIsNone(warranted_multiple(bad, mcap=5e10, sector="A", roe=0.08)["multiple"])
+
+        blown = dict(self.coef, beta_size=50.0)
+        self.assertIsNone(warranted_multiple(blown, mcap=5e10, sector="A", roe=0.08)["multiple"])
+
+    def test_non_float_mcap_is_coerced_or_refused(self):
+        # 업스트림이 float로 강제하지만 이 함수 혼자서도 무너지지 않아야 한다
+        self.assertIsNotNone(
+            warranted_multiple(self.coef, mcap="5e10", sector="A", roe=0.08)["multiple"])
+        self.assertIsNone(
+            warranted_multiple(self.coef, mcap="열", sector="A", roe=0.08)["multiple"])
