@@ -868,6 +868,33 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
             res.notes.append(ValuationNote(
                     "info", "ROE가 0 이하라 RIM 평가를 제외합니다(적자 기업)."))
 
+    # ⑤ 정규화 이익 — 최근 몇 해 평균 이익에 회귀 적정 PER을 곱한다(ADR-0015).
+    # 통화 불일치면 ①②③과 같은 이유로 성립하지 않는다(주가 ÷ 재무값 비교다).
+    if mismatch:
+        res.skipped.append(("정규화 이익", ccy_reason))
+    else:
+        fv5, nm = _normalized_value(d.financials, shares, equity, d.market_cap,
+                                    d.sector, warranted_coef)
+        res.normalized_eps = nm["eps"]
+        res.normalized_years = nm["years"] or None
+        res.normalized_ratio = nm["ratio"]
+        res.normalized_per = nm["per"]
+        if fv5:
+            res.estimates.append(fv5)
+            # 이 축을 넣은 이유가 '기존 축과 갈리는 것'이므로, 갈릴 때 왜인지 밝힌다.
+            # 감추면 사용자는 ⑤만 혼자 다른 값을 내는 것을 오류로 읽는다.
+            r5 = nm["ratio"]
+            if r5 is not None and (r5 < 1 / 1.5 or r5 > 1.5):
+                direction = ("현재 이익이 정상보다 높습니다" if r5 < 1
+                             else "현재 이익이 정상보다 낮습니다")
+                res.notes.append(ValuationNote(
+                    "info",
+                    f"최근 {nm['years']}년 평균 순이익이 현재의 {r5:.2f}배입니다 — {direction}. "
+                    "⑤ 정규화 이익은 이 차이를 되돌린 값이라 다른 방법과 갈릴 수 있고, "
+                    "그 갈림 자체가 이 방법이 말하려는 것입니다."))
+        else:
+            res.skipped.append(("정규화 이익", nm["reason"]))
+
     # ④ 선행 이익 — 애널리스트 컨센서스가 있을 때만. **판정에는 들어가지 않는다**(ADR-0006):
     # 계산해서 estimates에 넣되, 종합은 '컨센서스 반영' 값에만 반영해 병기한다.
     cons = d.consensus
