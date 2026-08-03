@@ -386,13 +386,16 @@ def warranted_multiple(coef: dict | None, mcap: float | None,
         return {**blank, "too_small": True, "sector_used": sec,
                 "beta_size": coef["beta_size"], "n": coef["n"]}
 
+    base_mcap = coef["sector_median_mcap"].get(sec) or mcap
+    base_rc = coef["sector_median_roe_coef"].get(sec, 0.0)
+    # ROE를 모르면 **조정하지 않는다** — 기준값을 그대로 써서 roe_adj가 정확히 0이 된다.
+    # 0.0을 넣으면 '기준 구간과 같다'는 판단을 한 셈이 되는데, 우리는 그걸 모른다.
+    # 규모는 항상 알므로 시총 조정은 그대로 적용된다.
     rb = roe_bucket(roe)
-    rc = coef["roe_coef"].get(rb, 0.0) if rb else 0.0
+    rc = coef["roe_coef"].get(rb, base_rc) if rb else base_rc
     fitted = (coef["intercept"] + coef["beta_size"] * math.log(mcap)
               + rc + coef["sector_coef"][sec])
 
-    base_mcap = coef["sector_median_mcap"].get(sec) or mcap
-    base_rc = coef["sector_median_roe_coef"].get(sec, 0.0)
     base = math.exp(coef["intercept"] + coef["beta_size"] * math.log(base_mcap)
                     + base_rc + coef["sector_coef"][sec])
     return {
