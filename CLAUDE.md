@@ -3,6 +3,12 @@
 > 이 파일은 GitHub에서 `@claude`가 호출될 때(또는 로컬 Claude Code에서) 따르는 규칙입니다.
 > 친구가 이슈/PR에 `@claude ...`로 요청하면 Claude가 아래 규칙에 맞춰 수정하고 PR을 올립니다.
 
+> **⚠ 진행 중인 작업이 있습니다 — 손대기 전에 [`docs/HANDOFF.md`](docs/HANDOFF.md)를 먼저 읽으세요.**
+> 브랜치 `fix/peer-selection-by-size`에서 ①(업종 상대가치)의 계산 방식을 피어 중앙값에서
+> **업종·규모·수익성 회귀**로 바꾸는 중입니다(ADR-0014, 11개 태스크 중 5개 완료).
+> 구현 계획은 [`docs/superpowers/plans/2026-08-03-warranted-multiple.md`](docs/superpowers/plans/2026-08-03-warranted-multiple.md)에
+> 코드까지 그대로 들어 있습니다. **ADR-0013은 0014를 끝낸 뒤에 합니다**(순서 이유는 HANDOFF 참조).
+
 ## 프로젝트 개요
 기본적 분석 기반 **주식 가치평가 대시보드**(한국+미국). 종목 하나를 넣으면 재무·주가·업종 데이터를
 자동 수집해 "지금 주가가 적정한가, 아니라면 왜인가"를 판정·시각화한다.
