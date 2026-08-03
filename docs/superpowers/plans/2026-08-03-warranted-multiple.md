@@ -764,6 +764,9 @@ Expected: FAIL — `ImportError: cannot import name 'build_coefficients'`
 
 - [ ] **Step 3: 구현** — `src/data/universe_multiples.py`에 추가
 
+**먼저** `src/analysis/warranted.py`의 `_REQUIRED_COEF_KEYS`를 **`REQUIRED_COEF_KEYS`로 이름을 바꾼다**(그 파일 안의 사용처도 함께). 이제 모듈 간 계약이라 비공개 이름으로 둘 수 없다 — `universe_multiples`가 캐시 검증에 쓴다.
+
+
 ```python
 LEGS = ("pbr", "per", "psr", "ev_ebitda")
 
@@ -799,11 +802,11 @@ def _coefficients_usable(d) -> bool:
     캐시 키에 버전(`_v1`)이 있지만 그것만으로는 부족하다 — 버전을 올리는 걸 잊어도
     이 검사가 막는다.
     """
-    from ..analysis.warranted import _REQUIRED_COEF_KEYS
+    from ..analysis.warranted import REQUIRED_COEF_KEYS
 
     if not isinstance(d, dict) or "pbr" not in d:
         return False
-    return all(isinstance(v, dict) and _REQUIRED_COEF_KEYS <= v.keys()
+    return all(isinstance(v, dict) and REQUIRED_COEF_KEYS <= v.keys()
                for v in d.values())
 
 
