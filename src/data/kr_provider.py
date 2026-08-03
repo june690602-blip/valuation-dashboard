@@ -22,15 +22,23 @@ from .universe import (detect_financial, find_kr, get_kr_listing,
 
 
 def _ai_classify_kr(name: str, hint_industry: str, listing: pd.DataFrame):
-    """(sector, industry, [코드]) — Gemini 사용 가능 시 동종기업 코드, 아니면 (None,None,None)."""
+    """(sector, industry, [코드], 실패사유) — Gemini 사용 가능 시 동종기업 코드.
+
+    실패사유는 **시도했다가 실패했을 때만** 채운다. 키가 없어서 안 부른 것은 정상
+    동작이라 None이다(키 없이도 앱이 돌아야 한다). 이 구분이 없으면 화면이 '안 쓴
+    것'과 '쓰려다 실패한 것'을 같게 보여주는데, 후자는 피어 구성이 통째로 달라지는
+    일이라 사용자가 알아야 한다 — 실측 25종목이 전부 할당량 초과로 KRX 폴백을
+    탔는데 화면에 아무 표시도 없었다.
+    """
     try:
         from ..data.gemini import is_available
         if not is_available():
-            return None, None, None
+            return None, None, None, None
         from ..analysis.ai_analysis import classify_peers
         c = classify_peers(name, "KR", hint_industry)
-    except Exception:
-        return None, None, None
+    except Exception as e:
+        from ..data.gemini import failure_reason
+        return None, None, None, failure_reason(e)
     codes: list[str] = []
     for p in c.get("peers", []):
         nm = p.get("name", "") if isinstance(p, dict) else str(p)
@@ -47,7 +55,7 @@ def _ai_classify_kr(name: str, hint_industry: str, listing: pd.DataFrame):
                 code = None
         if code and code in listing.index and code not in codes:
             codes.append(code)
-    return c.get("sector"), c.get("industry"), codes
+    return c.get("sector"), c.get("industry"), codes, None
 
 
 def merge_financials(dart: pd.DataFrame, yf_fin: pd.DataFrame) -> pd.DataFrame:
@@ -190,7 +198,12 @@ class KRProvider(DataProvider):
         # 피어: (1순위) AI 업종분류 동종기업 → (폴백) KRX 업종분류 시총 상위
         listing = get_kr_listing().set_index("Code")
         sector, industry = meta["sector"], meta["industry"]
-        ai_sector, ai_industry, ai_codes = _ai_classify_kr(meta["name"], sector, listing)
+        ai_sector, ai_industry, ai_codes, ai_err = _ai_classify_kr(
+            meta["name"], sector, listing)
+        if ai_err:
+            warnings.append(
+                f"AI 업종분류를 시도했으나 실패해 KRX 업종분류로 대체했습니다({ai_err}). "
+                "피어 구성이 달라지므로 업종 비교와 상대가치 결과가 평소와 다를 수 있습니다.")
         if ai_codes and len(ai_codes) >= 4:
             peer_codes = [code] + [c for c in ai_codes if c != code]
             sector = ai_sector or sector

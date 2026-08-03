@@ -13,22 +13,27 @@ from .universe import detect_financial, find_us, peers_us_by_sector, select_peer
 
 
 def _ai_classify_us(name: str, hint_industry: str):
-    """(sector, industry, [심볼]) — Gemini 사용 가능 시 동종기업 심볼, 아니면 (None,None,None)."""
+    """(sector, industry, [심볼], 실패사유) — Gemini 사용 가능 시 동종기업 심볼.
+
+    실패사유는 **시도했다가 실패했을 때만** 채운다(키 없음은 정상이라 None).
+    한국 쪽 `_ai_classify_kr`과 같은 규칙이다 — 자세한 이유는 그쪽 도크스트링.
+    """
     try:
         from .gemini import is_available
         if not is_available():
-            return None, None, None
+            return None, None, None, None
         from ..analysis.ai_analysis import classify_peers
         c = classify_peers(name, "US", hint_industry)
-    except Exception:
-        return None, None, None
+    except Exception as e:
+        from .gemini import failure_reason
+        return None, None, None, failure_reason(e)
     syms: list[str] = []
     for p in c.get("peers", []):
         tk = (p.get("ticker", "") if isinstance(p, dict) else str(p)).strip().upper().replace(".", "-")
         # 심볼 형태만 채택 (검증은 이후 info 조회 실패 시 자동 탈락)
         if tk and tk.replace("-", "").isalnum() and len(tk) <= 6 and tk not in syms:
             syms.append(tk)
-    return c.get("sector"), c.get("industry"), syms
+    return c.get("sector"), c.get("industry"), syms, None
 
 
 def _yf_fund_info(symbol: str) -> tuple[str | None, str | None]:
@@ -155,7 +160,11 @@ class USProvider(DataProvider):
         index_prices = fetch_index_prices("^GSPC")
 
         # 피어 선정: (1순위) AI 업종분류 → (폴백) S&P500 GICS 세부산업/섹터
-        ai_sector, ai_industry, ai_syms = _ai_classify_us(name, industry or sector)
+        ai_sector, ai_industry, ai_syms, ai_err = _ai_classify_us(name, industry or sector)
+        if ai_err:
+            warnings.append(
+                f"AI 업종분류를 시도했으나 실패해 GICS 분류로 대체했습니다({ai_err}). "
+                "피어 구성이 달라지므로 업종 비교와 상대가치 결과가 평소와 다를 수 있습니다.")
         if ai_syms and len(ai_syms) >= 4:
             cands = [sym] + [s for s in ai_syms if s != sym]
             basis = f"AI 업종분류 '{ai_sector or ai_industry}'"

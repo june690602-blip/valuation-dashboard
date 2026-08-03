@@ -77,6 +77,56 @@ class KrPeerMarketCapTests(unittest.TestCase):
         self.assertEqual(out.at["999999.KS", "market_cap"], 7.0)
 
 
+class AiClassifyFallbackTests(unittest.TestCase):
+    """AI 업종분류가 실패하면 조용히 넘어가지 않고 사유를 돌려준다.
+
+    실측 25종목이 전부 KRX 폴백을 탔는데(Gemini 무료 할당량 초과) 화면에는 아무
+    경고도 뜨지 않았다. 피어 구성이 통째로 달라지는 일이라 사용자가 알아야 한다.
+
+    **예외 원문은 절대 싣지 않는다** — `gemini.py`가 URL 질의 파라미터로 API 키를
+    넘기므로 requests 예외 문자열에 키가 섞여 나올 수 있다.
+    """
+
+    def _listing(self):
+        return pd.DataFrame({"Name": ["피어A"]}, index=["111111"])
+
+    def _run_kr(self, available, boom):
+        from src.data import kr_provider
+
+        with patch("src.data.gemini.is_available", lambda: available), \
+             patch("src.analysis.ai_analysis.classify_peers", side_effect=boom):
+            return kr_provider._ai_classify_kr("참엔지니어링", "반도체", self._listing())
+
+    def test_quota_exceeded_is_reported(self):
+        boom = RuntimeError("429 RESOURCE_EXHAUSTED quota key=AIzaSyTOPSECRET")
+        *_, err = self._run_kr(True, boom)
+        self.assertIsNotNone(err)
+        self.assertIn("할당량", err)
+        self.assertNotIn("AIzaSyTOPSECRET", err)   # 키가 새면 안 된다
+        self.assertNotIn("key=", err)
+
+    def test_network_error_is_reported_without_raw_text(self):
+        boom = TimeoutError("connection timed out to https://x/models?key=AIzaSySECRET")
+        *_, err = self._run_kr(True, boom)
+        self.assertIn("네트워크", err)
+        self.assertNotIn("AIzaSySECRET", err)
+
+    def test_no_api_key_is_not_an_error(self):
+        # 키가 없는 것은 정상 동작이다(CLAUDE.md: 키 없어도 앱이 돌아야 한다).
+        # 경고를 띄우면 키를 안 넣은 사람에게 매번 소음이 된다.
+        *_, err = self._run_kr(False, RuntimeError("안 불려야 함"))
+        self.assertIsNone(err)
+
+    def test_us_path_reports_the_same_way(self):
+        from src.data import us_provider
+
+        with patch("src.data.gemini.is_available", lambda: True), \
+             patch("src.analysis.ai_analysis.classify_peers",
+                   side_effect=RuntimeError("429 quota")):
+            *_, err = us_provider._ai_classify_us("Apple", "Tech")
+        self.assertIn("할당량", err)
+
+
 class DataSourceErrorTests(unittest.TestCase):
     def test_krx_failure_has_an_actionable_message(self):
         fake_fdr = SimpleNamespace(

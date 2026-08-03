@@ -49,6 +49,28 @@ def is_available() -> bool:
     return bool(get_api_key())
 
 
+def failure_reason(exc: BaseException) -> str:
+    """예외를 화면에 띄울 짧은 사유로 바꾼다.
+
+    **예외 원문을 그대로 쓰면 안 된다.** 이 모듈은 API 키를 URL 질의 파라미터로
+    넘기므로(`params={"key": key}`) requests 예외 문자열에 키가 통째로 섞여 나올 수
+    있고, 그것이 화면·로그·스크린숏으로 새어 나간다. 그래서 원문은 버리고 미리
+    정한 몇 가지 사유 중 하나만 돌려준다.
+
+    사유를 나누는 이유 — 할당량 초과는 기다리면 풀리고 네트워크는 재시도하면 되며
+    그 밖은 설정 문제일 수 있다. 사용자가 할 일이 서로 다르다.
+    """
+    t = f"{type(exc).__name__} {exc}".lower()
+    if "429" in t or "quota" in t or "resource_exhausted" in t or "rate" in t:
+        return "무료 할당량 초과"
+    if any(k in t for k in ("timeout", "timed out", "connection", "network",
+                            "dns", "unreachable", "ssl")):
+        return "네트워크 오류"
+    if "401" in t or "403" in t or "permission" in t or "unauthenticated" in t:
+        return "인증 거부 — API 키를 확인하세요"
+    return "호출 오류"
+
+
 def _model_hint() -> str:
     return str(os.environ.get("GEMINI_MODEL") or _from_secrets("GEMINI_MODEL") or "flash").strip()
 
