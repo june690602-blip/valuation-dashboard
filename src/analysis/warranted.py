@@ -37,12 +37,15 @@ def roe_bucket(roe: float | None) -> str | None:
         v = float(roe)
     except (TypeError, ValueError):
         return None
-    if math.isnan(v):
+    # 무한대도 결측으로 본다 — 자유 데이터에서 0으로 나눈 값이 이렇게 들어오는데,
+    # 이 버킷은 회귀 더미가 되므로 쓰레기가 정상 카테고리로 둔갑하면 계수가 오염된다
+    # (serialize.py의 num()도 같은 이유로 inf를 무효로 본다).
+    if math.isnan(v) or math.isinf(v):
         return None
     for i in range(len(ROE_EDGES) - 1):
         if ROE_EDGES[i] < v <= ROE_EDGES[i + 1]:
             return ROE_LABELS[i]
-    return ROE_LABELS[0]
+    return ROE_LABELS[0]   # 도달 불가(위에서 비유한 값을 모두 걸렀다) — 방어선으로 남긴다
 
 
 def sector_labels(sectors: pd.Series, min_n: int = SECTOR_MIN_N) -> pd.Series:

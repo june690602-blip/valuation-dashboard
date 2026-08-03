@@ -21,6 +21,13 @@ class BucketTests(unittest.TestCase):
         self.assertEqual(roe_bucket(0.12), "10~15%")
         self.assertEqual(roe_bucket(0.40), ">15%")
 
+        # 모든 경계가 '아래 구간'에 속하는지 직접 못박는다 (edges[i] < v <= edges[i+1])
+        self.assertEqual(roe_bucket(-0.05), "-20~-5%")
+        self.assertEqual(roe_bucket(0.0), "-5~0%")
+        self.assertEqual(roe_bucket(0.05), "0~5%")
+        self.assertEqual(roe_bucket(0.10), "5~10%")
+        self.assertEqual(roe_bucket(0.15), "10~15%")
+
     def test_roe_bucket_missing_is_none(self):
         self.assertIsNone(roe_bucket(None))
         self.assertIsNone(roe_bucket(float("nan")))
