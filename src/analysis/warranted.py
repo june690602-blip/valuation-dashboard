@@ -53,3 +53,67 @@ def sector_labels(sectors: pd.Series, min_n: int = SECTOR_MIN_N) -> pd.Series:
     counts = sectors.value_counts()
     keep = set(counts[counts >= min_n].index)
     return sectors.where(sectors.isin(keep), OTHER_SECTOR)
+
+
+# 계수를 만들 최소 표본. 이보다 적으면 만들지 않고 호출부가 피어 중앙값으로 폴백한다.
+# 근거: 상위 N종목만으로 적합해 나머지를 예측시키는 실험에서 β가 0.066(N=65) →
+# 0.161(N=500) → 0.276(전체)로 단조 증가했다. 표본이 좁으면 규모 계수를 과소추정하고,
+# 그 편향이 전부 양수라 소형주를 체계적으로 '저평가'로 밀어 올린다.
+MIN_FIT_SAMPLE = 300
+
+
+def fit_leg(df: pd.DataFrame, leg: str) -> dict | None:
+    """한 다리의 계수를 적합한다. 표본이 모자라면 None.
+
+    df: multiple·mcap·sector·roe 열을 가진 프레임. 결측·비양수 배수는 버린다.
+    반환: {leg, intercept, beta_size, roe_coef, sector_coef, n, mcap_min, mcap_max,
+           sector_median_mcap, sector_median_roe_coef}
+    """
+    d = df[["multiple", "mcap", "sector", "roe"]].copy()
+    d["multiple"] = pd.to_numeric(d["multiple"], errors="coerce")
+    d["mcap"] = pd.to_numeric(d["mcap"], errors="coerce")
+    d = d[(d["multiple"] > 0) & (d["mcap"] > 0)].dropna(subset=["multiple", "mcap"])
+    if len(d) < MIN_FIT_SAMPLE:
+        return None
+
+    d["rb"] = d["roe"].map(roe_bucket)
+    d["sec"] = sector_labels(d["sector"].astype(str))
+    y = np.log(d["multiple"].to_numpy(float))
+    lm = np.log(d["mcap"].to_numpy(float))
+
+    rb_levels = [x for x in ROE_LABELS if x in set(d["rb"].dropna())][1:]
+    sec_levels = sorted(set(d["sec"]))[1:]
+    cols = [np.ones(len(d)), lm]
+    cols += [(d["rb"] == lv).to_numpy(float) for lv in rb_levels]
+    cols += [(d["sec"] == lv).to_numpy(float) for lv in sec_levels]
+    beta, *_ = np.linalg.lstsq(np.column_stack(cols), y, rcond=None)
+
+    roe_coef = {lv: 0.0 for lv in ROE_LABELS}
+    for lv, b in zip(rb_levels, beta[2:2 + len(rb_levels)]):
+        roe_coef[lv] = float(b)
+    sector_coef = {sorted(set(d["sec"]))[0]: 0.0}
+    for lv, b in zip(sec_levels, beta[2 + len(rb_levels):]):
+        sector_coef[lv] = float(b)
+
+    # 화면 분해용 기준점 — 업종별 '전형적인' 시총·ROE 효과(ADR-0014 결정 다섯).
+    med_mcap = d.groupby("sec")["mcap"].median().to_dict()
+    med_roe = (d.assign(c=d["rb"].map(lambda x: roe_coef.get(x, 0.0)))
+                 .groupby("sec")["c"].median().to_dict())
+    # 예측 시점에 학습에 없던 업종이 들어오면 '기타'로 보낸다. 그런데 학습 표본의 모든
+    # 업종이 min_n을 넘겨 '기타'가 한 번도 안 만들어졌을 수 있다 — 그 자리를 비워 두면
+    # 낯선 업종의 종목이 통째로 계산 불가가 된다. 효과 0(기준 업종과 같음)으로 채워 둔다.
+    sector_coef.setdefault(OTHER_SECTOR, 0.0)
+    med_mcap.setdefault(OTHER_SECTOR, float(d["mcap"].median()))
+    med_roe.setdefault(OTHER_SECTOR, float(np.median(list(med_roe.values()) or [0.0])))
+    return {
+        "leg": leg,
+        "intercept": float(beta[0]),
+        "beta_size": float(beta[1]),
+        "roe_coef": roe_coef,
+        "sector_coef": sector_coef,
+        "n": int(len(d)),
+        "mcap_min": float(d["mcap"].min()),
+        "mcap_max": float(d["mcap"].max()),
+        "sector_median_mcap": {k: float(v) for k, v in med_mcap.items()},
+        "sector_median_roe_coef": {k: float(v) for k, v in med_roe.items()},
+    }
