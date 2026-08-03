@@ -62,6 +62,23 @@ def sector_labels(sectors: pd.Series, min_n: int = SECTOR_MIN_N) -> pd.Series:
 MIN_FIT_SAMPLE = 300
 
 
+def _design_matrix(d: pd.DataFrame) -> tuple[np.ndarray, list[str], list[str]]:
+    """회귀 설계행렬을 만든다. 열 순서는 [절편, log(시총), ROE더미들, 업종더미들]로
+    고정되며, 이 순서가 fit_leg의 beta 슬라이싱과 짝이다 — 순서를 바꾸면 그쪽도 바꿔야 한다.
+
+    d는 fit_leg에서 이미 rb(ROE 구간)·sec(업종 라벨) 열을 채운 뒤 넘어온다.
+    기준(절편에 흡수되는) ROE 구간·업종은 정렬 순서로 임의로 정해진다. 더미 코딩이라
+    기준을 무엇으로 잡아도 예측값은 같으므로 이대로 둔다(계수의 절대값이 아니라 차이만 뜻이 있다).
+    """
+    lm = np.log(d["mcap"].to_numpy(float))
+    rb_levels = [x for x in ROE_LABELS if x in set(d["rb"].dropna())][1:]
+    sec_levels = sorted(set(d["sec"]))[1:]
+    cols = [np.ones(len(d)), lm]
+    cols += [(d["rb"] == lv).to_numpy(float) for lv in rb_levels]
+    cols += [(d["sec"] == lv).to_numpy(float) for lv in sec_levels]
+    return np.column_stack(cols), rb_levels, sec_levels
+
+
 def fit_leg(df: pd.DataFrame, leg: str) -> dict | None:
     """한 다리의 계수를 적합한다. 표본이 모자라면 None.
 
@@ -72,26 +89,35 @@ def fit_leg(df: pd.DataFrame, leg: str) -> dict | None:
     d = df[["multiple", "mcap", "sector", "roe"]].copy()
     d["multiple"] = pd.to_numeric(d["multiple"], errors="coerce")
     d["mcap"] = pd.to_numeric(d["mcap"], errors="coerce")
-    d = d[(d["multiple"] > 0) & (d["mcap"] > 0)].dropna(subset=["multiple", "mcap"])
+    # 무한대를 반드시 함께 거른다. `inf > 0`이 True라 크기 비교만으로는 통과해 버리는데,
+    # log를 씌우면 설계행렬이 오염돼 lstsq가 터지거나(mcap) 계수가 통째로 NaN이 된다
+    # (multiple). 후자가 더 나쁘다 — 성공한 것처럼 보이는 계수가 전 종목에 실린다.
+    # `> 0` 비교가 NaN을 이미 떨어뜨리므로 별도 dropna는 필요 없다.
+    ok = (np.isfinite(d["multiple"]) & (d["multiple"] > 0)
+          & np.isfinite(d["mcap"]) & (d["mcap"] > 0))
+    d = d[ok]
     if len(d) < MIN_FIT_SAMPLE:
         return None
 
     d["rb"] = d["roe"].map(roe_bucket)
-    d["sec"] = sector_labels(d["sector"].astype(str))
+    # 결측 업종은 명시적으로 '기타'로 보낸다. astype(str)에 맡기면 pandas 2.x에서
+    # None이 문자열 "None"이 되어 자기 더미를 갖고, 기타 통합을 우회한다(버전 의존).
+    d["sec"] = sector_labels(d["sector"].fillna(OTHER_SECTOR).astype(str))
     y = np.log(d["multiple"].to_numpy(float))
-    lm = np.log(d["mcap"].to_numpy(float))
 
-    rb_levels = [x for x in ROE_LABELS if x in set(d["rb"].dropna())][1:]
-    sec_levels = sorted(set(d["sec"]))[1:]
-    cols = [np.ones(len(d)), lm]
-    cols += [(d["rb"] == lv).to_numpy(float) for lv in rb_levels]
-    cols += [(d["sec"] == lv).to_numpy(float) for lv in sec_levels]
-    beta, *_ = np.linalg.lstsq(np.column_stack(cols), y, rcond=None)
+    X, rb_levels, sec_levels = _design_matrix(d)
+    beta, _res, rank, _sv = np.linalg.lstsq(X, y, rcond=None)
+    # 랭크가 모자라면 lstsq는 예외 대신 최소노름 해를 낸다 — 그럴듯하지만 의미 없는
+    # 값이다. 계수를 내지 않고 폴백시킨다(ADR-0011: 오염된 값보다 계산 불가가 정직하다).
+    if rank < X.shape[1]:
+        return None
 
     roe_coef = {lv: 0.0 for lv in ROE_LABELS}
     for lv, b in zip(rb_levels, beta[2:2 + len(rb_levels)]):
         roe_coef[lv] = float(b)
-    sector_coef = {sorted(set(d["sec"]))[0]: 0.0}
+    # 기준 업종 = _design_matrix가 더미를 세우지 않은 그 하나(sec_levels에 없는 업종).
+    sec_base = next(iter(set(d["sec"]) - set(sec_levels)))
+    sector_coef = {sec_base: 0.0}
     for lv, b in zip(sec_levels, beta[2 + len(rb_levels):]):
         sector_coef[lv] = float(b)
 
