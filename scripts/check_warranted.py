@@ -30,8 +30,10 @@ def main() -> int:
     market = (sys.argv[1] if len(sys.argv) > 1 else "KR").upper()
     snap = collect_kr() if market == "KR" else collect_us()
     print(f"{market} 스냅숏 {len(snap)}종목\n")
-    print(f"{'다리':<12}{'표본':>7}{'중앙값 R²':>11}{'회귀 R²':>10}{'판정':>8}")
-    print("─" * 50)
+    # β를 함께 찍는다 — ADR-0014가 규모 효과의 크기를 근거로 결론을 내는데, 그 숫자를
+    # 만든 스크립트가 저장소에 없었다. 여기서 찍어야 재현 절이 실제로 재현이 된다.
+    print(f"{'다리':<12}{'표본':>7}{'중앙값 R²':>11}{'회귀 R²':>10}{'β(시총)':>10}{'판정':>8}")
+    print("─" * 60)
     bad = 0
     for leg, (lo, hi) in LEG_BOUNDS.items():
         v = pd.to_numeric(snap.get(leg), errors="coerce")
@@ -42,7 +44,7 @@ def main() -> int:
         d = d.reset_index(drop=True)
         coef = fit_leg(d, leg=leg)
         if coef is None:
-            print(f"{leg:<12}{len(d):>7}{'—':>11}{'—':>10}{'표본부족':>8}")
+            print(f"{leg:<12}{len(d):>7}{'—':>11}{'—':>10}{'—':>10}{'표본부족':>8}")
             continue
         y = np.log(d["multiple"].to_numpy(float))
         mc = d["mcap"].to_numpy(float)
@@ -62,7 +64,8 @@ def main() -> int:
         rr, rm = r2(reg), r2(med)
         good = rr >= BASELINE_R2.get(leg, 0) * 0.8 and rr > rm
         bad += 0 if good else 1
-        print(f"{leg:<12}{len(d):>7}{rm:>11.3f}{rr:>10.3f}{'[확인]' if good else '[문제]':>8}")
+        print(f"{leg:<12}{len(d):>7}{rm:>11.3f}{rr:>10.3f}"
+              f"{coef['beta_size']:>+10.3f}{'[확인]' if good else '[문제]':>8}")
     print(f"\n문제 {bad}건")
     return 1 if bad else 0
 

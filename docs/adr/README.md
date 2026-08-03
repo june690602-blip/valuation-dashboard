@@ -24,4 +24,4 @@
 | [0012](0012-historical-band-measures-multiple-not-price.md) | ②는 '배수를 재는 밴드'일 때만 판정에 쓴다 | 채택됨 |
 | [0011](0011-peer-size-window-and-no-fallback.md) | ①은 규모 비교가능 피어(1/5~5배)만 쓰고 부족하면 제외한다 | 채택됨 |
 | [0013](0013-peer-selection-by-size-proximity.md) | 피어 후보를 '업종 시총 상위 N'이 아니라 '업종 내 시총 인접 N'으로 뽑는다 | 채택됨 |
-| [0014](0014-relative-value-by-regression.md) | ①을 피어 중앙값이 아니라 업종·규모·수익성 회귀로 낸다 | 제안됨 |
+| [0014](0014-relative-value-by-regression.md) | ①을 피어 중앙값이 아니라 업종·규모·수익성 회귀로 낸다 | 채택됨 |

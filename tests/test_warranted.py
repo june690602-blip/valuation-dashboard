@@ -384,6 +384,17 @@ class CoefficientTableTests(unittest.TestCase):
         self.assertNotIn("ev_ebitda", out)
         self.assertAlmostEqual(out["pbr"]["beta_size"], 0.30, places=2)
 
+    def test_coefficients_or_none_swallows_any_failure(self):
+        # 계수를 못 읽는 것은 판정을 멈출 이유가 아니다 — 피어 중앙값 폴백이 있다.
+        # 이게 예외를 흘리면 캐시·네트워크 장애가 그날 전 종목의 분석을 통째로 죽인다.
+        from src.data import universe_multiples as um
+
+        with patch.object(um, "get_coefficients", side_effect=RuntimeError("cache down")):
+            self.assertIsNone(um.coefficients_or_none("KR"))
+        # 빈 dict도 None으로 — 호출부는 `if coef:`로 갈림길을 판단한다
+        with patch.object(um, "get_coefficients", lambda market: {}):
+            self.assertIsNone(um.coefficients_or_none("KR"))
+
 
 class RelativeValueTests(unittest.TestCase):
     def test_warranted_fairs_uses_regression_not_peers(self):
