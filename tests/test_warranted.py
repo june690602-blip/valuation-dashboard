@@ -285,3 +285,80 @@ class Sp1500Tests(unittest.TestCase):
             self.assertEqual(len(out), 503)          # 값 자체는 돌려준다
             cached = list(Path(tmp).glob("sp1500_*"))
             self.assertEqual(cached, [])             # 그러나 저장하지는 않는다
+
+
+class UniverseSnapshotTests(unittest.TestCase):
+    def _listing(self):
+        return pd.DataFrame({"Code": ["005930"], "Name": ["삼성전자"],
+                             "Market": ["KOSPI"], "Marcap": [1.5e15],
+                             "Sector": ["반도체"], "is_common": [True]})
+
+    def test_num_rejects_non_finite_and_unparseable(self):
+        from src.data.universe_multiples import _num
+
+        self.assertIsNone(_num(None))
+        self.assertIsNone(_num(float("inf")))
+        self.assertIsNone(_num(float("nan")))
+        self.assertIsNone(_num("열두"))
+        self.assertEqual(_num("3.5"), 3.5)
+        self.assertEqual(_num(2), 2)
+
+    def test_kr_keeps_naver_values_when_yfinance_dies(self):
+        # 한국은 두 원천이 상보적이다(네이버 per·pbr·roe / yfinance psr·ev_ebitda).
+        # yfinance가 레이트리밋으로 죽는 것은 흔한 일이고 — 실측에서 2,688개 중
+        # 1,655개만 성공했다 — 그때 네이버 값까지 잃으면 안 된다.
+        from src.data import universe_multiples as um
+
+        def boom(t):
+            raise RuntimeError("401 Invalid Crumb")
+
+        with patch.object(um, "_kr_listing", self._listing), \
+             patch.object(um, "_naver_fundamental",
+                          lambda code: {"per": 12.0, "pbr": 1.4, "roe_approx": 0.11}), \
+             patch.object(um, "_info_metrics", boom):
+            df = um.collect_kr()
+        row = df.iloc[0]
+        self.assertEqual(row["per"], 12.0)          # 네이버는 살아남았다
+        self.assertEqual(row["pbr"], 1.4)
+        self.assertEqual(row["roe"], 0.11)
+        self.assertIsNone(row["psr"])               # yfinance만 비었다
+        self.assertIsNone(row["ev_ebitda"])
+
+    def test_kr_keeps_yfinance_values_when_naver_dies(self):
+        from src.data import universe_multiples as um
+
+        def boom(code):
+            raise RuntimeError("naver down")
+
+        with patch.object(um, "_kr_listing", self._listing), \
+             patch.object(um, "_naver_fundamental", boom), \
+             patch.object(um, "_info_metrics",
+                          lambda t: {"psr": 1.2, "ev_ebitda": 8.0}):
+            df = um.collect_kr()
+        row = df.iloc[0]
+        self.assertIsNone(row["per"])
+        self.assertEqual(row["psr"], 1.2)
+        self.assertEqual(row["ev_ebitda"], 8.0)
+        self.assertEqual(row["mcap"], 1.5e15)       # 시총은 상장목록에서 온다
+
+    def test_us_row_survives_a_failing_symbol(self):
+        from src.data import universe_multiples as um
+
+        uni = pd.DataFrame({"Symbol": ["AAPL", "MSFT"], "Sector": ["Tech", "Tech"],
+                            "SubIndustry": ["X", "X"]})
+
+        def half(sym):
+            if sym == "AAPL":
+                raise RuntimeError("429")
+            return {"market_cap": 3e12, "per": 30.0, "pbr": 12.0,
+                    "psr": 11.0, "ev_ebitda": 22.0, "roe": 0.35}
+
+        with patch.object(um, "_us_universe", lambda: uni), \
+             patch.object(um, "_info_metrics", half):
+            df = um.collect_us().set_index("code")
+        # 2행 이상에서 None과 float가 섞이면 pandas가 컬럼을 float64로 승격하며
+        # None을 NaN으로 바꾼다(1행짜리 KR 테스트는 object dtype이라 None이 유지됨,
+        # 실측 확인됨) — 그래서 여기서는 isna로 "값이 비었다"를 확인한다.
+        self.assertTrue(pd.isna(df.loc["AAPL", "per"]))  # 실패한 종목은 비지만 행은 남는다
+        self.assertEqual(df.loc["MSFT", "per"], 30.0)
+        self.assertEqual(len(df), 2)
