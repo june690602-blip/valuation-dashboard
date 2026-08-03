@@ -52,12 +52,20 @@ from src.data.universe import get_kr_listing      # noqa: E402
 OK, BAD, NA = "[확인]", "[문제]", "[불가]"
 _tally = {OK: 0, BAD: 0, NA: 0}
 
-# 기준선 — 2026-08-03 실측. 고치면 함께 내린다.
-#   ① rho −0.261 · ③ rho −0.44 수준. 회귀만 막고, 개선은 [확인]으로 알린다.
+# 기준선 — 고치면 함께 내린다. 회귀만 막고, 개선은 [확인]으로 알린다.
+#   ③ rho −0.44 수준.
+#   ①은 2026-08-04에 측정 조건이 바뀌었다(ADR-0013 결정 다섯) — 예전 값 −0.261은
+#   **전체 피어 폴백이 있고 피어 풀이 업종 전체이며 factor=20**인 조건의 것이라
+#   프로덕션과 달랐다. 프로덕션과 맞춘 뒤(시총 인접 14 · 폴백 없음 · factor=5)
+#   −0.063이다. **rho만 보지 말 것** — 제외율과 함께 읽어야 생존편향에 속지 않는다.
 KNOWN_RHO = 0.30
 
 QLABEL = ["Q1 최소형", "Q2 소형", "Q3 중형", "Q4 대형", "Q5 최대형"]
-SIZE_FACTOR = 20.0          # scoring.comparable_peers 기본값
+SIZE_FACTOR = 5.0           # scoring.comparable_peers 기본값 (ADR-0011)
+# 후보 풀 크기 — 프로덕션 다운로드 예산(peer_count 9 + 5)과 같게 맞춘다.
+# 예전에는 업종 **전체**를 풀로 썼는데, 프로덕션은 후보 14개를 받아 그중에서 고른다.
+# 창 안 피어의 '유무'는 두 조건이 같지만 **중앙값을 내는 표본이 다르다**(ADR-0013).
+CAND_N = 14
 RIM_W = 0.8                 # valuation._rim 중심 시나리오
 W_REL, W_RIM = 0.385, 0.231  # ADR-0006 판정 가중(①②③ 재정규화)
 RF, MRP = 0.035, 0.06       # KRProvider 기본 가정
@@ -129,39 +137,53 @@ def collect(limit: int | None) -> pd.DataFrame:
 #    벡터화한다. 규칙(시총 1/f~f배 · 자사 제외 · 표본 min_n)은 원본과 같다.
 # ══════════════════════════════════════════════════════════════════════
 def relative_gap(df: pd.DataFrame, factor: float | None) -> pd.DataFrame:
+    """①의 폴백 경로(피어 중앙값)를 프로덕션과 같은 조건으로 재현한다.
+
+    ADR-0013이 지적한 세 어긋남을 고쳤다 — 이 스크립트가 프로덕션과 다른 것을 재고
+    있었고, 그래서 ADR-0011이 인용한 rho가 실제 조합의 값이 아니었다:
+
+    1. **후보 풀을 시총 인접 CAND_N개로 제한.** 예전에는 업종 전체를 풀로 썼다.
+    2. **전체 피어 폴백 제거.** 프로덕션이 ①을 빼는 자리에서 스크립트도 빼야 한다
+       (ADR-0011이 프로덕션에서 없앤 바로 그 경로가 여기 남아 있었다).
+    3. `SIZE_FACTOR`를 5.0으로(위 상수).
+
+    제외된 종목은 `gap=NaN`으로 **남긴다.** 예전에는 `continue`로 조용히 빠져
+    모집단에서 사라졌는데, 편향이 가장 심한 소형주가 대거 빠지므로 **생존편향이 rho
+    개선처럼 보인다.** 제외율과 rho는 함께 읽어야 하는 한 쌍이다.
+    """
     out = []
     for sector, g in df.groupby("Sector", sort=False):
         mc, per, pbr = (g["Marcap"].to_numpy(), g["per"].to_numpy(float), g["pbr"].to_numpy(float))
+        lg = np.log(np.where(mc > 0, mc, np.nan))
         for i in range(len(g)):
-            row, others = g.iloc[i], np.ones(len(g), bool)
-            others[i] = False
+            row = g.iloc[i]
+            # 후보 선정 — 프로덕션의 select_peers_kr + trim_peers(시총 인접, ADR-0013)
+            cand = np.zeros(len(g), bool)
+            order = np.argsort(np.abs(lg - lg[i]))
+            for j in order:
+                if j != i and len(cand.nonzero()[0]) < CAND_N - 1:
+                    cand[j] = True
 
             def med(vals, mask, min_n):
-                v = vals[mask & others]
+                v = vals[mask]
                 v = v[~np.isnan(v)]
                 return float(np.median(v)) if len(v) >= min_n else None
 
-            win = (others & (mc >= row.Marcap / factor) & (mc <= row.Marcap * factor)
-                   if factor else others)
+            win = (cand & (mc >= row.Marcap / factor) & (mc <= row.Marcap * factor)
+                   if factor else cand)
             pm, bm, n_win = med(per, win, 2), med(pbr, win, 2), int(win.sum())
             fairs = []
             if pm and row.eps and row.eps > 0:
                 fairs.append(pm * row.eps)
             if bm and row.bps and row.bps > 0:
                 fairs.append(bm * row.bps)
-            if not fairs:                            # _relative_value의 '전체 피어' 폴백
-                pm, bm = med(per, others, 3), med(pbr, others, 3)
-                if pm and row.eps and row.eps > 0:
-                    fairs.append(pm * row.eps)
-                if bm and row.bps and row.bps > 0:
-                    fairs.append(bm * row.bps)
-            if not fairs:
-                continue
+            # 폴백 없음 — 표본을 못 채우면 프로덕션은 ①을 통째로 뺀다(ADR-0011).
             out.append({"Code": row.Code, "Sector": sector, "Marcap": row.Marcap,
                         "bucket": row.bucket, "n_peer": n_win,
+                        "excluded": not fairs,
                         "peer_mc_ratio": float(np.median(mc[win]) / row.Marcap) if n_win else np.nan,
                         "per_ratio": pm / row.per if (pm and row.per) else np.nan,
-                        "gap": float(np.median(fairs)) / row.Close - 1})
+                        "gap": (float(np.median(fairs)) / row.Close - 1) if fairs else np.nan})
     return pd.DataFrame(out)
 
 
@@ -191,7 +213,7 @@ def report_material(df: pd.DataFrame) -> None:
 
 def report_relative(df: pd.DataFrame) -> pd.DataFrame:
     head("B. ① 업종 상대가치 — 피어 규모창이 대칭인가")
-    res = {f: relative_gap(df, f) for f in (SIZE_FACTOR, 5.0, 3.0, None)}
+    res = {f: relative_gap(df, f) for f in (SIZE_FACTOR, 3.0, None)}
     tab = pd.DataFrame({(f"factor={int(f)}" if f else "필터없음"):
                         r.groupby("bucket", observed=True)["gap"].median() * 100
                         for f, r in res.items()})
@@ -209,8 +231,15 @@ def report_relative(df: pd.DataFrame) -> pd.DataFrame:
 
     a = base.groupby("bucket", observed=True).agg(
         피어수중앙=("n_peer", "median"), 피어시총배수=("peer_mc_ratio", "median"),
-        피어PER대비자사=("per_ratio", "median"))
+        피어PER대비자사=("per_ratio", "median"), 제외율=("excluded", "mean"))
     print(a.round(2).to_string())
+    # 제외율과 rho는 함께 읽어야 한다 — ①이 계산된 종목만으로 rho를 재면, 편향이 가장
+    # 심한 소형주가 모집단에서 빠져 **생존편향이 개선처럼 보인다**(ADR-0013).
+    ex_all, ex_q1 = base["excluded"].mean(), a["제외율"].iloc[0]
+    say(BAD if ex_q1 > 0.20 else OK,
+        f"① 제외율 전체 {ex_all:.1%} · 최소형 {ex_q1:.1%}",
+        "위 rho는 ①이 계산된 종목만으로 잰 값이다. 제외율이 높으면 rho가 좋아 보여도\n"
+        "편향이 준 것이 아니라 편향된 대상이 측정에서 빠진 것일 수 있다.")
     r0 = a["피어시총배수"].iloc[0]
     say(BAD if r0 > 1.2 else OK, f"최소형주의 피어 시총 중앙값이 자사의 {r0:.2f}배",
         f"시총 분포가 오른쪽으로 길어 ±{SIZE_FACTOR:g}배 창이 위로만 열린다.\n"

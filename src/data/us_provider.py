@@ -193,7 +193,10 @@ class USProvider(DataProvider):
             basis += f" · 사용자 편집(제외 {len(exclude)}·추가 {added})"
 
         peers_full = build_peer_table(cands, sym, labels=None)
-        peers = trim_peers(peers_full, sym, peer_count + added)
+        # 미국은 `trim_peers` 변경만 적용한다(ADR-0013 결정 넷) — S&P500 표에 시가총액
+        # 열이 없어 다운로드 **전에** 규모로 고를 수 없다. 후보를 넓게 받아 다운로드 후
+        # 여기서 인접순으로 고른다. 한국처럼 후보 단계까지 고치지는 못한다.
+        peers = trim_peers(peers_full, sym, peer_count + added, self_mcap=mcap)
         # 사용자가 추가한 피어는 시총 컷에 잘리지 않게 고정(핀). 심볼 오타 등으로
         # 데이터가 아예 없으면 표에 못 실리므로 경고로 알린다.
         if added:

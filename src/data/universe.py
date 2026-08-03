@@ -90,7 +90,18 @@ def get_kr_etf() -> pd.DataFrame:
 
 
 def select_peers_kr(code: str, n: int = 10) -> list[str]:
-    """같은 섹터에서 시총 상위 n개 (자기 자신 포함, 보통주만)."""
+    """같은 섹터에서 **시총이 자사와 가까운** n개 (자기 자신 포함, 보통주만) — ADR-0013.
+
+    예전에는 '시총 상위 n'이었다. 그러면 소형주의 후보가 그 업종의 거인들로만 채워지고
+    (참엔지니어링의 피어 8곳이 자사의 161~873배였다), 뒤에 붙은 1/5~5배 창이 전부를
+    걸러 ①이 통째로 빠졌다. **창을 고칠 게 아니라 후보를 고르는 이 단계를 고쳐야 한다.**
+
+    KRX 상장목록에 `Marcap`이 있어 **다운로드 전에** 규모로 고를 수 있다. 여기서 고치지
+    않으면 잘못된 후보를 받아온 뒤 `trim_peers`가 그중에서 고르게 되어 할 일이 없다.
+
+    거리는 `|log(시총 / 자사 시총)|`이다 — 2배와 1/2배를 같은 거리로 본다.
+    자사 시총을 모르거나 비양수면 종전 '시총 상위' 순서로 물러난다.
+    """
     listing = get_kr_listing()
     me = listing[listing["Code"] == code]
     if me.empty:
@@ -102,14 +113,19 @@ def select_peers_kr(code: str, n: int = 10) -> list[str]:
     else:
         return [code]
     if "Marcap" in pool.columns:
-        pool = pool.sort_values("Marcap", ascending=False)
+        self_mc = pd.to_numeric(me.iloc[0].get("Marcap"), errors="coerce")
+        mc = pd.to_numeric(pool["Marcap"], errors="coerce")
+        if pd.notna(self_mc) and self_mc > 0:
+            dist = (np.log(mc.where(mc > 0)) - np.log(float(self_mc))).abs()
+            pool = pool.assign(_d=dist).sort_values("_d", na_position="last")
+        else:
+            pool = pool.sort_values("Marcap", ascending=False)
     codes = pool["Code"].tolist()
     if code not in codes:
         codes = [code] + codes
-    top = codes[:n]
-    if code not in top:
-        top = [code] + top[: n - 1]
-    return top
+    # 자기 자신을 맨 앞으로 — 거리 0이라 이미 앞이지만, 결측·동률에서도 보장한다
+    codes = [code] + [c for c in codes if c != code]
+    return codes[:n]
 
 
 # ── 미국 ────────────────────────────────────────────────────────────────

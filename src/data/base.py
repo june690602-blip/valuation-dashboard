@@ -477,11 +477,39 @@ def fill_self_from_financials(peers: pd.DataFrame, self_ticker: str,
     return df
 
 
-def trim_peers(df: pd.DataFrame, self_ticker: str, n: int) -> pd.DataFrame:
-    """시총 상위 n개로 축소하되 자기 자신은 항상 유지."""
+def trim_peers(df: pd.DataFrame, self_ticker: str, n: int,
+               self_mcap: float | None = None) -> pd.DataFrame:
+    """자사와 **시총이 가까운** 순으로 n개로 축소하되 자기 자신은 항상 유지 (ADR-0013).
+
+    예전에는 '시총 상위 n'이었다. 그 뒤에 `comparable_peers`가 1/5~5배 창으로 걸렀는데,
+    **편향된 표본추출 아래에 필터를 달면 정확해지는 것이 아니라 비어 버린다** — 소형주
+    기준으로 창을 통과할 회사는 이 함수가 이미 잘라낸 뒤였다. 실측에서 참엔지니어링의
+    피어 배율 중앙이 108.6배(창 안 1곳/9)였고, 반대로 삼성전자는 피어가 자사의 수백분의
+    1이라 역시 창 안이 2곳뿐이었다. **양 끝단이 같은 이유로 망가진다.**
+
+    거리는 `|log(피어 시총 / 자사 시총)|`로 잰다. 배수 세계에서 2배와 1/2배는 같은
+    거리인데 선형 차이로 재면 큰 쪽만 뽑히기 때문이다.
+
+    `self_mcap`을 인자로 받는 이유 — 표 안의 자사 행에서 읽으면 그 값이 결측일 수 있고
+    (상장목록에 없는 종목·미국 경로), 규모를 모르는 채로 '인접'을 정할 수는 없다.
+    **없거나 비양수면 종전 '시총 상위 n' 동작을 그대로 유지한다**(ADR-0011의 원칙:
+    오염된 값보다 계산 불가가 정직하다 — 여기서는 '종전 동작'이 그 자리를 맡는다).
+
+    시총이 결측인 피어는 버리지 않고 **뒤로 민다.** 버리면 표본이 더 얇아지는데,
+    이 함수가 고치려는 것이 바로 표본이 비는 문제다.
+    """
     if df.empty:
         return df
-    df = df.sort_values("market_cap", ascending=False, na_position="last")
+    try:
+        anchor = float(self_mcap)
+    except (TypeError, ValueError):
+        anchor = 0.0
+    if anchor > 0 and np.isfinite(anchor):
+        mc = pd.to_numeric(df["market_cap"], errors="coerce")
+        dist = (np.log(mc.where(mc > 0)) - np.log(anchor)).abs()
+        df = df.assign(_d=dist).sort_values("_d", na_position="last").drop(columns="_d")
+    else:
+        df = df.sort_values("market_cap", ascending=False, na_position="last")
     top = df.head(n)
     if self_ticker in df.index and self_ticker not in top.index:
         top = pd.concat([df.loc[[self_ticker]], top.head(n - 1)])

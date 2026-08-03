@@ -209,6 +209,21 @@ class KRProvider(DataProvider):
             sector = ai_sector or sector
             industry = ai_industry or industry
             peer_basis = f"AI 업종분류 '{ai_sector or industry}'"
+            # AI가 판별하는 것은 **어느 업종인가**이고, 그 업종 안에서 **어느 회사인가**는
+            # 규모가 정한다. AI 목록만으로는 창을 못 채운다 — 캐시된 AI 피어 목록 24건에서
+            # 한 목록 안 시총 최대/최소 배율의 중앙값이 205배였고 92%가 25배를 넘었다.
+            # 25배는 1/5~5배 창이 담을 수 있는 최대 폭이라, 그 목록은 어느 구성원을
+            # 기준으로 삼아도 전원을 창에 담을 수 없다. 남는 자리를 시총 인접으로 채운다.
+            budget = peer_count + 5
+            if len(peer_codes) < budget:
+                for c in select_peers_kr(code, n=budget):
+                    if len(peer_codes) >= budget:
+                        break
+                    if c not in peer_codes:
+                        peer_codes.append(c)
+                if len(peer_codes) > len(ai_codes) + 1:
+                    peer_basis += " · 규모 인접 종목으로 보충"
+            peer_codes = peer_codes[:budget]
         else:
             peer_codes = select_peers_kr(code, n=peer_count + 5)
             peer_basis = f"KRX 업종분류 '{sector}'" if sector else "업종분류 불명"
@@ -250,7 +265,7 @@ class KRProvider(DataProvider):
                 labels[pyt] = r["Name"]
         peers_full = build_peer_table(peer_yts, yt, labels)
         peers_full = self._patch_kr_peers(peers_full, listing)
-        peers = trim_peers(peers_full, yt, peer_count + added)
+        peers = trim_peers(peers_full, yt, peer_count + added, self_mcap=mcap)
         # 사용자가 추가한 피어는 시총 컷에 잘리지 않게 고정(핀)
         if added:
             pin = [yahoo_ticker_kr(c, listing.loc[c].get("Market", "KOSPI")) for c in added_codes]
