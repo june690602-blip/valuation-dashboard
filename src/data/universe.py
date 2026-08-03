@@ -175,7 +175,12 @@ def _wiki_index_table(url: str) -> pd.DataFrame:
     raise RuntimeError(f"구성종목 표를 찾지 못했습니다: {url}")
 
 
-@file_cache("sp1500", ttl_hours=24 * 7)
+# 축소된 유니버스를 캐시하지 않는다. 임계 1000은 **S&P 600(소형주 계층)이 들어왔는가**를
+# 가르는 값이다 — 500만이면 503행(하한 $7.0B), 500+400이면 903행(하한 약 $2B), 600이
+# 들어와야 1,100행을 넘고 하한이 $0.54B로 내려간다. 하한을 낮추는 것이 이 유니버스를
+# 넓힌 이유이므로, 그 계층이 빠진 결과는 7일 동안 붙들고 있으면 안 된다.
+# validate가 실패하면 file_cache는 저장하지 않고 마지막 정상 캐시를 대신 내준다.
+@file_cache("sp1500", ttl_hours=24 * 7, validate=lambda df: len(df) > 1000)
 def get_sp1500() -> pd.DataFrame:
     """S&P 500 + 400 MidCap + 600 SmallCap = 약 1,500종목.
 
@@ -195,6 +200,8 @@ def get_sp1500() -> pd.DataFrame:
             frames.append(_wiki_index_table(url))
         except Exception:
             continue
+    # 세 지수는 배타적이라 정상적으로는 겹치지 않는다. 재편 중 위키백과 페이지들이
+    # 동기화되기 전 잠깐 겹칠 수 있는데, 그때는 먼저 온 S&P 500 쪽 분류를 남긴다.
     return pd.concat(frames, ignore_index=True).drop_duplicates("Symbol")
 
 

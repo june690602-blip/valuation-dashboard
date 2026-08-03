@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import math
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
@@ -235,8 +237,8 @@ class Sp1500Tests(unittest.TestCase):
         self.assertEqual(sorted(out["Symbol"]), ["AAON", "AAPL", "MSFT", "XPEL"])
         self.assertEqual(len(out), 4)   # AAON 중복 제거
 
-    def test_sp1500_survives_one_index_failing(self):
-        # 한 지수를 못 받아도 나머지로 진행한다 — 무료 원천은 자주 흔들린다
+    def test_sp1500_survives_all_auxiliary_indices_failing(self):
+        # 400·600을 둘 다 못 받아도 나머지(S&P 500)로 진행한다 — 무료 원천은 자주 흔들린다
         from src.data import universe
 
         def boom(url):
@@ -248,3 +250,38 @@ class Sp1500Tests(unittest.TestCase):
              patch.object(universe, "_wiki_index_table", boom):
             out = universe.get_sp1500.__wrapped__()
         self.assertEqual(list(out["Symbol"]), ["AAPL"])
+
+    def test_sp1500_keeps_the_index_that_succeeded(self):
+        # 흔한 경우는 둘 다 죽는 게 아니라 하나만 죽는 것이다. 살아남은 쪽은 들어와야 한다.
+        from src.data import universe
+
+        base = pd.DataFrame({"Symbol": ["AAPL"], "Sector": ["Tech"],
+                             "SubIndustry": ["X"]})
+
+        def half(url):
+            if "400" in url:
+                raise RuntimeError("400 down")
+            return pd.DataFrame({"Symbol": ["XPEL"], "Sector": ["Tech"],
+                                 "SubIndustry": ["X"]})
+
+        with patch.object(universe, "get_sp500", lambda: base), \
+             patch.object(universe, "_wiki_index_table", half):
+            out = universe.get_sp1500.__wrapped__()
+        self.assertEqual(sorted(out["Symbol"]), ["AAPL", "XPEL"])
+
+    def test_degraded_universe_is_not_cached(self):
+        # 400·600이 모두 실패하면 503행짜리 축소 유니버스가 나오는데, 그것이 7일 동안
+        # 캐시되면 하한이 $7.0B로 되돌아간 상태로 굳는다 — 이 유니버스를 넓힌 이유가 사라진다.
+        from src.data import universe
+
+        small = pd.DataFrame({"Symbol": [f"S{i}" for i in range(503)],
+                              "Sector": ["Tech"] * 503, "SubIndustry": ["X"] * 503})
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch("src.data.cache.CACHE_DIR", Path(tmp)), \
+             patch.object(universe, "get_sp500", lambda: small), \
+             patch.object(universe, "_wiki_index_table",
+                          lambda url: (_ for _ in ()).throw(RuntimeError("down"))):
+            out = universe.get_sp1500()
+            self.assertEqual(len(out), 503)          # 값 자체는 돌려준다
+            cached = list(Path(tmp).glob("sp1500_*"))
+            self.assertEqual(cached, [])             # 그러나 저장하지는 않는다
