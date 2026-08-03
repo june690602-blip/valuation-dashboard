@@ -621,12 +621,95 @@ def collect_us() -> pd.DataFrame:
     return pd.DataFrame(rows)
 ```
 
-- [ ] **Step 2: 문법 확인**
+- [ ] **Step 2: 부분 수집을 테스트로 못박는다**
 
-Run: `.venv/Scripts/python.exe -c "import py_compile; py_compile.compile('src/data/universe_multiples.py', doraise=True); print('ok')"`
-Expected: `ok`
+이 모듈의 핵심 주장이 *"한 원천이 죽어도 다른 원천 값은 살린다"* 인데, 그게 사실인지
+확인하는 것이 없으면 나중에 `try/except`를 옮기다 조용히 깨진다. 네트워크는 mock한다.
 
-- [ ] **Step 3: 실제로 한국 전 종목을 한 번 받아본다** (약 4분)
+`tests/test_warranted.py`에 추가:
+
+```python
+class UniverseSnapshotTests(unittest.TestCase):
+    def test_num_rejects_non_finite_and_unparseable(self):
+        from src.data.universe_multiples import _num
+
+        self.assertIsNone(_num(None))
+        self.assertIsNone(_num(float("inf")))
+        self.assertIsNone(_num(float("nan")))
+        self.assertIsNone(_num("열두"))
+        self.assertEqual(_num("3.5"), 3.5)
+        self.assertEqual(_num(2), 2)
+
+    def test_kr_keeps_naver_values_when_yfinance_dies(self):
+        # 한국은 두 원천이 상보적이다(네이버 per·pbr·roe / yfinance psr·ev_ebitda).
+        # yfinance가 레이트리밋으로 죽는 것은 흔한 일이고, 그때 네이버 값까지
+        # 잃으면 안 된다 — 실측에서 yfinance는 2,688개 중 1,655개만 성공했다.
+        from src.data import universe_multiples as um
+
+        listing = pd.DataFrame({"Code": ["005930"], "Name": ["삼성전자"],
+                                "Market": ["KOSPI"], "Marcap": [1.5e15],
+                                "Sector": ["반도체"], "is_common": [True]})
+        with patch.object(um, "_kr_listing", lambda: listing), \
+             patch.object(um, "_naver_fundamental",
+                          lambda code: {"per": 12.0, "pbr": 1.4, "roe_approx": 0.11}), \
+             patch.object(um, "_info_metrics",
+                          lambda t: (_ for _ in ()).throw(RuntimeError("429"))):
+            df = um.collect_kr()
+        row = df.iloc[0]
+        self.assertEqual(row["per"], 12.0)          # 네이버는 살아남았다
+        self.assertEqual(row["pbr"], 1.4)
+        self.assertIsNone(row["psr"])               # yfinance만 비었다
+        self.assertIsNone(row["ev_ebitda"])
+
+    def test_kr_keeps_yfinance_values_when_naver_dies(self):
+        from src.data import universe_multiples as um
+
+        listing = pd.DataFrame({"Code": ["005930"], "Name": ["삼성전자"],
+                                "Market": ["KOSPI"], "Marcap": [1.5e15],
+                                "Sector": ["반도체"], "is_common": [True]})
+        with patch.object(um, "_kr_listing", lambda: listing), \
+             patch.object(um, "_naver_fundamental",
+                          lambda code: (_ for _ in ()).throw(RuntimeError("down"))), \
+             patch.object(um, "_info_metrics",
+                          lambda t: {"psr": 1.2, "ev_ebitda": 8.0}):
+            df = um.collect_kr()
+        row = df.iloc[0]
+        self.assertIsNone(row["per"])
+        self.assertEqual(row["psr"], 1.2)
+        self.assertEqual(row["ev_ebitda"], 8.0)
+        self.assertEqual(row["mcap"], 1.5e15)       # 시총은 상장목록에서 온다
+```
+
+테스트가 patch할 수 있도록, `collect_kr`/`collect_us`가 쓰는 원천 함수를 **모듈 수준
+얇은 래퍼**로 둔다(지연 임포트는 유지 — 임포트 비용을 서버 기동에 얹지 않는다):
+
+```python
+def _kr_listing():
+    from .universe import get_kr_listing
+    return get_kr_listing()
+
+
+def _naver_fundamental(code: str) -> dict:
+    from .naver import fetch_naver_fundamental
+    return fetch_naver_fundamental(code)
+
+
+def _info_metrics(ticker: str) -> dict:
+    from .base import fetch_info_metrics
+    return fetch_info_metrics(ticker)
+```
+
+`collect_kr`/`collect_us`는 이 래퍼들만 부른다.
+
+- [ ] **Step 3: 문법·테스트 확인**
+
+Run: `.venv/Scripts/python.exe -m pytest tests/test_warranted.py -q`
+Expected: PASS — 31 tests (28 기존 + 3 신규)
+
+Run: `.venv/Scripts/python.exe -m pytest tests/ -q`
+Expected: 243 passed, 72 subtests
+
+- [ ] **Step 4: 실제로 한국 전 종목을 한 번 받아본다** (약 4분)
 
 Run:
 ```bash
@@ -635,7 +718,7 @@ Run:
 Expected: 2,600대 행. `per`·`pbr`이 1,500 이상, `psr`·`ev_ebitda`가 900 이상.
 (레이트리밋으로 `psr`·`ev_ebitda`가 더 낮게 나올 수 있다 — 정상이다.)
 
-- [ ] **Step 4: 커밋**
+- [ ] **Step 5: 커밋**
 
 ```bash
 git add src/data/universe_multiples.py
