@@ -103,6 +103,26 @@
     return fold('어떻게 나온 값인가', body);
   }
 
+  /* ⑤의 근거 — 이 축이 다른 축과 갈리는 이유는 정규화 비율 하나다. 그것을 접어 둔다. */
+  function normalizedFold(nz) {
+    if (!nz || nz.eps == null || nz.per == null) return '';
+    var body = '<div>' + nz.years + '년 평균 순이익으로 계산한 정상 EPS '
+      + won(nz.eps) + '</div>'
+      + '<div>× 적정 PER ' + nz.per.toFixed(1) + '배 (업종·규모·수익성 회귀)</div>';
+    if (nz.ratio != null) {
+      body += '<div style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px">'
+        + '정상 이익은 현재의 ' + nz.ratio.toFixed(2) + '배 — '
+        + (nz.ratio < 1 ? '현재 이익이 정상보다 높습니다' : '현재 이익이 정상보다 낮습니다')
+        + '</div>';
+    }
+    body += '<div style="color:var(--ink-3);border-top:1px dashed var(--line);'
+      + 'margin-top:6px;padding-top:6px">' + nz.years + '개년 평균입니다. 근거 문헌'
+      + '(Anderson &amp; Brooks 2006)은 8년을 쓰지만 공시 이력이 짧아 그만큼 효과가'
+      + ' 약합니다. 5년이 통째로 호황이면 평균도 호황입니다 — 이 방법은 사이클을'
+      + ' <b>완화할 뿐 제거하지 않습니다</b>.</div>';
+    return fold('어떻게 나온 값인가', body);
+  }
+
   var VERDICTS = ['크게 저평가', '저평가', '적정 수준', '고평가', '크게 고평가'];
   function vIdx(v) { var i = VERDICTS.indexOf(v); return i < 0 ? 2 : i; }
   function vPos(v) { return [12, 31, 50, 69, 88][vIdx(v)]; }
@@ -935,8 +955,10 @@
     var est = D.verdict.estimates || [], v = D.verdict;
     var head = '<div class="row head" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr"><span class="col-label">방법</span><span class="col-label r">적정가 범위</span><span class="col-label r">중심</span><span class="col-label">근거</span></div>';
     // 방법 → 적정가 재료 번호·재료 탭 (요약 표에서 근거가 되는 탭으로 바로 이동)
-    var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'], '선행 이익(컨센서스)': ['④', null] };
-    var CANON = ['업종 상대가치', '역사적 밴드', '수익가치(RIM)', '선행 이익(컨센서스)'];
+    var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'], '선행 이익(컨센서스)': ['④', null], '정규화 이익': ['⑤', 'financials'] };
+    /* 번호가 연속하지 않는 것은 의도다 — ④를 옮기면 ADR-0003·0006의 서술이 통째로
+       어긋나고, ①②③⑤가 판정이고 ④만 병기라는 사실이 표에서 계속 드러난다. */
+    var CANON = ['업종 상대가치', '역사적 밴드', '수익가치(RIM)', '정규화 이익', '선행 이익(컨센서스)'];
     var estMap = {}; est.forEach(function (e) { estMap[e.method] = e; });
     var skipMap = {}; (v.skipped || []).forEach(function (sk) { skipMap[sk.method] = sk.reason; });
     var order = CANON.concat(est.map(function (e) { return e.method; }).filter(function (m) { return CANON.indexOf(m) < 0; }));
@@ -963,7 +985,8 @@
         // ①이 회귀로 나왔을 때만 계수 분해를 접어서 덧붙인다. 피어 중앙값 폴백에는
         // 분해할 계수가 없으므로 relative_parts도 비어 있다(ADR-0014).
         var why = (name === '업종 상대가치' && v.relative_basis === 'regression')
-          ? warrantedFold(v.relative_parts) : '';
+          ? warrantedFold(v.relative_parts)
+          : (name === '정규화 이익' ? normalizedFold(v.normalized) : '');
         return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + why + '</span></div>';
       }
       if (skipMap[name] != null) {
