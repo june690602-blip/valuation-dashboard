@@ -314,6 +314,31 @@ def _leg_sensitivity(fairs: list[float]) -> float | None:
                for i in range(len(fairs)))
 
 
+# ── ⑤ 정규화 이익 ────────────────────────────────────────────────────
+# 창을 5년으로 두는 이유 — 문헌(Anderson & Brooks 2006, JBFA 33(7-8) 1063-1086)은 8년을
+# 쓰지만 DART 이력이 6년이라 그 이상은 만들 수 없다. 효과가 그만큼 약해지는 것을 ADR-0015
+# 한계에 적었다. 최소 3년은 '평균'이라 부를 수 있는 하한이다.
+NORMALIZE_WINDOW = 5
+NORMALIZE_MIN_YEARS = 3
+
+
+def _normalized_earnings(fin) -> tuple[float | None, int]:
+    """(정상 이익, 평균에 쓴 연수). 창을 못 채우면 (None, 실제 개수).
+
+    창은 프레임의 **마지막 NORMALIZE_WINDOW 행**이다(과거→최신 정렬 전제).
+    창 안 결측·무한대는 빼고 남은 것으로 평균한다 — 0으로 채우면 없는 이익을 지어낸다.
+    **적자 연도는 빼지 않는다.** 빼면 정규화가 아니라 체리피킹이고, 사이클 저점을
+    창에 담는 것이 이 축의 목적이다.
+    """
+    if fin is None or not hasattr(fin, "columns") or "net_income" not in fin.columns:
+        return None, 0
+    win = pd.to_numeric(fin["net_income"], errors="coerce").iloc[-NORMALIZE_WINDOW:]
+    win = win[np.isfinite(win)]
+    if len(win) < NORMALIZE_MIN_YEARS:
+        return None, int(len(win))
+    return float(win.mean()), int(len(win))
+
+
 # ── ② 역사적 밴드 ────────────────────────────────────────────────────
 def _fundamental_daily(d: CompanyData, col: str, per_share: bool = True) -> pd.Series | None:
     """연간 값(EPS/BPS)을 '회계연도 종료 + 90일'부터 적용되는 일별 계단 시리즈로 변환."""
