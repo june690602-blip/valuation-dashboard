@@ -339,6 +339,60 @@ def _normalized_earnings(fin) -> tuple[float | None, int]:
     return float(win.mean()), int(len(win))
 
 
+def _normalized_value(fin, shares, equity, mcap, sector, coef) -> tuple:
+    """(FairValue | None, 메타) — 정상 이익 × 회귀 적정 PER (ADR-0015).
+
+    ①②③이 셋 다 `배수 × 현재 회계값` 구조라 현재 EPS·BPS를 공통 입력으로 쓰고 서로
+    상관 0.74~0.84다. 이 축은 그 구조 밖에 있다 — 정규화 항 `log(정상이익/현재이익)`이
+    기존 축과 상관 **−0.407**로 음수라, 사이클 정점에서 현재 이익이 부풀어 기존 축이
+    '싸다'고 말할 때 그것을 되돌린다.
+
+    **ROE도 정규화 값을 넣는다.** 현재 적자면 ROE가 음수라 ADR-0014의 U자 더미가 배수를
+    크게 올리는데(실측 +110%), 이익만 정규화하고 수익성은 현재 값을 쓰면 하필 이 축이
+    가장 쓸모 있는 자리(현재 적자·정상 흑자)에서 정확히 틀린다.
+
+    **계수가 없으면 폴백하지 않는다.** 이 축의 정체가 '회귀 배수 × 정규화 이익'이라
+    배수를 바꾸면 다른 방법이 된다. 값을 지어내느니 축을 뺀다(ADR-0011).
+    """
+    from .warranted import warranted_multiple
+
+    blank = {"eps": None, "years": 0, "ratio": None, "per": None, "reason": ""}
+    ni, years = _normalized_earnings(fin)
+    if ni is None:
+        return None, {**blank, "years": years,
+                      "reason": f"이익 이력 부족({years}년 · 최소 {NORMALIZE_MIN_YEARS}년)"}
+    if ni <= 0:
+        return None, {**blank, "years": years, "reason": f"{years}년 평균 이익이 적자"}
+    if not shares or shares <= 0 or not equity or equity <= 0:
+        return None, {**blank, "years": years, "reason": "주식수 또는 자기자본 없음"}
+
+    per = warranted_multiple((coef or {}).get("per"), mcap, sector, ni / equity)["multiple"]
+    if per is None:
+        return None, {**blank, "years": years, "reason": "적정 배수 계수 없음"}
+
+    eps = ni / shares
+    mid = per * eps
+    # math이 아니라 np를 쓴다 — 이 모듈은 math을 import하지 않는다(numpy·pandas만).
+    if not np.isfinite(mid) or mid <= 0:
+        return None, {**blank, "years": years, "reason": "계산 불가"}
+
+    # 범위는 **창 안 이익의 흩어짐**에서 온다 — '정상 이익을 얼마로 보느냐'가 이 축의
+    # 유일한 자유도이므로, 사이클 폭을 그대로 보여주는 것이 정직하다. 하위 분위가
+    # 적자면 음수 적정가가 나오므로 그때는 범위를 좁혀 중심값에 붙인다.
+    win = pd.to_numeric(fin["net_income"], errors="coerce").iloc[-NORMALIZE_WINDOW:]
+    win = win[np.isfinite(win)]
+    q25, q75 = float(win.quantile(0.25)), float(win.quantile(0.75))
+    lo = per * q25 / shares if q25 > 0 else mid
+    hi = per * q75 / shares if q75 > 0 else mid
+    lo, hi = min(lo, mid), max(hi, mid)
+
+    cur = float(win.iloc[-1]) if len(win) else None
+    ratio = (ni / cur) if (cur is not None and cur > 0) else None
+    note = f"{years}년 평균 이익 × 적정 PER {per:.1f}배"
+    return (FairValue("정규화 이익", lo, mid, hi, note=note),
+            {"eps": eps, "years": years, "ratio": ratio, "per": per, "reason": ""})
+
+
 # ── ② 역사적 밴드 ────────────────────────────────────────────────────
 def _fundamental_daily(d: CompanyData, col: str, per_share: bool = True) -> pd.Series | None:
     """연간 값(EPS/BPS)을 '회계연도 종료 + 90일'부터 적용되는 일별 계단 시리즈로 변환."""
