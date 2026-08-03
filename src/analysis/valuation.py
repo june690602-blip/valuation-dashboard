@@ -76,13 +76,18 @@ METHOD_WEIGHTS = {
     "선행 이익(컨센서스)": 0.35,
     "업종 상대가치": 0.25,
     "역사적 밴드": 0.25,
+    # ⑤는 ①②와 같은 칸이다(ADR-0015). LNT(2002)의 순위에서 '과거 이익 멀티플'이고,
+    # 그 칸 **안에서** Anderson & Brooks(2006, JBFA 33(7-8) 1063-1086)가 8년 평균 이익
+    # PER이 단년보다 낫다고 보고했다 — ①② 아래로 둘 문헌 근거가 없다.
+    # 우리 표본으로 맞춘 값이 아니다(ADR-0003: 순위 인코딩 ≠ 가중치 추정).
+    "정규화 이익": 0.25,
     "수익가치(RIM)": 0.15,
 }
 
-# 회사가 이미 낸 실적·자산만으로 서는 방법들 — **판정은 이 셋으로만 낸다**(ADR-0006).
-# 위 가중치를 이 셋에 대해 재정규화해 쓴다(0.25/0.25/0.15 → 0.385/0.385/0.231).
+# 회사가 이미 낸 실적·자산만으로 서는 방법들 — **판정은 이 넷으로만 낸다**(ADR-0006·0015).
+# 위 가중치를 이 넷에 대해 재정규화해 쓴다(0.25/0.25/0.15/0.25 → 0.278/0.278/0.167/0.278).
 # 순위(이익 멀티플 > 장부가)는 그대로 유지되고, 빠지는 것은 ④의 몫뿐이다.
-FUNDAMENTAL_METHODS = ("업종 상대가치", "역사적 밴드", "수익가치(RIM)")
+FUNDAMENTAL_METHODS = ("업종 상대가치", "역사적 밴드", "수익가치(RIM)", "정규화 이익")
 CONSENSUS_METHOD = "선행 이익(컨센서스)"
 
 
@@ -176,6 +181,12 @@ class ValuationResult:
     # 다리별 계수 분해 — [{leg, multiple, sector_base, size_adj, roe_adj,
     # below_range, beta_size, n}]. 화면에서 접어 둔다(ADR-0014 결정 다섯).
     relative_parts: list = field(default_factory=list)
+    # ⑤ 정규화 이익(ADR-0015). normalized_ratio가 이 축의 핵심이다 — 1보다 작으면
+    # 현재 이익이 정상보다 높다는 뜻이고, 그것이 ⑤가 다른 축과 갈리는 이유 전부다.
+    normalized_eps: float | None = None      # 정상 EPS
+    normalized_years: int | None = None      # 평균에 실제로 쓴 연수 ("5년"이라 단정하지 말 것)
+    normalized_ratio: float | None = None    # 정상이익 / 현재이익 (현재이익 ≤ 0이면 None)
+    normalized_per: float | None = None      # 적용한 회귀 적정 PER
     weights: dict = field(default_factory=dict)   # 펀더멘털 종합에 쓴 가중치 (재정규화)
     skipped: list = field(default_factory=list)   # [(방법명, 건너뛴 사유)] — 번호 자리 유지용
     # ②·④가 함께 쓰는 '자기 과거 PER 중앙값' 하나에 **컨센서스 반영 적정가**가 실제로 얼마나

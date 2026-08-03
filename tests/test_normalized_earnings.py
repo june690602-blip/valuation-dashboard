@@ -156,5 +156,38 @@ class NormalizedValueTests(unittest.TestCase):
         self.assertLessEqual(fv.low, fv.mid)
 
 
+class WeightRegistrationTests(unittest.TestCase):
+    def test_registered_at_the_same_tier_as_relative_and_band(self):
+        # 가중치는 우리 측정이 아니라 문헌 순위의 인코딩이다(ADR-0003의 원칙).
+        # LNT(2002)의 '과거 이익 멀티플' 칸이고, 그 칸 안에서 Anderson&Brooks(2006)가
+        # 장기평균이 단년보다 낫다고 보고했으므로 ①②보다 낮출 근거가 없다.
+        from src.analysis.valuation import FUNDAMENTAL_METHODS, METHOD_WEIGHTS
+
+        self.assertEqual(METHOD_WEIGHTS["정규화 이익"], 0.25)
+        self.assertEqual(METHOD_WEIGHTS["정규화 이익"], METHOD_WEIGHTS["업종 상대가치"])
+        self.assertIn("정규화 이익", FUNDAMENTAL_METHODS)
+        self.assertNotIn("선행 이익(컨센서스)", FUNDAMENTAL_METHODS)
+
+    def test_renormalized_weights_match_the_design(self):
+        from src.analysis.valuation import FairValue, _weighted
+
+        est = [FairValue(m, 1.0, 1.0, 1.0) for m in
+               ("업종 상대가치", "역사적 밴드", "수익가치(RIM)", "정규화 이익")]
+        _lo, _mid, _hi, w = _weighted(est)
+        self.assertAlmostEqual(w["업종 상대가치"], 0.2778, places=3)
+        self.assertAlmostEqual(w["역사적 밴드"], 0.2778, places=3)
+        self.assertAlmostEqual(w["수익가치(RIM)"], 0.1667, places=3)
+        self.assertAlmostEqual(w["정규화 이익"], 0.2778, places=3)
+
+    def test_result_carries_the_normalization_evidence(self):
+        from src.analysis.valuation import ValuationResult
+
+        r = ValuationResult()
+        self.assertIsNone(r.normalized_eps)
+        self.assertIsNone(r.normalized_years)
+        self.assertIsNone(r.normalized_ratio)
+        self.assertIsNone(r.normalized_per)
+
+
 if __name__ == "__main__":
     unittest.main()
