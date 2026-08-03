@@ -707,8 +707,24 @@ def build_coefficients(snapshot: pd.DataFrame) -> dict:
     return out
 
 
-@file_cache("warranted_coef_v1", ttl_hours=24,
-            validate=lambda d: isinstance(d, dict) and "pbr" in d)
+def _coefficients_usable(d) -> bool:
+    """캐시된 계수가 지금 코드가 기대하는 모양인가.
+
+    껍데기만 보면(`"pbr" in d`) **스키마가 바뀐 뒤 남아 있는 24시간짜리 옛 캐시가
+    그대로 통과한다.** `warranted_multiple`이 그걸 받아 예외를 내면 판정 전체가
+    무너지므로, 여기서 다리마다 필수 키를 확인해 아예 쓰지 않는다.
+    캐시 키에 버전(`_v1`)이 있지만 그것만으로는 부족하다 — 버전을 올리는 걸 잊어도
+    이 검사가 막는다.
+    """
+    from ..analysis.warranted import _REQUIRED_COEF_KEYS
+
+    if not isinstance(d, dict) or "pbr" not in d:
+        return False
+    return all(isinstance(v, dict) and _REQUIRED_COEF_KEYS <= v.keys()
+               for v in d.values())
+
+
+@file_cache("warranted_coef_v1", ttl_hours=24, validate=_coefficients_usable)
 def get_coefficients(market: str) -> dict:
     """시장의 다리별 계수 (24시간 캐시).
 
@@ -717,7 +733,9 @@ def get_coefficients(market: str) -> dict:
     계수만 저장하면 어제 계수를 써도 오늘 주가 변동이 그대로 반영된다.
 
     file_cache가 원천 실패 시 만료된 캐시를 반환하므로(stale-ok) 장애에도 판정이 멈추지
-    않는다. 'pbr' 계수조차 없으면 유효하지 않은 결과로 보고 캐시하지 않는다.
+    않는다. 다만 그 만료 캐시도 `_coefficients_usable`을 통과해야 한다 — 스키마가 어긋난
+    옛 캐시를 되살려 쓰면 `warranted_multiple`이 계산 불가로 물러나고, 결국 그날 전
+    종목이 피어 중앙값 폴백을 타게 된다. 조용히 그러느니 처음부터 안 쓰는 게 낫다.
     """
     snap = collect_kr() if market.upper() == "KR" else collect_us()
     return build_coefficients(snap)
