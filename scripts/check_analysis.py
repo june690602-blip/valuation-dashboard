@@ -54,7 +54,9 @@ def main(market: str, query: str):
     print(f"  k_d={fmt(cc.k_d, 'pct')} ({cc.k_d_source}) | WACC={fmt(cc.wacc, 'pct')}")
     print(f"  ROIC={fmt(cc.roic, 'pct')} | 스프레드={fmt(cc.spread, 'pct')}")
 
-    val = compute_valuation(d, ind, r_equity=cc.k_e)
+    from src.data.universe_multiples import coefficients_or_none
+    val = compute_valuation(d, ind, r_equity=cc.k_e,
+                            warranted_coef=coefficients_or_none(d.market))
     print("\n[적정주가]")
     for e in val.estimates:
         print(f"  {e.method}: {e.low:,.0f} ~ {e.mid:,.0f} ~ {e.high:,.0f}  ({e.note})")

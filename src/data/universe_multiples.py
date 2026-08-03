@@ -162,3 +162,11 @@ def get_coefficients(market: str) -> dict:
     """
     snap = collect_kr() if market.upper() == "KR" else collect_us()
     return build_coefficients(snap)
+
+
+def coefficients_or_none(market: str) -> dict | None:
+    """계수를 읽되 어떤 실패에도 판정을 멈추지 않는다 — 실패하면 피어 중앙값 폴백이다."""
+    try:
+        return get_coefficients(market) or None
+    except Exception:
+        return None

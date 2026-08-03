@@ -702,6 +702,14 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
                 f"① 업종 상대가치는 배수 {res.relative_legs}개의 중앙값입니다. 그중 하나만 빼도 "
                 f"중앙값이 {s:.0%} 움직입니다 — 다리가 적어 배수 하나가 결론을 좌우한다는 뜻이니, "
                 "①의 중심값 하나보다 범위와 다른 방법과의 차이를 함께 보세요."))
+        # PSR은 회귀로도 MAE 0.921(±150%)로 넷 중 가장 부정확한데 하필 적자 기업 전용
+        # 다리다. 정밀해 보이면 안 된다는 ADR-0014 한계 절이 이걸 밝히라고 요구한다.
+        if any(p["leg"] == "psr" for p in res.relative_parts):
+            res.notes.append(ValuationNote(
+                "info",
+                "이 종목은 적자라 ①에 매출 기준 배수(PSR)가 들어갔습니다. 네 배수 중 "
+                "PSR이 실측 오차가 가장 커서(전 종목 검증에서 ±150% 수준), ①의 중심값보다 "
+                "범위와 다른 방법과의 차이를 함께 보세요."))
     elif mismatch:
         res.skipped.append(("업종 상대가치", ccy_reason))
     else:

@@ -928,7 +928,9 @@ def render():
     ind = compute_indicators(d)
     scores = compute_scores(d.peers, d.yahoo_ticker, d.is_financial)
     cc = compute_capital_cost(d, rf=rf, mrp=mrp)
-    val = compute_valuation(d, ind, r_equity=custom_r or cc.k_e)
+    from src.data.universe_multiples import coefficients_or_none
+    val = compute_valuation(d, ind, r_equity=custom_r or cc.k_e,
+                            warranted_coef=coefficients_or_none(d.market))
 
     # 헤더
     h1, h2 = st.columns([3, 2])
