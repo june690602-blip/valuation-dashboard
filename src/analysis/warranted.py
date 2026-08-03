@@ -143,3 +143,57 @@ def fit_leg(df: pd.DataFrame, leg: str) -> dict | None:
         "sector_median_mcap": {k: float(v) for k, v in med_mcap.items()},
         "sector_median_roe_coef": {k: float(v) for k, v in med_roe.items()},
     }
+
+
+# 학습 시총 하한의 몇 분의 1까지 외삽을 허용하는가. 그 아래는 계산하지 않는다.
+# ADR-0011의 원칙("오염된 값보다 '계산 불가'가 정직하다")을 외삽에도 적용한다.
+# 근거: 상위 N종목만 학습해 소형주를 예측시키면 편향이 전부 양수였다(+0.2~0.4) —
+# 외삽은 소형주를 체계적으로 '저평가'로 밀어 올린다.
+EXTRAPOLATION_LIMIT = 5.0
+
+
+def warranted_multiple(coef: dict | None, mcap: float | None,
+                       sector: str | None, roe: float | None) -> dict:
+    """적정 배수와 그 분해. 계수가 없거나 규모가 학습 범위를 크게 벗어나면 multiple=None.
+
+    분해는 **곱셈으로 정확히 복원**된다(로그 선형이므로):
+        multiple = sector_base × (1 + size_adj) × (1 + roe_adj)
+    화면(Task 9)이 이 셋을 그대로 풀어 쓴다.
+    """
+    blank = {"multiple": None, "sector_base": None, "size_adj": None, "roe_adj": None,
+             "sector_used": None, "below_range": False, "too_small": False,
+             "beta_size": None, "n": None}
+    if not coef or not mcap or mcap <= 0 or not math.isfinite(mcap):
+        return blank
+
+    sec = sector if sector in coef["sector_coef"] else OTHER_SECTOR
+    if sec not in coef["sector_coef"]:
+        return blank
+    too_small = mcap < coef["mcap_min"] / EXTRAPOLATION_LIMIT
+    if too_small:
+        return {**blank, "too_small": True, "sector_used": sec,
+                "beta_size": coef["beta_size"], "n": coef["n"]}
+
+    base_mcap = coef["sector_median_mcap"].get(sec) or mcap
+    base_rc = coef["sector_median_roe_coef"].get(sec, 0.0)
+    # ROE를 모르면 **조정하지 않는다** — 기준값을 그대로 써서 roe_adj가 정확히 0이 된다.
+    # 0.0을 넣으면 '기준 구간과 같다'는 판단을 한 셈이 되는데, 우리는 그걸 모른다.
+    # 규모는 항상 알므로 시총 조정은 그대로 적용된다.
+    rb = roe_bucket(roe)
+    rc = coef["roe_coef"].get(rb, base_rc) if rb else base_rc
+    fitted = (coef["intercept"] + coef["beta_size"] * math.log(mcap)
+              + rc + coef["sector_coef"][sec])
+
+    base = math.exp(coef["intercept"] + coef["beta_size"] * math.log(base_mcap)
+                    + base_rc + coef["sector_coef"][sec])
+    return {
+        "multiple": math.exp(fitted),
+        "sector_base": base,
+        "size_adj": math.exp(coef["beta_size"] * (math.log(mcap) - math.log(base_mcap))) - 1,
+        "roe_adj": math.exp(rc - base_rc) - 1,
+        "sector_used": sec,
+        "below_range": mcap < coef["mcap_min"],
+        "too_small": False,
+        "beta_size": coef["beta_size"],
+        "n": coef["n"],
+    }

@@ -7,8 +7,10 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from src.analysis.warranted import (MIN_FIT_SAMPLE, OTHER_SECTOR, ROE_EDGES,
-                                    fit_leg, roe_bucket, sector_labels)
+from src.analysis.warranted import (EXTRAPOLATION_LIMIT, MIN_FIT_SAMPLE,
+                                    OTHER_SECTOR, ROE_EDGES, fit_leg,
+                                    roe_bucket, sector_labels,
+                                    warranted_multiple)
 
 
 class BucketTests(unittest.TestCase):
@@ -125,3 +127,55 @@ class FitTests(unittest.TestCase):
         for sec in coef["sector_coef"]:
             self.assertIn(sec, coef["sector_median_mcap"])
             self.assertIn(sec, coef["sector_median_roe_coef"])
+
+
+class PredictTests(unittest.TestCase):
+    def setUp(self):
+        self.coef = fit_leg(_synthetic(), leg="pbr")
+
+    def test_prediction_matches_generating_process(self):
+        # 합성 데이터의 참값: log(배수) = -6 + 0.30·log(시총) + 업종효과(B=+0.5)
+        mcap = 1e11
+        out = warranted_multiple(self.coef, mcap=mcap, sector="B", roe=0.10)
+        expected = math.exp(-6.0 + 0.30 * math.log(mcap) + 0.5)
+        self.assertAlmostEqual(out["multiple"], expected, delta=expected * 0.02)
+
+    def test_decomposition_multiplies_back_to_multiple(self):
+        # 화면에 '업종기준 × 시총조정 × ROE조정'으로 풀어 쓰므로 정확히 복원돼야 한다
+        out = warranted_multiple(self.coef, mcap=5e10, sector="A", roe=0.08)
+        recomposed = (out["sector_base"]
+                      * (1 + out["size_adj"])
+                      * (1 + out["roe_adj"]))
+        self.assertAlmostEqual(recomposed, out["multiple"], delta=out["multiple"] * 1e-6)
+
+    def test_below_training_range_is_flagged(self):
+        out = warranted_multiple(self.coef, mcap=self.coef["mcap_min"] / 2,
+                                 sector="A", roe=0.08)
+        self.assertTrue(out["below_range"])
+        self.assertFalse(out["too_small"])
+
+    def test_far_below_training_range_is_unusable(self):
+        # 학습 하한의 1/EXTRAPOLATION_LIMIT 미만이면 쓰지 않는다
+        out = warranted_multiple(self.coef,
+                                 mcap=self.coef["mcap_min"] / (EXTRAPOLATION_LIMIT + 1),
+                                 sector="A", roe=0.08)
+        self.assertTrue(out["too_small"])
+        self.assertIsNone(out["multiple"])
+
+    def test_unknown_sector_falls_back_to_other(self):
+        out = warranted_multiple(self.coef, mcap=5e10, sector="없는업종", roe=0.08)
+        self.assertIsNotNone(out["multiple"])
+        self.assertEqual(out["sector_used"], OTHER_SECTOR)
+
+    def test_missing_roe_applies_no_roe_adjustment(self):
+        # ROE를 모르면 조정하지 않는다 — 0.0을 넣으면 '기준 구간과 같다'고 판단한
+        # 셈이 되는데 우리는 그걸 모른다. 규모는 항상 아니까 시총 조정은 그대로 간다.
+        out = warranted_multiple(self.coef, mcap=5e10, sector="A", roe=None)
+        self.assertIsNotNone(out["multiple"])
+        self.assertAlmostEqual(out["roe_adj"], 0.0, places=9)
+        self.assertNotAlmostEqual(out["size_adj"], 0.0, places=3)
+
+    def test_no_coefficients_returns_blank(self):
+        out = warranted_multiple(None, mcap=5e10, sector="A", roe=0.08)
+        self.assertIsNone(out["multiple"])
+        self.assertFalse(out["too_small"])
