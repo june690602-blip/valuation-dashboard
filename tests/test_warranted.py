@@ -362,3 +362,24 @@ class UniverseSnapshotTests(unittest.TestCase):
         self.assertTrue(pd.isna(df.loc["AAPL", "per"]))  # 실패한 종목은 비지만 행은 남는다
         self.assertEqual(df.loc["MSFT", "per"], 30.0)
         self.assertEqual(len(df), 2)
+
+
+class CoefficientTableTests(unittest.TestCase):
+    def test_builds_only_legs_with_enough_sample(self):
+        from src.data.universe_multiples import build_coefficients
+
+        base = _synthetic(n=MIN_FIT_SAMPLE + 100)
+        df = pd.DataFrame({
+            "mcap": base["mcap"], "sector": base["sector"], "roe": base["roe"],
+            "pbr": base["multiple"],
+            "per": base["multiple"] * 10,
+            "psr": [np.nan] * len(base),                       # 전부 결측 → 계수 없음
+            "ev_ebitda": ([np.nan] * (len(base) - 50)
+                          + list(base["multiple"][:50])),      # 50개뿐 → 계수 없음
+        })
+        out = build_coefficients(df)
+        self.assertIn("pbr", out)
+        self.assertIn("per", out)
+        self.assertNotIn("psr", out)
+        self.assertNotIn("ev_ebitda", out)
+        self.assertAlmostEqual(out["pbr"]["beta_size"], 0.30, places=2)

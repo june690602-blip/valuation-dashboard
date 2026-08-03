@@ -154,7 +154,9 @@ EXTRAPOLATION_LIMIT = 5.0
 # fit_leg이 반드시 채우는 키들. 계수는 24시간 JSON 캐시를 거쳐 오므로, 스키마가 바뀐
 # 뒤 남아 있는 옛 캐시가 얕은 검증(`"pbr" in d`)을 통과해 들어올 수 있다. 그때 예외로
 # 판정을 무너뜨리는 대신 '계산 불가'로 떨어뜨린다(ADR-0011).
-_REQUIRED_COEF_KEYS = frozenset((
+# 공개 이름인 것은 모듈 간 계약이기 때문이다 — `universe_multiples`가 캐시를 읽을 때
+# 같은 기준으로 검증한다. 두 곳이 각자 키 목록을 갖고 있으면 언젠가 어긋난다.
+REQUIRED_COEF_KEYS = frozenset((
     "intercept", "beta_size", "roe_coef", "sector_coef", "n",
     "mcap_min", "sector_median_mcap", "sector_median_roe_coef"))
 
@@ -170,7 +172,7 @@ def warranted_multiple(coef: dict | None, mcap: float | None,
     blank = {"multiple": None, "sector_base": None, "size_adj": None, "roe_adj": None,
              "sector_used": None, "below_range": False, "too_small": False,
              "beta_size": None, "n": None}
-    if not isinstance(coef, dict) or not _REQUIRED_COEF_KEYS <= coef.keys():
+    if not isinstance(coef, dict) or not REQUIRED_COEF_KEYS <= coef.keys():
         return blank
     try:
         mcap = float(mcap)
