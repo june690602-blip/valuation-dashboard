@@ -171,6 +171,11 @@ class ValuationResult:
     # 값을 고치지 않고 밝히기만 한다(다리를 빼면 범위가 좁아져 신뢰도만 부풀기 때문).
     relative_legs: int | None = None
     relative_leg_sensitivity: float | None = None
+    # ①이 회귀(ADR-0014)로 나왔는지 피어 중앙값 폴백인지. 화면이 근거를 다르게 쓴다.
+    relative_basis: str | None = None            # "regression" | "peer_median"
+    # 다리별 계수 분해 — [{leg, multiple, sector_base, size_adj, roe_adj,
+    # below_range, beta_size, n}]. 화면에서 접어 둔다(ADR-0014 결정 다섯).
+    relative_parts: list = field(default_factory=list)
     weights: dict = field(default_factory=dict)   # 펀더멘털 종합에 쓴 가중치 (재정규화)
     skipped: list = field(default_factory=list)   # [(방법명, 건너뛴 사유)] — 번호 자리 유지용
     # ②·④가 함께 쓰는 '자기 과거 PER 중앙값' 하나에 **컨센서스 반영 적정가**가 실제로 얼마나
@@ -213,26 +218,79 @@ def _rel_fairs(peers, d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
     return fairs, used
 
 
-def _relative_value(d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
-                    revenue_ps=None) -> tuple[FairValue | None, dict]:
-    """규모 비교가능 피어(시총 1/5~5배)만 쓴다 — 품질 필터를 거쳤으므로 표본 2개부터 허용.
+def _warranted_fairs(coef: dict, mcap, sector, roe, eps, bps, ebitda_ps,
+                     debt_ps, cash_ps, revenue_ps, is_loss, is_financial):
+    """회귀 적정 배수로 다리별 적정가를 만든다 (ADR-0014).
 
-    **표본이 부족하면 전체 피어로 내려가지 않고 ①을 통째로 제외한다(ADR-0011).**
-    예전에는 규모 필터 없는 전체 피어로 폴백했는데, 그 경로가 측정상 가장 나빴다 —
-    시총과 괴리율의 순위상관이 필터 있을 때 −0.261, 폴백 경로가 −0.353이었다.
-    창을 좁히면 폴백에 걸리는 종목이 늘어나므로, 폴백을 그대로 두면 좁힌 만큼
-    더 나쁜 경로로 새어 나간다. comparable_peers의 주석이 이미 적어 둔 원칙
-    ('오염된 값보다 계산 불가가 정직하다')을 여기서도 지킨다.
+    `_rel_fairs`와 다리 구성 규칙(적자면 PER 대신 PSR, 금융은 EV/EBITDA 제외)은 **같다**.
+    다른 것은 배수를 어디서 얻느냐뿐이다 — 피어 중앙값이 아니라 회귀 적합값이다.
+    반환의 셋째 값 `parts`는 화면에 계수 분해를 접어 두기 위한 것이다(ADR-0014 결정 다섯).
     """
+    from .warranted import warranted_multiple
+
+    fairs, used, parts = [], [], []
+
+    def add(leg, fmt, to_price):
+        w = warranted_multiple(coef.get(leg), mcap, sector, roe)
+        if w["multiple"] is None:
+            return
+        price = to_price(w["multiple"])
+        if price is None or price <= 0:
+            return
+        fairs.append(price)
+        used.append(fmt.format(w["multiple"]))
+        parts.append({**w, "leg": leg})
+
+    if not is_loss and eps and eps > 0:
+        add("per", "PER {:.1f}배", lambda m: m * eps)
+    if bps and bps > 0:
+        add("pbr", "PBR {:.2f}배", lambda m: m * bps)
+    if is_loss and revenue_ps and revenue_ps > 0:
+        add("psr", "PSR {:.1f}배", lambda m: m * revenue_ps)
+    if not is_financial and ebitda_ps and ebitda_ps > 0:
+        add("ev_ebitda", "EV/EBITDA {:.1f}배",
+            lambda m: m * ebitda_ps - (debt_ps or 0) + (cash_ps or 0))
+    return fairs, used, parts
+
+
+def _relative_value(d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
+                    revenue_ps=None, coef: dict | None = None
+                    ) -> tuple[FairValue | None, dict]:
+    """적정 배수를 회귀로 구한다(ADR-0014). 계수가 없으면 피어 중앙값으로 폴백한다.
+
+    회귀로 가는 이유는 커버리지와 편향 둘 다다 — 전 종목 실측에서 피어 중앙값은
+    ①이 44%(최소형주 80%) 빠졌고, 남은 값도 규모와 붙어 있었다(rho -0.141).
+    회귀는 커버리지 100%에 rho -0.045다. 네 다리 모두에서 회귀가 이긴다.
+
+    폴백 경로(계수 캐시 실패·표본 부족)는 종전 그대로다 — 규모 비교가능 피어
+    (시총 1/5~5배)만 쓰고 부족하면 ①을 제외한다(ADR-0011). 예전에는 규모 필터 없는
+    전체 피어로 한 번 더 내려갔는데, 그 경로가 측정상 가장 나빴다(rho −0.353).
+    """
+    if coef:
+        roe = None
+        if bps and bps > 0 and eps is not None:
+            roe = eps / bps
+        fairs, used, parts = _warranted_fairs(
+            coef, d.market_cap, d.sector, roe, eps, bps, ebitda_ps,
+            debt_ps, cash_ps, revenue_ps,
+            is_loss=not (eps and eps > 0), is_financial=d.is_financial)
+        if fairs:
+            note = f"업종·규모·수익성 회귀 {', '.join(used)} · 다리 {len(fairs)}개"
+            return (FairValue("업종 상대가치", min(fairs), float(np.median(fairs)),
+                              max(fairs), note=note),
+                    {"legs": len(fairs), "sensitivity": _leg_sensitivity(fairs),
+                     "basis": "regression", "parts": parts})
+
     sized = comparable_peers(d.peers, d.market_cap)
     fairs, used = _rel_fairs(sized, d, eps, bps, ebitda_ps, debt_ps, cash_ps,
                              revenue_ps, min_n=2)
     if not fairs:
         return None, {}
-    sens = _leg_sensitivity(fairs)
     note = f"피어 중앙값 {', '.join(used)} · 다리 {len(fairs)}개"
-    return (FairValue("업종 상대가치", min(fairs), float(np.median(fairs)), max(fairs), note=note),
-            {"legs": len(fairs), "sensitivity": sens})
+    return (FairValue("업종 상대가치", min(fairs), float(np.median(fairs)), max(fairs),
+                      note=note),
+            {"legs": len(fairs), "sensitivity": _leg_sensitivity(fairs),
+             "basis": "peer_median", "parts": []})
 
 
 def _leg_sensitivity(fairs: list[float]) -> float | None:
@@ -595,8 +653,13 @@ def _forward_value(fwd_eps: float | None, peer_fwd_per: float | None,
 
 
 # ── 종합 ────────────────────────────────────────────────────────────
-def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
-    """ind: Indicators, r_equity: RIM 요구수익률(기본 CAPM k_e)."""
+def compute_valuation(d: CompanyData, ind, r_equity: float,
+                      warranted_coef: dict | None = None) -> ValuationResult:
+    """ind: Indicators, r_equity: RIM 요구수익률(기본 CAPM k_e).
+
+    warranted_coef: 시장의 다리별 회귀 계수(ADR-0014). 기본 None이라 넘기지 않으면
+    ①은 종전대로 피어 중앙값으로 간다 — 호출부를 하나씩 옮길 수 있게 한 것이다.
+    """
     res = ValuationResult()
 
     # 재무 통화 ≠ 주가 통화(ADR 등)면 ①②③은 모두 '주가 ÷ 재무값' 비교라 성립하지 않는다
@@ -624,9 +687,11 @@ def compute_valuation(d: CompanyData, ind, r_equity: float) -> ValuationResult:
     revenue = d.latest("revenue")
     revenue_ps = revenue / shares if revenue else None
     fv, rel_meta = (None, {}) if mismatch else _relative_value(
-        d, eps, bps, ebitda_ps, debt_ps, cash_ps, revenue_ps)
+        d, eps, bps, ebitda_ps, debt_ps, cash_ps, revenue_ps, coef=warranted_coef)
     res.relative_legs = rel_meta.get("legs")
     res.relative_leg_sensitivity = rel_meta.get("sensitivity")
+    res.relative_basis = rel_meta.get("basis")
+    res.relative_parts = rel_meta.get("parts") or []
     if fv:
         res.estimates.append(fv)
         # 값도 신뢰도 산식도 건드리지 않는다 — 이 값이 다리 하나에 얼마나 매달려 있는지만

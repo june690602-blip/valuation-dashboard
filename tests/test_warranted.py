@@ -383,3 +383,28 @@ class CoefficientTableTests(unittest.TestCase):
         self.assertNotIn("psr", out)
         self.assertNotIn("ev_ebitda", out)
         self.assertAlmostEqual(out["pbr"]["beta_size"], 0.30, places=2)
+
+
+class RelativeValueTests(unittest.TestCase):
+    def test_warranted_fairs_uses_regression_not_peers(self):
+        from src.analysis.valuation import _warranted_fairs
+
+        coef = {"pbr": fit_leg(_synthetic(), leg="pbr")}
+        fairs, used, parts = _warranted_fairs(
+            coef, mcap=1e11, sector="B", roe=0.10,
+            eps=None, bps=1000.0, ebitda_ps=None, debt_ps=0.0, cash_ps=0.0,
+            revenue_ps=None, is_loss=True, is_financial=False)
+        self.assertEqual(len(fairs), 1)
+        m = math.exp(-6.0 + 0.30 * math.log(1e11) + 0.5)
+        self.assertAlmostEqual(fairs[0], m * 1000.0, delta=m * 1000.0 * 0.02)
+        self.assertTrue(used[0].startswith("PBR"))
+        self.assertEqual(parts[0]["leg"], "pbr")
+
+    def test_no_coefficients_yields_no_fairs(self):
+        from src.analysis.valuation import _warranted_fairs
+
+        fairs, used, parts = _warranted_fairs(
+            {}, mcap=1e11, sector="B", roe=0.10, eps=100.0, bps=1000.0,
+            ebitda_ps=None, debt_ps=0.0, cash_ps=0.0, revenue_ps=None,
+            is_loss=False, is_financial=False)
+        self.assertEqual(fairs, [])
