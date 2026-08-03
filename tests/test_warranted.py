@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -212,3 +213,38 @@ class PredictTests(unittest.TestCase):
             warranted_multiple(self.coef, mcap="5e10", sector="A", roe=0.08)["multiple"])
         self.assertIsNone(
             warranted_multiple(self.coef, mcap="열", sector="A", roe=0.08)["multiple"])
+
+
+class Sp1500Tests(unittest.TestCase):
+    def test_sp1500_concatenates_three_indices_without_duplicates(self):
+        from src.data import universe
+
+        def fake(url_key):
+            n = {"500": 2, "400": 1, "600": 2}[url_key]
+            return pd.DataFrame({
+                "Symbol": {"500": ["AAPL", "MSFT"], "400": ["AAON"],
+                           "600": ["AAON", "XPEL"]}[url_key],
+                "Sector": ["Tech"] * n,
+                "SubIndustry": ["X"] * n,
+            })
+
+        with patch.object(universe, "get_sp500", lambda: fake("500")), \
+             patch.object(universe, "_wiki_index_table",
+                          lambda url: fake("400" if "400" in url else "600")):
+            out = universe.get_sp1500.__wrapped__()
+        self.assertEqual(sorted(out["Symbol"]), ["AAON", "AAPL", "MSFT", "XPEL"])
+        self.assertEqual(len(out), 4)   # AAON 중복 제거
+
+    def test_sp1500_survives_one_index_failing(self):
+        # 한 지수를 못 받아도 나머지로 진행한다 — 무료 원천은 자주 흔들린다
+        from src.data import universe
+
+        def boom(url):
+            raise RuntimeError("network down")
+
+        base = pd.DataFrame({"Symbol": ["AAPL"], "Sector": ["Tech"],
+                             "SubIndustry": ["X"]})
+        with patch.object(universe, "get_sp500", lambda: base), \
+             patch.object(universe, "_wiki_index_table", boom):
+            out = universe.get_sp1500.__wrapped__()
+        self.assertEqual(list(out["Symbol"]), ["AAPL"])

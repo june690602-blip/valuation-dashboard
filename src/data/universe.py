@@ -145,6 +145,59 @@ def get_sp500() -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+SP400_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_400_companies"
+SP600_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_600_companies"
+
+
+def _wiki_index_table(url: str) -> pd.DataFrame:
+    """위키백과 지수 구성종목 표 → Symbol·Sector·SubIndustry.
+
+    페이지마다 표가 여러 개다(구성종목·편입편출 이력·각주). 순서에 기대지 않고
+    'Symbol'과 'GICS Sector'를 **둘 다** 가진 표를 골라야 구성종목 표를 집는다 —
+    S&P 400 페이지는 편입편출 이력 표가 구성종목 표보다 행이 많다.
+    """
+    import io
+
+    import requests
+
+    resp = requests.get(
+        url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+        timeout=30)
+    resp.raise_for_status()
+    for t in pd.read_html(io.StringIO(resp.text)):
+        cols = [str(c) for c in t.columns]
+        if "Symbol" in cols and "GICS Sector" in cols:
+            out = t[["Symbol", "GICS Sector", "GICS Sub-Industry"]].copy()
+            out.columns = ["Symbol", "Sector", "SubIndustry"]
+            # 야후는 클래스 구분에 하이픈을 쓴다(BRK.B → BRK-B)
+            out["Symbol"] = out["Symbol"].astype(str).str.replace(".", "-", regex=False)
+            return out
+    raise RuntimeError(f"구성종목 표를 찾지 못했습니다: {url}")
+
+
+@file_cache("sp1500", ttl_hours=24 * 7)
+def get_sp1500() -> pd.DataFrame:
+    """S&P 500 + 400 MidCap + 600 SmallCap = 약 1,500종목.
+
+    ①의 회귀(ADR-0014)가 학습 표본으로 쓴다. S&P 500만 쓰면 시총 하한이 $7.0B이라
+    그보다 작은 종목이 전부 외삽이 되는데, 한국 전 종목 실측에서 **대형주만으로 학습한
+    계수는 규모 효과를 크게 과소추정**했다(β 0.066(상위 65) → 0.161(상위 500) →
+    0.276(전체)). 게다가 그 예측 편향이 전부 양수라, 외삽은 소형주를 체계적으로
+    '저평가' 쪽으로 밀어 올린다 — 이 ADR이 없애려는 바로 그 편향이다.
+    400·600을 더하면 하한이 $0.54B로 내려가 외삽 구간이 대부분 사라진다.
+
+    세 목록 모두 같은 위키백과 표 스키마라 새 의존성이 없다. 한 지수를 못 받아도
+    나머지로 진행한다 — 표본이 조금 줄 뿐 계수는 여전히 설 수 있다.
+    """
+    frames = [get_sp500()[["Symbol", "Sector", "SubIndustry"]]]
+    for url in (SP400_URL, SP600_URL):
+        try:
+            frames.append(_wiki_index_table(url))
+        except Exception:
+            continue
+    return pd.concat(frames, ignore_index=True).drop_duplicates("Symbol")
+
+
 def find_us(query: str) -> pd.DataFrame:
     """심볼 또는 회사명으로 S&P500 내 검색. 없으면 빈 DF (직접 티커 사용은 허용)."""
     sp = get_sp500()
