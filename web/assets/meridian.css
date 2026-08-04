@@ -204,6 +204,57 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
    홈 리디자인(B4)이 홈에만 두는 바람에, 홈에서 다른 화면으로 넘어가면 로고가 사라졌다.
    7장이 같은 마크를 쓰도록 여기로 올린다. 높이는 화면마다 다르게 두더라도(홈 64 / 앱 58)
    **누가 만든 사이트인지는 어디서나 같아야 한다.** */
+/* ══ 공용 셸 — 헤더·브랜드·네비 (#73) ══════════════════════════════════
+   7장이 같은 물건을 각자 적고 있었다. 네비 링크 규격이 **네 벌**(.nav-link 13px/gap2 ·
+   .site-nav a 13.5/4 · .top-nav a 13.5/4 · 인라인 13/2), 헤더 구현이 **두 벌**
+   (클래스 3장 · 인라인 4장). 메뉴에 항목 하나를 넣으려면 일곱 곳을 고쳐야 했고,
+   실제로 화면마다 메뉴가 조금씩 달랐다.
+
+   남긴 차이는 **높이 하나**다 — 홈 64px(관문) / 나머지 58px(작업대). R4가 "다른
+   사이트가 아니라 다른 방"이라는 신호로 의도해서 남긴 것이라 그대로 둔다. */
+.app-header {
+  position: sticky; top: 0; z-index: 30; flex: none;
+  min-height: 58px; display: flex; align-items: center; gap: 24px; padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper-veil); backdrop-filter: blur(8px);
+}
+/* 관문(홈) — 폭은 .container가 잡으므로 헤더 자신은 패딩을 갖지 않는다. */
+.app-header.gateway { padding: 0; }
+.app-header.gateway .header-inner {
+  min-height: 64px; display: flex; align-items: center; gap: 24px;
+}
+
+.brand {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  white-space: nowrap; color: inherit; text-decoration: none;
+}
+.brand:hover { text-decoration: none; }
+.brand-name {
+  font-family: var(--font-display); font-weight: 700;
+  font-size: var(--fs-title); letter-spacing: -0.01em;
+}
+
+.site-nav {
+  display: flex; align-items: center; gap: 2px;
+  white-space: nowrap; overflow-x: auto; scrollbar-width: none;
+}
+.site-nav::-webkit-scrollbar { display: none; }
+/* min-height는 손가락으로 누를 수 있는 크기다. 설명서 화면만 갖고 있던 값인데
+   (40px · 좁은 화면 44px), 누르기 쉬운 쪽이 옳아서 7장이 함께 쓰도록 올린다. */
+.nav-link {
+  position: relative; display: inline-flex; align-items: center; min-height: 40px;
+  padding: 8px 10px; color: var(--ink-3);
+  font-size: var(--fs-body); font-weight: 500; text-decoration: none;
+}
+.nav-link:hover, .nav-link:focus-visible { color: var(--ink); text-decoration: none; }
+.nav-link[aria-current="page"] { color: var(--ink); font-weight: 700; }
+/* 지금 있는 화면 표시는 밑줄인데 border-bottom으로 그리면 그 링크만 1px 높아져
+   메뉴 줄이 흔들린다. ::after는 자리를 차지하지 않는다(홈이 쓰던 방식). */
+.nav-link[aria-current="page"]::after {
+  content: ""; position: absolute; right: 10px; bottom: 2px; left: 10px;
+  height: 2px; background: var(--ink);
+}
+
 .brand-mark {
   width: 27px; height: 27px; flex: none; display: grid; place-items: center;
   border-radius: 50%; background: var(--ink); color: var(--paper);
@@ -472,24 +523,29 @@ input[type=range]::-moz-range-thumb {
 }
 
 @media (max-width: 900px) {
-  /* 인라인 헤더를 쓰는 앱 화면(주식·금리·포트폴리오·관리) 전용 접힘 규칙.
+  /* 헤더 접힘 — 이제 7장이 전부 .app-header를 쓴다(#73).
      R4 이전에는 선택자가 `body > div > header`여서 **마크업 구조만 같으면 다 걸렸다** —
      자기 반응형을 이미 가진 홈·설명서·성향진단까지 !important로 덮어써서, 홈 헤더가
      900px 아래에서 92px로 부풀고 브랜드 왼쪽 여백이 이중으로 붙었다.
-     구조가 아니라 역할(.app-header)을 겨냥한다. */
+
+     그래서 여기 `!important`가 붙어 있었는데, 이름을 합치면서 **뗐다.** 이 파일은
+     페이지 `<style>`보다 먼저 실리므로 같은 특이도면 페이지 쪽이 이긴다 — 화면이
+     자기 사정을 덧쓸 수 있어야 하고, 그게 !important 없이 되는 자연스러운 순서다. */
   .app-header {
-    height: auto !important;
+    height: auto;
     min-height: 58px;
-    padding: 10px 16px !important;
+    padding: 10px 16px;
     flex-wrap: wrap;
-    gap: 8px 14px !important;
+    gap: 8px 14px;
   }
-  .app-header nav {
+  /* 관문은 폭·여백을 .container가 잡는다 — 헤더에 패딩을 주면 이중으로 붙는다. */
+  .app-header.gateway { padding: 0; }
+  .app-header .site-nav {
     order: 3;
     width: 100%;
     overflow-x: auto;
     padding-bottom: 2px;
   }
-  .app-header form { min-width: 0 !important; }
+  .app-header form { min-width: 0; }
   svg { max-width: 100%; }
 }

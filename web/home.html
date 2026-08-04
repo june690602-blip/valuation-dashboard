@@ -16,17 +16,8 @@
   .page { min-height: 100vh; display: flex; flex-direction: column; background: var(--paper); }
   .container { width: min(100%, var(--content-max)); margin: 0 auto; padding-inline: var(--page-pad); }
 
-  /* ── 헤더 ── */
-  .site-header { position: sticky; top: 0; z-index: 30; border-bottom: 1px solid color-mix(in srgb, var(--line) 84%, transparent); background: color-mix(in srgb, var(--paper) 91%, transparent); backdrop-filter: blur(14px); }
-  .header-inner { min-height: 64px; display: flex; align-items: center; gap: 24px; }
-  .brand { display: inline-flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
-  .brand:hover { text-decoration: none; }
-  .brand-name { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
-  .site-nav { display: flex; align-items: center; gap: 2px; white-space: nowrap; }
-  .nav-link { position: relative; padding: 8px 10px; color: var(--ink-3); font-size: 13px; font-weight: 500; text-decoration: none; }
-  .nav-link:hover { color: var(--ink); text-decoration: none; }
-  .nav-link[aria-current="page"] { color: var(--ink); font-weight: 700; }
-  .nav-link[aria-current="page"]::after { content: ""; position: absolute; right: 10px; bottom: 2px; left: 10px; height: 2px; background: var(--ink); }
+  /* ── 헤더 ── 셸(.app-header·.brand·.site-nav·.nav-link)은 meridian.css에 있다(#73).
+     홈만의 것은 아래 둘 — 폭을 .container가 잡는 것과 오른쪽 사용설명서 링크. */
   .header-guide { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 12.5px; font-weight: 600; text-decoration: none; }
   .header-guide:hover { color: var(--ink); text-decoration: none; }
 
@@ -108,7 +99,7 @@
     .header-inner { min-height: 60px; flex-wrap: wrap; gap: 0 16px; }
     .site-nav { order: 3; flex-basis: 100%; width: 100%; overflow-x: auto; border-top: 1px solid var(--line); scrollbar-width: none; }
     .site-nav::-webkit-scrollbar { display: none; }
-    .site-header .container { padding-inline: 0; }
+    .app-header .container { padding-inline: 0; }
     .brand { margin-left: var(--page-pad); }
     .header-guide { margin-right: var(--page-pad); }
     .nav-link:first-child { margin-left: calc(var(--page-pad) - 10px); }
@@ -139,7 +130,7 @@
 <body>
 <a class="skip-link" href="#main">본문으로 건너뛰기</a>
 <div class="page">
-  <header class="site-header">
+  <header class="app-header gateway">
     <div class="header-inner container">
       <a class="brand" href="home.html" aria-label="투자지표 홈">
         <span class="brand-mark" aria-hidden="true">
@@ -150,12 +141,12 @@
         <span class="brand-name">투자지표</span>
       </a>
 
-      <nav class="site-nav" aria-label="주요 메뉴" style="display:flex;gap:2px;align-items:center;white-space:nowrap;overflow-x:auto;scrollbar-width:none">
-        <a href="home.html" aria-current="page" style="padding:8px 10px;color:var(--ink);font-size:13px;font-weight:700;text-decoration:none;border-bottom:2px solid var(--ink)">홈</a>
-        <a href="stock.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">주식 가치평가</a>
-        <a href="bond.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">금리</a>
-        <a href="test.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">위험 프로파일</a>
-        <a href="guide.html" target="_blank" rel="noopener" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">사용설명서 ↗</a>
+      <nav class="site-nav" aria-label="주요 메뉴">
+        <a class="nav-link" href="home.html" aria-current="page">홈</a>
+        <a class="nav-link" href="stock.html">주식 가치평가</a>
+        <a class="nav-link" href="bond.html">금리</a>
+        <a class="nav-link" href="test.html">위험 프로파일</a>
+        <a class="nav-link" href="guide.html" target="_blank" rel="noopener">사용설명서 ↗</a>
       </nav>
     </div>
   </header>

@@ -12,14 +12,6 @@
 <style>
   html { scroll-behavior: smooth; }
   body { overflow-x: hidden; }
-  .site-header { min-height: 58px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 24px; padding: 0 24px; background: var(--paper-veil); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 30; }
-  .brand { display: flex; align-items: center; gap: 8px; flex: none; white-space: nowrap; }
-  .brand-name { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: -.01em; }
-  .top-nav { display: flex; gap: 4px; align-items: center; white-space: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .top-nav::-webkit-scrollbar { display: none; }
-  .navlink { color: var(--ink-3); padding: 8px 10px; font-size: 13.5px; min-height: 40px; display: inline-flex; align-items: center; }
-  .navlink:hover { color: var(--ink); text-decoration: none; }
-  .navlink[aria-current="page"] { color: var(--ink); font-weight: 600; border-bottom: 2px solid var(--ink); }
   .header-action { margin-left: auto; flex: none; }
   .guide-wrap { width: 100%; max-width: 1060px; margin: 0 auto; padding: 0 32px; }
   .hero { padding: 48px 0 32px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 32px; align-items: end; }
@@ -151,11 +143,11 @@
     .viz-grid { grid-template-columns: 1fr; }
   }
   @media (max-width: 900px) {
-    .site-header { padding: 8px 14px 0; gap: 12px; flex-wrap: wrap; }
+    .app-header { padding: 8px 14px 0; gap: 12px; }
     .brand { flex: 1; }
     .header-action { display: none; }
-    .top-nav { order: 3; width: calc(100% + 28px); margin: 0 -14px; padding: 0 8px; border-top: 1px solid var(--line); }
-    .navlink { min-height: 44px; }
+    .site-nav { width: calc(100% + 28px); margin: 0 -14px; padding: 0 8px; border-top: 1px solid var(--line); }
+    .nav-link { min-height: 44px; }
   }
   @media (max-width: 720px) {
     .guide-wrap { padding: 0 18px; }
@@ -178,17 +170,17 @@
 <body>
 <a class="skip-link" href="#main-content">본문 바로가기</a>
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
-  <header class="site-header">
+  <header class="app-header">
     <a class="brand" href="home.html" aria-label="투자지표 홈">
       <span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
       <span class="brand-name">투자지표</span>
     </a>
-    <nav class="top-nav" aria-label="주요 메뉴">
-      <a class="navlink" href="home.html">홈</a>
-      <a class="navlink" href="stock.html">주식 가치평가</a>
-      <a class="navlink" href="bond.html">금리</a>
-      <a class="navlink" href="portfolio.html">포트폴리오</a>
-      <a class="navlink" href="guide.html" aria-current="page">사용설명서</a>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a class="nav-link" href="home.html">홈</a>
+      <a class="nav-link" href="stock.html">주식 가치평가</a>
+      <a class="nav-link" href="bond.html">금리</a>
+      <a class="nav-link" href="portfolio.html">포트폴리오</a>
+      <a class="nav-link" href="guide.html" aria-current="page">사용설명서</a>
     </nav>
     <a class="btn btn-primary btn-sm header-action" href="stock.html" target="_blank" rel="noopener">분석 화면 열기 ↗</a>
   </header>
