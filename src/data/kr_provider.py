@@ -22,15 +22,23 @@ from .universe import (detect_financial, find_kr, get_kr_listing,
 
 
 def _ai_classify_kr(name: str, hint_industry: str, listing: pd.DataFrame):
-    """(sector, industry, [코드]) — Gemini 사용 가능 시 동종기업 코드, 아니면 (None,None,None)."""
+    """(sector, industry, [코드], 실패사유) — Gemini 사용 가능 시 동종기업 코드.
+
+    실패사유는 **시도했다가 실패했을 때만** 채운다. 키가 없어서 안 부른 것은 정상
+    동작이라 None이다(키 없이도 앱이 돌아야 한다). 이 구분이 없으면 화면이 '안 쓴
+    것'과 '쓰려다 실패한 것'을 같게 보여주는데, 후자는 피어 구성이 통째로 달라지는
+    일이라 사용자가 알아야 한다 — 실측 25종목이 전부 할당량 초과로 KRX 폴백을
+    탔는데 화면에 아무 표시도 없었다.
+    """
     try:
         from ..data.gemini import is_available
         if not is_available():
-            return None, None, None
+            return None, None, None, None
         from ..analysis.ai_analysis import classify_peers
         c = classify_peers(name, "KR", hint_industry)
-    except Exception:
-        return None, None, None
+    except Exception as e:
+        from ..data.gemini import failure_reason
+        return None, None, None, failure_reason(e)
     codes: list[str] = []
     for p in c.get("peers", []):
         nm = p.get("name", "") if isinstance(p, dict) else str(p)
@@ -47,7 +55,7 @@ def _ai_classify_kr(name: str, hint_industry: str, listing: pd.DataFrame):
                 code = None
         if code and code in listing.index and code not in codes:
             codes.append(code)
-    return c.get("sector"), c.get("industry"), codes
+    return c.get("sector"), c.get("industry"), codes, None
 
 
 def merge_financials(dart: pd.DataFrame, yf_fin: pd.DataFrame) -> pd.DataFrame:
@@ -190,12 +198,32 @@ class KRProvider(DataProvider):
         # 피어: (1순위) AI 업종분류 동종기업 → (폴백) KRX 업종분류 시총 상위
         listing = get_kr_listing().set_index("Code")
         sector, industry = meta["sector"], meta["industry"]
-        ai_sector, ai_industry, ai_codes = _ai_classify_kr(meta["name"], sector, listing)
+        ai_sector, ai_industry, ai_codes, ai_err = _ai_classify_kr(
+            meta["name"], sector, listing)
+        if ai_err:
+            warnings.append(
+                f"AI 업종분류를 시도했으나 실패해 KRX 업종분류로 대체했습니다({ai_err}). "
+                "피어 구성이 달라지므로 업종 비교와 상대가치 결과가 평소와 다를 수 있습니다.")
         if ai_codes and len(ai_codes) >= 4:
             peer_codes = [code] + [c for c in ai_codes if c != code]
             sector = ai_sector or sector
             industry = ai_industry or industry
             peer_basis = f"AI 업종분류 '{ai_sector or industry}'"
+            # AI가 판별하는 것은 **어느 업종인가**이고, 그 업종 안에서 **어느 회사인가**는
+            # 규모가 정한다. AI 목록만으로는 창을 못 채운다 — 캐시된 AI 피어 목록 24건에서
+            # 한 목록 안 시총 최대/최소 배율의 중앙값이 205배였고 92%가 25배를 넘었다.
+            # 25배는 1/5~5배 창이 담을 수 있는 최대 폭이라, 그 목록은 어느 구성원을
+            # 기준으로 삼아도 전원을 창에 담을 수 없다. 남는 자리를 시총 인접으로 채운다.
+            budget = peer_count + 5
+            if len(peer_codes) < budget:
+                for c in select_peers_kr(code, n=budget):
+                    if len(peer_codes) >= budget:
+                        break
+                    if c not in peer_codes:
+                        peer_codes.append(c)
+                if len(peer_codes) > len(ai_codes) + 1:
+                    peer_basis += " · 규모 인접 종목으로 보충"
+            peer_codes = peer_codes[:budget]
         else:
             peer_codes = select_peers_kr(code, n=peer_count + 5)
             peer_basis = f"KRX 업종분류 '{sector}'" if sector else "업종분류 불명"
@@ -237,7 +265,7 @@ class KRProvider(DataProvider):
                 labels[pyt] = r["Name"]
         peers_full = build_peer_table(peer_yts, yt, labels)
         peers_full = self._patch_kr_peers(peers_full, listing)
-        peers = trim_peers(peers_full, yt, peer_count + added)
+        peers = trim_peers(peers_full, yt, peer_count + added, self_mcap=mcap)
         # 사용자가 추가한 피어는 시총 컷에 잘리지 않게 고정(핀)
         if added:
             pin = [yahoo_ticker_kr(c, listing.loc[c].get("Market", "KOSPI")) for c in added_codes]
@@ -271,7 +299,22 @@ class KRProvider(DataProvider):
 
     @staticmethod
     def _patch_kr_peers(peers: pd.DataFrame, listing: pd.DataFrame) -> pd.DataFrame:
-        """yfinance info 결측을 KRX(시총)·네이버(멀티플) 값으로 보정."""
+        """yfinance info 결측을 네이버(멀티플)로 보정하고, **시총은 KRX로 덮어쓴다.**
+
+        시총만 '결측 보완'이 아니라 '덮어쓰기'인 이유 — KRX Marcap은 거래소가 내는
+        `상장주식수 × 종가`이고 yfinance는 그것을 옮겨 적은 값이라 틀릴 때가 있다.
+        무작위 200종목 실측에서 45%가 2% 넘게, 10%가 10% 넘게 어긋났고 **최소형
+        구간의 6%는 2배 넘게** 틀렸다. 양방향이다 — 참엔지니어링(009310)은 yfinance가
+        5.0배 작고(주가 1,065 대 5,330), 남성(004270)은 10.8배 크다.
+
+        결측일 때만 채우면 **틀린 값이 있는 종목은 영영 안 고쳐진다.** 게다가 판정은
+        이미 KRX Marcap을 쓰므로(`d.market_cap`) 피어 표만 yfinance면 규모 창
+        비교(`comparable_peers`)가 두 원천을 가로지르고, ADR-0014의 회귀도 KRX
+        Marcap으로 학습하므로 기준이 셋으로 갈린다. 한국 시총의 기준을 KRX 하나로 모은다.
+
+        상장목록에 없는 종목(신규 상장·데이터 지연)은 yfinance 값을 남긴다 —
+        지우면 그 피어가 규모 창에서 통째로 사라진다.
+        """
         if peers.empty:
             return peers
         for yt in peers.index:
@@ -282,7 +325,7 @@ class KRProvider(DataProvider):
                     peers.at[yt, col] = val
 
             if code in listing.index and pd.notna(listing.loc[code].get("Marcap")):
-                _fill("market_cap", float(listing.loc[code]["Marcap"]))
+                peers.at[yt, "market_cap"] = float(listing.loc[code]["Marcap"])
             try:
                 nv = fetch_naver_fundamental(code)
             except Exception:

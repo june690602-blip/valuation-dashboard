@@ -73,6 +73,54 @@
       '<div class="srcfold-body">' + html + '</div></details>';
   }
 
+  /* ①이 회귀로 나왔으면 계수 분해를 접어서 붙인다 — 기본은 결과 배수 한 줄이고,
+     검증하려는 사람만 펼친다(ADR-0014 결정 다섯). fold()가 네이티브 <details>라
+     렌더 경로가 늘어도 배선을 잊을 일이 없다.
+     β를 펼침 영역에 적는 것은 이 방법이 '소형주 할인은 정당하다'를 전제로 깐다는
+     사실을 사용자가 볼 수 있어야 하기 때문이다(ADR-0014 한계). */
+  function warrantedFold(parts) {
+    if (!parts || !parts.length) return '';
+    var LEGNAME = { pbr: 'PBR', per: 'PER', psr: 'PSR', ev_ebitda: 'EV/EBITDA' };
+    var body = parts.map(function (p) {
+      var pct = function (v) { return (v >= 0 ? '+' : '') + (v * 100).toFixed(0) + '%'; };
+      return '<div class="foldrow">'
+        + '<div class="foldrow-name">' + esc(LEGNAME[p.leg] || p.leg) + '</div>'
+        + '<div>업종 기준 ' + p.sector_base.toFixed(2) + '배</div>'
+        + '<div>시총 조정 ' + pct(p.size_adj) + '</div>'
+        + '<div>ROE 조정 ' + pct(p.roe_adj) + '</div>'
+        + '<div class="foldrow-sum">'
+        + '적정 ' + esc(LEGNAME[p.leg] || p.leg) + ' ' + p.multiple.toFixed(2) + '배</div>'
+        + (p.below_range ? '<div class="foldrow-note">※ 이 종목의 시총이 학습 표본의 '
+            + '하한보다 작아 규모 조정이 범위 밖 추정입니다.</div>' : '')
+        + '</div>';
+    }).join('');
+    var b = parts[0].beta_size, n = parts[0].n;
+    body += '<div class="foldrow-foot">규모 계수 β=' + b.toFixed(2)
+      + ' — 시총이 10배면 배수를 ' + (Math.pow(10, b)).toFixed(1) + '배로 봅니다'
+      + ' (표본 ' + n + '종목). 이 계수는 <b>규모가 작으면 배수가 낮은 것이 정상</b>이라는'
+      + ' 전제를 담고 있습니다.</div>';
+    return fold('어떻게 나온 값인가', body);
+  }
+
+  /* ⑤의 근거 — 이 축이 다른 축과 갈리는 이유는 정규화 비율 하나다. 그것을 접어 둔다. */
+  function normalizedFold(nz) {
+    if (!nz || nz.eps == null || nz.per == null) return '';
+    var body = '<div>' + nz.years + '년 평균 순이익으로 계산한 정상 EPS '
+      + won(nz.eps) + '</div>'
+      + '<div>× 적정 PER ' + nz.per.toFixed(1) + '배 (업종·규모·수익성 회귀)</div>';
+    if (nz.ratio != null) {
+      body += '<div class="foldrow-sum">'
+        + '정상 이익은 현재의 ' + nz.ratio.toFixed(2) + '배 — '
+        + (nz.ratio < 1 ? '현재 이익이 정상보다 높습니다' : '현재 이익이 정상보다 낮습니다')
+        + '</div>';
+    }
+    body += '<div class="foldrow-foot">' + nz.years + '개년 평균입니다. 근거 문헌'
+      + '(Anderson &amp; Brooks 2006)은 8년을 쓰지만 공시 이력이 짧아 그만큼 효과가'
+      + ' 약합니다. 5년이 통째로 호황이면 평균도 호황입니다 — 이 방법은 사이클을'
+      + ' <b>완화할 뿐 제거하지 않습니다</b>.</div>';
+    return fold('어떻게 나온 값인가', body);
+  }
+
   var VERDICTS = ['크게 저평가', '저평가', '적정 수준', '고평가', '크게 고평가'];
   function vIdx(v) { var i = VERDICTS.indexOf(v); return i < 0 ? 2 : i; }
   function vPos(v) { return [12, 31, 50, 69, 88][vIdx(v)]; }
@@ -905,8 +953,10 @@
     var est = D.verdict.estimates || [], v = D.verdict;
     var head = '<div class="row head" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr"><span class="col-label">방법</span><span class="col-label r">적정가 범위</span><span class="col-label r">중심</span><span class="col-label">근거</span></div>';
     // 방법 → 적정가 재료 번호·재료 탭 (요약 표에서 근거가 되는 탭으로 바로 이동)
-    var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'], '선행 이익(컨센서스)': ['④', null] };
-    var CANON = ['업종 상대가치', '역사적 밴드', '수익가치(RIM)', '선행 이익(컨센서스)'];
+    var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'], '선행 이익(컨센서스)': ['④', null], '정규화 이익': ['⑤', 'financials'] };
+    /* 번호가 연속하지 않는 것은 의도다 — ④를 옮기면 ADR-0003·0006의 서술이 통째로
+       어긋나고, ①②③⑤가 판정이고 ④만 병기라는 사실이 표에서 계속 드러난다. */
+    var CANON = ['업종 상대가치', '역사적 밴드', '수익가치(RIM)', '정규화 이익', '선행 이익(컨센서스)'];
     var estMap = {}; est.forEach(function (e) { estMap[e.method] = e; });
     var skipMap = {}; (v.skipped || []).forEach(function (sk) { skipMap[sk.method] = sk.reason; });
     var order = CANON.concat(est.map(function (e) { return e.method; }).filter(function (m) { return CANON.indexOf(m) < 0; }));
@@ -930,7 +980,12 @@
             ? '<span class="na method-off" tabindex="0" data-tip="컨센서스 선행 이익은 시장의 실적 기대를 입력으로 씁니다. 판정을 시장 기대와 독립적으로 유지하려고 종합에서 빼고, 아래 &#39;컨센서스 반영&#39; 값으로 따로 병기합니다.">판정 제외 · 참고</span>'
             : '');
         if (mark) nameCell = '<span>' + nameCell + ' ' + mark + '</span>';
-        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + '</span></div>';
+        // ①이 회귀로 나왔을 때만 계수 분해를 접어서 덧붙인다. 피어 중앙값 폴백에는
+        // 분해할 계수가 없으므로 relative_parts도 비어 있다(ADR-0014).
+        var why = (name === '업종 상대가치' && v.relative_basis === 'regression')
+          ? warrantedFold(v.relative_parts)
+          : (name === '정규화 이익' ? normalizedFold(v.normalized) : '');
+        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + why + '</span></div>';
       }
       if (skipMap[name] != null) {
         // 건너뛴 방법도 번호 자리를 유지해 ①~④가 항상 순서대로 보이게 한다

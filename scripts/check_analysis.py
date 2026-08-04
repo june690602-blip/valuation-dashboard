@@ -54,14 +54,19 @@ def main(market: str, query: str):
     print(f"  k_d={fmt(cc.k_d, 'pct')} ({cc.k_d_source}) | WACC={fmt(cc.wacc, 'pct')}")
     print(f"  ROIC={fmt(cc.roic, 'pct')} | 스프레드={fmt(cc.spread, 'pct')}")
 
-    val = compute_valuation(d, ind, r_equity=cc.k_e)
+    from src.data.universe_multiples import coefficients_or_none
+    val = compute_valuation(d, ind, r_equity=cc.k_e,
+                            warranted_coef=coefficients_or_none(d.market))
     print("\n[적정주가]")
     for e in val.estimates:
         print(f"  {e.method}: {e.low:,.0f} ~ {e.mid:,.0f} ~ {e.high:,.0f}  ({e.note})")
-    print(f"  펀더멘털 종합(①②③ · 판정 근거): {fmt(val.fair_mid)} | 괴리율 "
+    for m, r in val.skipped:
+        print(f"  {m}: 제외 — {r}")
+    used = "·".join(val.weights) if val.weights else "없음"
+    print(f"  펀더멘털 종합({used} · 판정 근거): {fmt(val.fair_mid)} | 괴리율 "
           f"{fmt(val.gap, 'pct')} → {val.verdict} (신뢰도 {val.confidence})")
     if val.fair_mid_consensus is not None:
-        print(f"  컨센서스 반영(①②③④ · 병기): {fmt(val.fair_mid_consensus)} | 괴리율 "
+        print(f"  컨센서스 반영(위 + ④ · 병기): {fmt(val.fair_mid_consensus)} | 괴리율 "
               f"{fmt(val.gap_consensus, 'pct')} → {val.verdict_consensus}"
               + (f" | 펀더멘털 대비 {fmt(val.consensus_premium, 'pct')}"
                  if val.consensus_premium is not None else ""))

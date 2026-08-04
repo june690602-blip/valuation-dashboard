@@ -90,7 +90,18 @@ def get_kr_etf() -> pd.DataFrame:
 
 
 def select_peers_kr(code: str, n: int = 10) -> list[str]:
-    """같은 섹터에서 시총 상위 n개 (자기 자신 포함, 보통주만)."""
+    """같은 섹터에서 **시총이 자사와 가까운** n개 (자기 자신 포함, 보통주만) — ADR-0013.
+
+    예전에는 '시총 상위 n'이었다. 그러면 소형주의 후보가 그 업종의 거인들로만 채워지고
+    (참엔지니어링의 피어 8곳이 자사의 161~873배였다), 뒤에 붙은 1/5~5배 창이 전부를
+    걸러 ①이 통째로 빠졌다. **창을 고칠 게 아니라 후보를 고르는 이 단계를 고쳐야 한다.**
+
+    KRX 상장목록에 `Marcap`이 있어 **다운로드 전에** 규모로 고를 수 있다. 여기서 고치지
+    않으면 잘못된 후보를 받아온 뒤 `trim_peers`가 그중에서 고르게 되어 할 일이 없다.
+
+    거리는 `|log(시총 / 자사 시총)|`이다 — 2배와 1/2배를 같은 거리로 본다.
+    자사 시총을 모르거나 비양수면 종전 '시총 상위' 순서로 물러난다.
+    """
     listing = get_kr_listing()
     me = listing[listing["Code"] == code]
     if me.empty:
@@ -102,14 +113,19 @@ def select_peers_kr(code: str, n: int = 10) -> list[str]:
     else:
         return [code]
     if "Marcap" in pool.columns:
-        pool = pool.sort_values("Marcap", ascending=False)
+        self_mc = pd.to_numeric(me.iloc[0].get("Marcap"), errors="coerce")
+        mc = pd.to_numeric(pool["Marcap"], errors="coerce")
+        if pd.notna(self_mc) and self_mc > 0:
+            dist = (np.log(mc.where(mc > 0)) - np.log(float(self_mc))).abs()
+            pool = pool.assign(_d=dist).sort_values("_d", na_position="last")
+        else:
+            pool = pool.sort_values("Marcap", ascending=False)
     codes = pool["Code"].tolist()
     if code not in codes:
         codes = [code] + codes
-    top = codes[:n]
-    if code not in top:
-        top = [code] + top[: n - 1]
-    return top
+    # 자기 자신을 맨 앞으로 — 거리 0이라 이미 앞이지만, 결측·동률에서도 보장한다
+    codes = [code] + [c for c in codes if c != code]
+    return codes[:n]
 
 
 # ── 미국 ────────────────────────────────────────────────────────────────
@@ -143,6 +159,66 @@ def get_sp500() -> pd.DataFrame:
     # 야후 표기 (BRK.B → BRK-B)
     df["Symbol"] = df["Symbol"].str.replace(".", "-", regex=False)
     return df.reset_index(drop=True)
+
+
+SP400_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_400_companies"
+SP600_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_600_companies"
+
+
+def _wiki_index_table(url: str) -> pd.DataFrame:
+    """위키백과 지수 구성종목 표 → Symbol·Sector·SubIndustry.
+
+    페이지마다 표가 여러 개다(구성종목·편입편출 이력·각주). 순서에 기대지 않고
+    'Symbol'과 'GICS Sector'를 **둘 다** 가진 표를 골라야 구성종목 표를 집는다 —
+    S&P 400 페이지는 편입편출 이력 표가 구성종목 표보다 행이 많다.
+    """
+    import io
+
+    import requests
+
+    resp = requests.get(
+        url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+        timeout=30)
+    resp.raise_for_status()
+    for t in pd.read_html(io.StringIO(resp.text)):
+        cols = [str(c) for c in t.columns]
+        if "Symbol" in cols and "GICS Sector" in cols:
+            out = t[["Symbol", "GICS Sector", "GICS Sub-Industry"]].copy()
+            out.columns = ["Symbol", "Sector", "SubIndustry"]
+            # 야후는 클래스 구분에 하이픈을 쓴다(BRK.B → BRK-B)
+            out["Symbol"] = out["Symbol"].astype(str).str.replace(".", "-", regex=False)
+            return out
+    raise RuntimeError(f"구성종목 표를 찾지 못했습니다: {url}")
+
+
+# 축소된 유니버스를 캐시하지 않는다. 임계 1000은 **S&P 600(소형주 계층)이 들어왔는가**를
+# 가르는 값이다 — 500만이면 503행(하한 $7.0B), 500+400이면 903행(하한 약 $2B), 600이
+# 들어와야 1,100행을 넘고 하한이 $0.54B로 내려간다. 하한을 낮추는 것이 이 유니버스를
+# 넓힌 이유이므로, 그 계층이 빠진 결과는 7일 동안 붙들고 있으면 안 된다.
+# validate가 실패하면 file_cache는 저장하지 않고 마지막 정상 캐시를 대신 내준다.
+@file_cache("sp1500", ttl_hours=24 * 7, validate=lambda df: len(df) > 1000)
+def get_sp1500() -> pd.DataFrame:
+    """S&P 500 + 400 MidCap + 600 SmallCap = 약 1,500종목.
+
+    ①의 회귀(ADR-0014)가 학습 표본으로 쓴다. S&P 500만 쓰면 시총 하한이 $7.0B이라
+    그보다 작은 종목이 전부 외삽이 되는데, 한국 전 종목 실측에서 **대형주만으로 학습한
+    계수는 규모 효과를 크게 과소추정**했다(β 0.066(상위 65) → 0.161(상위 500) →
+    0.276(전체)). 게다가 그 예측 편향이 전부 양수라, 외삽은 소형주를 체계적으로
+    '저평가' 쪽으로 밀어 올린다 — 이 ADR이 없애려는 바로 그 편향이다.
+    400·600을 더하면 하한이 $0.54B로 내려가 외삽 구간이 대부분 사라진다.
+
+    세 목록 모두 같은 위키백과 표 스키마라 새 의존성이 없다. 한 지수를 못 받아도
+    나머지로 진행한다 — 표본이 조금 줄 뿐 계수는 여전히 설 수 있다.
+    """
+    frames = [get_sp500()[["Symbol", "Sector", "SubIndustry"]]]
+    for url in (SP400_URL, SP600_URL):
+        try:
+            frames.append(_wiki_index_table(url))
+        except Exception:
+            continue
+    # 세 지수는 배타적이라 정상적으로는 겹치지 않는다. 재편 중 위키백과 페이지들이
+    # 동기화되기 전 잠깐 겹칠 수 있는데, 그때는 먼저 온 S&P 500 쪽 분류를 남긴다.
+    return pd.concat(frames, ignore_index=True).drop_duplicates("Symbol")
 
 
 def find_us(query: str) -> pd.DataFrame:

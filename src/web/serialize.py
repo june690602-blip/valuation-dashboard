@@ -169,7 +169,9 @@ def _pipeline(market: str, query: str, peer_count: int, rf: float, mrp: float,
     ind = compute_indicators(d)
     scores = compute_scores(d.peers, d.yahoo_ticker, d.is_financial)
     cc = compute_capital_cost(d, rf=rf, mrp=mrp)
-    val = compute_valuation(d, ind, r_equity=cc.k_e)
+    from src.data.universe_multiples import coefficients_or_none
+    val = compute_valuation(d, ind, r_equity=cc.k_e,
+                            warranted_coef=coefficients_or_none(d.market))
     return d, ind, scores, cc, val
 
 
@@ -762,6 +764,17 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "skipped": [{"method": m, "reason": r} for m, r in (val.skipped or [])],
             "estimates": [{"method": e.method, "low": num(e.low), "mid": num(e.mid),
                            "high": num(e.high), "note": e.note} for e in val.estimates],
+            "relative_basis": val.relative_basis,
+            "relative_parts": [
+                {"leg": p["leg"], "multiple": num(p["multiple"]),
+                 "sector_base": num(p["sector_base"]), "size_adj": num(p["size_adj"]),
+                 "roe_adj": num(p["roe_adj"]), "below_range": bool(p["below_range"]),
+                 "beta_size": num(p["beta_size"]), "n": p["n"]}
+                for p in val.relative_parts],
+            "normalized": {
+                "eps": num(val.normalized_eps), "years": val.normalized_years,
+                "ratio": num(val.normalized_ratio), "per": num(val.normalized_per),
+            },
             # 판정과 근거가 반대를 말할 때만 채워진다. 없으면 화면은 아무 말도 하지 않는다(#69).
             "conflict": ({"short": _conflict.short, "detail": _conflict.detail}
                          if _conflict else None),
