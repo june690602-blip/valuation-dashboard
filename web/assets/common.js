@@ -127,10 +127,33 @@
   }
   function saveBasket(b) { localStorage.setItem(BASKET_KEY, JSON.stringify(b)); }
 
+  /* ── 공용 셸 동작 — 지금 있는 화면을 메뉴에서 보이게 (#73) ── */
+  /* 좁은 화면에서 메뉴는 가로로 스크롤된다. 그런데 '지금 여기' 표시가 붙은 항목이
+     목록 뒤쪽이면 화면 밖에 있다 — 실측(390px, 사용설명서): 항목은 356~434인데
+     보이는 구간은 0~362였다. 표시를 해 두고 안 보이면 표시가 없는 것과 같다.
+
+     scrollIntoView 대신 scrollLeft를 직접 계산한다 — 전자는 가로 스크롤을 맞추면서
+     페이지를 세로로도 끌어당겨 헤더가 잘린다. */
+  function revealCurrentNav() {
+    var nav = document.querySelector('.site-nav');
+    if (!nav) return;
+    var cur = nav.querySelector('[aria-current="page"]');
+    if (!cur || nav.scrollWidth <= nav.clientWidth) return;
+    var left = cur.offsetLeft, right = left + cur.offsetWidth;
+    if (right > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = right - nav.clientWidth + 12;
+    else if (left < nav.scrollLeft) nav.scrollLeft = Math.max(0, left - 12);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', revealCurrentNav);
+  } else {
+    revealCurrentNav();
+  }
+
   window.DV = {
     $: $, esc: esc,
     ATTR: ATTR, kebab: kebab, styleStr: styleStr, el: el,
     niceStep: niceStep, wireSeg: wireSeg, tiles: tiles, tilesHtml: tilesHtml,
-    BASKET_KEY: BASKET_KEY, loadBasket: loadBasket, saveBasket: saveBasket
+    BASKET_KEY: BASKET_KEY, loadBasket: loadBasket, saveBasket: saveBasket,
+    revealCurrentNav: revealCurrentNav
   };
 })();
