@@ -3,10 +3,11 @@
 > 이 파일은 GitHub에서 `@claude`가 호출될 때(또는 로컬 Claude Code에서) 따르는 규칙입니다.
 > 친구가 이슈/PR에 `@claude ...`로 요청하면 Claude가 아래 규칙에 맞춰 수정하고 PR을 올립니다.
 
-> **⚠ 푸시하지 않은 작업이 있습니다 — 손대기 전에 [`docs/HANDOFF.md`](docs/HANDOFF.md)를 먼저 읽으세요.**
-> 브랜치 `fix/peer-selection-by-size`에 **ADR-0014**(①을 업종·규모·수익성 회귀로)와
-> **ADR-0013**(피어 후보를 시총 인접순으로)이 모두 구현돼 있고 **아직 origin에 없습니다.**
-> 대기 중인 ADR은 없습니다. 262 passed.
+> **▶ 다음 작업은 '신뢰도 산식'입니다 — 착수 전에
+> [`docs/HANDOFF-CONFIDENCE.md`](docs/HANDOFF-CONFIDENCE.md)를 먼저 읽으세요.**
+> ADR-0016 결정 3이 순서를 못박았습니다: **신뢰도 산식이 EPV(축 추가)보다 먼저입니다.**
+> 미머지 작업은 없고, 대기 중인 ADR도 없습니다. 292 passed, 76 subtests.
+> 지난 브랜치들의 기록은 [`docs/HANDOFF.md`](docs/HANDOFF.md)에 있습니다.
 
 ## 프로젝트 개요
 기본적 분석 기반 **주식 가치평가 대시보드**(한국+미국). 종목 하나를 넣으면 재무·주가·업종 데이터를
