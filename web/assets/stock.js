@@ -869,19 +869,32 @@
           '받는 값"</b>으로 읽어야 합니다.') + '</div>';
     }
     var le = v.leg_error || {}, errLine = '';
-    if (le.margin != null && v.fair_mid != null) {
-      var legTxt = (le.measured || []).map(function (x) {
-        return esc(x.label) + ' ±' + Math.round(x.up * 100) + '%';
-      }).join(' · ');
-      errLine = '<div class="cons-callout err">' +
-        '<b>이 추정이 얼마나 틀리는가</b> — ①에 쓴 배수의 실측 오차는 ' + legTxt +
-        '입니다(전 종목 leave-one-out, ADR-0014). <b>판정 문턱은 ±10%</b>라 오차보다 훨씬 좁습니다.' +
-        ((le.unmeasured || []).length
-          ? ' ' + esc(le.unmeasured.join('·')) + ' 다리의 오차는 측정된 적이 없습니다.' : '') +
-        '<br>오차를 감안하고도 싸다고 말하려면 적정가 대비 <b class="mono">' +
-        Math.round(le.margin * 100) + '%</b> 이하 — <b class="mono">' +
-        fmtPrice(v.fair_mid * (1 + le.margin)) + '</b> 이하여야 합니다(가장 부정확한 ' +
-        esc(le.worst_leg) + ' 다리 기준).</div>';
+    var meas = le.measured || [], unmeas = le.unmeasured || [];
+    if ((meas.length || unmeas.length) && v.fair_mid != null) {
+      var unmeasTxt = unmeas.length ? esc(unmeas.join('·')) : '';
+      var errBody;
+      if (meas.length) {
+        errBody = '<b>이 추정이 얼마나 틀리는가</b> — ①에 쓴 배수의 실측 오차는 ' +
+          meas.map(function (x) {
+            return esc(x.label) + ' ±' + Math.round(x.up * 100) + '%';
+          }).join(' · ') +
+          '입니다(전 종목 leave-one-out, ADR-0014). <b>판정 문턱은 ±10%</b>라 오차보다 훨씬 좁습니다.' +
+          (unmeas.length ? ' ' + unmeasTxt + ' 다리의 오차는 측정된 적이 없습니다.' : '');
+      } else {
+        // 다리가 **전부** 미측정인 경우(미국 적자 기업의 PSR 단독 등). 여기서 침묵하면
+        // '오차가 없다'로 읽히는데, 실은 오차를 말할 근거조차 없는 쪽이라 더 나쁘다.
+        // 없다는 사실 자체를 밝힌다 — 오염된 값보다 '없음'이 정직하다(ADR-0011·0017).
+        errBody = '<b>이 추정이 얼마나 틀리는가</b> — ①은 ' + unmeasTxt +
+          ' 다리로만 섰고, 이 시장에서 그 오차는 <b>측정된 적이 없습니다.</b> 그래서 이 종목은 ' +
+          '①이 얼마나 틀리는지 말할 수 없고, 안전마진도 내지 않습니다. <b>판정 문턱은 ±10%</b>입니다.';
+      }
+      if (le.margin != null) {
+        errBody += '<br>오차를 감안하고도 싸다고 말하려면 적정가 대비 <b class="mono">' +
+          Math.round(le.margin * 100) + '%</b> 이하 — <b class="mono">' +
+          fmtPrice(v.fair_mid * (1 + le.margin)) + '</b> 이하여야 합니다(가장 부정확한 ' +
+          esc(le.worst_leg) + ' 다리 기준).';
+      }
+      errLine = '<div class="cons-callout err">' + errBody + '</div>';
     }
     // ── B (기본) ──
     $('hv-B').innerHTML =
