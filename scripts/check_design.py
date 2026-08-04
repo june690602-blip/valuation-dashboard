@@ -46,17 +46,18 @@ sys.stdout.reconfigure(encoding="utf-8")
 OK, BAD, NA = "[확인]", "[문제]", "[불가]"
 _tally = {OK: 0, BAD: 0, NA: 0}
 
-# 지금 열려 있는 문제의 수 — 전부 이슈로 등록돼 있고 순서대로 닫는다.
-#   #73 공용 셸(네비 규격 4가지·헤더 구현 2벌) · #74 브레이크포인트 12가지·타이포/간격 토큰 부재
-#   #75 카드 깊이가 화면마다 다름
+# 지금 열려 있는 문제의 수. R4가 남긴 셋(#73 공용 셸 · #74 타이포/간격/브레이크포인트 ·
+# #75 카드 깊이)은 전부 닫혔다 — 아래 이력 참고.
 # 이 스크립트는 **이 수보다 늘어날 때만** 실패한다(R5). 문제를 찍고도 종료코드 0을 반환하면
 # CI에 걸어도 머지를 막지 못해 보고서에 그친다. 반대로 열린 이슈까지 실패로 처리하면 CI가
 # 늘 빨간 상태가 되어 아무도 보지 않게 된다 — 그래서 기준선을 적어 두고 회귀만 막는다.
 # **이슈를 닫으면 이 값을 함께 내린다.**
 # #74가 타이포·브레이크포인트·간격 셋을 닫았다 — 5 → 2.
 # #73이 공용 셸을 한 벌로 모았다(네비 4벌·헤더 2벌 → 각 1벌) — 2 → 1.
-# 남은 하나: 카드 그림자가 화면마다 다름(#75).
-KNOWN_OPEN = 1
+# #75가 카드 깊이를 한 단으로 모았다(관문만 예외) — 1 → 0.
+# **이제 열린 문제가 없다.** 이 값이 0이라는 것은 새로 생기는 어긋남이 곧바로 CI를
+# 빨갛게 만든다는 뜻이다 — 기준선이 회귀를 가려 주던 상태가 끝났다.
+KNOWN_OPEN = 0
 
 
 def say(verdict: str, title: str, detail: str = "") -> None:
@@ -588,19 +589,34 @@ def check_shadow_hierarchy() -> None:
         say(OK, f"--shadow-card는 카드급에만 쓰인다 ({len(users)}곳)",
             "PR #48의 규약이 회귀하지 않았다.")
 
-    # 페이지별 카드 그림자 유무 — 같은 '카드'가 화면마다 다른 깊이면 위계가 아니라 우연이다
+    # 페이지별 카드 그림자 유무 — 같은 '카드'가 화면마다 다른 깊이면 위계가 아니라 우연이다.
+    #
+    # 홈은 **등록된 예외**다(#75에서 확정). 관문은 "어디로 갈지" 하나를 고르게 하는 화면이라
+    # 주역이 지면에서 확실히 떠야 해서 lg/sm 3단을 쓴다. 나머지는 작업대라 한 단이다.
+    # 예외를 그냥 통과시키면 '방치'와 구분이 안 되므로, **홈이 실제로 3단을 쓰는지**까지 본다 —
+    # 홈이 평평해지는 순간 그건 예외가 아니라 빠뜨린 것이다.
+    GATEWAY = "web/home.html"
     per_page: dict[str, int] = {}
     for page in PAGES:
         per_page[Path(page).name] = read(page).count("var(--shadow-card)")
-    flat = [k for k, v in per_page.items() if v == 0]
-    lifted = [k for k, v in per_page.items() if v > 0]
+    bench = {k: v for k, v in per_page.items() if k != Path(GATEWAY).name}
+    flat = [k for k, v in bench.items() if v == 0]
+    lifted = [k for k, v in bench.items() if v > 0]
+    home_css = read(GATEWAY)
+    home_tiers = [t for t in ("--shadow-lg", "--shadow-sm") if f"var({t})" in home_css]
     if flat and lifted:
         say(BAD, "카드 그림자를 쓰는 화면과 안 쓰는 화면이 갈린다",
-            f"뜬 카드: {', '.join(f'{k}({per_page[k]})' for k in lifted)}\n"
+            f"뜬 카드: {', '.join(f'{k}({bench[k]})' for k in lifted)}\n"
             f"평평한 화면: {', '.join(flat)}\n"
             "같은 '테두리 있는 상자'가 화면에 따라 떠 있기도 하고 붙어 있기도 하다.")
+    elif len(home_tiers) < 2:
+        say(BAD, "관문(홈)이 예외로 등록됐는데 위계가 없다",
+            f"홈에서 찾은 단: {', '.join(home_tiers) or '없음'}\n"
+            "홈이 3단(lg/sm)을 쓰기 때문에 한 단 규약에서 뺐다 — 평평해졌다면 예외가 아니라 빠뜨린 것이다.")
     else:
-        say(OK, "카드 깊이가 화면마다 같다")
+        say(OK, f"작업대 {len(lifted)}장이 카드 한 단으로 같다 (--shadow-card)",
+            "관문(홈)만 예외 — " + " / ".join(home_tiers) + " 3단으로 주역을 띄운다.\n"
+            "오버레이(.ld-card)는 지면 위 카드가 아니라 지면을 덮는 판이라 --shadow-lg를 쓴다.")
 
 
 # ══════════════════════════════════════════════════════════════════════
