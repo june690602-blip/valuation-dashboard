@@ -148,11 +148,18 @@
 ```bash
 git fetch origin
 git switch fix/peer-selection-by-size          # 또는 머지된 뒤라면 main
-.venv/Scripts/python.exe -m pytest tests/ -q   # 전부 통과해야 함
+.venv/Scripts/python.exe scripts/check_all.py  # CI 관문 전부 — 커밋 전에 이것부터
 .venv/Scripts/python.exe scripts/check_valuation_basis.py --limit 40
 ```
 
 마지막 명령이 이 문서의 출발점이다. **먼저 돌려서 숫자를 직접 보고 시작하라.**
+
+**`check_all.py`를 습관으로 삼아라.** `quality.yml`을 읽어 CI가 돌리는 것을 그대로
+돌린다(관문 10개). 이 브랜치에서 실제로 한 번 터졌다 — `check_design.py`만 돌리고
+"웹 변경은 괜찮다"고 판단했는데 인라인 스타일 예산(`check_structure.py`)을 넘긴 것을
+CI가 잡았다. **한 관문이 통과했다는 사실은 다른 관문에 대해 아무 말도 하지 않는다.**
+다만 네트워크가 필요한 진단은 여기 없다 — 판정 로직을 건드렸으면 `check_analysis.py`·
+`check_warranted.py`·`check_normalized.py`를 따로 돌려라.
 
 권하는 순서는 **3 → 2 → 1**이다. 3번은 하루면 되고 문제를 화면에 드러내며, 2번은 1번이
 정말 필요한지를 재서 알려주고, 1번은 그 답에 따라 규모가 달라진다.
