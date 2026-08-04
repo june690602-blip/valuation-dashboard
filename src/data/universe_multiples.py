@@ -167,7 +167,7 @@ def _coefficients_usable(d) -> bool:
                for v in d.values())
 
 
-@file_cache("warranted_coef_v1", ttl_hours=24, validate=_coefficients_usable)
+@file_cache("warranted_coef_v2", ttl_hours=24, validate=_coefficients_usable)
 def get_coefficients(market: str) -> dict:
     """시장의 다리별 계수 (24시간 캐시).
 

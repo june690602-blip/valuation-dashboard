@@ -49,6 +49,7 @@ sys.path.insert(0, str(ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 
 from src.analysis.warranted import (EXTRAPOLATION_LIMIT, fit_leg,  # noqa: E402
+                                    size_slope, size_term,
                                     warranted_multiple)
 from src.data.universe_multiples import (LEG_BOUNDS, collect_kr,   # noqa: E402
                                          collect_us)
@@ -203,12 +204,16 @@ def _section_remedy(res: pd.DataFrame, coef: dict, market: str) -> None:
     print(f"    (A) 상한 컷(계산 불가)   {a:>5}곳 ({a / n:.2%}) — 걸리면 ①에서 그 다리가 빠진다")
 
     # (B) 윈저화 — log(시총)을 학습 분포 p99에서 자른다. 계수는 그대로 두고 입력만 자른다.
+    # 규모 항은 스플라인일 수 있으므로(ADR-0020) β를 곱하지 않고 `size_term`을 부른다 —
+    # 여기서 다시 계산하면 계수 스키마가 바뀔 때 이 스크립트만 조용히 어긋난다.
     cap = float(np.quantile(mc, WINSOR_Q))
     hit = res[(res["mcap"] > cap) & res["size_adj"].notna()]
     if hit.empty:
         print(f"    (B) 윈저화(p{WINSOR_Q:.0%})        0곳")
         return
-    shrunk = np.exp(coef["beta_size"] * (np.log(cap) - np.log(hit["mcap"].to_numpy(float))))
+    s_cap = size_term(coef, float(np.log(cap)))
+    shrunk = np.exp([s_cap - size_term(coef, float(np.log(m)))
+                     for m in hit["mcap"].to_numpy(float)])
     ratio = float(np.median(shrunk))
     print(f"    (B) 윈저화(p{WINSOR_Q:.0%})    {len(hit):>5}곳 ({len(hit) / n:.2%}) — "
           f"적정배수 중앙 ×{ratio:.2f} (최소 ×{shrunk.min():.2f})")
@@ -226,7 +231,12 @@ def run(market: str) -> int:
             print(f"■ {leg} — 표본 부족, 계수 없음\n")
             continue
         res = _predict(d, coef)
-        print(f"■ {leg}   β(시총) {coef['beta_size']:+.3f}")
+        # β는 이제 하나가 아니다(ADR-0020) — 몸통과 꼬리의 국소 기울기를 함께 찍는다.
+        lm = np.log(d["mcap"].to_numpy(float))
+        b_body = size_slope(coef, float(np.quantile(lm, 0.50)))
+        b_tail = size_slope(coef, float(lm.max()))
+        knots = len(coef.get("size_knots") or ())
+        print(f"■ {leg}   β(중앙) {b_body:+.3f}   β(꼬리) {b_tail:+.3f}   마디 {knots}개")
         print("  [1] 학습 범위")
         n_large = _section_range(res, coef, market)
         print("  [2] size_adj 분포")
