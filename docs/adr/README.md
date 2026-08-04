@@ -26,3 +26,4 @@
 | [0013](0013-peer-selection-by-size-proximity.md) | 피어 후보를 '업종 시총 상위 N'이 아니라 '업종 내 시총 인접 N'으로 뽑는다 | 채택됨 |
 | [0014](0014-relative-value-by-regression.md) | ①을 피어 중앙값이 아니라 업종·규모·수익성 회귀로 낸다 | 채택됨 |
 | [0015](0015-normalized-earnings-axis.md) | 정규화 이익(5년 평균)을 판정의 네 번째 축으로 더한다 | 채택됨 |
+| [0016](0016-no-dcf-epv-instead.md) | DCF를 짓지 않는다 — EPV가 더 넓고, 축을 늘리기 전에 할 것이 있다 | 채택됨 |
