@@ -83,20 +83,19 @@
     var LEGNAME = { pbr: 'PBR', per: 'PER', psr: 'PSR', ev_ebitda: 'EV/EBITDA' };
     var body = parts.map(function (p) {
       var pct = function (v) { return (v >= 0 ? '+' : '') + (v * 100).toFixed(0) + '%'; };
-      return '<div style="margin-bottom:8px">'
-        + '<div style="font-weight:600">' + esc(LEGNAME[p.leg] || p.leg) + '</div>'
+      return '<div class="foldrow">'
+        + '<div class="foldrow-name">' + esc(LEGNAME[p.leg] || p.leg) + '</div>'
         + '<div>업종 기준 ' + p.sector_base.toFixed(2) + '배</div>'
         + '<div>시총 조정 ' + pct(p.size_adj) + '</div>'
         + '<div>ROE 조정 ' + pct(p.roe_adj) + '</div>'
-        + '<div style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px">'
+        + '<div class="foldrow-sum">'
         + '적정 ' + esc(LEGNAME[p.leg] || p.leg) + ' ' + p.multiple.toFixed(2) + '배</div>'
-        + (p.below_range ? '<div style="color:var(--ink-3)">※ 이 종목의 시총이 학습 표본의 '
+        + (p.below_range ? '<div class="foldrow-note">※ 이 종목의 시총이 학습 표본의 '
             + '하한보다 작아 규모 조정이 범위 밖 추정입니다.</div>' : '')
         + '</div>';
     }).join('');
     var b = parts[0].beta_size, n = parts[0].n;
-    body += '<div style="color:var(--ink-3);border-top:1px dashed var(--line);'
-      + 'margin-top:6px;padding-top:6px">규모 계수 β=' + b.toFixed(2)
+    body += '<div class="foldrow-foot">규모 계수 β=' + b.toFixed(2)
       + ' — 시총이 10배면 배수를 ' + (Math.pow(10, b)).toFixed(1) + '배로 봅니다'
       + ' (표본 ' + n + '종목). 이 계수는 <b>규모가 작으면 배수가 낮은 것이 정상</b>이라는'
       + ' 전제를 담고 있습니다.</div>';
@@ -110,13 +109,12 @@
       + won(nz.eps) + '</div>'
       + '<div>× 적정 PER ' + nz.per.toFixed(1) + '배 (업종·규모·수익성 회귀)</div>';
     if (nz.ratio != null) {
-      body += '<div style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px">'
+      body += '<div class="foldrow-sum">'
         + '정상 이익은 현재의 ' + nz.ratio.toFixed(2) + '배 — '
         + (nz.ratio < 1 ? '현재 이익이 정상보다 높습니다' : '현재 이익이 정상보다 낮습니다')
         + '</div>';
     }
-    body += '<div style="color:var(--ink-3);border-top:1px dashed var(--line);'
-      + 'margin-top:6px;padding-top:6px">' + nz.years + '개년 평균입니다. 근거 문헌'
+    body += '<div class="foldrow-foot">' + nz.years + '개년 평균입니다. 근거 문헌'
       + '(Anderson &amp; Brooks 2006)은 8년을 쓰지만 공시 이력이 짧아 그만큼 효과가'
       + ' 약합니다. 5년이 통째로 호황이면 평균도 호황입니다 — 이 방법은 사이클을'
       + ' <b>완화할 뿐 제거하지 않습니다</b>.</div>';

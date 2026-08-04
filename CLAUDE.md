@@ -29,8 +29,15 @@ Streamlit(`app.py`). 두 프런트 모두 같은 분석 엔진(`src/analysis`)�
   `python scripts/check_backtest.py KR 005930`
 - 규모 편향 진단(수동·네트워크 필요, CI 아님): `python scripts/check_size_bias.py --limit 400`.
   판정이 '싸다'가 아니라 '작다'를 재고 있지 않은지 시총 구간별로 전수 측정한다.
-- 코드 수정 후에는 최소한 `python -c "import py_compile; py_compile.compile('바꾼파일')"`로 문법 확인,
-  가능하면 위 헤드리스 스크립트로 실제 동작을 확인할 것.
+- **커밋·PR 전에는 `python scripts/check_all.py`를 돌린다.** 이것이 CI 관문의 전부다 —
+  `.github/workflows/quality.yml`을 직접 읽어 거기 적힌 명령을 그대로 실행하므로
+  워크플로가 바뀌어도 어긋나지 않는다. 통과하면 CI도 통과한다.
+  **관문 목록을 손으로 골라 돌리지 말 것.** 실제로 그래서 한 번 터졌다 — `check_design.py`만
+  돌리고 "웹 변경은 괜찮다"고 판단했는데, 인라인 스타일 예산(`check_structure.py`)을
+  넘긴 것을 CI가 잡았다. **한 관문이 통과했다는 사실은 다른 관문에 대해 아무 말도 하지 않는다.**
+- 위 `check_all.py`는 **네트워크가 필요한 진단을 포함하지 않는다**(CI에도 없다).
+  판정 로직을 건드렸으면 `check_analysis.py`·`check_warranted.py`·`check_normalized.py`·
+  `check_valuation_basis.py`를 따로 돌려 실제 종목에서 확인할 것.
 
 ## 구조 (핵심)
 - `src/data/` — 데이터 수집. `models.py`(시장 무관 표준 모델 `CompanyData`), `base.py`(yfinance),
