@@ -47,6 +47,7 @@ import pandas as pd
 
 from ..data.models import CompanyData, actual_prices, currency_mismatch
 from .scoring import comparable_peers, peer_median
+from .warranted import leg_error
 
 VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
 
@@ -181,6 +182,10 @@ class ValuationResult:
     # 다리별 계수 분해 — [{leg, multiple, sector_base, size_adj, roe_adj,
     # below_range, beta_size, n}]. 화면에서 접어 둔다(ADR-0014 결정 다섯).
     relative_parts: list = field(default_factory=list)
+    # ①에 쓰인 다리들의 **실측 오차**와 거기서 유도한 안전마진 문턱(ADR-0017).
+    # `warranted.leg_error()`의 반환 그대로. 회귀 경로에서만 채워진다 — 상수가 회귀의
+    # 것이라 피어 중앙값 폴백에는 쓸 수 없다.
+    leg_error: dict = field(default_factory=dict)
     # ⑤ 정규화 이익(ADR-0015). normalized_ratio가 이 축의 핵심이다 — 1보다 작으면
     # 현재 이익이 정상보다 높다는 뜻이고, 그것이 ⑤가 다른 축과 갈리는 이유 전부다.
     normalized_eps: float | None = None      # 정상 EPS
@@ -782,6 +787,10 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
     res.relative_leg_sensitivity = rel_meta.get("sensitivity")
     res.relative_basis = rel_meta.get("basis")
     res.relative_parts = rel_meta.get("parts") or []
+    # 오차 상수는 회귀(D2)를 재서 나온 값이라 폴백 경로에는 쓸 수 없다. 폴백의 오차는
+    # ADR-0014의 '현행 A' 열에 따로 있지만 그건 다른 계산의 값이다 — 섞지 않는다.
+    if res.relative_basis == "regression" and res.relative_parts:
+        res.leg_error = leg_error(d.market, [p["leg"] for p in res.relative_parts])
     if fv:
         res.estimates.append(fv)
         # 값도 신뢰도 산식도 건드리지 않는다 — 이 값이 다리 하나에 얼마나 매달려 있는지만
