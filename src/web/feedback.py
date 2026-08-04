@@ -135,14 +135,37 @@ def _relay(entry: dict) -> bool:
         "at": entry["at"],
     }
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    # 폼 릴레이는 브라우저 폼을 전제로 만들어져 있어 두 헤더를 보지 않으면 거절한다.
+    # 실측(2026-08-04): User-Agent 없으면 403, Referer 없으면 200이지만 본문이
+    # "Make sure you open this page through a web server". 서버-서버 호출이라 둘 다
+    # 우리가 붙여야 한다. Referer는 이 사이트의 주소 — PUBLIC_ORIGIN으로 바꿀 수 있다.
+    # HTTP 헤더는 latin-1만 담는다 — 한글 도메인을 기본값으로 두면 인코딩에서 죽는다(실측).
+    origin = _setting("PUBLIC_ORIGIN") or "https://investdashboard.local"
     req = urllib.request.Request(
         url, data=body, method="POST",
-        headers={"Content-Type": "application/json", "Accept": "application/json"})
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (compatible; investdashboard-feedback/1.0)",
+            "Referer": origin.rstrip("/") + "/",
+            "Origin": origin.rstrip("/"),
+        })
     try:
         with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310 (URL은 운영자 환경변수)
-            ok = 200 <= resp.status < 300
-            if not ok:
+            raw = resp.read().decode("utf-8", "replace")
+            if not 200 <= resp.status < 300:
                 print(f"[feedback] 릴레이 응답 {resp.status}")
+                return False
+            # **200이 곧 전달됐다는 뜻이 아니다.** formsubmit은 실패도 200으로 주고
+            # 본문에 success:"false"를 적는다(폼 미승인·잘못된 주소 등). 그걸 성공으로
+            # 세면 로그에는 '전달됨'이라 남는데 메일은 오지 않는다 — 실제로 그랬다.
+            try:
+                got = json.loads(raw)
+            except ValueError:
+                return True   # JSON이 아니면 판단할 근거가 없다 — 상태코드를 믿는다
+            ok = str(got.get("success", "")).lower() == "true"
+            if not ok:
+                print(f"[feedback] 릴레이 미전달: {got.get('message') or raw[:200]}")
             return ok
     except Exception as e:  # noqa: BLE001 — 릴레이 실패가 사용자 접수를 막으면 안 된다
         print(f"[feedback] 릴레이 실패(로그·파일에는 남음): {e}")
