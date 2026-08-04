@@ -434,6 +434,33 @@ class Handler(SimpleHTTPRequestHandler):
         print("[web]", self.address_string(), fmt % args)
 
 
+def _warm_coefficients() -> None:
+    """업종 회귀 계수를 **기동 직후 백그라운드에서** 미리 만들어 둔다.
+
+    왜: 실측한 첫 분석 131초 중 **112.6초**가 이 계수 산출이었다(피어 수집은 0.1초).
+    계수는 유니버스 전 종목의 배수 스냅숏이라 무겁지만 캐시가 24시간이고 시장 구조라
+    느리게 변한다 — 즉 **하루 한 번 누군가는 반드시 112초를 낸다**. 그 한 명이 방문자가
+    아니라 서버가 되게 한다. 캐시가 살아 있으면 즉시 끝나므로 재시작 비용도 없다.
+
+    데몬 스레드라 서버 종료를 막지 않고, 실패해도 조용히 넘어간다(계수가 없으면
+    판정은 피어 중앙값으로 물러난다 — coefficients_or_none의 계약).
+    """
+    def run():
+        from src.data.universe_multiples import coefficients_or_none
+        for market in ("KR", "US"):
+            t0 = time.time()
+            try:
+                got = coefficients_or_none(market)
+            except Exception as e:  # noqa: BLE001 — 예열 실패가 서버를 막으면 안 된다
+                print(f"  [예열] {market} 회귀 계수 실패(무시): {e}", flush=True)
+                continue
+            took = time.time() - t0
+            state = "캐시" if took < 1 else f"{took:.0f}초 걸려 새로 만듦"
+            print(f"  [예열] {market} 회귀 계수 {'준비됨' if got else '없음(피어 중앙값 폴백)'} — {state}", flush=True)
+
+    threading.Thread(target=run, daemon=True, name="warm-coefficients").start()
+
+
 def main():
     port = int(os.environ.get("PORT", "5178"))
     # 기본은 로컬 전용(127.0.0.1) — 로컬 분석 도구가 같은 네트워크에 노출되지 않게.
@@ -444,7 +471,8 @@ def main():
     if host == "127.0.0.1":
         print("  외부(다른 기기)에서 접속하려면: HOST=0.0.0.0 로 실행")
     print(f"  API 예: http://localhost:{port}/api/analyze?market=KR&query=035420")
-    print("  (첫 조회는 피어 수집으로 수십 초 걸릴 수 있습니다. Ctrl+C 로 종료)")
+    print("  (Ctrl+C 로 종료)")
+    _warm_coefficients()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

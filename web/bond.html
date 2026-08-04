@@ -13,18 +13,6 @@
   .tbl { margin-top: 14px; }
   .fld label { display: block; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
   /* 로딩 카드 — 실제 네트워크 완료에 연동된 단계 표시(가짜 진행률 없음) */
-  .ld-card { width: min(360px, 88vw); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 22px 22px 16px; box-shadow: var(--shadow-lg); }
-  .ld-title { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--ink); }
-  .ld-row { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; }
-  .ld-ic { flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite; }
-  .ld-row.done .ld-ic { border: none; animation: none; text-align: center; }
-  .ld-row.done .ld-ic::after { content: '✓'; color: var(--dv-positive); font-size: 14px; font-weight: 700; line-height: 16px; }
-  .ld-lbl { font-size: 13px; color: var(--ink); font-weight: 600; }
-  .ld-row.done .ld-lbl { color: var(--ink-3); font-weight: 500; }
-  .ld-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
-  .ld-row.done .ld-sub { visibility: hidden; }
-  .ld-foot { font-size: 11px; color: var(--ink-3); margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); line-height: 1.55; }
-  .ld-foot .mono { font-family: var(--font-mono); color: var(--ink-2); }
   /* 인라인 시계열 로딩(만기·국가 변경 시) */
   .mini-spin { display: inline-block; width: 12px; height: 12px; box-sizing: border-box; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite; vertical-align: -2px; margin-right: 8px; }
   .hist-loading { color: var(--ink-3); font-size: 12.5px; padding: 20px 0; }
