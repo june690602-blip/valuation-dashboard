@@ -61,3 +61,9 @@ jobs:
         run: |
           python scripts/check_bond.py
           python scripts/check_portfolio.py
+
+      # 같은 수식이 파이썬과 JS 두 곳에 산다(#84). 손으로 옮겨 적은 참조 구현이 아니라
+      # 브라우저가 실제로 받는 web/assets/finmath.js를 Node로 실행해 쌍둥이와 대조한다.
+      # 위 문법 검사와 같은 러너 Node를 쓰므로 의존성이 늘지 않는다.
+      - name: Check cross-language math parity
+        run: python scripts/check_client_math.py

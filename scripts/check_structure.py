@@ -60,16 +60,17 @@ _tally = {OK: 0, BAD: 0, NA: 0}
 # 지금 열려 있는 문제의 수 — 전부 R5 조서 2번 바구니의 것이고 이슈로 등록해 순서대로 닫는다.
 #   1 CSS의 67%가 페이지 안        (#74의 선행 조건)
 #   2 stock.js 인라인 밀도          (#82가 타일 6벌을 tiles()로 모았지만 형제 대비 2배는 남았다)
-#   3 같은 수식이 두 언어에 4곳    (#84 대조 테스트 부재)
-#   4 bond_math를 웹이 안 씀       (#84)
-#   5 serialize.py의 계산 3자리    (#84)
+#   3 serialize.py의 계산 3자리    (F — 시장 σ 추정·벤치마크 리샘플. #84와 별건이라 남긴다)
 # 이 수보다 늘어날 때만 실패한다. **이슈를 닫으면 이 값을 함께 내린다.**
 #   7 → 6: #83이 공용 헬퍼를 common.js 한 벌로 모았다(esc 6벌·$ 5벌·el 3벌·wireSeg 3벌·tiles 3벌).
 #   6 → 5: 파일 크기 예산(㉮ stock.js 분할)을 관문에서 뺐다. 크기는 A에서 표로만 보여준다.
-KNOWN_OPEN = 5
+#   5 → 3: #84 — 이식된 수식을 finmath.js 한 벌로 모으고, 브라우저가 받는 그 파일을 Node로
+#          실행해 파이썬 쌍둥이와 전 격자 대조하게 했다(ADR-0019). '두 언어에 4곳'과
+#          'bond_math를 웹이 안 씀'이 함께 닫힌다 — 쌍둥이가 실행 가능한 명세가 됐다.
+KNOWN_OPEN = 3
 
-WEB_JS = ["common.js", "stock.js", "stock-price-chart.js", "portfolio.js", "bond.js",
-          "test.js", "feedback.js", "analytics.js"]
+WEB_JS = ["common.js", "finmath.js", "stock.js", "stock-price-chart.js", "portfolio.js",
+          "bond.js", "test.js", "feedback.js", "analytics.js"]
 PAGES = ["home.html", "stock.html", "guide.html", "test.html", "bond.html",
          "portfolio.html", "admin.html"]
 
@@ -147,39 +148,46 @@ INLINE_BUDGET = {
 
 # 브라우저에서 계산하는 금융 수식 — (JS 자리, 파이썬 쌍둥이, CI가 돌리는 것, 왜 JS에 있나)
 # python_twin이 None이면 JS가 유일한 구현이다.
+# `parity`는 **양쪽을 함께 돌리는** 검사다. 파이썬 쪽만 도는 테스트는 여기에 적지 않는다 —
+# 그것은 "쌍둥이가 자기 자신과 같다"만 지키고 사용자가 받는 구현에 대해서는 아무 말도 않는다.
 CLIENT_MATH = {
-    "bond.js:bondMetrics/rateScenarios": {
-        "js": "web/assets/bond.js",
+    "finmath.js:채권 (cashflowPV·bondPrice·bondMetrics·rateScenarios)": {
+        "js": "web/assets/finmath.js",
         "python_twin": "src/analysis/bond_math.py",
-        "ci_runs": "scripts/check_bond.py (파이썬 쪽만)",
+        "ci_runs": "scripts/check_client_math.py (Node로 JS 실행 + 파이썬) · scripts/check_bond.py",
+        "parity": "scripts/check_client_math.py",
         "why": "슬라이더를 움직일 때마다 왕복하지 않으려고 이식. serialize.bond_data() 독스트링이 "
                "'시나리오 계산은 프런트(JS)에서 수행'이라고 밝혀 둔 의도된 예외다",
     },
-    "portfolio.js:tangency": {
-        "js": "web/assets/portfolio.js",
+    "finmath.js:tangency": {
+        "js": "web/assets/finmath.js",
         "python_twin": "src/analysis/risk_profile.py::tangency_point",
-        "ci_runs": "tests/test_risk_profile.py (파이썬 쪽만)",
+        "ci_runs": "scripts/check_client_math.py (양쪽) · tests/test_risk_profile.py",
+        "parity": "scripts/check_client_math.py",
         "why": "서버가 CML 가정(rf·er_m·sigma_m)만 보내고 접점은 프런트가 그린다",
     },
-    "stock.js:renderScenario": {
-        "js": "web/assets/stock.js",
-        "python_twin": "src/analysis/scenario.py",
-        "ci_runs": "tests/test_forward_scenario.py (파이썬 쪽만)",
+    "finmath.js:scenarioCasePrice": {
+        "js": "web/assets/finmath.js",
+        "python_twin": "src/analysis/scenario.py::case_price",
+        "ci_runs": "scripts/check_client_math.py (양쪽) · tests/test_forward_scenario.py",
+        "parity": "scripts/check_client_math.py",
         "why": "EPS·멀티플 슬라이더가 움직일 때 케이스 가격을 즉시 다시 계산한다",
+    },
+    "finmath.js:peerMedian": {
+        "js": "web/assets/finmath.js",
+        "python_twin": "src/analysis/scoring.py::peer_median",
+        "ci_runs": "scripts/check_client_math.py (양쪽) · tests/test_peer_sample_robustness.py",
+        "parity": "scripts/check_client_math.py",
+        "why": "사분면 십자선용 업종 중앙값. **표본 정의가 서버와 갈렸던 자리다** — 브라우저는 "
+               "자사를 포함해 계산하고 서버의 peer_median은 제외했다(삼성전자: 12.77× vs 11.66×). "
+               "같은 개념을 두 곳에서 계산하면 조용히 갈라진다는 것의 실제 사례",
     },
     "stock.js:backtestScatter(OLS)": {
         "js": "web/assets/stock.js",
         "python_twin": None,
         "ci_runs": None,
+        "parity": None,
         "why": "산점도 추세선. 화면 장식이라 서버가 계수를 보내지 않는다",
-    },
-    "stock.js:peerScatter(med)": {
-        "js": "web/assets/stock.js",
-        "python_twin": "src/analysis/scoring.py::peer_median",
-        "ci_runs": "tests/test_peer_sample_robustness.py (파이썬 쪽만)",
-        "why": "사분면 십자선용 업종 중앙값. **표본 정의가 서버와 갈렸다** — 브라우저는 자사를 "
-               "포함해 계산하고 서버의 peer_median은 제외한다(삼성전자: 12.77× vs 11.66×). "
-               "같은 개념을 두 곳에서 계산하면 조용히 갈라진다는 것의 실제 사례",
     },
 }
 
@@ -188,6 +196,7 @@ STATIC_CHECKS = {
     "scripts/check_design.py": "R4 디자인 일관성 — 토큰·셸·대비",
     "scripts/check_screen_language.py": "R3 화면 언어 — 판정 어휘·층위",
     "scripts/check_structure.py": "R5 코드 구조 — 이 파일",
+    "scripts/check_client_math.py": "#84 두 언어 수식 대조 — 브라우저 구현을 Node로 실행",
 }
 
 # 계산이 새어 나오면 안 되는 층 — 직렬화는 값을 옮기는 일이지 만드는 일이 아니다.
@@ -386,7 +395,7 @@ def check_inline_density() -> None:
 # ── E. 계산 경계 ─────────────────────────────────────────────────────
 def check_client_math() -> None:
     head("E. 계산 경계 — 파이썬 쌍둥이가 있는데 웹이 다시 구현한 곳")
-    twinned, orphan = [], []
+    guarded, unguarded, orphan = [], [], []
     for site, r in CLIENT_MATH.items():
         if not (ROOT / r["js"]).exists():
             say(BAD, f"등록된 JS 자리가 사라졌다: {site}", f"{r['js']} 없음 — 레지스트리를 갱신할 것")
@@ -399,13 +408,24 @@ def check_client_math() -> None:
         if not (ROOT / twin_path).exists():
             say(BAD, f"등록된 파이썬 쌍둥이가 사라졌다: {twin}", "레지스트리를 갱신할 것")
             continue
-        twinned.append(f"{site}\n    쌍둥이 {twin}\n    CI가 도는 쪽 {r['ci_runs']}")
+        parity = r.get("parity")
+        if parity and (ROOT / parity).exists():
+            guarded.append(f"{site}\n    쌍둥이 {twin}\n    양쪽을 함께 도는 검사 {parity}")
+        else:
+            if parity:
+                say(BAD, f"등록된 대조 검사가 사라졌다: {parity}", f"{site} — 레지스트리를 갱신할 것")
+            unguarded.append(f"{site}\n    쌍둥이 {twin}\n    CI가 도는 쪽 {r['ci_runs']}")
 
-    if twinned:
-        say(BAD, f"같은 수식이 두 언어에 사는 곳 {len(twinned)}개",
-            "\n".join(twinned) +
+    if unguarded:
+        say(BAD, f"두 언어에 살면서 대조되지 않는 곳 {len(unguarded)}개",
+            "\n".join(unguarded) +
             "\n두 구현이 어긋나면 Streamlit과 Meridian 웹이 같은 종목에 다른 숫자를 보여준다.\n"
-            "CI는 파이썬 쪽만 돌린다 — 사용자가 실제로 보는 구현이 검증되지 않는 쪽이다.")
+            "파이썬 쪽만 도는 테스트는 '쌍둥이가 자기 자신과 같다'만 지킨다 —\n"
+            "사용자가 실제로 보는 구현은 검증되지 않는 쪽에 남는다.")
+    elif guarded:
+        say(OK, f"두 언어에 사는 수식 {len(guarded)}곳이 모두 양쪽 대조로 묶여 있음",
+            "\n".join(guarded) +
+            "\n대조는 손으로 옮겨 적은 참조 구현이 아니라 브라우저가 받는 파일을 Node로 실행한다.")
     else:
         say(OK, "두 언어에 같은 수식이 사는 곳 없음")
 
@@ -414,23 +434,29 @@ def check_client_math() -> None:
             "\n".join(orphan) +
             "\n정적으로는 '이 수식이 맞는가'를 판정할 수 없다 — 파이썬 쪽에 대조할 값이 없다.")
 
-    # 파이썬 구현이 있는데 웹 진입점이 아예 임포트하지 않는 모듈은 더 분명한 신호다.
+    # 파이썬 구현이 있는데 웹 진입점이 아예 임포트하지 않는 모듈. 이것이 [문제]인 이유는
+    # '임포트가 없다'가 아니라 **규칙을 지키는 구현은 테스트되고 사용자가 보는 구현은
+    # 테스트되지 않는다**는 것이었다. 대조 검사가 둘을 묶으면 그 사유가 사라진다 —
+    # 쌍둥이가 실행 가능한 명세가 되고, 화면이 그 명세에서 벗어나는 순간 CI가 막는다.
     web_side = read("server.py") + read("src/web/serialize.py")
-    unused = []
+    unused, spec_only = [], []
     for site, r in CLIENT_MATH.items():
         twin = r["python_twin"]
         if not twin:
             continue
         mod = twin.split("::")[0].replace("/", ".").removesuffix(".py")
-        if mod not in web_side:
-            unused.append(f"{mod} — {site}가 대신 계산한다")
+        if mod in web_side:
+            continue
+        (spec_only if r.get("parity") else unused).append(f"{mod} — {site}가 대신 계산한다")
     if unused:
-        say(BAD, f"웹 진입점이 임포트하지 않는 분석 모듈 {len(unused)}개",
+        say(BAD, f"웹 진입점이 임포트하지 않고 대조도 없는 분석 모듈 {len(unused)}개",
             "\n".join(unused) +
             "\nCLAUDE.md는 '분석 로직은 src/analysis의 순수 함수로'라고 적었다.\n"
             "규칙을 지키는 구현이 있는데, 실제 실행 진입점(대시보드실행.bat → Meridian 웹)은 그것을 쓰지 않는다.")
     else:
-        say(OK, "등록된 파이썬 분석 모듈이 모두 웹 진입점에서 쓰인다")
+        say(OK, "등록된 파이썬 분석 모듈이 모두 웹에서 쓰이거나 대조로 묶여 있다",
+            ("\n".join(spec_only) + "\n웹이 임포트하지는 않지만 브라우저 구현과 전 격자 대조된다 — "
+             "실행 가능한 명세로 남아 있다.") if spec_only else "")
 
 
 # ── F. 직렬화 층위 ───────────────────────────────────────────────────

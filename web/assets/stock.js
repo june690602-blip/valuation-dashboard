@@ -11,6 +11,8 @@
   var ATTR = DV.ATTR, el = DV.el, esc = DV.esc, $ = DV.$, niceStep = DV.niceStep,
       wireSeg = DV.wireSeg, tiles = DV.tiles, tilesHtml = DV.tilesHtml, loadBasket = DV.loadBasket,
       saveBasket = DV.saveBasket;
+  /* 파이썬 쌍둥이가 있는 수식은 finmath.js 한 벌 — CI가 Node로 실행해 대조한다(#84). */
+  var FM = window.DVMath;
 
 
   /* ── 미니 마크다운 (Gemini 응답: ### 제목 · **굵게** · - 목록 · > 인용) ── */
@@ -472,19 +474,18 @@
     if (yTop <= yBot) yTop = yBot + yStep;
     var X = function (v) { return padL + Math.max(0, Math.min(perMax, v)) / perMax * xw; };
     var Y = function (v) { return padT + (1 - (Math.max(yBot, Math.min(yTop, v)) - yBot) / (yTop - yBot)) * plotH; };
-    var med = function (a) { var s = a.slice().sort(function (x, y) { return x - y; }), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
     // 축 범위는 자사를 포함해 잡고(자사 점이 화면 밖으로 나가면 안 된다), **업종 중앙 십자선은
     // 자사를 뺀 피어만으로** 낸다. 자사를 넣으면 중앙선이 자사 쪽으로 끌려 실제보다 업종에
     // 가까워 보이고, 표본이 홀수면 중앙값이 자사 자신이 되어 가로선이 자기 점 위에 그려진다
-    // (삼성전자 실측: 피어 9개에서 ROE 십자선 18.86% = 자사 ROE). 서버의 peer_median도
-    // exclude_self=True로 자사를 뺀다 — 같은 개념을 두 곳에서 계산하다 표본 정의가 갈렸다.
-    var peerOnly = pts.filter(function (p) { return !p.self; });
-    var medBase = peerOnly.length ? peerOnly : pts;
-    var medPer = med(medBase.map(function (p) { return p.per; }));
-    var medRoe = med(medBase.map(function (p) { return p.roe; }));
+    // (삼성전자 실측: 피어 9개에서 ROE 십자선 18.86% = 자사 ROE). 같은 개념을 두 곳에서
+    // 계산하다 표본 정의가 갈렸던 자리라(#78), 이제 수식과 표본 정의를 finmath.js 한 벌로
+    // 두고 서버의 peer_median과 CI가 대조한다(#84). 피어가 3개 미만이면 중앙값을 만들지
+    // 않는다 — 그 표본은 업종을 대표하지 못하고, 파이썬 쪽도 같은 이유로 None을 준다.
+    var medPer = FM.peerMedian(pts, 'per'), medRoe = FM.peerMedian(pts, 'roe');
+    var hasMed = medPer != null && medRoe != null;
     var els = [];
     // 저PER·고ROE 사분면 — 의미색은 아주 옅게만
-    els.push(el('rect', { x: padL, y: padT, width: X(medPer) - padL, height: Y(medRoe) - padT, fill: 'var(--dv-green)', fillOpacity: 0.05 }));
+    if (hasMed) els.push(el('rect', { x: padL, y: padT, width: X(medPer) - padL, height: Y(medRoe) - padT, fill: 'var(--dv-green)', fillOpacity: 0.05 }));
     // 그리드 — 주가차트와 같은 헤어라인
     for (var gv = yBot; gv <= yTop + 1e-9; gv += yStep) {
       els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(gv), y2: Y(gv), stroke: 'var(--line)', strokeWidth: 1 }));
@@ -500,12 +501,15 @@
     if (yBot < 0) els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(0), y2: Y(0), stroke: 'var(--line-strong)', strokeWidth: 1 }));
     els.push(el('line', { x1: padL, x2: padL + xw, y1: padT + plotH, y2: padT + plotH, stroke: 'var(--line-strong)', strokeWidth: 1 }));
     els.push(el('line', { x1: padL, x2: padL, y1: padT, y2: padT + plotH, stroke: 'var(--line-strong)', strokeWidth: 1 }));
-    // 업종 중앙값 십자선 — 사분면의 실제 기준
-    els.push(el('line', { x1: X(medPer), x2: X(medPer), y1: padT, y2: padT + plotH, stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
-    els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(medRoe), y2: Y(medRoe), stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
-    els.push(el('text', { x: X(medPer) + 5, y: padT + plotH - 6, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)' }, '업종 중앙 ' + medPer.toFixed(1) + '×'));
-    els.push(el('text', { x: padL + xw - 3, y: Y(medRoe) - 5, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, '업종 중앙 ' + medRoe.toFixed(1) + '%'));
-    els.push(el('text', { x: padL + 8, y: padT + 15, fontSize: 11, fill: 'var(--dv-green)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '저PER · 고ROE'));
+    // 업종 중앙값 십자선 — 사분면의 실제 기준. 중앙값이 없으면 사분면 자체가 성립하지 않아
+    // 십자선도 '저PER · 고ROE' 라벨도 그리지 않는다(점과 축은 그대로 읽을 수 있다).
+    if (hasMed) {
+      els.push(el('line', { x1: X(medPer), x2: X(medPer), y1: padT, y2: padT + plotH, stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
+      els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(medRoe), y2: Y(medRoe), stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
+      els.push(el('text', { x: X(medPer) + 5, y: padT + plotH - 6, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)' }, '업종 중앙 ' + medPer.toFixed(1) + '×'));
+      els.push(el('text', { x: padL + xw - 3, y: Y(medRoe) - 5, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, '업종 중앙 ' + medRoe.toFixed(1) + '%'));
+      els.push(el('text', { x: padL + 8, y: padT + 15, fontSize: 11, fill: 'var(--dv-green)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '저PER · 고ROE'));
+    }
     // 점 = 클릭 가능한 그룹(data-q 검색키 · data-key 매칭키). 넓은 투명 히트원으로 클릭/hover 쉬움.
     // 라벨 자리는 본인부터 잡고(위→아래→오른→왼), 자리가 없으면 숨겨 hover 때만 보여준다.
     var boxes = [], rendered = [];
@@ -1194,7 +1198,9 @@
     function caseDelta(name) { return name === '비관' ? state.scnBear : name === '낙관' ? state.scnBull : 0; }
     function caseTiles() {
       return tilesHtml(s.cases.map(function (cs) {
-        var dlt = caseDelta(cs.name), m = cs.multiple * (1 + state.scnMult), p = s.eps_base * (1 + dlt) * m;
+        // 케이스 가격은 finmath.js 한 벌 — 파이썬 쌍둥이(scenario.case_price)와 CI가 대조한다(#84).
+        var dlt = caseDelta(cs.name), m = cs.multiple * (1 + state.scnMult);
+        var p = FM.scenarioCasePrice(s.eps_base, dlt, cs.multiple, state.scnMult);
         var up = D.meta.price ? p / D.meta.price - 1 : null;
         return [cs.name, fmtPrice(p), '', {
           kickColor: CASE_TONE[cs.name],
@@ -1212,7 +1218,7 @@
         if (tot) parts.push('민감도 ' + tot + '칸 중 <b>' + green + '칸(' + Math.round(green / tot * 100) + '%)</b>이 현재가 위');
       }
       var bear = s.cases[0], up = null;
-      if (bear && D.meta.price) up = s.eps_base * (1 + state.scnBear) * bear.multiple * (1 + state.scnMult) / D.meta.price - 1;
+      if (bear && D.meta.price) up = FM.scenarioCasePrice(s.eps_base, state.scnBear, bear.multiple, state.scnMult) / D.meta.price - 1;
       if (up != null) parts.push('비관 케이스는 현재가 대비 <b style="color:' + (up >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">' + fmtSigned(up) + '</b>' + (up >= 0 ? ' (하방 완충이 있는 편)' : ' (비관 가정 실현 시 하락 여지)'));
       return parts.length ? '지금 가정에서는 ' + parts.join(', ') + '입니다.' : '';
     }

@@ -17,8 +17,16 @@ import numpy as np
 
 def _cashflow_pv(face: float, coupon_rate: float, ytm: float, years: float,
                  freq: int = 2) -> tuple[np.ndarray, np.ndarray]:
-    """(기간 인덱스 k=1..N, 각 기간 현금흐름의 PV). N은 최소 1."""
-    n = max(int(round(years * freq)), 1)
+    """(기간 인덱스 k=1..N, 각 기간 현금흐름의 PV). N은 최소 1.
+
+    반올림은 `round()`가 아니라 floor(x+0.5) — 즉 '.5는 올림'이다. 파이썬의 round는
+    은행가 반올림이라 2.5를 2로 내리는데, 프런트(finmath.js)의 Math.round는 3으로
+    올린다. 채권 화면은 잔존만기를 0.5년 단위로 받으므로 연 1회 지급 + 2.5년 같은
+    조합이 실제로 만들어지고, 그때 두 구현이 기간 수부터 갈렸다(가격 3.8% 차이).
+    대조 검사(scripts/check_client_math.py)가 이 자리를 잡아냈다 — 어느 쪽이 옳다기보다
+    **둘이 같아야** 하고, 흔한 관례(.5는 올림) 쪽으로 맞췄다.
+    """
+    n = max(int(np.floor(years * freq + 0.5)), 1)
     k = np.arange(1, n + 1, dtype=float)
     y = ytm / freq
     cf = np.full(n, face * coupon_rate / freq)

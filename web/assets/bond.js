@@ -11,25 +11,10 @@
       loadBasket = DV.loadBasket, saveBasket = DV.saveBasket, wireSeg = DV.wireSeg;
 
 
-  /* ── 채권 수학 (bond_math.py 이식) ── */
+  /* ── 채권 수학은 finmath.js 한 벌 — 파이썬 쌍둥이(bond_math.py)와 CI가 대조한다(#84). ── */
   var FACE = 100.0;
-  function cashflowPV(face, coupon, ytm, years, freq) {
-    var n = Math.max(Math.round(years * freq), 1), y = ytm / freq, k = [], pv = [];
-    for (var i = 1; i <= n; i++) { var cf = face * coupon / freq + (i === n ? face : 0); k.push(i); pv.push(cf / Math.pow(1 + y, i)); }
-    return { k: k, pv: pv, n: n };
-  }
-  function bondPrice(face, coupon, ytm, years, freq) { var c = cashflowPV(face, coupon, ytm, years, freq), s = 0; for (var i = 0; i < c.pv.length; i++) s += c.pv[i]; return s; }
-  function bondMetrics(face, coupon, ytm, years, freq) {
-    var c = cashflowPV(face, coupon, ytm, years, freq), price = 0, y = ytm / freq, mac = 0, conv = 0;
-    for (var i = 0; i < c.pv.length; i++) price += c.pv[i];
-    for (i = 0; i < c.k.length; i++) { var t = c.k[i] / freq; mac += t * c.pv[i]; conv += c.pv[i] * c.k[i] * (c.k[i] + 1); }
-    mac /= price; var modd = mac / (1 + y); conv = conv / (price * Math.pow(1 + y, 2) * freq * freq);
-    return { price: price, macaulay: mac, modified: modd, convexity: conv, dv01: price * modd * 1e-4 };
-  }
-  function rateScenarios(face, coupon, ytm, years, freq) {
-    var shocks = [-100, -50, -25, 25, 50, 100], m = bondMetrics(face, coupon, ytm, years, freq);
-    return shocks.map(function (bp) { var dy = bp / 1e4, exact = bondPrice(face, coupon, Math.max(ytm + dy, 0), years, freq); return { shock_bp: bp, exact_price: exact, exact_pct: exact / m.price - 1, dur_pct: -m.modified * dy, durconv_pct: -m.modified * dy + 0.5 * m.convexity * dy * dy }; });
-  }
+  var FM = window.DVMath;
+  var bondPrice = FM.bondPrice, bondMetrics = FM.bondMetrics, rateScenarios = FM.rateScenarios;
 
   /* ── 상태 ── */
   var TENORS = { KR: [1, 2, 3, 5, 10, 20, 30], US: [1, 2, 3, 5, 7, 10, 20, 30] };

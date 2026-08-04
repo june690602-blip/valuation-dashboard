@@ -31,7 +31,8 @@
   function loadAmounts() { try { return JSON.parse(localStorage.getItem('invamounts') || '{}'); } catch (e) { return {}; } }
   function saveAmounts(a) { localStorage.setItem('invamounts', JSON.stringify(a)); }
 
-  function tangency(erM, rf, sigM, A) { var y = (A <= 0 || sigM <= 0) ? 0 : (erM - rf) / (A * sigM * sigM); return { y: y, sigma_p: Math.abs(y) * sigM, er_p: rf + y * (erM - rf) }; }
+  /* 접점은 finmath.js 한 벌 — 파이썬 쌍둥이(risk_profile.tangency_point)와 CI가 대조한다(#84). */
+  var tangency = window.DVMath.tangency;
   function diamond(cx, cy, r) { return 'M' + cx + ' ' + (cy - r) + 'L' + (cx + r) + ' ' + cy + 'L' + cx + ' ' + (cy + r) + 'L' + (cx - r) + ' ' + cy + 'Z'; }
 
   /* ── 차트: 상관 히트맵 ── */

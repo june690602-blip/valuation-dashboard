@@ -41,6 +41,18 @@ class ScenarioResult:
     notes: list = field(default_factory=list)
 
 
+def case_price(eps_base: float, eps_delta: float, multiple: float,
+               mult_adjust: float = 0.0) -> float:
+    """시나리오 케이스 가격 = (기준 EPS × (1+조정)) × (멀티플 × (1+조정)).
+
+    프런트가 EPS·멀티플 슬라이더를 움직일 때 같은 식을 다시 계산한다
+    (`web/assets/finmath.js::scenarioCasePrice`). 두 벌이 갈리지 않게 CI가 실제 JS를
+    실행해 대조한다(`scripts/check_client_math.py` · #84). 곱을 위처럼 묶어 두는 것도
+    약속의 일부다 — 부동소수는 묶는 방식이 다르면 마지막 자리가 달라진다.
+    """
+    return (eps_base * (1 + eps_delta)) * (multiple * (1 + mult_adjust))
+
+
 def _pick_eps(eps_fwd, eps_ttm) -> tuple[float, str] | None:
     if eps_fwd is not None and eps_fwd > 0:
         return float(eps_fwd), "컨센서스 12개월 선행 EPS"
@@ -88,7 +100,7 @@ def build_scenarios(price: float, eps_fwd, eps_ttm, per_q, peer_per,
                               ("낙관", bull_delta, m_bull)):
         eps = eps_base * (1 + delta)
         m = mult * (1 + mult_adjust)
-        p = eps * m
+        p = case_price(eps_base, delta, mult, mult_adjust)
         res.cases.append(ScenarioCase(
             name=name, eps_delta=delta, eps=eps, multiple=m, price=p,
             upside=(p / price - 1) if price and price > 0 else None))
