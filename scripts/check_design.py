@@ -435,6 +435,41 @@ def check_shell() -> None:
     else:
         say(OK, "네비 링크 규격이 하나")
 
+    # 규격이 같아도 **내용**이 갈릴 수 있다. 실제로 갈려 있었다 — 6장은 '위험 프로파일'을,
+    # 설명서만 '포트폴리오'를 넣고 있어서 **포트폴리오 화면은 자기가 메뉴에 없었다**.
+    # 그 화면에서 나가면 홈을 거치지 않고는 돌아올 수 없었고, '지금 여기' 표시도 못 달았다.
+    # 관리 화면은 예외다 — 사이트 메뉴를 노출하지 않는 것이 의도다(이슈 #73).
+    MENU_EXEMPT = {"web/admin.html"}
+    menus: dict[tuple, list[str]] = {}
+    for page in SHELL_SITES:
+        if page in MENU_EXEMPT:
+            continue
+        m = re.search(r'<nav class="site-nav"[^>]*>(.*?)</nav>', read(page), re.S)
+        if m is None:
+            continue
+        menus.setdefault(tuple(re.findall(r'href="([^"]+)"', m.group(1))), []).append(Path(page).name)
+    if len(menus) > 1:
+        say(BAD, f"메뉴 내용이 {len(menus)}가지",
+            "\n".join(" · ".join(k) + "\n    → " + ", ".join(v) for k, v in menus.items())
+            + "\n한 화면에만 있는 항목은 다른 화면에서 갈 길이 없다는 뜻이다.")
+    elif menus:
+        items, pages = next(iter(menus.items()))
+        say(OK, f"메뉴 내용이 한 벌 ({len(items)}개 · {len(pages)}장)",
+            " · ".join(items) + "\n관리 화면은 사이트 메뉴를 노출하지 않는다(의도된 예외).")
+
+    # 자기 화면을 메뉴에서 '지금 여기'로 표시하는가 — 표시가 없으면 어디 있는지 알 수 없다.
+    no_current = []
+    for page in SHELL_SITES:
+        if page in MENU_EXEMPT:
+            continue
+        m = re.search(r'<nav class="site-nav"[^>]*>(.*?)</nav>', read(page), re.S)
+        if m is None or 'aria-current="page"' not in m.group(1):
+            no_current.append(Path(page).name)
+    if no_current:
+        say(BAD, f"'지금 여기' 표시가 없는 화면 {len(no_current)}장", ", ".join(no_current))
+    else:
+        say(OK, "모든 화면이 메뉴에서 자기 자리를 표시한다")
+
 
 # ══════════════════════════════════════════════════════════════════════
 # B. 토큰 밖으로 새어 나간 값
