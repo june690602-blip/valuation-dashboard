@@ -419,3 +419,52 @@ class RelativeValueTests(unittest.TestCase):
             ebitda_ps=None, debt_ps=0.0, cash_ps=0.0, revenue_ps=None,
             is_loss=False, is_financial=False)
         self.assertEqual(fairs, [])
+
+
+class LegErrorTests(unittest.TestCase):
+    """①에 쓴 다리의 실측 오차와 안전마진 문턱 (ADR-0017)."""
+
+    def test_worst_leg_drives_margin(self):
+        from src.analysis.warranted import leg_error
+
+        e = leg_error("KR", ["per", "pbr", "ev_ebitda"])
+        # 가장 나쁜 다리를 골라야 안전마진이 보수적인 쪽으로 선다.
+        self.assertEqual(e["worst_leg"], "EV/EBITDA")
+        self.assertAlmostEqual(e["up"], math.exp(0.639) - 1, places=6)
+        self.assertAlmostEqual(e["margin"], math.exp(-0.639) - 1, places=6)
+        # 로그 MAE는 원 스케일에서 비대칭이다 — 위로 더 크고 아래로 더 작다.
+        self.assertGreater(e["up"], abs(e["margin"]))
+        self.assertLess(e["margin"], 0)
+
+    def test_psr_is_the_worst_leg_when_present(self):
+        from src.analysis.warranted import leg_error
+
+        e = leg_error("KR", ["pbr", "psr"])
+        self.assertEqual(e["worst_leg"], "PSR")
+        # ADR-0014가 "±150% 수준"이라 적은 그 값이어야 한다.
+        self.assertAlmostEqual(e["up"], 1.512, delta=0.01)
+
+    def test_unmeasured_legs_are_named_not_invented(self):
+        from src.analysis.warranted import leg_error
+
+        e = leg_error("US", ["per", "pbr", "ev_ebitda"])
+        # 미국 EV/EBITDA는 ADR-0014가 재지 않았다 — 한국 값을 빌려오면 안 된다.
+        self.assertEqual(e["unmeasured"], ["EV/EBITDA"])
+        self.assertEqual([m["label"] for m in e["measured"]], ["PER", "PBR"])
+        self.assertEqual(e["worst_leg"], "PBR")
+
+    def test_no_measured_leg_yields_no_margin(self):
+        from src.analysis.warranted import leg_error
+
+        e = leg_error("US", ["psr"])
+        self.assertEqual(e["measured"], [])
+        self.assertIsNone(e["margin"])
+        self.assertIsNone(e["worst_leg"])
+        self.assertEqual(e["unmeasured"], ["PSR"])
+
+    def test_unknown_market_is_not_a_crash(self):
+        from src.analysis.warranted import leg_error
+
+        e = leg_error("JP", ["per"])
+        self.assertIsNone(e["margin"])
+        self.assertEqual(e["unmeasured"], ["PER"])

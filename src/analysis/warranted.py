@@ -28,6 +28,54 @@ ROE_LABELS = ["≤-20%", "-20~-5%", "-5~0%", "0~5%", "5~10%", "10~15%", ">15%"]
 SECTOR_MIN_N = 10
 OTHER_SECTOR = "기타"
 
+# ── 다리별 실측 오차 (ADR-0017) ─────────────────────────────────────
+# ADR-0014의 leave-one-out 실측을 **그대로 옮긴 상수**다. 여기서 추정하는 값이 아니라서
+# 계수를 다시 학습해도 따라 바뀌지 않는다 — ADR-0014를 다시 재면 이 표도 손으로 고쳐야 한다.
+#
+# 이 값이 재는 것은 '적정가가 맞았나'가 **아니라** '회귀가 그 종목의 시장 배수를 얼마나
+# 맞히나'다. 적정가의 정확도는 원리적으로 못 잰다(ADR-0009). 그럼에도 화면에 내는 이유는,
+# 적정 배수가 이만큼 흔들리면 적정가도 **최소** 그만큼 흔들리기 때문이다.
+#
+# **미측정 다리는 넣지 않는다.** 미국 PSR·EV/EBITDA는 ADR-0014가 재지 않았고, 한국 값을
+# 대신 쓰는 것은 지어내는 것이다(ADR-0011: 오염된 값보다 '없음').
+LEG_MAE = {
+    "KR": {"pbr": 0.563, "per": 0.572, "psr": 0.921, "ev_ebitda": 0.639},
+    "US": {"pbr": 0.470, "per": 0.374},
+}
+LEG_LABEL = {"per": "PER", "pbr": "PBR", "psr": "PSR", "ev_ebitda": "EV/EBITDA"}
+
+
+def leg_error(market: str, legs) -> dict:
+    """①에 쓰인 다리들의 실측 오차 → 원 스케일 폭과 안전마진 문턱 (ADR-0017).
+
+    **합성 오차를 만들지 않는다.** ①은 다리별 적정가의 *중앙값*이라 다리 오차를 평균해도
+    중앙값의 오차가 되지 않고, ②③⑤의 오차는 애초에 측정할 수 없다(ADR-0009). 그래서 잰
+    것만 그대로 늘어놓고, **가장 나쁜 다리**를 기준으로 안전마진을 말한다(보수적인 쪽).
+
+    로그 MAE `m`은 원 스케일에서 비대칭이다 — 위로 `exp(m)−1`, 아래로 `exp(−m)−1`이다.
+    안전마진은 **아래쪽**을 쓴다: 실제 적정가가 추정치의 `exp(−m)`배일 수 있으므로 그보다
+    싸야 오차를 감안하고도 싸다고 말할 수 있다.
+    """
+    table = LEG_MAE.get((market or "").upper(), {})
+    seen, order = set(), []
+    for lg in legs or []:
+        if lg not in seen:
+            seen.add(lg)
+            order.append(lg)
+    measured = [(lg, table[lg]) for lg in order if lg in table]
+    out = {
+        "measured": [{"leg": lg, "label": LEG_LABEL.get(lg, lg), "mae": m,
+                      "up": math.exp(m) - 1, "down": math.exp(-m) - 1}
+                     for lg, m in measured],
+        "unmeasured": [LEG_LABEL.get(lg, lg) for lg in order if lg not in table],
+        "worst_leg": None, "worst_mae": None, "up": None, "margin": None,
+    }
+    if measured:
+        lg, m = max(measured, key=lambda x: x[1])
+        out.update({"worst_leg": LEG_LABEL.get(lg, lg), "worst_mae": m,
+                    "up": math.exp(m) - 1, "margin": math.exp(-m) - 1})
+    return out
+
 
 def roe_bucket(roe: float | None) -> str | None:
     """ROE를 구간 라벨로. 결측·NaN이면 None."""

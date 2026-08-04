@@ -748,6 +748,21 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "consensus_method": VAL_CONSENSUS_METHOD,
             "fundamental_only": bool(val.fundamental_only),
             "shared_multiple_share": num(val.shared_multiple_share),
+            # 이 판정이 무엇에 기대는가 — 실효 가중 기준(ADR-0018).
+            # intrinsic_share가 0이면 절대가치 축이 하나도 안 섰다는 뜻이다.
+            "intrinsic_share": num(val.intrinsic_share),
+            "relative_share": num(val.relative_share),
+            # ①에 쓰인 다리들의 실측 오차와 안전마진 문턱(ADR-0017). 합성하지 않고
+            # 잰 것만 넘긴다 — 화면이 '판정 문턱(±10%)이 오차보다 좁다'를 말할 근거다.
+            "leg_error": {
+                "measured": [{"label": m["label"], "mae": num(m["mae"]),
+                              "up": num(m["up"]), "down": num(m["down"])}
+                             for m in (val.leg_error or {}).get("measured", [])],
+                "unmeasured": (val.leg_error or {}).get("unmeasured", []),
+                "worst_leg": (val.leg_error or {}).get("worst_leg"),
+                "up": num((val.leg_error or {}).get("up")),
+                "margin": num((val.leg_error or {}).get("margin")),
+            },
             # RIM을 쓰거나 뺀 실측 근거(ADR-0007). 화면이 원인을 단정하지 않고 잰 값을 보이게 한다.
             "book_quality": {
                 "pbr": num((val.book_quality or {}).get("pbr")),

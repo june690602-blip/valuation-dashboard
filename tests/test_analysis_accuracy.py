@@ -624,3 +624,36 @@ class ActualPricesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BasisShareTests(unittest.TestCase):
+    """판정이 무엇에 기대는가 — 실효 절대/상대 비중 (ADR-0018)."""
+
+    def test_classification_covers_every_fundamental_method(self):
+        from src.analysis.valuation import (FUNDAMENTAL_METHODS, INTRINSIC_METHODS,
+                                            RELATIVE_METHODS)
+
+        # 어느 쪽에도 없는 방법이 생기면 화면의 두 비중을 더해도 1이 안 된다.
+        # EPV가 들어올 때 여기서 걸린다(ADR-0016 결정 2).
+        self.assertEqual(set(FUNDAMENTAL_METHODS),
+                         set(INTRINSIC_METHODS) | set(RELATIVE_METHODS))
+        self.assertEqual(set(INTRINSIC_METHODS) & set(RELATIVE_METHODS), set())
+
+    def test_shares_sum_to_one_and_use_effective_weights(self):
+        from src.analysis.valuation import INTRINSIC_METHODS, RELATIVE_METHODS
+
+        # ③이 빠진 종목: 명목 가중이 아니라 재정규화된 실효 가중이라 절대가 정확히 0이다.
+        weights = {"업종 상대가치": 0.375, "역사적 밴드": 0.375, "정규화 이익": 0.25}
+        intrinsic = sum(w for m, w in weights.items() if m in INTRINSIC_METHODS)
+        relative = sum(w for m, w in weights.items() if m in RELATIVE_METHODS)
+        self.assertEqual(intrinsic, 0.0)
+        self.assertAlmostEqual(relative, 1.0, places=9)
+
+    def test_all_four_axes_leave_rim_a_minority(self):
+        from src.analysis.valuation import (FUNDAMENTAL_METHODS, INTRINSIC_METHODS,
+                                            METHOD_WEIGHTS)
+
+        # 넷이 다 서도 절대가치는 16.7%다 — 이것이 '평균 9.3%'의 상한이다.
+        total = sum(METHOD_WEIGHTS[m] for m in FUNDAMENTAL_METHODS)
+        intrinsic = sum(METHOD_WEIGHTS[m] for m in INTRINSIC_METHODS)
+        self.assertAlmostEqual(intrinsic / total, 0.1667, places=3)

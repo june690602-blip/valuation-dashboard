@@ -847,6 +847,55 @@
         ' — 펀더멘털 대비 <b class="mono">' + fmtSigned(v.consensus_premium) + '</b>. ' +
         '이 차이가 증권가가 보는 실적 전망분이며, <b>판정에는 넣지 않습니다</b>.</div>';
     }
+    // 이 도구가 얼마나 틀리는가 (ADR-0017). 판정 문턱은 ±10%인데 ①에 쓴 배수의 실측
+    // 오차는 그보다 훨씬 크다 — 그 사실을 헤드라인 바로 아래에서 말한다.
+    // **합성 오차를 만들지 않는다**: ①은 다리별 값의 중앙값이고 ②③⑤의 오차는 원리적으로
+    // 못 재므로(ADR-0009), 잰 것만 늘어놓고 가장 나쁜 다리로 안전마진을 말한다.
+    // 색은 쓰지 않는다(R4) — 세기는 진하기로만 말한다.
+    // 이 판정이 무엇에 기대는가 (ADR-0018). 신뢰도는 방법 간 편차만 보는데, 방법이 둘뿐이고
+    // 둘 다 시장 배수 기반이면 편차가 작아도 '확실하다'가 아니라 **'같은 것을 두 번 쟀다'**다.
+    // 141종목 실측에서 절대가치 실효 비중의 **중앙값이 0.0%**이고 53%가 절대가치 축 없이
+    // 판정된다 — 그 사실을 사용자가 볼 수 없었다. 색은 쓰지 않는다(R4).
+    var basisLine = '';
+    if (v.intrinsic_share != null && v.relative_share != null && v.fundamental_only) {
+      basisLine = '<div class="cons-callout err">' + (v.intrinsic_share > 0
+        ? '<b>이 판정이 기대는 곳</b> — <b>' + Math.round(v.relative_share * 100) +
+          '%</b>는 시장이 비슷한 회사에 매긴 배수에서, <b>' +
+          Math.round(v.intrinsic_share * 100) +
+          '%</b>는 회사가 벌 것에서 직접 계산한 값(RIM)에서 나옵니다.'
+        : '<b>이 판정은 전부 시장 배수에 기대고 있습니다</b> — 회사가 벌 것에서 직접 ' +
+          '계산하는 방법(RIM)이 이 종목에서는 성립하지 않아 빠졌습니다(사유는 아래 방법 표에 ' +
+          '있습니다). 그래서 이 값은 "회사의 내재가치"가 아니라 <b>"비슷한 회사들이 시장에서 ' +
+          '받는 값"</b>으로 읽어야 합니다.') + '</div>';
+    }
+    var le = v.leg_error || {}, errLine = '';
+    var meas = le.measured || [], unmeas = le.unmeasured || [];
+    if ((meas.length || unmeas.length) && v.fair_mid != null) {
+      var unmeasTxt = unmeas.length ? esc(unmeas.join('·')) : '';
+      var errBody;
+      if (meas.length) {
+        errBody = '<b>이 추정이 얼마나 틀리는가</b> — ①에 쓴 배수의 실측 오차는 ' +
+          meas.map(function (x) {
+            return esc(x.label) + ' ±' + Math.round(x.up * 100) + '%';
+          }).join(' · ') +
+          '입니다(전 종목 leave-one-out, ADR-0014). <b>판정 문턱은 ±10%</b>라 오차보다 훨씬 좁습니다.' +
+          (unmeas.length ? ' ' + unmeasTxt + ' 다리의 오차는 측정된 적이 없습니다.' : '');
+      } else {
+        // 다리가 **전부** 미측정인 경우(미국 적자 기업의 PSR 단독 등). 여기서 침묵하면
+        // '오차가 없다'로 읽히는데, 실은 오차를 말할 근거조차 없는 쪽이라 더 나쁘다.
+        // 없다는 사실 자체를 밝힌다 — 오염된 값보다 '없음'이 정직하다(ADR-0011·0017).
+        errBody = '<b>이 추정이 얼마나 틀리는가</b> — ①은 ' + unmeasTxt +
+          ' 다리로만 섰고, 이 시장에서 그 오차는 <b>측정된 적이 없습니다.</b> 그래서 이 종목은 ' +
+          '①이 얼마나 틀리는지 말할 수 없고, 안전마진도 내지 않습니다. <b>판정 문턱은 ±10%</b>입니다.';
+      }
+      if (le.margin != null) {
+        errBody += '<br>오차를 감안하고도 싸다고 말하려면 적정가 대비 <b class="mono">' +
+          Math.round(le.margin * 100) + '%</b> 이하 — <b class="mono">' +
+          fmtPrice(v.fair_mid * (1 + le.margin)) + '</b> 이하여야 합니다(가장 부정확한 ' +
+          esc(le.worst_leg) + ' 다리 기준).';
+      }
+      errLine = '<div class="cons-callout err">' + errBody + '</div>';
+    }
     // ── B (기본) ──
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
@@ -886,6 +935,8 @@
             '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
             '<span>펀더멘털 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b> <span class="na" tabindex="0" data-tip="① 업종 상대가치 · ② 역사적 밴드 · ③ RIM의 가중평균입니다. 셋 다 회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.">ⓘ</span></span>' +
             '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
+          basisLine +
+          errLine +
           consLine +
           '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (D.computed_at ? ' · 계산 ' + esc(D.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button></div></div>';
