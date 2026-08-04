@@ -623,7 +623,28 @@
   </div>
 </div>
 
-<div id="status"><div class="box"><div class="spin"></div><div id="statusMsg" style="font-size:13.5px">데이터 수집 중…</div></div></div>
+<!-- 수집 중 카드 — 금리 화면과 같은 방식(실제 완료에 맞춘 단계 표시, 가짜 진행률 없음).
+     단계를 나눠 적는 이유: 실측해 보니 첫 분석 131초 중 112초가 '업종 회귀 계수'였는데
+     화면은 그동안 "피어 수집"이라고 말하고 있었다. 기다리는 사람이 무엇을 기다리는지 알아야 한다. -->
+<div id="status">
+  <div class="ld-card" id="ldCard">
+    <div class="ld-title" id="ldTitle">데이터를 불러오는 중</div>
+    <div class="ld-row" id="ldFetch">
+      <div class="ld-ic"></div>
+      <div><div class="ld-lbl">시세 · 재무제표 · 뉴스</div><div class="ld-sub">5년 주가와 최근 재무·공시를 모으는 중</div></div>
+    </div>
+    <div class="ld-row wait" id="ldPeers">
+      <div class="ld-ic"></div>
+      <div><div class="ld-lbl">업종 비교 종목</div><div class="ld-sub">같은 업종 종목의 지표를 모으는 중</div></div>
+    </div>
+    <div class="ld-row wait" id="ldCoef">
+      <div class="ld-ic"></div>
+      <div><div class="ld-lbl">업종 회귀 계수</div><div class="ld-sub">적정 배수를 구할 시장 표본 — 하루 한 번만 새로 만듭니다</div></div>
+    </div>
+    <div class="ld-foot" id="ldFoot"><span class="mono">0초</span> 경과<br>다시 열 때는 캐시로 즉시 열려요.</div>
+    <div class="ld-err" id="ldErr" style="display:none"></div>
+  </div>
+</div>
 
 <script src="assets/common.js"></script>
 <script src="assets/stock-price-chart.js"></script>

@@ -22,6 +22,30 @@ from .cache import file_cache
 UNIVERSE_WORKERS = 12
 
 
+def _collect(rows, one):
+    """유니버스 전 종목을 병렬로 훑으며 **진행을 보고한다**.
+
+    이 단계가 분석에서 가장 오래 걸린다 — 실측 131초짜리 첫 분석 중 **112.6초**가 여기였다
+    (피어 수집은 0.1초). 그런데 진행 표시가 없어서 화면은 그동안 "피어 수집 14/14"를
+    띄우고 있었다. **범인을 잘못 가리키는 표시는 없는 것보다 나쁘다** — 기다리는 사람이
+    무엇을 기다리는지 모른다. 계수 캐시(24시간)가 살아 있으면 이 함수는 아예 불리지 않는다.
+    """
+    from concurrent.futures import as_completed
+    from .progress import report
+
+    total = len(rows)
+    out, done = [], 0
+    report("업종 회귀 계수", 0, total)
+    with ThreadPoolExecutor(UNIVERSE_WORKERS) as ex:
+        futures = [ex.submit(one, r) for r in rows]
+        for fut in as_completed(futures):
+            out.append(fut.result())
+            done += 1
+            if done % 20 == 0 or done == total:
+                report("업종 회귀 계수", done, total)
+    return pd.DataFrame(out)
+
+
 def _num(v):
     """숫자로 못 읽히거나 유한하지 않으면 None. 무료 데이터에는 둘 다 섞인다."""
     x = pd.to_numeric(v, errors="coerce")
@@ -81,9 +105,7 @@ def collect_kr() -> pd.DataFrame:
             pass
         return base
 
-    with ThreadPoolExecutor(UNIVERSE_WORKERS) as ex:
-        rows = list(ex.map(one, list(pool.itertuples())))
-    return pd.DataFrame(rows)
+    return _collect(list(pool.itertuples()), one)
 
 
 def collect_us() -> pd.DataFrame:
@@ -100,9 +122,7 @@ def collect_us() -> pd.DataFrame:
             pass
         return base
 
-    with ThreadPoolExecutor(UNIVERSE_WORKERS) as ex:
-        rows = list(ex.map(one, list(_us_universe().itertuples())))
-    return pd.DataFrame(rows)
+    return _collect(list(_us_universe().itertuples()), one)
 
 
 LEGS = ("pbr", "per", "psr", "ev_ebitda")

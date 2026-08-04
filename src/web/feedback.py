@@ -8,9 +8,16 @@
 - **키가 없어도 죽지 않는다.** 릴레이가 설정 안 됐거나 실패해도 접수 자체는 성공으로 처리하고
   서버 로그 + `data/feedback.jsonl`에 남긴다(프로젝트 규칙: 결측이어도 크래시 금지).
 
-환경변수:
+설정 (환경변수 → Streamlit secrets → .streamlit/secrets.toml 순. gemini.py와 같은 규약):
   FEEDBACK_ENDPOINT  의견을 중계할 폼 서비스 URL. 예: https://formsubmit.co/ajax/<주소 또는 해시>
-                     비워두면 릴레이 없이 로그·파일에만 남는다.
+  FEEDBACK_EMAIL     받을 주소만 적어도 된다. 이때 위 URL은 formsubmit.co/ajax/<주소>로 만든다.
+  둘 다 비면 릴레이 없이 로그·파일에만 남는다.
+
+  **주소는 저장소에 커밋하지 않는다.** `.streamlit/secrets.toml`(=.gitignore)이나 환경변수에만
+  둔다 — 소스에 박으면 공개 저장소가 그대로 스팸 수집 대상이 된다.
+
+  formsubmit은 **첫 전송 때 그 주소로 확인 메일**을 보낸다. 그 메일의 링크를 한 번 눌러야
+  이후 의견이 도착한다(누르기 전까지는 릴레이가 실패로 기록되고 파일·로그에만 남는다).
 
 스팸 방어는 세 겹 — 허니팟 필드(사람은 비워둠) · IP당 호출 제한 · 길이 상한.
 """
@@ -81,9 +88,43 @@ def _record(entry: dict) -> None:
         print(f"[feedback] 파일 적재 실패(무시): {e}")
 
 
+def _setting(name: str) -> str:
+    """환경변수 → Streamlit secrets → 로컬 secrets.toml 순. gemini.py·opendart.py와 같은 규약."""
+    v = os.environ.get(name)
+    if v:
+        return v.strip()
+    try:  # Streamlit Cloud는 비밀을 st.secrets로 제공
+        import streamlit as st
+        v = st.secrets.get(name)
+        if v:
+            return str(v).strip()
+    except Exception:
+        pass
+    p = Path(__file__).resolve().parents[2] / ".streamlit" / "secrets.toml"
+    if not p.exists():
+        return ""
+    try:
+        import tomllib
+        return str(tomllib.loads(p.read_text(encoding="utf-8")).get(name) or "").strip()
+    except Exception:
+        return ""
+
+
+def relay_target() -> tuple[str, str]:
+    """(릴레이 URL, 사람이 읽을 설명). 미설정이면 ('', 사유)."""
+    url = _setting("FEEDBACK_ENDPOINT")
+    if url:
+        return url, "FEEDBACK_ENDPOINT"
+    mail = _setting("FEEDBACK_EMAIL")
+    if mail:
+        # 주소만 준 경우 폼 릴레이 URL을 여기서 만든다 — 주소가 소스에 남지 않는다.
+        return f"https://formsubmit.co/ajax/{mail}", f"FEEDBACK_EMAIL({mail})"
+    return "", "미설정 — 로그·파일에만 남습니다"
+
+
 def _relay(entry: dict) -> bool:
     """폼 릴레이 서비스로 전달. 미설정·실패 모두 False를 돌려주되 예외는 삼킨다."""
-    url = (os.environ.get("FEEDBACK_ENDPOINT") or "").strip()
+    url, _how = relay_target()
     if not url:
         return False
     payload = {
@@ -94,14 +135,37 @@ def _relay(entry: dict) -> bool:
         "at": entry["at"],
     }
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    # 폼 릴레이는 브라우저 폼을 전제로 만들어져 있어 두 헤더를 보지 않으면 거절한다.
+    # 실측(2026-08-04): User-Agent 없으면 403, Referer 없으면 200이지만 본문이
+    # "Make sure you open this page through a web server". 서버-서버 호출이라 둘 다
+    # 우리가 붙여야 한다. Referer는 이 사이트의 주소 — PUBLIC_ORIGIN으로 바꿀 수 있다.
+    # HTTP 헤더는 latin-1만 담는다 — 한글 도메인을 기본값으로 두면 인코딩에서 죽는다(실측).
+    origin = _setting("PUBLIC_ORIGIN") or "https://investdashboard.local"
     req = urllib.request.Request(
         url, data=body, method="POST",
-        headers={"Content-Type": "application/json", "Accept": "application/json"})
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (compatible; investdashboard-feedback/1.0)",
+            "Referer": origin.rstrip("/") + "/",
+            "Origin": origin.rstrip("/"),
+        })
     try:
         with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310 (URL은 운영자 환경변수)
-            ok = 200 <= resp.status < 300
-            if not ok:
+            raw = resp.read().decode("utf-8", "replace")
+            if not 200 <= resp.status < 300:
                 print(f"[feedback] 릴레이 응답 {resp.status}")
+                return False
+            # **200이 곧 전달됐다는 뜻이 아니다.** formsubmit은 실패도 200으로 주고
+            # 본문에 success:"false"를 적는다(폼 미승인·잘못된 주소 등). 그걸 성공으로
+            # 세면 로그에는 '전달됨'이라 남는데 메일은 오지 않는다 — 실제로 그랬다.
+            try:
+                got = json.loads(raw)
+            except ValueError:
+                return True   # JSON이 아니면 판단할 근거가 없다 — 상태코드를 믿는다
+            ok = str(got.get("success", "")).lower() == "true"
+            if not ok:
+                print(f"[feedback] 릴레이 미전달: {got.get('message') or raw[:200]}")
             return ok
     except Exception as e:  # noqa: BLE001 — 릴레이 실패가 사용자 접수를 막으면 안 된다
         print(f"[feedback] 릴레이 실패(로그·파일에는 남음): {e}")

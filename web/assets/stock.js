@@ -1954,23 +1954,93 @@
   }
 
   /* ══════════ 데이터 로드 ══════════ */
-  function setStatus(on, msg, isErr) {
-    var s = $('status'); s.classList.toggle('on', on);
-    if (msg) $('statusMsg').innerHTML = (isErr ? '<span style="color:var(--danger)">⚠ ' + esc(msg) + '</span><div style="font-size:12px;color:var(--ink-3);margin-top:8px">종목을 바꿔 다시 시도하세요. (클릭하면 닫힘)</div>' : esc(msg));
-    s.querySelector('.spin').style.display = isErr ? 'none' : 'block';
+  /* ── 수집 중 카드 ──
+     단계는 파이프라인 순서 그대로다: 시세·재무·뉴스 → 피어 → 업종 회귀 계수.
+     서버가 뒤 단계를 보고하기 시작하면 앞 단계는 끝난 것이므로 그때 체크한다 —
+     추측이 아니라 순서에서 나오는 사실이다. 계수는 캐시(24시간)가 살아 있으면
+     보고 자체가 없으니, 응답이 오면 "캐시"로 적고 함께 닫는다. */
+  var LD_ROWS = ['ldFetch', 'ldPeers', 'ldCoef'];
+  var LD_STAGE = { '피어 수집': 1, '업종 회귀 계수': 2 };
+  var _ldT0 = 0, _ldTick = null;
+
+  function ldReset() {
+    var card = $('ldCard'); if (!card) return;
+    card.classList.remove('err');
+    $('ldTitle').textContent = '데이터를 불러오는 중';
+    $('ldErr').style.display = 'none';
+    $('ldFoot').style.display = '';
+    LD_ROWS.forEach(function (id, i) {
+      var r = $(id); if (!r) return;
+      r.classList.remove('done');
+      r.classList.toggle('wait', i > 0);
+      var sub = r.querySelector('.ld-sub');
+      if (sub && sub.dataset.base) sub.textContent = sub.dataset.base;
+    });
   }
+
+  /* 지금 도는 단계까지 앞줄을 전부 체크하고, 그 줄에 n/m을 적는다. */
+  function ldAt(idx, done, total) {
+    LD_ROWS.forEach(function (id, i) {
+      var r = $(id); if (!r) return;
+      r.classList.toggle('done', i < idx);
+      r.classList.toggle('wait', i > idx);
+    });
+    var row = $(LD_ROWS[idx]); if (!row || total == null) return;
+    var sub = row.querySelector('.ld-sub');
+    if (!sub) return;
+    if (!sub.dataset.base) sub.dataset.base = sub.textContent;
+    sub.textContent = sub.dataset.base + ' — ' + done + '/' + total;
+  }
+
+  function ldTickStart() {
+    _ldT0 = Date.now();
+    clearInterval(_ldTick);
+    _ldTick = setInterval(function () {
+      var f = $('ldFoot'); if (!f) return;
+      var s = Math.round((Date.now() - _ldT0) / 1000);
+      f.innerHTML = '<span class="mono">' + s + '초</span> 경과<br>다시 열 때는 캐시로 즉시 열려요.';
+    }, 300);
+  }
+
+  function setStatus(on, msg, isErr) {
+    var s = $('status');
+    s.classList.toggle('on', on);
+    if (!on) { clearInterval(_ldTick); return; }
+    if (isErr) {
+      clearInterval(_ldTick);
+      $('ldCard').classList.add('err');
+      $('ldTitle').textContent = '불러오지 못했습니다';
+      $('ldFoot').style.display = 'none';
+      var e = $('ldErr');
+      e.style.display = '';
+      e.innerHTML = esc(msg || '분석에 실패했습니다.')
+        + '<div style="font-size:var(--fs-note);color:var(--ink-3);margin-top:8px">종목을 바꿔 다시 시도하세요. (클릭하면 닫힘)</div>';
+      return;
+    }
+    ldReset();
+    // ETF는 재무제표·피어·회귀 계수가 없다(3축 분석). 없는 단계를 띄워 두면
+    // 영영 체크되지 않는 줄이 남아 '멈춘 것처럼' 보인다 — 아예 감춘다.
+    var etf = state.kind === 'etf';
+    $('ldPeers').style.display = etf ? 'none' : '';
+    $('ldCoef').style.display = etf ? 'none' : '';
+    $('ldFetch').querySelector('.ld-lbl').textContent = etf ? 'ETF 지표 · 보유 종목' : '시세 · 재무제표 · 뉴스';
+    ldAt(0, null, null);
+    ldTickStart();
+  }
+
   var _reqSeq = 0;
   var _progT = null;
   function stopProgress() { if (_progT) { clearInterval(_progT); _progT = null; } }
   function startProgress(seq) {
-    // 서버의 진행 상태(피어 수집 n/m)를 폴링해 대기 체감을 줄인다 — 실측값이라 정직하다
+    // 서버의 진행 상태를 폴링한다 — 실측값이라 정직하다(가짜 진행률 없음).
     stopProgress();
     var pu = 'api/progress?market=' + encodeURIComponent(state.market) + '&query=' + encodeURIComponent(state.query);
     _progT = setInterval(function () {
       if (seq !== _reqSeq) { stopProgress(); return; }
       fetch(pu).then(function (r) { return r.json(); }).then(function (p) {
         if (seq !== _reqSeq || !p || !p.total) return;
-        $('statusMsg').textContent = "'" + state.query + "' " + p.stage + ' ' + p.done + '/' + p.total + '…';
+        var idx = LD_STAGE[p.stage];
+        if (idx != null) ldAt(idx, p.done, p.total);
       }).catch(function () {});
     }, 700);
   }
