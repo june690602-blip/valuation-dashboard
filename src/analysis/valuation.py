@@ -91,6 +91,15 @@ METHOD_WEIGHTS = {
 FUNDAMENTAL_METHODS = ("업종 상대가치", "역사적 밴드", "수익가치(RIM)", "정규화 이익")
 CONSENSUS_METHOD = "선행 이익(컨센서스)"
 
+# 값을 **무엇에서** 만드는가 (ADR-0018). 이 분류가 판정의 성격을 가른다.
+#   절대가치 — 회사가 벌 것과 할인율에서 만든다. 지금은 ③ RIM뿐이다.
+#   상대가치 — 시장이 매긴 배수가 입력이다. ①은 다른 회사가 시장에서 받는 배수,
+#              ②는 자기가 과거에 시장에서 받던 배수, ⑤도 ①의 회귀 배수를 쓴다.
+# `scripts/check_valuation_basis.py`가 이것을 가져다 쓴다 — 진단과 화면이 같은 분류를
+# 봐야 "실측은 9.3%인데 화면은 다른 말"이 되지 않는다.
+INTRINSIC_METHODS = ("수익가치(RIM)",)
+RELATIVE_METHODS = ("업종 상대가치", "역사적 밴드", "정규화 이익")
+
 
 def _weighted(estimates: list) -> tuple[float, float, float, dict]:
     """(low, mid, high, 재정규화 가중치) — 주어진 방법들만으로 가중평균한다."""
@@ -182,6 +191,11 @@ class ValuationResult:
     # 다리별 계수 분해 — [{leg, multiple, sector_base, size_adj, roe_adj,
     # below_range, beta_size, n}]. 화면에서 접어 둔다(ADR-0014 결정 다섯).
     relative_parts: list = field(default_factory=list)
+    # 판정이 무엇에 기대는가 — 실효 가중 기준 절대/상대 비중(ADR-0018).
+    # 둘의 합은 1이거나(펀더멘털 종합) 0이다(④만 남은 경우). `intrinsic_share`가 0이면
+    # **절대가치 축이 하나도 안 섰다**는 뜻이고, 실측상 그런 종목이 53%다.
+    intrinsic_share: float | None = None
+    relative_share: float | None = None
     # ①에 쓰인 다리들의 **실측 오차**와 거기서 유도한 안전마진 문턱(ADR-0017).
     # `warranted.leg_error()`의 반환 그대로. 회귀 경로에서만 채워진다 — 상수가 회귀의
     # 것이라 피어 중앙값 폴백에는 쓸 수 없다.
@@ -969,6 +983,13 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
         res.fair_low, res.fair_mid, res.fair_high, res.weights = _weighted(basis)
         res.gap = res.fair_mid / d.price - 1
         res.verdict = _verdict(res.gap)
+        # 이 판정이 무엇에 기대는가 (ADR-0018). **명목 가중이 아니라 실효 가중**이다 —
+        # 방법이 빠지고 재정규화된 뒤의 값이라, 141종목 실측에서 절대가치 중앙값이
+        # 0.0%였다(명목 16.7%). 평균 9.3%가 그 사실을 가리고 있었다.
+        res.intrinsic_share = sum(w for m, w in res.weights.items()
+                                  if m in INTRINSIC_METHODS)
+        res.relative_share = sum(w for m, w in res.weights.items()
+                                 if m in RELATIVE_METHODS)
         # 동일가중(단순평균) 민감도 — 가중치 선택이 결론을 좌우하는지 투명하게 노출
         res.fair_mid_equal = float(np.mean(mids))
         res.gap_equal = res.fair_mid_equal / d.price - 1

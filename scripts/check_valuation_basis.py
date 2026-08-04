@@ -30,7 +30,8 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 from src.analysis.capital_cost import compute_capital_cost          # noqa: E402
 from src.analysis.indicators import compute_indicators              # noqa: E402
-from src.analysis.valuation import compute_valuation                # noqa: E402
+from src.analysis.valuation import (INTRINSIC_METHODS,              # noqa: E402
+                                    RELATIVE_METHODS, compute_valuation)
 from src.data.kr_provider import KRProvider                         # noqa: E402
 from src.data.universe import get_kr_listing                        # noqa: E402
 from src.data.universe_multiples import coefficients_or_none        # noqa: E402
@@ -38,8 +39,10 @@ from src.data.universe_multiples import coefficients_or_none        # noqa: E402
 # KRProvider 기본 가정 (US는 0.045/0.05). rf·mrp는 필수 인자다.
 RF, MRP = 0.035, 0.06
 
-INTRINSIC = {"수익가치(RIM)"}
-RELATIVE = {"업종 상대가치", "역사적 밴드", "정규화 이익"}
+# 분류는 `src/analysis/valuation.py`가 갖는다(ADR-0018) — 화면이 같은 값을 내므로
+# 진단이 따로 들고 있으면 둘이 어긋난다.
+INTRINSIC = set(INTRINSIC_METHODS)
+RELATIVE = set(RELATIVE_METHODS)
 
 
 def _one(code: str, coef) -> dict | None:

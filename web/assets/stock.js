@@ -852,6 +852,22 @@
     // **합성 오차를 만들지 않는다**: ①은 다리별 값의 중앙값이고 ②③⑤의 오차는 원리적으로
     // 못 재므로(ADR-0009), 잰 것만 늘어놓고 가장 나쁜 다리로 안전마진을 말한다.
     // 색은 쓰지 않는다(R4) — 세기는 진하기로만 말한다.
+    // 이 판정이 무엇에 기대는가 (ADR-0018). 신뢰도는 방법 간 편차만 보는데, 방법이 둘뿐이고
+    // 둘 다 시장 배수 기반이면 편차가 작아도 '확실하다'가 아니라 **'같은 것을 두 번 쟀다'**다.
+    // 141종목 실측에서 절대가치 실효 비중의 **중앙값이 0.0%**이고 53%가 절대가치 축 없이
+    // 판정된다 — 그 사실을 사용자가 볼 수 없었다. 색은 쓰지 않는다(R4).
+    var basisLine = '';
+    if (v.intrinsic_share != null && v.relative_share != null && v.fundamental_only) {
+      basisLine = '<div class="cons-callout err">' + (v.intrinsic_share > 0
+        ? '<b>이 판정이 기대는 곳</b> — <b>' + Math.round(v.relative_share * 100) +
+          '%</b>는 시장이 비슷한 회사에 매긴 배수에서, <b>' +
+          Math.round(v.intrinsic_share * 100) +
+          '%</b>는 회사가 벌 것에서 직접 계산한 값(RIM)에서 나옵니다.'
+        : '<b>이 판정은 전부 시장 배수에 기대고 있습니다</b> — 회사가 벌 것에서 직접 ' +
+          '계산하는 방법(RIM)이 이 종목에서는 성립하지 않아 빠졌습니다(사유는 아래 방법 표에 ' +
+          '있습니다). 그래서 이 값은 "회사의 내재가치"가 아니라 <b>"비슷한 회사들이 시장에서 ' +
+          '받는 값"</b>으로 읽어야 합니다.') + '</div>';
+    }
     var le = v.leg_error || {}, errLine = '';
     if (le.margin != null && v.fair_mid != null) {
       var legTxt = (le.measured || []).map(function (x) {
@@ -906,6 +922,7 @@
             '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
             '<span>펀더멘털 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b> <span class="na" tabindex="0" data-tip="① 업종 상대가치 · ② 역사적 밴드 · ③ RIM의 가중평균입니다. 셋 다 회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.">ⓘ</span></span>' +
             '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
+          basisLine +
           errLine +
           consLine +
           '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (D.computed_at ? ' · 계산 ' + esc(D.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>' +
