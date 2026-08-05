@@ -37,3 +37,4 @@
 | [0024](0024-independence-is-not-a-correlation-ceiling.md) | 축의 독립성은 상관 상한으로 재지 않는다 — 재려던 해악을 ADR-0022가 이미 값 매긴다 | 채택됨 |
 | [0025](0025-normalize-window-eight-years.md) | 정규화 이익의 창을 8년으로 — 5년으로 둔 이유가 사실이 아니었다 | 채택됨 |
 | [0026](0026-band-window-is-a-decision-not-a-default.md) | ② 역사적 밴드의 창을 명시적으로 7년으로 — 창은 결정이지 기본 인자가 아니다 | 채택됨 |
+| [0027](0027-ca-bundle-for-non-ascii-paths.md) | 인증서를 ASCII 경로로 비춰 둔다 — 한글 폴더에서 시세가 통째로 죽는 것을 막는다 | 채택됨 |
