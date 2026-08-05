@@ -21,11 +21,12 @@ def _fin(values):
 
 
 class NormalizedOperatingIncomeTests(unittest.TestCase):
-    def test_averages_the_last_five_years(self):
-        # 6년이 있으면 마지막 5년만 쓴다 — `_normalized_earnings`와 같은 창 규칙이다
-        oi, years = normalized_operating_income(_fin([9999., 100., 200., 300., 400., 500.]))
-        self.assertEqual(years, 5)
-        self.assertAlmostEqual(oi, 300.0)
+    def test_averages_the_last_eight_years(self):
+        # 9년이 있으면 마지막 8년만 쓴다 — `_normalized_earnings`와 같은 창 규칙이다
+        oi, years = normalized_operating_income(
+            _fin([9999., 100., 200., 300., 400., 500., 600., 700., 800.]))
+        self.assertEqual(years, 8)
+        self.assertAlmostEqual(oi, 450.0)
 
     def test_uses_what_exists_when_history_is_short(self):
         oi, years = normalized_operating_income(_fin([100., 200., 300.]))

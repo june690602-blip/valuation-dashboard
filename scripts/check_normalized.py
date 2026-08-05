@@ -27,7 +27,8 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 from src.analysis.capital_cost import compute_capital_cost        # noqa: E402
 from src.analysis.indicators import compute_indicators            # noqa: E402
-from src.analysis.valuation import compute_valuation              # noqa: E402
+from src.analysis.valuation import (NORMALIZE_WINDOW,             # noqa: E402
+                                    compute_valuation)
 from src.data.kr_provider import KRProvider                       # noqa: E402
 from src.data.universe import get_kr_listing                      # noqa: E402
 from src.data.universe_multiples import coefficients_or_none      # noqa: E402
@@ -86,8 +87,9 @@ def main() -> int:
             print(f"        {n:>3}곳  {reason}")
     used = df.loc[df["has5"], "years"].dropna()
     if len(used):
+        # 창을 상수에서 읽는다 — 5로 박아 두면 ADR-0025처럼 창이 바뀔 때 조용히 거짓말한다.
         print(f"      평균에 쓴 연수 중앙 {used.median():.0f}년 "
-              f"(5년을 채운 종목 {(used >= 5).mean():.0%})")
+              f"({NORMALIZE_WINDOW}년을 채운 종목 {(used >= NORMALIZE_WINDOW).mean():.0%})")
 
     both = df[df["has5"] & df["gap1"].notna() & df["gap5"].notna()].copy()
     bad = 0 if cov >= COVERAGE_FLOOR else 1
