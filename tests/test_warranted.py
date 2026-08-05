@@ -348,6 +348,13 @@ class Sp1500Tests(unittest.TestCase):
             out = universe.get_sp1500.__wrapped__()
         self.assertEqual(sorted(out["Symbol"]), ["AAON", "AAPL", "MSFT", "XPEL"])
         self.assertEqual(len(out), 4)   # AAON 중복 제거
+        # 어느 지수에서 왔는지가 남아야 한다 — 이 표에는 시총 열이 없어서
+        # `check_confidence.py`가 **지수를 규모 층으로** 쓴다(500 대형·400 중형·600 소형).
+        tier = dict(zip(out["Symbol"], out["Index"]))
+        self.assertEqual(tier["AAPL"], "S&P 500")
+        self.assertEqual(tier["XPEL"], "S&P 600")
+        # 겹친 종목은 먼저 온 쪽(400)의 층을 갖는다 — 층이 실행마다 흔들리면 안 된다.
+        self.assertEqual(tier["AAON"], "S&P 400")
 
     def test_sp1500_survives_all_auxiliary_indices_failing(self):
         # 400·600을 둘 다 못 받아도 나머지(S&P 500)로 진행한다 — 무료 원천은 자주 흔들린다
@@ -397,6 +404,27 @@ class Sp1500Tests(unittest.TestCase):
             self.assertEqual(len(out), 503)          # 값 자체는 돌려준다
             cached = list(Path(tmp).glob("sp1500_*"))
             self.assertEqual(cached, [])             # 그러나 저장하지는 않는다
+
+    def test_cache_without_the_index_column_is_not_reused(self):
+        # `Index` 열은 나중에 붙었다. 캐시 이름(`sp1500`)은 그대로라 **열이 없던 시절의
+        # 7일짜리 캐시가 그대로 통과할 수 있다** — 그러면 층화표집이 KeyError로 죽는다.
+        # 이름에 버전을 붙이는 대신 실제 모양을 검사한다(`_coefficients_usable`과 같은 선택).
+        from src.data import universe
+
+        from src.data.cache import _key
+
+        old = pd.DataFrame({"Symbol": [f"S{i}" for i in range(1200)],
+                            "Sector": ["Tech"] * 1200, "SubIndustry": ["X"] * 1200})
+        fresh = old.assign(Index="S&P 500")
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch("src.data.cache.CACHE_DIR", Path(tmp)), \
+             patch.object(universe, "get_sp500", lambda: fresh), \
+             patch.object(universe, "_wiki_index_table",
+                          lambda url: (_ for _ in ()).throw(RuntimeError("down"))):
+            # 옛 모양의 '신선한' 캐시를 깔아 둔다 — ttl로는 걸러지지 않는 상태다.
+            old.to_parquet(Path(tmp) / f"{_key('sp1500', (), {})}.parquet")
+            out = universe.get_sp1500()
+        self.assertIn("Index", out.columns)           # 캐시를 버리고 다시 받았다
 
 
 class UniverseSnapshotTests(unittest.TestCase):
@@ -593,6 +621,53 @@ class LegErrorTests(unittest.TestCase):
         e = leg_error("JP", ["per"])
         self.assertIsNone(e["margin"])
         self.assertEqual(e["unmeasured"], ["PER"])
+
+    def test_psr_is_worst_in_every_measured_market(self):
+        from src.analysis.warranted import LEG_MAE
+
+        # 화면이 "PSR이 실측 오차가 가장 크다"고 말한다(valuation.psr_error_phrase).
+        # 그 문장은 이 표에 기대고 있으므로, 재측정으로 순위가 바뀌면 **문장부터**
+        # 고쳐야 한다. 여기서 걸리게 두는 것이 그 알림이다.
+        for market, table in LEG_MAE.items():
+            if "psr" not in table:
+                continue
+            with self.subTest(market=market):
+                self.assertEqual(max(table, key=table.get), "psr",
+                                 f"{market}에서 PSR이 더는 최악이 아니다 — 화면 문구를 고쳐라")
+
+
+class PsrErrorPhraseTests(unittest.TestCase):
+    """PSR 오차 폭 문구가 **잰 값에서만** 나오는가 (ADR-0017·0022).
+
+    한국에서 잰 "±150%"가 문장에 박혀 있어 미국 종목 화면에도 그대로 떴던 자리다.
+    """
+
+    def phrase(self, market, legs):
+        from src.analysis.valuation import psr_error_phrase
+        from src.analysis.warranted import leg_error
+        return psr_error_phrase(leg_error(market, legs))
+
+    def test_each_market_quotes_its_own_number(self):
+        kr = self.phrase("KR", ["psr"])
+        us = self.phrase("US", ["psr"])
+        # 한국 0.897 → +145%, 미국 0.656 → +93%. **같은 문장이면 하나는 빌려온 것이다.**
+        self.assertIn("145%", kr)
+        self.assertIn("93%", us)
+        self.assertNotEqual(kr, us)
+
+    def test_unmeasured_path_says_so_instead_of_a_number(self):
+        # 피어 중앙값 폴백에는 `leg_error`가 없다(오차는 회귀를 재서 나온 값이다).
+        # 그때 다른 데서 숫자를 끌어오면 그것이 바로 지어내기다(ADR-0011).
+        for empty in (None, {}, {"measured": []}):
+            with self.subTest(leg_error=empty):
+                from src.analysis.valuation import psr_error_phrase
+                text = psr_error_phrase(empty)
+                self.assertIn("측정된 적이 없", text)
+                self.assertNotIn("%", text)
+
+    def test_unknown_market_does_not_borrow_a_number(self):
+        # 아직 재지 않은 시장이 한국 숫자를 물려받으면 안 된다.
+        self.assertNotIn("%", self.phrase("JP", ["psr"]))
 
 
 def _noisy(n=600, beta=0.30, sigma=0.40, seed=11):

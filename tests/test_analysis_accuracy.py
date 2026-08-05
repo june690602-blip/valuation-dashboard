@@ -714,3 +714,55 @@ class ConfidenceGradeTests(unittest.TestCase):
             n_eff, capped = effective_axes(["a", "b", "c"], "KR")
             self.assertFalse(capped)
             self.assertEqual(self.grade(0.01, 3, n_eff, capped)[0], "높음")
+
+
+class MeasuredRhoTests(unittest.TestCase):
+    """실측 상관표가 실제로 상한을 켜는가 (ADR-0022).
+
+    위 `ConfidenceGradeTests`는 산식을 지어낸 값으로 검증한다. 여기서는 **저장소에
+    들어 있는 실측 표**를 그대로 써서, 표가 비거나 쌍이 하나 빠졌을 때 상한이 조용히
+    꺼지는 것을 잡는다 — `effective_axes`가 모르는 쌍을 만나면 `capped=False`를
+    돌려주므로, 표가 망가져도 예외 없이 **아무 일도 안 일어나는 쪽**으로 실패한다.
+    """
+
+    def setUp(self):
+        from src.analysis.valuation import FUNDAMENTAL_METHODS
+        from src.analysis.warranted import METHOD_RHO
+        self.methods = sorted(FUNDAMENTAL_METHODS)
+        self.table = METHOD_RHO
+
+    def test_both_markets_are_measured(self):
+        # 미국이 빠져 있던 동안 미국 종목은 상한이 아예 안 걸렸다(옛 산식 그대로).
+        self.assertEqual(sorted(self.table), ["KR", "US"])
+
+    def test_every_pair_is_present_so_the_cap_actually_turns_on(self):
+        from src.analysis.warranted import effective_axes
+
+        for market in self.table:
+            with self.subTest(market=market):
+                n_eff, capped = effective_axes(self.methods, market)
+                self.assertTrue(capped, f"{market}: 쌍이 빠져 상한이 꺼졌다")
+                self.assertLess(n_eff, len(self.methods))
+
+    def test_markets_are_measured_separately_not_copied(self):
+        # 한 시장 값을 다른 시장에 옮겨 쓰지 않는다(ADR-0017). ①↔⑤가 KR +0.263 대
+        # US +0.763, ③↔⑤가 KR −0.015 대 US +0.723으로 갈린다 — 복사했다면 신뢰도가
+        # 통째로 틀렸을 크기의 차이다.
+        self.assertNotEqual(self.table["KR"], self.table["US"])
+        pair = ("업종 상대가치", "정규화 이익")
+        self.assertGreater(self.table["US"][pair] - self.table["KR"][pair], 0.4)
+
+    def test_aapl_shape_is_no_longer_high(self):
+        """ADR-0022가 성패 판정으로 걸었던 기준. 이 표를 채운 이유가 이것이다.
+
+        AAPL은 ①과 ⑤만 서는데 둘이 **같은 적정 PER**을 쓴다(ADR-0015). 값이 가까워
+        흩어짐은 '높음'을 주지만(실측 disp 0.121 · 199 대 156), 실질 축은 1개 남짓이다.
+        """
+        from src.analysis.valuation import confidence_grade
+        from src.analysis.warranted import effective_axes
+
+        n_eff, capped = effective_axes(["업종 상대가치", "정규화 이익"], "US")
+        final, spread, _cap = confidence_grade(0.121, 2, n_eff, capped)
+        self.assertEqual(spread, "높음", "흩어짐만 보면 여전히 '높음'이다")
+        self.assertLess(n_eff, 2.0)
+        self.assertEqual(final, "낮음")

@@ -134,6 +134,26 @@ def confidence_grade(dispersion: float | None, n_methods: int,
     return min(spread, cap, key=CONFIDENCE_ORDER.index), spread, cap
 
 
+def psr_error_phrase(leg_err: dict | None) -> str:
+    """PSR 오차 폭을 말하는 구절 — **잰 값이 없으면 숫자를 대지 않는다** (ADR-0017·0022).
+
+    예전에는 `"±150% 수준"`이 문장에 하드코딩돼 있었다. 그 값은 **한국** PSR MAE
+    0.921에서 나온 것인데 문구에 시장 구분이 없어 **미국 종목 화면에도 한국 숫자가
+    떴다.** 미국 PSR은 0.656(±93%)이라 다른 값이고, 바로 옆 ADR-0017이 *"한국 값을
+    대신 쓰는 것은 지어내는 것"*이라며 금지한 그 행위다 — 실화면(WBD)에서 "측정된 적이
+    없습니다"와 "±150% 수준"이 몇 줄 간격으로 나란히 섰다.
+
+    그래서 이 시장에서 실제로 잰 값(`leg_error`)만 읽는다. 그 값은 **회귀를 재서 나온
+    것**이라 피어 중앙값 폴백 경로에는 없다(`res.leg_error`가 그때 비어 있다). 없으면
+    폭을 말하지 않고 없다고 말한다.
+    """
+    psr = next((m for m in (leg_err or {}).get("measured", [])
+                if m["leg"] == "psr"), None)
+    if psr is None:
+        return "실측 오차가 가장 큰 배수인데 이 경로의 오차는 아직 측정된 적이 없어서"
+    return f"실측 오차가 가장 커서(전 종목 검증에서 ±{psr['up']:.0%} 수준)"
+
+
 def _weighted(estimates: list) -> tuple[float, float, float, dict]:
     """(low, mid, high, 재정규화 가중치) — 주어진 방법들만으로 가중평균한다."""
     w = np.array([METHOD_WEIGHTS.get(e.method, 0.25) for e in estimates], dtype=float)
@@ -851,14 +871,14 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
                 f"① 업종 상대가치는 배수 {res.relative_legs}개의 중앙값입니다. 그중 하나만 빼도 "
                 f"중앙값이 {s:.0%} 움직입니다 — 다리가 적어 배수 하나가 결론을 좌우한다는 뜻이니, "
                 "①의 중심값 하나보다 범위와 다른 방법과의 차이를 함께 보세요."))
-        # PSR은 회귀로도 MAE 0.921(±150%)로 넷 중 가장 부정확한데 하필 적자 기업 전용
-        # 다리다. 정밀해 보이면 안 된다는 ADR-0014 한계 절이 이걸 밝히라고 요구한다.
+        # PSR은 실측 오차가 가장 큰 다리인데 하필 적자 기업 전용이다. 정밀해 보이면
+        # 안 된다는 ADR-0014 한계 절이 이걸 밝히라고 요구한다.
         if any(p["leg"] == "psr" for p in res.relative_parts):
             res.notes.append(ValuationNote(
                 "info",
-                "이 종목은 적자라 ①에 매출 기준 배수(PSR)가 들어갔습니다. 네 배수 중 "
-                "PSR이 실측 오차가 가장 커서(전 종목 검증에서 ±150% 수준), ①의 중심값보다 "
-                "범위와 다른 방법과의 차이를 함께 보세요."))
+                f"이 종목은 적자라 ①에 매출 기준 배수(PSR)가 들어갔습니다. "
+                f"PSR이 {psr_error_phrase(res.leg_error)}, ①의 중심값보다 범위와 다른 "
+                "방법과의 차이를 함께 보세요."))
     elif mismatch:
         res.skipped.append(("업종 상대가치", ccy_reason))
     else:
