@@ -4,8 +4,8 @@ from __future__ import annotations
 import pandas as pd
 import yfinance as yf
 
-from .base import (DataProvider, build_peer_table, extract_financials,
-                   fill_self_from_financials,
+from .base import (PRICE_PERIOD, DataProvider, build_peer_table,
+                   extract_financials, fill_self_from_financials,
                    extract_ttm, fetch_index_prices, fetch_info_metrics,
                    fetch_prices, fetch_prices_raw, trim_peers)
 from .models import CompanyData, Consensus, recomm_label
@@ -112,7 +112,7 @@ class USProvider(DataProvider):
         # 상장폐지·거래정지 종목은 재무·시세 수집이 모두 실패한다. 시세 조회로 먼저 감지해
         # 명확히 안내한다(파산한 옛 전기차 SPAC 등). 여기서 받은 시세는 아래에서 재사용.
         try:
-            prices = fetch_prices(sym)
+            prices = fetch_prices(sym, PRICE_PERIOD)
         except Exception:
             raise ValueError(
                 f"'{sym}' 시세·재무 데이터를 찾을 수 없습니다 — 상장폐지·거래정지 상태이거나 "
@@ -121,7 +121,7 @@ class USProvider(DataProvider):
         # 미조정 종가 — 역사적 PER·PBR 밴드와 52주 범위용(수정종가는 과거를 배당만큼
         # 낮춰 잡아 과거 배수가 실제보다 낮게 나온다). 실패해도 분석 계층이 폴백한다.
         try:
-            prices_raw = fetch_prices_raw(sym)
+            prices_raw = fetch_prices_raw(sym, PRICE_PERIOD)
         except Exception:
             prices_raw = None
             warnings.append("미조정 시세를 받지 못해 역사적 밴드·52주 범위를 수정주가로 계산합니다 "
@@ -157,7 +157,7 @@ class USProvider(DataProvider):
                 "나누는 지표(PER·PBR·PSR·EV/EBITDA)와 적정가 ①②③은 환율만큼 어긋나 "
                 "N/A 처리합니다. 컨센서스 선행이익 방법만 사용합니다.")
 
-        index_prices = fetch_index_prices("^GSPC")
+        index_prices = fetch_index_prices("^GSPC", PRICE_PERIOD)
 
         # 피어 선정: (1순위) AI 업종분류 → (폴백) S&P500 GICS 세부산업/섹터
         ai_sector, ai_industry, ai_syms, ai_err = _ai_classify_us(name, industry or sector)
