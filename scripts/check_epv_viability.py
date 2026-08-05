@@ -48,6 +48,7 @@ from src.analysis.epv import (epv_per_share,                           # noqa: E
 from src.analysis.indicators import compute_indicators                 # noqa: E402
 from src.analysis.valuation import (FUNDAMENTAL_METHODS,               # noqa: E402
                                     compute_valuation)
+from src.analysis.warranted import METHOD_RHO, effective_axes          # noqa: E402
 from src.data.kr_provider import KRProvider                            # noqa: E402
 from src.data.universe_multiples import coefficients_or_none           # noqa: E402
 from src.data.us_provider import USProvider                            # noqa: E402
@@ -255,6 +256,65 @@ def _print_all_pairs(rows: list) -> None:
               f"{(f'{r:+.3f}' if r is not None else '표본부족'):>10}")
 
 
+def _check3(df: pd.DataFrame, table: dict, market: str) -> tuple[bool, dict]:
+    """검사 3 — EPV를 넣으면 실질 축 수가 내려가지 않는가. (합불, 메타)
+
+    ADR-0022가 만든 조건이다. EPV는 ③ RIM과 같은 칸이고 미국에서 그 칸의 두 방법이
+    +0.723이다. 설계효과 식은 **평균 상관**만 보므로, 겹치는 축을 더하면 `n_eff`가
+    내려갈 수 있다 — 그 문서 한계 절의 *"방법을 더 쓴 종목이 더 낮게 나올 수 있다"*.
+
+    `effective_axes`를 **다시 구현하지 않고 그대로 부른다.** 갈라지면 "진단은 통과인데
+    화면은 다른 말"이 된다(check_confidence.py가 `confidence_grade`에 같은 선택을 했다).
+    """
+    print("\n[검사 3] 정직도 — EPV를 넣으면 실질 축 수가 내려가지 않는가")
+    need = [(a, b) for a, b in table if EPV in (a, b)]
+    if len(need) < len(FUNDAMENTAL_METHODS):
+        print(f"    [문제] EPV 쌍 {len(FUNDAMENTAL_METHODS)}개 중 {len(need)}개만 쟀다 — "
+              "모르는 쌍이 있으면 `effective_axes`가 상한을 통째로 끄므로(ADR-0022 결정 3)\n"
+              "    비교가 뜻을 잃는다. **판정 불가**이고 통과로 치지 않는다.")
+        return False, {"before": None, "after": None}
+
+    # 기존 6쌍은 이미 채택된 `METHOD_RHO`를 쓴다. 이번에 잰 값으로 바꾸면 검사 3이
+    # 상관 재측정까지 겸하게 되고, 그건 이 관문이 묻는 것이 아니다.
+    merged = dict(METHOD_RHO.get(market.upper(), {}))
+    merged.update({k: v for k, v in table.items() if EPV in k})
+
+    # **EPV가 서는 종목에서만 비교한다.** 안 서는 종목은 정의상 전=후라 중앙값을 희석시킨다.
+    sub = df[df["epv_ready"]].copy()
+    if len(sub) < MIN_PAIR_N:
+        print(f"    [문제] EPV가 서는 종목이 {len(sub)}곳뿐이다 — 비교할 표본이 아니다.")
+        return False, {"before": None, "after": None}
+
+    before, after = [], []
+    for ms in sub["methods"]:
+        b, b_ok = effective_axes(ms, market, merged)
+        a, a_ok = effective_axes([*ms, EPV], market, merged)
+        before.append(b if b_ok else np.nan)
+        after.append(a if a_ok else np.nan)
+    sub["before"], sub["after"] = before, after
+    sub["n"] = sub["methods"].map(len)
+    sub = sub.dropna(subset=["before", "after"])
+    m_before, m_after = float(sub["before"].median()), float(sub["after"].median())
+    up = int((sub["after"] > sub["before"] + 1e-9).sum())
+    down = int((sub["after"] < sub["before"] - 1e-9).sum())
+
+    print(f"    대상 {len(sub)}종목 (EPV가 서는 종목)")
+    print(f"    {'방법 수':>7}{'종목':>7}{'전 중앙':>10}{'후 중앙':>10}{'차이':>10}")
+    print("    " + "─" * 44)
+    for n, g in sub.groupby("n"):
+        print(f"    {n:>7}{len(g):>7}{g['before'].median():>10.2f}"
+              f"{g['after'].median():>10.2f}"
+              f"{g['after'].median() - g['before'].median():>+10.2f}")
+    print(f"\n    전체 중앙 {m_before:.2f} → {m_after:.2f} "
+          f"({m_after - m_before:+.2f}) · 오른 종목 {up} · 내린 종목 {down}")
+    ok = bool(m_after >= m_before)
+    print(f"    {'[확인]' if ok else '[문제]'} 중앙값이 "
+          f"{'내려가지 않았다' if ok else '내려갔다'}")
+    print("      내려가면 EPV는 축을 늘리면서 '이 판정이 독립적 근거 위에 있다'는 말을\n"
+          "      오히려 약하게 만든다. 그 자리에서 축을 더할 이유가 없다.")
+    return ok, {"before": m_before, "after": m_after, "up": up, "down": down}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("market", nargs="?", default="KR", choices=["KR", "US"])
@@ -275,7 +335,8 @@ def main() -> int:
     table, rows = _corr_table(df)
     ok2, _m2 = _check2(df, rows)
     _print_all_pairs(rows)
-    bad = (0 if ok1 else 1) + (0 if ok2 else 1)
+    ok3, _m3 = _check3(df, table, market)
+    bad = sum(0 if ok else 1 for ok in (ok1, ok2, ok3))
     return 1 if bad else 0
 
 
