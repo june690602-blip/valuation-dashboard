@@ -134,7 +134,7 @@ class FitTests(unittest.TestCase):
 
 
 def _kinked(n=1200, lo=0.30, hi=0.02, kink_q=SIZE_KNOT_QS[0], seed=3):
-    """꼬리에서 기울기가 꺾이는 합성 데이터 (ADR-0020).
+    """꼬리에서 기울기가 꺾이는 합성 데이터 (ADR-0021).
 
     log(배수) = -6 + lo·x                     (x ≤ 꺾이는 점)
               = -6 + lo·k + hi·(x − k)        (x > 꺾이는 점)
@@ -156,7 +156,7 @@ def _kinked(n=1200, lo=0.30, hi=0.02, kink_q=SIZE_KNOT_QS[0], seed=3):
 
 
 class SizeSplineTests(unittest.TestCase):
-    """규모 항의 마디 (ADR-0020)."""
+    """규모 항의 마디 (ADR-0021)."""
 
     def test_thin_tail_drops_the_knot(self):
         # 마디 위 표본이 얇으면 몇 종목이 기울기를 정하게 된다 — 그 마디는 두지 않는다

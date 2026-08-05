@@ -103,7 +103,7 @@ def sector_labels(sectors: pd.Series, min_n: int = SECTOR_MIN_N) -> pd.Series:
     return sectors.where(sectors.isin(keep), OTHER_SECTOR)
 
 
-# ── 규모 항의 마디 (ADR-0020) ────────────────────────────────────────
+# ── 규모 항의 마디 (ADR-0021) ────────────────────────────────────────
 # log(시총)을 **직선 하나로** 두면 중간 구간에서 적합한 기울기가 꼬리까지 연장된다.
 # 전 종목 실측(scripts/check_size_functional.py, 5겹 교차검증)에서 최상위 1%의 표본 외
 # 평균 잔차가 한국 PBR −0.619 · PER −0.430이었다 — 회귀가 초대형주의 배수를 체계적으로
@@ -316,7 +316,7 @@ def warranted_multiple(coef: dict | None, mcap: float | None,
         # 규모는 항상 알므로 시총 조정은 그대로 적용된다.
         rb = roe_bucket(roe)
         rc = coef["roe_coef"].get(rb, base_rc) if rb else base_rc
-        # 규모 항만 스플라인이다(ADR-0020). 마디가 없으면 s(x) = β·x라 현행과 같고,
+        # 규모 항만 스플라인이다(ADR-0021). 마디가 없으면 s(x) = β·x라 현행과 같고,
         # 아래 곱셈 분해는 어느 쪽이든 **정확히** 복원된다 — 화면(ADR-0014 결정 다섯)이
         # sector_base × (1+size_adj) × (1+roe_adj)로 되풀어 쓰기 때문이다.
         s_self = size_term(coef, math.log(mcap))
