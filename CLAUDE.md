@@ -4,8 +4,15 @@
 > 친구가 이슈/PR에 `@claude ...`로 요청하면 Claude가 아래 규칙에 맞춰 수정하고 PR을 올립니다.
 
 > **▶ A(창 5년 → 8년)는 끝났습니다 — [ADR-0025](docs/adr/0025-normalize-window-eight-years.md).**
-> 남은 것은 **B. 백테스트 연구**와 **C. EPV를 축으로 짓기**입니다. 착수 전에
-> [`docs/HANDOFF-CONFIDENCE.md`](docs/HANDOFF-CONFIDENCE.md) 맨 위를 먼저 읽으세요.
+> 남은 것은 둘입니다:
+> - **B. 백테스트 연구** → **[`docs/HANDOFF-BACKTEST.md`](docs/HANDOFF-BACKTEST.md)** (전용 인계문)
+> - **C. EPV를 축으로 짓기** → [`docs/HANDOFF-CONFIDENCE.md`](docs/HANDOFF-CONFIDENCE.md) 맨 위
+>
+> **B를 여는 사람에게**: ADR-0009이 백테스트를 접으며 든 벽 셋 중 **둘이 우리 쿼리
+> 한계였습니다.** 재무는 6년이 아니라 13년이었고(ADR-0025), 주가도 "무료 데이터가 총
+> 5년"이 아니라 `base.py`의 `period="5y"` 기본값이라 `max`면 **26년**입니다.
+> 다만 **주가를 늘리면 ② 역사적 밴드가 조용히 26년 밴드가 됩니다**(`_band`가 `d.prices`를
+> 슬라이스 없이 씁니다) — 인계문 함정 1을 반드시 먼저 읽으세요.
 >
 > A에서 재고 알게 된 것 — **다음 작업의 전제가 되는 것들입니다**:
 > DART 이력은 6년이 아니라 **중앙 13년**이고(`scripts/check_dart_depth.py`), 그 6년은

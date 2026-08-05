@@ -36,6 +36,10 @@
 >
 > ### 남아 있는 것 둘
 >
+> **B는 전용 인계문으로 옮겼다 → [`HANDOFF-BACKTEST.md`](HANDOFF-BACKTEST.md).**
+> 아래 요약보다 그쪽이 최신이다(ADR-0009의 벽 셋 중 둘이 우리 쿼리 한계였다는 것,
+> 주가가 26년이라는 것, 그리고 주가를 늘리면 ② 밴드가 조용히 바뀐다는 함정이 거기 있다).
+>
 > **B. 백테스트 연구 (몇 주)** — *"어느 조합이 진짜 맞나"*를 **처음으로 증거 위에서**
 > 답하는 일이다. ADR-0009이 접었던 벽 셋이 전부 데이터 문제였고, 위 13년이 그중 둘을
 > 푼다. 미국은 [SEC EDGAR XBRL](https://www.sec.gov/search-filings/edgar-application-programming-interfaces)이
