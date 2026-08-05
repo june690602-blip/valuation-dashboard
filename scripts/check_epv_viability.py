@@ -47,7 +47,7 @@ from src.analysis.epv import (epv_per_share,                           # noqa: E
                               normalized_operating_income)
 from src.analysis.indicators import compute_indicators                 # noqa: E402
 from src.analysis.valuation import (FUNDAMENTAL_METHODS,               # noqa: E402
-                                    compute_valuation)
+                                    METHOD_WEIGHTS, compute_valuation)
 from src.analysis.warranted import METHOD_RHO, effective_axes          # noqa: E402
 from src.data.kr_provider import KRProvider                            # noqa: E402
 from src.data.universe_multiples import coefficients_or_none           # noqa: E402
@@ -315,6 +315,59 @@ def _check3(df: pd.DataFrame, table: dict, market: str) -> tuple[bool, dict]:
     return ok, {"before": m_before, "after": m_after, "up": up, "down": down}
 
 
+# EPV의 가중은 **③과 같은 칸이므로 ③의 값을 가정으로 쓴다.** 지어낸 값이 아니라 '같은
+# 성격의 방법에 이미 준 값'이고, ADR-0016의 WCOL이 같은 가정을 썼다. 가정임을 밝힌다.
+EPV_WEIGHT = METHOD_WEIGHTS[RIM]
+INTRINSIC = {RIM, EPV}
+
+
+def _abs_share(methods, with_epv: bool) -> float:
+    """이 종목의 **실효** 절대가치 비중 (빠진 방법은 재정규화)."""
+    w = {m: METHOD_WEIGHTS[m] for m in methods}
+    if with_epv:
+        w[EPV] = EPV_WEIGHT
+    s = sum(w.values())
+    if not s:
+        return float("nan")
+    return sum(v for m, v in w.items() if m in INTRINSIC) / s
+
+
+def _print_share(df: pd.DataFrame) -> None:
+    """합불은 안 가르지만 ADR에 적을 것 — EPV가 절대가치 비중을 얼마나 올리나."""
+    print("\n[참고] 절대가치 실효 비중 — 합불에는 안 쓴다")
+    print(f"    {'축 구성':<18}{'절대축 있음':>12}{'실효 비중 평균':>16}{'중앙':>8}")
+    print("    " + "─" * 54)
+    for label, with_epv in (("현재 ①②③⑤", False), ("현재 + EPV", True)):
+        have, shares = [], []
+        for _i, r in df.iterrows():
+            ms = list(r["methods"])
+            ok_epv = with_epv and bool(r["epv_ready"])
+            have.append(bool(RIM in ms or ok_epv))
+            shares.append(_abs_share(ms, ok_epv))
+        s = pd.Series(shares)
+        print(f"    {label:<18}{np.mean(have):>12.0%}{s.mean():>16.1%}{s.median():>8.1%}")
+    print(f"    ※ EPV 가중은 ③의 {EPV_WEIGHT}을 빌린 **가정**이다(ADR-0016과 같다).")
+
+    left = df[~df["has_rim"] & ~df["epv_ready"]]
+    if len(left):
+        print(f"\n    끝내 절대가치가 없는 {len(left)}곳({len(left)/len(df):.0%})의 정체:")
+        for label, n in left["gate"].value_counts().items():
+            print(f"      {n:>3}곳  {label}")
+        print("      모형으로 풀 자리가 아니다 — 화면이 그 사실을 말해야 한다(ADR-0016 결정 4).")
+
+
+def _print_rho_lines(table: dict, market: str) -> None:
+    """**지을 때 붙여넣을 줄.** 이번에 축을 짓지는 않지만, 측정을 코드로 남기는 것이
+    이 저장소의 규칙이다 — LEG_MAE의 원래 값을 만든 스크립트가 없어서 ADR-0014의 β
+    불일치를 끝내 못 밝힌 적이 있다(ADR-0022 결정 5)."""
+    pairs = {k: v for k, v in table.items() if EPV in k}
+    if not pairs:
+        return
+    print(f'\n[E] EPV를 지을 때 `warranted.METHOD_RHO["{market}"]`에 더할 줄')
+    for (a, b), r in pairs.items():
+        print(f'        ("{a}", "{b}"): {r:.3f},')
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("market", nargs="?", default="KR", choices=["KR", "US"])
@@ -336,7 +389,12 @@ def main() -> int:
     ok2, _m2 = _check2(df, rows)
     _print_all_pairs(rows)
     ok3, _m3 = _check3(df, table, market)
+    _print_share(df)
+    _print_rho_lines(table, market)
+
     bad = sum(0 if ok else 1 for ok in (ok1, ok2, ok3))
+    print(f"\n문제 {bad}건 — {market}에서 EPV를 지을 근거가 서려면 셋 다 [확인]이어야 한다.")
+    print("이 결과는 ADR로 남긴다. 통과든 아니든, 재고 나서 정했다는 것이 기록이다.")
     return 1 if bad else 0
 
 
