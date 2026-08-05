@@ -3,12 +3,12 @@
 > 이 파일은 GitHub에서 `@claude`가 호출될 때(또는 로컬 Claude Code에서) 따르는 규칙입니다.
 > 친구가 이슈/PR에 `@claude ...`로 요청하면 Claude가 아래 규칙에 맞춰 수정하고 PR을 올립니다.
 
-> **▶ 다음 작업은 '신뢰도 산식'입니다 — 착수 전에
-> [`docs/HANDOFF-CONFIDENCE.md`](docs/HANDOFF-CONFIDENCE.md)를 먼저 읽으세요.**
-> ADR-0016 결정 3이 순서를 못박았습니다: **신뢰도 산식이 EPV(축 추가)보다 먼저입니다.**
-> 대기 중인 ADR은 없습니다. 319 passed, 80 subtests · CI 관문 11개 · ADR은 0021까지.
-> 방금 머지된 #115(규모 항 스플라인)가 **`LEG_MAE` 오차표 재측정**을 그 작업에 넘겨
-> 뒀습니다 — 지금 화면의 오차 폭이 낡은 값입니다.
+> **▶ 다음 작업은 4번 'EPV'입니다 — 착수 전에
+> [`docs/HANDOFF-CONFIDENCE.md`](docs/HANDOFF-CONFIDENCE.md) 맨 위를 먼저 읽으세요.**
+> ADR-0016 결정 3이 못박은 순서(신뢰도 산식 → EPV)에서 **앞의 것이 끝났습니다**(ADR-0022,
+> 두 시장 모두 측정). **EPV를 넣기 전에 상관을 다시 재야 합니다** — `effective_axes`가
+> 모르는 쌍을 만나면 신뢰도 상한이 조용히 꺼집니다.
+> 347 passed, 87 subtests · CI 관문 11개 · ADR은 0022까지.
 > 지난 브랜치들의 기록은 [`docs/HANDOFF.md`](docs/HANDOFF.md)에 있습니다.
 
 ## 프로젝트 개요
