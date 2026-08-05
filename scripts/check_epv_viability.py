@@ -27,6 +27,7 @@ DCF를 그렇게 기각했다(검사 1 미달 29%). **기각도 정당한 결과
 from __future__ import annotations
 
 import argparse
+import itertools
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -170,6 +171,90 @@ def _check1(df: pd.DataFrame) -> tuple[bool, float]:
     return ok, comp
 
 
+def _corr_table(df: pd.DataFrame) -> tuple[dict, list]:
+    """방법 쌍별 (피어슨, 스피어만, n). EPV를 포함한 5방법 전 쌍.
+
+    키 순서는 `effective_axes`가 만드는 것과 같아야 한다 — 그쪽이 `sorted(set(methods))`
+    뒤 `(ms[i], ms[j])`로 찾으므로 여기서도 정렬 뒤 조합한다. 어긋나면 상관을 넣어 놓고
+    '모르는 쌍'으로 처리돼 상한이 조용히 꺼진다(ADR-0022 결정 3).
+    """
+    table, rows = {}, []
+    for a, b in itertools.combinations(sorted((*FUNDAMENTAL_METHODS, EPV)), 2):
+        if a not in df.columns or b not in df.columns:
+            rows.append((a, b, 0, None, None))
+            continue
+        both = df[[a, b]].dropna()
+        if len(both) < MIN_PAIR_N:
+            rows.append((a, b, len(both), None, None))
+            continue
+        r = float(both[a].corr(both[b]))
+        s = float(both[a].rank().corr(both[b].rank()))
+        table[(a, b)] = r
+        rows.append((a, b, len(both), r, s))
+    return table, rows
+
+
+def _check2(df: pd.DataFrame, rows: list) -> tuple[bool, dict]:
+    """검사 2 — EPV가 기존 축과 다른 말을 하는가. (합불, 메타)
+
+    **'1.5배 밖'은 ADR-0016과 다른 통계량이다.** 그 문서는 DCF 값을 못 내 재료의 흩어짐을
+    쟀다(`log(정상FCF/정상순이익)`, std 1.040 · 59%). EPV는 가정이 0개라 축 자체를 낼 수
+    있으므로, 이 축이 판정을 실제로 움직이는지를 직접 잰다. 기준선 25%는 그대로 둔다 —
+    재기 전에 정한 값을 나온 숫자를 보고 바꾸지 않는다.
+    """
+    print("\n[검사 2] 독립성 — EPV가 기존 축과 다른 말을 하는가")
+    print(f"    {'상대 축':<16}{'표본':>7}{'피어슨':>10}{'스피어만':>11}")
+    print("    " + "─" * 44)
+    epv_rows = [r for r in rows if EPV in (r[0], r[1])]
+    worst, measured, missing = 0.0, 0, []
+    for a, b, n, r, s in epv_rows:
+        other = b if a == EPV else a
+        if r is None:
+            missing.append(other)
+            print(f"    {other:<16}{n:>7}{'표본부족':>10}{'—':>11}")
+            continue
+        measured += 1
+        worst = max(worst, abs(r))
+        print(f"    {other:<16}{n:>7}{r:>+10.3f}{s:>+11.3f}")
+    if missing:
+        print(f"    ※ 표본이 {MIN_PAIR_N} 미만이라 뺀 쌍: {' · '.join(missing)}")
+
+    # **`to_numeric`가 필요하다.** `epv` 열은 EPV가 안 서는 종목에서 None이라 dtype이
+    # object가 되고, object 열에 `> 0`을 하면 TypeError가 난다.
+    sub = pd.DataFrame({"epv": pd.to_numeric(df["epv"], errors="coerce"),
+                        "fair_mid": pd.to_numeric(df["fair_mid"], errors="coerce")}).dropna()
+    sub = sub[(sub["epv"] > 0) & (sub["fair_mid"] > 0)]
+    far = (float((np.abs(np.log(sub["epv"] / sub["fair_mid"])) > np.log(DIVERGE_FOLD)).mean())
+           if len(sub) else float("nan"))
+    print(f"\n    EPV가 종합 판정과 {DIVERGE_FOLD}배 넘게 갈린 비율 "
+          f"{far:.0%}  (n={len(sub)})")
+
+    if measured == 0:
+        print("\n    [문제] EPV 쌍이 전부 표본부족이다 — 검사 2는 **판정 불가**이고 "
+              "통과로 치지 않는다.")
+        return False, {"worst": None, "far": far, "measured": 0}
+    ok = bool(worst <= CORR_CEILING and pd.notna(far) and far >= DIVERGE_FLOOR)
+    print(f"    {'[확인]' if ok else '[문제]'} 최대 |피어슨| {worst:.3f} (≤{CORR_CEILING}) · "
+          f"{DIVERGE_FOLD}배 밖 {far:.0%} (≥{DIVERGE_FLOOR:.0%})")
+    print("      상관이 높으면 EPV는 기존 축과 같은 말을 한다 — 축을 더해도 정보가 안 는다.\n"
+          "      안 갈리면 판정이 안 바뀐다. ADR-0015가 ⑤에 걸었던 것과 같은 조건이다.")
+    return ok, {"worst": worst, "far": far, "measured": measured}
+
+
+def _print_all_pairs(rows: list) -> None:
+    """기존 6쌍도 함께 찍는다 — **EPV에만 0.5를 들이대고 있다는 사실이 보여야 한다.**
+    ADR-0022 실측에서 ③RIM↔① 한국 +0.787 · 미국 +0.706으로 이미 상한을 넘는다.
+    합불은 이 줄들로 가르지 않는다."""
+    print("\n[참고] 기존 6쌍 — 합불에는 안 쓴다")
+    print(f"    {'방법 A':<16}{'방법 B':<16}{'표본':>7}{'피어슨':>10}")
+    print("    " + "─" * 49)
+    for a, b, n, r, _s in rows:
+        if EPV in (a, b):
+            continue
+        print(f"    {a:<16}{b:<16}{n:>7}"
+              f"{(f'{r:+.3f}' if r is not None else '표본부족'):>10}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("market", nargs="?", default="KR", choices=["KR", "US"])
@@ -187,7 +272,11 @@ def main() -> int:
         return 1
     _print_sample(df, tried)
     ok1, _ = _check1(df)
-    return 0 if ok1 else 1
+    table, rows = _corr_table(df)
+    ok2, _m2 = _check2(df, rows)
+    _print_all_pairs(rows)
+    bad = (0 if ok1 else 1) + (0 if ok2 else 1)
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":
