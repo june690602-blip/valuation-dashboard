@@ -80,7 +80,8 @@ GATES = [
 ]
 
 
-def _gate_of(reason: str) -> str:
+def gate_of(reason: str) -> str:
+    """RIM 제외 사유 문장을 게이트 라벨로. `check_epv_viability.py`도 같은 분류를 쓴다."""
     for label, needle in GATES:
         if needle in reason:
             return label
@@ -141,7 +142,7 @@ def _one(code: str, coef) -> dict | None:
     return {
         "code": code, "name": d.name,
         "has_rim": has_rim,
-        "gate": "" if has_rim else _gate_of(rim_reason),
+        "gate": "" if has_rim else gate_of(rim_reason),
         # 축별 커버리지 — 판정에 실제로 선 방법만 estimates에 들어온다.
         "a1": "업종 상대가치" in mids, "a2": "역사적 밴드" in mids,
         "a5": "정규화 이익" in mids,
