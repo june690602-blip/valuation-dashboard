@@ -64,6 +64,13 @@ Streamlit(`app.py`). 두 프런트 모두 같은 분석 엔진(`src/analysis`)�
 - 위 `check_all.py`는 **네트워크가 필요한 진단을 포함하지 않는다**(CI에도 없다).
   판정 로직을 건드렸으면 `check_analysis.py`·`check_warranted.py`·`check_normalized.py`·
   `check_valuation_basis.py`를 따로 돌려 실제 종목에서 확인할 것.
+- **yfinance가 `possibly delisted; no price data found`를 뱉으면 상장폐지도 레이트리밋도
+  아닐 수 있다.** 이 저장소는 한글 경로(`투자지표/`)에 있는데 yfinance가 쓰는 libcurl이
+  **비ASCII 경로의 인증서 파일을 못 연다**. `src/data/ca_bundle.py`가 자동으로 우회하지만
+  (ADR-0027), 같은 메시지를 다시 보면 **Yahoo를 의심하기 전에 이것부터 확인하라**:
+  `python -c "from curl_cffi import requests as r; print(r.get('https://fc.yahoo.com', impersonate='chrome').status_code)"`
+  — `curl: (77)`이면 이 문제다. 쿠키 캐시가 살아 있는 동안은 멀쩡하다가 **갱신 시점에
+  전 종목이 한꺼번에** 죽는다.
 
 ## 구조 (핵심)
 - `src/data/` — 데이터 수집. `models.py`(시장 무관 표준 모델 `CompanyData`), `base.py`(yfinance),

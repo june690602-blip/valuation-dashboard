@@ -36,3 +36,4 @@
 | [0023](0023-no-epv-earnings-axes-overlap.md) | EPV를 짓지 않는다 — 두 시장 모두 이익 기반 축과 겹쳤다 | 채택됨 (결정 1은 [0024]가 대체) |
 | [0024](0024-independence-is-not-a-correlation-ceiling.md) | 축의 독립성은 상관 상한으로 재지 않는다 — 재려던 해악을 ADR-0022가 이미 값 매긴다 | 채택됨 |
 | [0025](0025-normalize-window-eight-years.md) | 정규화 이익의 창을 8년으로 — 5년으로 둔 이유가 사실이 아니었다 | 채택됨 |
+| [0027](0027-ca-bundle-for-non-ascii-paths.md) | 인증서를 ASCII 경로로 비춰 둔다 — 한글 폴더에서 시세가 통째로 죽는 것을 막는다 | 채택됨 |
