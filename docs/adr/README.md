@@ -33,4 +33,5 @@
 | [0020](0020-one-ruler-for-multiples-on-screen.md) | 화면의 배수는 공시값 한 벌로 재고, 자가 다르면 비교하지 않는다 | 채택됨 |
 | [0021](0021-size-term-spline.md) | 적정 배수의 규모 항을 직선 하나가 아니라 마디 있는 스플라인으로 낸다 | 채택됨 |
 | [0022](0022-confidence-counts-effective-axes.md) | 신뢰도는 방법의 개수가 아니라 실질 축 수로 상한을 씌운다 | 채택됨 |
-| [0023](0023-no-epv-earnings-axes-overlap.md) | EPV를 짓지 않는다 — 두 시장 모두 이익 기반 축과 겹쳤다 | 채택됨 |
+| [0023](0023-no-epv-earnings-axes-overlap.md) | EPV를 짓지 않는다 — 두 시장 모두 이익 기반 축과 겹쳤다 | 채택됨 (결정 1은 [0024]가 대체) |
+| [0024](0024-independence-is-not-a-correlation-ceiling.md) | 축의 독립성은 상관 상한으로 재지 않는다 — 재려던 해악을 ADR-0022가 이미 값 매긴다 | 채택됨 |
