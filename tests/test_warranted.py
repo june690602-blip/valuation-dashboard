@@ -13,7 +13,8 @@ import pandas as pd
 from src.analysis.warranted import (EXTRAPOLATION_LIMIT, MIN_FIT_SAMPLE,
                                     MIN_KNOT_TAIL, OTHER_SECTOR, ROE_EDGES,
                                     SIZE_KNOT_QS, fit_leg, roe_bucket,
-                                    sector_labels, size_knots, size_slope, size_term,
+                                    loo_leg_error, sector_labels, size_knots,
+                                    size_slope, size_term,
                                     warranted_multiple)
 
 
@@ -541,8 +542,8 @@ class LegErrorTests(unittest.TestCase):
         e = leg_error("KR", ["per", "pbr", "ev_ebitda"])
         # 가장 나쁜 다리를 골라야 안전마진이 보수적인 쪽으로 선다.
         self.assertEqual(e["worst_leg"], "EV/EBITDA")
-        self.assertAlmostEqual(e["up"], math.exp(0.639) - 1, places=6)
-        self.assertAlmostEqual(e["margin"], math.exp(-0.639) - 1, places=6)
+        self.assertAlmostEqual(e["up"], math.exp(0.667) - 1, places=6)
+        self.assertAlmostEqual(e["margin"], math.exp(-0.667) - 1, places=6)
         # 로그 MAE는 원 스케일에서 비대칭이다 — 위로 더 크고 아래로 더 작다.
         self.assertGreater(e["up"], abs(e["margin"]))
         self.assertLess(e["margin"], 0)
@@ -552,26 +553,39 @@ class LegErrorTests(unittest.TestCase):
 
         e = leg_error("KR", ["pbr", "psr"])
         self.assertEqual(e["worst_leg"], "PSR")
-        # ADR-0014가 "±150% 수준"이라 적은 그 값이어야 한다.
-        self.assertAlmostEqual(e["up"], 1.512, delta=0.01)
+        # 한국 PSR은 네 다리 중 가장 부정확하다. ADR-0014 당시 ±151%였고 ADR-0022의
+        # 재측정에서 ±145%다 — 크기 자체가 결론이라 자릿수만 지키면 된다.
+        self.assertAlmostEqual(e["up"], 1.452, delta=0.01)
+
+    def test_us_psr_is_not_borrowed_from_kr(self):
+        from src.analysis.warranted import leg_error
+
+        # ADR-0022에서 미국 PSR·EV/EBITDA를 처음 쟀다. **시장마다 값이 다르다**는 것이
+        # "다른 시장 값을 빌려오지 않는다"는 규칙의 근거다 — 한국 0.897 대 미국 0.656.
+        kr = leg_error("KR", ["psr"])["up"]
+        us = leg_error("US", ["psr"])["up"]
+        self.assertLess(us, kr * 0.8, "미국 PSR이 한국 값과 사실상 같으면 규칙의 근거가 없다")
 
     def test_unmeasured_legs_are_named_not_invented(self):
         from src.analysis.warranted import leg_error
 
-        e = leg_error("US", ["per", "pbr", "ev_ebitda"])
-        # 미국 EV/EBITDA는 ADR-0014가 재지 않았다 — 한국 값을 빌려오면 안 된다.
-        self.assertEqual(e["unmeasured"], ["EV/EBITDA"])
-        self.assertEqual([m["label"] for m in e["measured"]], ["PER", "PBR"])
+        # 네 다리는 두 시장 모두 쟀으므로(ADR-0022), 미측정은 **아직 재지 않은 새 축**에서
+        # 생긴다. EPV가 곧 그 자리다(ADR-0016) — 재기 전에 넣으면 여기 걸린다.
+        e = leg_error("KR", ["pbr", "epv"])
+        self.assertEqual(e["unmeasured"], ["epv"])
+        self.assertEqual([m["label"] for m in e["measured"]], ["PBR"])
         self.assertEqual(e["worst_leg"], "PBR")
 
     def test_no_measured_leg_yields_no_margin(self):
         from src.analysis.warranted import leg_error
 
-        e = leg_error("US", ["psr"])
+        # 다리가 전부 미측정이면 안전마진을 내지 않는다. 지어낸 값보다 '없음'이 정직하다.
+        # 화면은 침묵하지 않고 "측정된 적이 없습니다"라고 말한다(PR #107에서 고친 자리).
+        e = leg_error("US", ["epv"])
         self.assertEqual(e["measured"], [])
         self.assertIsNone(e["margin"])
         self.assertIsNone(e["worst_leg"])
-        self.assertEqual(e["unmeasured"], ["PSR"])
+        self.assertEqual(e["unmeasured"], ["epv"])
 
     def test_unknown_market_is_not_a_crash(self):
         from src.analysis.warranted import leg_error
@@ -579,3 +593,128 @@ class LegErrorTests(unittest.TestCase):
         e = leg_error("JP", ["per"])
         self.assertIsNone(e["margin"])
         self.assertEqual(e["unmeasured"], ["PER"])
+
+
+def _noisy(n=600, beta=0.30, sigma=0.40, seed=11):
+    """_synthetic과 같되 잡음을 얹는다 — 잔차가 0이면 LOO를 검증할 수 없다."""
+    rng = np.random.default_rng(seed)
+    mcap = np.exp(rng.uniform(np.log(1e10), np.log(1e13), n))
+    sector = rng.choice(["A", "B", "C"], n)
+    eff = {"A": 0.0, "B": 0.5, "C": -0.4}
+    roe = rng.uniform(0.0, 0.20, n)
+    y = (-6.0 + beta * np.log(mcap) + np.array([eff[s] for s in sector])
+         + rng.normal(0.0, sigma, n))
+    return pd.DataFrame({"multiple": np.exp(y), "mcap": mcap,
+                         "sector": sector, "roe": roe})
+
+
+class LooLegErrorTests(unittest.TestCase):
+    """LEG_MAE를 만드는 측정 자체를 검증한다 (ADR-0022).
+
+    이 표의 원래 값을 만든 스크립트가 저장소에 없어서 재현이 안 된 적이 있다.
+    측정을 코드로 남기는 것만으로는 부족하고, 그 측정이 맞는지도 못박아야 한다.
+    """
+
+    def test_press_equals_brute_force_leave_one_out(self):
+        # PRESS 잔차 e_i/(1-h_ii)가 '실제로 그 점을 빼고 다시 적합한' 잔차와 같은지.
+        # 근사가 아니라 항등식이므로 엄격하게 본다.
+        from src.analysis.warranted import _design_matrix, _prep, loo_leg_error
+
+        df = _noisy()
+        d = _prep(df)
+        X, *_ = _design_matrix(d)
+        y = np.log(d["multiple"].to_numpy(float))
+        beta, _r, _rk, _s = np.linalg.lstsq(X, y, rcond=None)
+        resid = y - X @ beta
+        hat = np.einsum("ij,jk,ik->i", X, np.linalg.pinv(X.T @ X), X)
+        press = resid / (1 - hat)
+
+        rng = np.random.default_rng(0)
+        for i in rng.choice(len(y), 12, replace=False):
+            keep = np.arange(len(y)) != i
+            b_i, _r, _rk, _s = np.linalg.lstsq(X[keep], y[keep], rcond=None)
+            brute = y[i] - X[i] @ b_i
+            self.assertAlmostEqual(press[i], brute, places=6,
+                                   msg=f"PRESS와 실제 LOO가 어긋난다 (i={i})")
+
+        out = loo_leg_error(df)
+        self.assertAlmostEqual(out["mae"], float(np.mean(np.abs(press))), places=9)
+
+    def test_leave_one_out_is_never_better_than_in_sample(self):
+        # 같은 데이터로 적합하고 같은 데이터를 예측하면 항상 더 좋아 보인다.
+        # 이 부등호가 뒤집히면 측정이 잘못된 것이다.
+        out = loo_leg_error(_noisy())
+        self.assertGreater(out["mae"], out["mae_in_sample"])
+
+    def test_returns_none_when_sample_too_small(self):
+        # 오염된 값보다 '없음'이 정직하다(ADR-0011).
+        self.assertIsNone(loo_leg_error(_noisy(n=MIN_FIT_SAMPLE - 1)))
+
+    def test_reports_saturated_points(self):
+        out = loo_leg_error(_noisy())
+        self.assertIn("saturated", out)
+        self.assertIsInstance(out["saturated"], int)
+
+
+class EffectiveAxesTests(unittest.TestCase):
+    """겹치는 방법을 몇 개로 쳐야 하나 (ADR-0022)."""
+
+    def test_independent_methods_count_fully(self):
+        from src.analysis.warranted import effective_axes
+
+        table = {("a", "b"): 0.0, ("a", "c"): 0.0, ("b", "c"): 0.0}
+        n_eff, ok = effective_axes(["a", "b", "c"], "KR", table)
+        self.assertTrue(ok)
+        self.assertAlmostEqual(n_eff, 3.0, places=9)
+
+    def test_identical_methods_count_as_one(self):
+        from src.analysis.warranted import effective_axes
+
+        # ①과 ⑤가 같은 적정 배수를 쓰는 경우가 이 극단이다(ADR-0015 · AAPL).
+        table = {("a", "b"): 1.0, ("a", "c"): 1.0, ("b", "c"): 1.0}
+        n_eff, ok = effective_axes(["a", "b", "c"], "KR", table)
+        self.assertTrue(ok)
+        self.assertAlmostEqual(n_eff, 1.0, places=9)
+
+    def test_partial_overlap_falls_between(self):
+        from src.analysis.warranted import effective_axes
+
+        table = {("a", "b"): 0.5, ("a", "c"): 0.5, ("b", "c"): 0.5}
+        n_eff, _ = effective_axes(["a", "b", "c"], "KR", table)
+        self.assertAlmostEqual(n_eff, 3 / 2.0, places=9)
+        self.assertLess(n_eff, 3.0)
+        self.assertGreater(n_eff, 1.0)
+
+    def test_unknown_pair_disables_the_cap(self):
+        from src.analysis.warranted import effective_axes
+
+        # EPV처럼 아직 안 잰 축이 들어오면 상한을 걸지 않는다 — 지어낸 상관으로 등급을
+        # 깎느니 안 깎는 쪽이 정직하다(ADR-0011). 이것이 뒤집히면 조용히 틀린 등급이 나간다.
+        table = {("a", "b"): 0.9}
+        n_eff, ok = effective_axes(["a", "b", "epv"], "KR", table)
+        self.assertFalse(ok)
+        self.assertAlmostEqual(n_eff, 3.0, places=9)
+
+    def test_negative_correlation_is_clipped(self):
+        from src.analysis.warranted import effective_axes
+
+        # n_eff > n은 '독립보다 더 독립'이라 뜻이 없다.
+        table = {("a", "b"): -0.8}
+        n_eff, ok = effective_axes(["a", "b"], "KR", table)
+        self.assertTrue(ok)
+        self.assertAlmostEqual(n_eff, 2.0, places=9)
+
+    def test_single_method_matches_current_behaviour(self):
+        from src.analysis.warranted import effective_axes
+
+        n_eff, ok = effective_axes(["a"], "KR", {})
+        self.assertTrue(ok)
+        self.assertAlmostEqual(n_eff, 1.0, places=9)
+        self.assertEqual(effective_axes([], "KR", {})[0], 0.0)
+
+    def test_order_does_not_matter(self):
+        from src.analysis.warranted import effective_axes
+
+        table = {("a", "b"): 0.3, ("a", "c"): 0.7, ("b", "c"): 0.1}
+        self.assertEqual(effective_axes(["c", "a", "b"], "KR", table),
+                         effective_axes(["a", "b", "c"], "KR", table))

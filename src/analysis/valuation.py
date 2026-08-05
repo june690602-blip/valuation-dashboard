@@ -47,9 +47,12 @@ import pandas as pd
 
 from ..data.models import CompanyData, actual_prices, currency_mismatch
 from .scoring import comparable_peers, peer_median
-from .warranted import leg_error
+from .warranted import NEFF_LOW, NEFF_MID, effective_axes, leg_error
 
 VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
+# 신뢰도 등급 — **순서가 곧 크기다**(ADR-0022). 흩어짐이 낸 등급과 실질 축 수가 씌운
+# 상한 중 낮은 쪽을 쓰므로, 두 값을 비교할 자가 필요하다.
+CONFIDENCE_ORDER = ["낮음", "중간", "높음"]
 
 
 def _verdict(gap: float) -> str:
@@ -101,6 +104,36 @@ INTRINSIC_METHODS = ("수익가치(RIM)",)
 RELATIVE_METHODS = ("업종 상대가치", "역사적 밴드", "정규화 이익")
 
 
+def confidence_grade(dispersion: float | None, n_methods: int,
+                     n_eff: float | None = None,
+                     capped: bool = False) -> tuple[str, str, str]:
+    """(최종 등급, 흩어짐 등급, 상한) — 신뢰도를 정한다 (ADR-0022).
+
+    **흩어짐만 보면 '방법이 서로 독립'이라는 전제가 깔린다.** 그 전제가 틀렸다 — ①과 ⑤는
+    같은 적정 배수를 쓰고(ADR-0015 · AAPL), 구조적으로도 괴리율의 55~60%를
+    `−log(현재배수)`라는 공통 항이 설명한다(ADR-0014). 방법이 겹치면 값이 가깝게 나오는데,
+    그것은 '확실하다'가 아니라 **'같은 자로 여러 번 쟀다'**다.
+
+    그래서 흩어짐이 낸 등급에 **실질 축 수가 씌우는 상한**을 걸고 둘 중 낮은 쪽을 쓴다.
+    현행이 "방법이 1개뿐이면 무조건 낮음"으로 못박은 규칙에서 `1`을 실질 축 수로 바꾼 것이
+    설계의 전부다.
+
+    **곱셈 보정이 아닌 이유가 있다.** 처음에는 `disp`를 겹침만큼 부풀리려 했는데, ①과 ⑤가
+    같은 배수를 쓰면 두 값이 거의 같아 `disp ≈ 0`이고 **0에는 무엇을 곱해도 0**이다.
+    보정이 가장 필요한 자리에서 아무 일도 하지 않는다.
+
+    `capped`가 False면 상한을 걸지 않는다 — 상관을 모르는 방법 쌍이 있다는 뜻이고,
+    지어낸 상관으로 등급을 깎느니 안 깎는 쪽이 정직하다(ADR-0011).
+    """
+    if n_methods < 2 or dispersion is None:
+        return "낮음", "낮음", "낮음"
+    spread = "높음" if dispersion < 0.15 else "중간" if dispersion < 0.35 else "낮음"
+    cap = "높음"
+    if capped and n_eff is not None:
+        cap = "낮음" if n_eff < NEFF_LOW else "중간" if n_eff < NEFF_MID else "높음"
+    return min(spread, cap, key=CONFIDENCE_ORDER.index), spread, cap
+
+
 def _weighted(estimates: list) -> tuple[float, float, float, dict]:
     """(low, mid, high, 재정규화 가중치) — 주어진 방법들만으로 가중평균한다."""
     w = np.array([METHOD_WEIGHTS.get(e.method, 0.25) for e in estimates], dtype=float)
@@ -147,6 +180,9 @@ class ValuationResult:
     gap_equal: float | None = None       # 동일가중 괴리율
     verdict_equal: str | None = None     # 동일가중 판정
     dispersion: float | None = None      # 방법 간 중심값 변동계수(σ/|μ|) — 신뢰도 산출 근거
+    # 실질 축 수 (ADR-0022). 방법을 몇 개 썼든 서로 겹치면 이 값이 그보다 작다.
+    # 신뢰도 등급의 **상한**이 여기서 나온다 — 흩어짐만으로 낸 등급과 둘 중 낮은 쪽을 쓴다.
+    n_eff: float | None = None
     # ── 컨센서스 반영 종합 (①②③④) — 병기용, 판정에는 쓰지 않는다 ──
     # 값 자체보다 `consensus_premium`(펀더멘털 대비 얼마나 위인가)이 읽을 거리다:
     # "지금 주가가 정당화되려면 시장이 기대하는 실적 개선이 실제로 와야 한다"는 크기.
@@ -1010,10 +1046,21 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
         if len(mids) >= 2 and res.fair_mid:
             disp = float(np.std(mids) / abs(np.mean(mids)))
             res.dispersion = disp
-            res.confidence = "높음" if disp < 0.15 else "중간" if disp < 0.35 else "낮음"
+            n_eff, capped = effective_axes(list(res.weights or {}), d.market)
+            res.n_eff = n_eff
+            res.confidence, spread, cap = confidence_grade(
+                disp, len(mids), n_eff, capped)
             if res.confidence == "낮음":
                 res.notes.append(ValuationNote("warn", f"평가 방법 간 편차가 큽니다(±{disp:.0%}). "
                                  "판정을 보수적으로 해석하세요."))
+            if cap != spread and res.confidence == cap:
+                # 상한이 실제로 등급을 내린 경우에만 말한다. 안 그러면 "흩어짐은 작은데
+                # 신뢰도가 낮다"가 이유 없이 보인다.
+                res.notes.append(ValuationNote(
+                    "info",
+                    f"이 판정에 쓴 방법 {len(res.weights or {})}개는 서로 겹칩니다 — 실질적으로 "
+                    f"{n_eff:.1f}개 몫입니다. 값이 가깝게 나온 것이 '여러 방법이 독립적으로 "
+                    "합의했다'는 뜻은 아닙니다."))
         else:
             res.confidence = "낮음"
             res.notes.append(ValuationNote(
