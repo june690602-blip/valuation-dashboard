@@ -11,8 +11,9 @@ import numpy as np
 import pandas as pd
 
 from src.analysis.warranted import (EXTRAPOLATION_LIMIT, MIN_FIT_SAMPLE,
-                                    OTHER_SECTOR, ROE_EDGES, fit_leg,
-                                    roe_bucket, sector_labels,
+                                    MIN_KNOT_TAIL, OTHER_SECTOR, ROE_EDGES,
+                                    SIZE_KNOT_QS, fit_leg, roe_bucket,
+                                    sector_labels, size_knots, size_slope, size_term,
                                     warranted_multiple)
 
 
@@ -132,6 +133,93 @@ class FitTests(unittest.TestCase):
             self.assertIn(sec, coef["sector_median_roe_coef"])
 
 
+def _kinked(n=1200, lo=0.30, hi=0.02, kink_q=SIZE_KNOT_QS[0], seed=3):
+    """꼬리에서 기울기가 꺾이는 합성 데이터 (ADR-0021).
+
+    log(배수) = -6 + lo·x                     (x ≤ 꺾이는 점)
+              = -6 + lo·k + hi·(x − k)        (x > 꺾이는 점)
+
+    실측이 말하는 모양이다 — 중간 구간은 규모에 따라 배수가 오르는데 초대형 구간에서
+    그 관계가 평평해진다. 직선 하나로 적합하면 꼬리를 과대추정한다.
+
+    `kink_q`를 마디 분위에 맞추면 참 함수가 설계행렬의 생성공간 안에 있어 **정확히**
+    복원된다. 어긋내면 근사만 되는데, 그건 결함이 아니라 마디를 분위로 고정한 대가다 —
+    실제 데이터의 꺾이는 점을 우리는 모른다.
+    """
+    rng = np.random.default_rng(seed)
+    x = np.sort(rng.uniform(np.log(1e10), np.log(1e14), n))
+    k = float(np.quantile(x, kink_q))
+    y = -6.0 + lo * x + (hi - lo) * np.maximum(0.0, x - k)
+    return pd.DataFrame({"multiple": np.exp(y), "mcap": np.exp(x),
+                         "sector": rng.choice(["A", "B"], n),
+                         "roe": rng.uniform(0.0, 0.20, n)}), k
+
+
+class SizeSplineTests(unittest.TestCase):
+    """규모 항의 마디 (ADR-0021)."""
+
+    def test_thin_tail_drops_the_knot(self):
+        # 마디 위 표본이 얇으면 몇 종목이 기울기를 정하게 된다 — 그 마디는 두지 않는다
+        lm = np.log(np.linspace(1e10, 1e13, MIN_KNOT_TAIL * 2))
+        self.assertEqual(size_knots(lm), [])   # 0.80 위 20곳 · 0.95 위 2곳, 둘 다 미달
+
+    def test_knots_appear_when_the_tail_is_thick_enough(self):
+        lm = np.log(np.linspace(1e10, 1e13, 2000))
+        self.assertEqual(len(size_knots(lm)), 2)
+
+    def test_no_knots_is_exactly_the_old_linear_form(self):
+        # 마디가 없으면 s(x) = β·x여야 한다. 폴백 경로가 현행과 같아지는 근거다.
+        coef = {"beta_size": 0.3, "size_knots": [], "size_slopes": []}
+        self.assertAlmostEqual(size_term(coef, 5.0), 1.5)
+        self.assertAlmostEqual(size_slope(coef, 5.0), 0.3)
+
+    def test_slope_is_local_not_global(self):
+        coef = {"beta_size": 0.30, "size_knots": [10.0], "size_slopes": [-0.25]}
+        self.assertAlmostEqual(size_slope(coef, 9.0), 0.30)    # 마디 아래
+        self.assertAlmostEqual(size_slope(coef, 11.0), 0.05)   # 마디 위 — 꺾인 뒤
+        # 연속이어야 한다 — 마디에서 값이 튀면 시총이 1원 달라질 때 적정가가 점프한다
+        self.assertAlmostEqual(size_term(coef, 10.0), 3.0)
+        self.assertAlmostEqual(size_term(coef, 10.001), 3.0 + 0.05 * 0.001, places=9)
+
+    def test_recovers_a_kinked_generating_process(self):
+        # 이 테스트가 이 ADR의 전부다 — 꺾인 관계를 직선 하나로 적합하면 꼬리를
+        # 과대추정하고, 그것이 초대형주를 '저평가'로 미는 실측 현상이었다.
+        df, _ = _kinked()          # 꺾이는 점 = 첫 마디. 참 함수가 생성공간 안에 있다
+        coef = fit_leg(df, leg="pbr")
+        self.assertIsNotNone(coef)
+        big = math.log(float(df["mcap"].max()))
+        self.assertAlmostEqual(size_slope(coef, big), 0.02, delta=0.02)
+        self.assertAlmostEqual(size_slope(coef, math.log(2e10)), 0.30, delta=0.02)
+
+    def test_misaligned_kink_still_flattens_the_tail(self):
+        # 실제 데이터의 꺾이는 점은 마디와 어긋난다. 정확 복원은 안 되지만 **방향**은
+        # 맞아야 한다 — 꼬리 기울기가 몸통보다 뚜렷하게 낮아야 한다.
+        df, _ = _kinked(kink_q=0.85)
+        coef = fit_leg(df, leg="pbr")
+        big = size_slope(coef, math.log(float(df["mcap"].max())))
+        small = size_slope(coef, math.log(2e10))
+        self.assertLess(big, small - 0.10)
+
+    def test_linear_data_leaves_the_slope_alone(self):
+        # 꺾이지 않은 데이터에 마디를 얹어도 β를 흔들면 안 된다(과적합 방어)
+        coef = fit_leg(_synthetic(n=1200), leg="pbr")
+        for x in (math.log(2e10), math.log(5e12)):
+            self.assertAlmostEqual(size_slope(coef, x), 0.30, delta=0.02)
+
+    def test_kinked_fit_beats_a_straight_line_at_the_tail(self):
+        # 꼬리에서 실제로 덜 틀리는가 — 직선 적합을 손으로 만들어 대조한다
+        df, _ = _kinked()
+        coef = fit_leg(df, leg="pbr")
+        x = np.log(df["mcap"].to_numpy(float))
+        y = np.log(df["multiple"].to_numpy(float))
+        b1, b0 = np.polyfit(x, y, 1)
+        tail = x >= np.quantile(x, 0.99)
+        spline_err = np.abs([size_term(coef, v) + coef["intercept"]
+                             - yv for v, yv in zip(x[tail], y[tail])])
+        line_err = np.abs(b0 + b1 * x[tail] - y[tail])
+        self.assertLess(spline_err.mean(), line_err.mean())
+
+
 class PredictTests(unittest.TestCase):
     def setUp(self):
         self.coef = fit_leg(_synthetic(), leg="pbr")
@@ -150,6 +238,28 @@ class PredictTests(unittest.TestCase):
                       * (1 + out["size_adj"])
                       * (1 + out["roe_adj"]))
         self.assertAlmostEqual(recomposed, out["multiple"], delta=out["multiple"] * 1e-6)
+
+    def test_decomposition_holds_across_a_knot(self):
+        # 마디가 있어도 화면의 곱셈 복원이 깨지면 안 된다 — 마디 아래·위 양쪽에서 확인한다
+        df, _ = _kinked()
+        coef = fit_leg(df, leg="pbr")
+        for mcap in (2e10, 5e13):
+            with self.subTest(mcap=mcap):
+                out = warranted_multiple(coef, mcap=mcap, sector="A", roe=0.08)
+                recomposed = (out["sector_base"] * (1 + out["size_adj"])
+                              * (1 + out["roe_adj"]))
+                self.assertAlmostEqual(recomposed, out["multiple"],
+                                       delta=out["multiple"] * 1e-6)
+
+    def test_reported_beta_is_the_local_slope(self):
+        # 화면이 이 값으로 "시총이 10배면 배수를 N배로 봅니다"를 쓴다. 전역 기울기를
+        # 주면 초대형주 화면에서 그 문장이 거짓이 된다.
+        df, _ = _kinked()
+        coef = fit_leg(df, leg="pbr")
+        small = warranted_multiple(coef, mcap=2e10, sector="A", roe=0.08)
+        big = warranted_multiple(coef, mcap=5e13, sector="A", roe=0.08)
+        self.assertGreater(small["beta_size"], big["beta_size"])
+        self.assertAlmostEqual(big["beta_size"], 0.02, delta=0.02)
 
     def test_below_training_range_is_flagged(self):
         out = warranted_multiple(self.coef, mcap=self.coef["mcap_min"] / 2,
@@ -194,6 +304,7 @@ class PredictTests(unittest.TestCase):
         # 계수는 24시간 JSON 캐시를 거쳐 온다. 스키마가 바뀐 뒤 남은 옛 캐시가
         # 얕은 검증을 통과해 들어와도 예외 대신 '계산 불가'가 나와야 한다.
         for missing in ("sector_coef", "mcap_min", "intercept", "beta_size",
+                        "size_knots", "size_slopes",
                         "roe_coef", "n", "sector_median_mcap",
                         "sector_median_roe_coef"):
             broken = {k: v for k, v in self.coef.items() if k != missing}
