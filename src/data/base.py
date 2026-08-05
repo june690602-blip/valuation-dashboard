@@ -63,6 +63,31 @@ _STOCK_COLS = ["total_assets", "total_equity", "total_liabilities",
                "goodwill", "intangibles"]
 
 
+def _sane_ebitda(ebitda, operating_income, da) -> tuple[float | None, str | None]:
+    """EBITDA가 영업이익보다 작으면 되돌린다 — `(값, 조치)`. 조치는 None·"rebuilt"·"dropped".
+
+    EBITDA는 영업이익에 감가상각비를 **다시 더한** 값이라, 정의상 영업이익보다 작을 수
+    없다(D&A는 음수가 아니다). 그런데 무료 데이터가 그런 값을 준다 — 인텔 2026Q2는
+    영업이익 +1,966M인데 EBITDA가 −7,274M이었고, 그 한 분기가 TTM을 끌어내려
+    EV/EBITDA가 **144배**로 튀었다(공시값 29.4배 · 업종 중앙 29.5배).
+
+    인텔만의 일이 아니다. 15종목 표본에서 TTM 역전 2곳(INTC·NAVER)·분기 역전 4곳이었다
+    (`scripts/check_ebitda_sanity.py`). 되돌릴 재료(D&A)가 없으면 **버린다** —
+    오염된 값보다 '없음'이 정직하다(ADR-0011).
+
+    연간 프레임과 TTM이 같은 규칙을 쓰도록 여기 한 곳에 둔다.
+    """
+    if ebitda is None or pd.isna(ebitda) or operating_income is None or pd.isna(operating_income):
+        return (None if ebitda is None or pd.isna(ebitda) else float(ebitda)), None
+    if float(ebitda) >= float(operating_income):
+        return float(ebitda), None
+    if da is not None and not pd.isna(da):
+        rebuilt = float(operating_income) + float(da)
+        if rebuilt >= float(operating_income):          # D&A가 음수로 오는 경우까지 막는다
+            return rebuilt, "rebuilt"
+    return None, "dropped"
+
+
 def _pick(df: pd.DataFrame, names: list[str]) -> pd.Series | None:
     """항목명 후보 중 첫 매칭 행을 반환 (컬럼=기간)."""
     if df is None or df.empty:
@@ -106,6 +131,19 @@ def extract_financials(tk: yf.Ticker) -> tuple[pd.DataFrame, list[str]]:
         fin["ebitda"] = fin["operating_income"] + fin["da"]
         if fin["ebitda"].isna().all():
             warnings.append("EBITDA 항목이 없어 관련 지표(EV/EBITDA 등)는 N/A 처리됩니다.")
+    # 있어도 말이 되는지 본다 — 영업이익보다 작은 EBITDA가 실제로 온다(_sane_ebitda 참조).
+    _reb, _drop = 0, 0
+    for _t in fin.index:
+        _v, _act = _sane_ebitda(fin.at[_t, "ebitda"], fin.at[_t, "operating_income"],
+                                fin.at[_t, "da"])
+        if _act:
+            fin.at[_t, "ebitda"] = np.nan if _v is None else _v
+            _reb, _drop = _reb + (_act == "rebuilt"), _drop + (_act == "dropped")
+    if _reb or _drop:
+        warnings.append(
+            f"연간 EBITDA {_reb + _drop}개 연도가 영업이익보다 작게 와서 "
+            f"{'영업이익+감가상각비로 다시 계산' if _reb else ''}"
+            f"{'·' if _reb and _drop else ''}{'결측 처리' if _drop else ''}했습니다.")
     # capex/배당/자사주는 yfinance에서 음수(유출) → 양수로 정규화
     fin["capex"] = fin["capex"].abs()
     fin["dividends_paid"] = fin["dividends_paid"].abs()
@@ -172,6 +210,21 @@ def extract_ttm(tk: yf.Ticker, shares: float | None) -> tuple[pd.Series | None, 
         ttm["fcf"] = ttm["ocf"] - ttm["capex"]
     if "ebitda" not in ttm.index and {"operating_income", "da"} <= set(ttm.index):
         ttm["ebitda"] = ttm["operating_income"] + ttm["da"]
+    # 분기 합이라 한 분기의 오염이 그대로 TTM에 들어온다 — 이 자리가 EV/EBITDA 144배의
+    # 출처였다(#116). 규칙은 _sane_ebitda 한 곳에 있다.
+    if "ebitda" in ttm.index:
+        _v, _act = _sane_ebitda(ttm.get("ebitda"), ttm.get("operating_income"), ttm.get("da"))
+        if _act == "rebuilt":
+            ttm["ebitda"] = _v
+            warnings.append("TTM EBITDA가 영업이익보다 작게 와서 '영업이익 + 감가상각비'로 "
+                            "다시 계산했습니다.")
+        elif _act == "dropped":
+            # TTM에서 빼면 CompanyData.latest()가 최근 **연간** EBITDA로 내려간다
+            # ("TTM 우선, 없으면 최근 연간 값"). N/A가 되는 것은 연간도 없을 때뿐이다.
+            # 실제로 NAVER가 이 경로다 — 분기는 깨졌고 연간 네 해는 전부 정상이었다.
+            ttm = ttm.drop("ebitda")
+            warnings.append("TTM EBITDA가 영업이익보다 작게 오고 분기 감가상각비도 없어 "
+                            "TTM에서 제외했습니다 — 최근 연간 EBITDA로 대체합니다.")
     # EPS(TTM)는 분기 EPS 합보다 순이익/주식수가 안정적
     if shares and "net_income" in ttm.index:
         ttm["eps"] = ttm["net_income"] / shares
