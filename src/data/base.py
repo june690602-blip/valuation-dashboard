@@ -9,7 +9,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
+
+from . import ca_bundle
+
+# **yfinance보다 먼저 부른다.** yfinance가 쓰는 libcurl은 경로에 한글이 있으면 인증서
+# 파일을 못 열고, 그 실패가 "possibly delisted"로 보고돼 원인을 가린다(ADR-0027).
+# 필요할 때만 움직이고, 이미 정상이면 아무것도 안 한다.
+ca_bundle.install()
+
+import yfinance as yf  # noqa: E402
 
 from .cache import file_cache
 from .models import FIN_COLUMNS, PEER_COLUMNS, CompanyData
