@@ -18,11 +18,12 @@ def _fin(values):
 
 
 class NormalizedEarningsTests(unittest.TestCase):
-    def test_averages_the_last_five_years(self):
-        # 6년이 있으면 **마지막 5년만** 쓴다 — 창은 최신 쪽으로 고정이다
-        ni, years = _normalized_earnings(_fin([1000., 100., 200., 300., 400., 500.]))
-        self.assertEqual(years, 5)
-        self.assertAlmostEqual(ni, 300.0)     # (100+200+300+400+500)/5
+    def test_averages_the_last_eight_years(self):
+        # 9년이 있으면 **마지막 8년만** 쓴다 — 창은 최신 쪽으로 고정이다
+        ni, years = _normalized_earnings(
+            _fin([1000., 100., 200., 300., 400., 500., 600., 700., 800.]))
+        self.assertEqual(years, 8)
+        self.assertAlmostEqual(ni, 450.0)     # (100+…+800)/8 — 맨 앞 1000은 창 밖
 
     def test_uses_what_exists_when_history_is_short(self):
         ni, years = _normalized_earnings(_fin([100., 200., 300.]))
@@ -61,9 +62,26 @@ class NormalizedEarningsTests(unittest.TestCase):
         self.assertEqual(years, 4)
         self.assertAlmostEqual(ni, 250.0)
 
-    def test_window_and_minimum_are_five_and_three(self):
-        self.assertEqual(NORMALIZE_WINDOW, 5)
+    def test_window_and_minimum_are_eight_and_three(self):
+        self.assertEqual(NORMALIZE_WINDOW, 8)
         self.assertEqual(NORMALIZE_MIN_YEARS, 3)
+
+    def test_data_layer_reaches_back_at_least_as_far_as_the_window(self):
+        """창을 올려도 데이터가 안 따라오면 **조용히** 짧아진다 — 그 어긋남을 여기서 막는다.
+
+        `_normalized_earnings`는 프레임의 마지막 `NORMALIZE_WINDOW`행을 쓰는데,
+        `opendart.py`가 그보다 얕게 잘라 두면 평균에 쓰는 연수가 말없이 줄어든다.
+        예외도 경고도 안 나므로 시험이 아니면 알아챌 방법이 없다.
+        """
+        from src.data.opendart import HISTORY_YEARS
+        self.assertGreaterEqual(
+            HISTORY_YEARS, NORMALIZE_WINDOW,
+            "opendart.HISTORY_YEARS가 NORMALIZE_WINDOW보다 얕다 — 창이 조용히 짧아진다")
+
+    def test_epv_shares_the_same_window(self):
+        """EPV도 같은 창을 쓴다(ADR-0025 · 인계문 경고 4). 한쪽만 바뀌면 안 된다."""
+        from src.analysis import epv
+        self.assertEqual(epv.NORMALIZE_WINDOW, NORMALIZE_WINDOW)
 
 
 def _synthetic_per(n=600, beta=0.30, seed=0):

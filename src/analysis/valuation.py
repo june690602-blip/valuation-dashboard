@@ -401,10 +401,15 @@ def _leg_sensitivity(fairs: list[float]) -> float | None:
 
 
 # ── ⑤ 정규화 이익 ────────────────────────────────────────────────────
-# 창을 5년으로 두는 이유 — 문헌(Anderson & Brooks 2006, JBFA 33(7-8) 1063-1086)은 8년을
-# 쓰지만 DART 이력이 6년이라 그 이상은 만들 수 없다. 효과가 그만큼 약해지는 것을 ADR-0015
-# 한계에 적었다. 최소 3년은 '평균'이라 부를 수 있는 하한이다.
-NORMALIZE_WINDOW = 5
+# 창은 문헌과 같은 8년이다 — Anderson & Brooks(2006, JBFA 33(7-8) 1063-1086)가 쓴 창이고,
+# ADR-0015는 *"DART 이력이 6년이라 그 이상은 못 만든다"*는 이유로 5년에 머물렀다.
+# **그 이유가 사실이 아니었다**(ADR-0025) — 6년은 DART가 아니라 `opendart.py`가 보고서를
+# 2개만 받아서 나온 값이고, 실제 이력은 중앙 13년이다(`scripts/check_dart_depth.py`).
+# 창을 늘리는 대가는 재서 확인했다: 커버리지 62%→62%, 종목당 호출 3→5회(하루 1회, 캐시).
+# 최소 3년은 '평균'이라 부를 수 있는 하한이다.
+# **이 값을 올리려면 `opendart.HISTORY_YEARS`도 함께 올려야 한다** — 데이터가 그만큼
+# 안 오면 창은 조용히 짧아진다. `tests/test_normalized_earnings.py`가 그것을 막는다.
+NORMALIZE_WINDOW = 8
 NORMALIZE_MIN_YEARS = 3
 
 
