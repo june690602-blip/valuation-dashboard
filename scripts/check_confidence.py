@@ -118,8 +118,10 @@ def _corr_table(df: pd.DataFrame) -> tuple[dict, list]:
     return table, rows
 
 
-def _sample(market: str, limit: int) -> pd.DataFrame:
+def sample_by_size(market: str, limit: int) -> pd.DataFrame:
     """(code, 층) — **규모로 층화한** 표본. 상위 N만 쓰면 대형주만 잡혀 상관이 왜곡된다.
+
+    `check_epv_viability.py`가 같은 표본을 써야 두 진단을 나란히 읽을 수 있어 공개 이름이다.
 
     층을 만드는 방법이 시장마다 다르다.
 
@@ -159,7 +161,7 @@ def main() -> int:
     if coef is None:
         print("계수를 만들지 못했다 — 회귀 경로가 아니면 이 측정은 뜻이 없다.")
         return 1
-    samp = _sample(market, args.limit)
+    samp = sample_by_size(market, args.limit)
     print(f"{market} {len(samp)}종목 수집 중…\n")
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
         rows = [r for r in ex.map(lambda c: _one(c, coef, market), samp["code"]) if r]
