@@ -6,7 +6,9 @@
 > **▶ 다음 작업은 '신뢰도 산식'입니다 — 착수 전에
 > [`docs/HANDOFF-CONFIDENCE.md`](docs/HANDOFF-CONFIDENCE.md)를 먼저 읽으세요.**
 > ADR-0016 결정 3이 순서를 못박았습니다: **신뢰도 산식이 EPV(축 추가)보다 먼저입니다.**
-> 미머지 작업은 없고, 대기 중인 ADR도 없습니다. 292 passed, 76 subtests.
+> 대기 중인 ADR은 없습니다. 301 passed, 76 subtests · CI 관문 11개.
+> 열려 있는 PR이 둘 있고(#115 규모 항 스플라인 · #118 EBITDA 위생) **둘 다 위 문서의
+> 작업에 걸립니다** — 그 문서의 '진행 중인 PR' 절을 보세요.
 > 지난 브랜치들의 기록은 [`docs/HANDOFF.md`](docs/HANDOFF.md)에 있습니다.
 
 ## 프로젝트 개요

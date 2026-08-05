@@ -13,10 +13,31 @@ ADR-0016이 "축(EPV)을 늘리기 전에 이것부터"라고 순서를 못박�
 
 | | |
 |---|---|
-| main | `3eb5265` — ADR-0016·0017·0018 전부 머지됨(PR #107) |
+| main | `7ed7efa` — ADR-0016·0017·0018(PR #107) 뒤로 #109~#117이 더 들어왔다 |
 | 이 작업 | **착수 전.** 코드 0줄, ADR 없음 |
-| 테스트 | `292 passed, 76 subtests` (3.15s) |
-| 대기 중인 ADR | 없음 |
+| 테스트 | `301 passed, 76 subtests` |
+| CI 관문 | **11개** (`scripts/check_all.py`) |
+| 열려 있는 PR | **#115 · #118 — 바로 아래 절을 먼저 읽어라** |
+
+## 진행 중인 PR 둘이 이 작업에 걸린다
+
+이 문서를 쓴 시점에 **둘 다 열려 있었다.** 착수 전에 머지 여부를 확인하라.
+
+### PR #115 (규모 항 스플라인) — **오차표 재측정이 이 작업의 범위다**
+
+`warranted.py`의 규모 항을 직선에서 스플라인으로 바꾼다(초대형주에서 폭주하던 것).
+**머지되면 `LEG_MAE`(ADR-0017의 실측 오차표)가 옛 함수형의 값이 된다.**
+PR #115가 그 사실을 직접 적고 *"다음 작업(신뢰도 산식)이 오차 프레이밍을 정면으로
+다루므로 거기서 함께 재는 것이 맞다"*며 넘겼다.
+
+화면의 오차 폭(ADR-0017 콜아웃)이 `LEG_MAE`를 그대로 읽으므로, 안 고치면 **화면이
+조용히 낡은 숫자를 말한다.** 이 작업에서 함께 재라.
+
+### PR #118 (EBITDA 위생) — 축 하나의 입력이 바뀐다
+
+EV/EBITDA 다리의 입력이 정상화된다(인텔 144배 → 31.7배). ①의 다리 값이 바뀌면
+방법 간 편차도 따라 바뀐다. **상관·산포를 재는 시점을 #118 머지 뒤로 잡는 편이 좋다** —
+안 그러면 오염된 EBITDA가 섞인 표본으로 산식을 고르게 된다.
 
 ## 왜 4번(EPV)보다 먼저인가
 
@@ -125,6 +146,8 @@ DCF의 고유 기여는 3곳(2%)이었고 EPV가 더 넓었다.
    지금 문턱 `0.15/0.35`가 n별로 무엇을 뜻하는지
 3. **'높음'인데 축이 하나뿐인 종목의 비율** — AAPL 같은 경우가 얼마나 흔한가
 4. **신뢰도와 `intrinsic_share`의 교차표** — 신화콘텍 같은 모순 조합이 몇 %인가
+5. **`LEG_MAE` 다시 재기** — PR #115가 규모 항 함수형을 바꿨으므로 ADR-0014의
+   leave-one-out을 새 함수형으로 다시 돌려야 한다. 위 '진행 중인 PR' 절 참조
 
 **한 종목으로 일반화하지 말 것.** 이 저장소에서 두 번 그 실수를 했고 둘 다 HANDOFF.md
 말미에 기록돼 있다.
@@ -144,6 +167,9 @@ DCF의 고유 기여는 3곳(2%)이었고 EPV가 더 넓었다.
 
 - **브랜치는 항상 최신 main에서 딴다.** `git fetch origin` →
   `git switch -c <새브랜치> origin/main`. PR base는 **언제나 `main`**
+- **다음 ADR 번호는 0021부터다.** 0019·0020이 이미 쓰였고, **PR #115도 0020을 쓰고 있어
+  지금 번호가 겹쳐 있다**(`check_adr_index.py`가 "같은 번호가 두 줄"로 잡는다).
+  번호를 고르기 전에 `docs/adr/`와 열려 있는 PR을 함께 확인하라
 - **커밋 전에 `python scripts/check_all.py`.** 관문을 손으로 골라 돌리지 말 것 —
   실제로 그래서 한 번 터졌다
 - **`stock.js` 인라인 스타일 예산이 308/308으로 꽉 찼고 규칙이 "내려가기만 한다."**
@@ -168,7 +194,7 @@ PR #107 범위 밖이라 남겨 뒀다 — **이 작업이 오차 프레이밍�
 ```bash
 git fetch origin
 git switch -c <새브랜치> origin/main
-.venv/Scripts/python.exe -m pytest tests/ -q        # 292 passed, 76 subtests
+.venv/Scripts/python.exe -m pytest tests/ -q        # 301 passed, 76 subtests
 ```
 
 ### 읽을 순서
@@ -182,7 +208,7 @@ git switch -c <새브랜치> origin/main
 ### 검증 명령
 
 ```bash
-.venv/Scripts/python.exe scripts/check_all.py                  # CI 관문 전부(10개)
+.venv/Scripts/python.exe scripts/check_all.py                  # CI 관문 전부(11개)
 .venv/Scripts/python.exe scripts/check_analysis.py KR 005930   # 실제 종목
 .venv/Scripts/python.exe scripts/check_analysis.py US AAPL     # ①⑤가 같은 배수를 쓰는 예
 .venv/Scripts/python.exe scripts/check_valuation_basis.py      # 상대/절대 비중
@@ -194,5 +220,6 @@ git switch -c <새브랜치> origin/main
 이 저장소는 ADR에 "무엇을 정했나"뿐 아니라 **"무엇을 재서 그렇게 정했나"와 "무엇을 안 했고
 왜 안 했나"**를 함께 적는 관례가 있다(`docs/adr/` 참조).
 
-**이 문서에서 실제로 잰 것은 테스트 수(292)와 현행 산식 코드뿐이다.** 나머지 수치는 전부
-기존 ADR에서 인용했고, 위 '먼저 재라' 절의 네 가지는 **아직 아무도 재지 않았다.**
+**이 문서에서 실제로 잰 것은 테스트 수(301) · CI 관문 수(11) · 현행 산식 코드뿐이다.**
+나머지 수치는 전부 기존 ADR과 PR 본문에서 인용했고, 위 '먼저 재라' 절의 다섯 가지는
+**아직 아무도 재지 않았다.**
