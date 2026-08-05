@@ -29,18 +29,27 @@ SECTOR_MIN_N = 10
 OTHER_SECTOR = "기타"
 
 # ── 다리별 실측 오차 (ADR-0017) ─────────────────────────────────────
-# ADR-0014의 leave-one-out 실측을 **그대로 옮긴 상수**다. 여기서 추정하는 값이 아니라서
-# 계수를 다시 학습해도 따라 바뀌지 않는다 — ADR-0014를 다시 재면 이 표도 손으로 고쳐야 한다.
+# leave-one-out 실측을 옮긴 상수다. 계수를 다시 학습해도 따라 바뀌지 않으므로,
+# **회귀의 함수형이 바뀌면 손으로 다시 재서 고쳐야 한다.**
+#
+#     python scripts/check_warranted.py KR      ← 붙여넣을 줄을 그대로 찍어 준다
+#     python scripts/check_warranted.py US
+#
+# 2026-08-05 갱신(ADR-0022): #115가 규모 항을 스플라인으로 바꾼 뒤 다시 쟀다. 이전 값은
+# 직선 함수형의 것이었다. 한국은 1~4% 안쪽으로 움직였고(꼬리만 고친 변경이라 전체 평균은
+# 거의 그대로다), **미국 PSR·EV/EBITDA는 이번에 처음 쟀다** — 전에는 아예 없어서 화면이
+# "측정된 적이 없습니다"라고 말하던 자리다.
 #
 # 이 값이 재는 것은 '적정가가 맞았나'가 **아니라** '회귀가 그 종목의 시장 배수를 얼마나
 # 맞히나'다. 적정가의 정확도는 원리적으로 못 잰다(ADR-0009). 그럼에도 화면에 내는 이유는,
 # 적정 배수가 이만큼 흔들리면 적정가도 **최소** 그만큼 흔들리기 때문이다.
 #
-# **미측정 다리는 넣지 않는다.** 미국 PSR·EV/EBITDA는 ADR-0014가 재지 않았고, 한국 값을
-# 대신 쓰는 것은 지어내는 것이다(ADR-0011: 오염된 값보다 '없음').
+# **여전히 미측정 다리는 넣지 않는다.** 시장이 늘면 그 시장 값을 재기 전까지 비워 둔다 —
+# 다른 시장 값을 대신 쓰는 것은 지어내는 것이다(ADR-0011: 오염된 값보다 '없음').
+# 미국 PSR이 한국의 0.897이 아니라 **0.656**으로 나온 것이 그 이유를 그대로 보여 준다.
 LEG_MAE = {
-    "KR": {"pbr": 0.563, "per": 0.572, "psr": 0.921, "ev_ebitda": 0.639},
-    "US": {"pbr": 0.470, "per": 0.374},
+    "KR": {"pbr": 0.570, "per": 0.583, "psr": 0.897, "ev_ebitda": 0.667},
+    "US": {"pbr": 0.443, "per": 0.406, "psr": 0.656, "ev_ebitda": 0.379},
 }
 LEG_LABEL = {"per": "PER", "pbr": "PBR", "psr": "PSR", "ev_ebitda": "EV/EBITDA"}
 
@@ -75,6 +84,100 @@ def leg_error(market: str, legs) -> dict:
         out.update({"worst_leg": LEG_LABEL.get(lg, lg), "worst_mae": m,
                     "up": math.exp(m) - 1, "margin": math.exp(-m) - 1})
     return out
+
+
+# ── 방법 사이의 겹침 (ADR-0022) ──────────────────────────────────────
+# 판정 방법들이 서로 독립이라는 전제가 신뢰도 산식에 깔려 있는데, 그 전제가 틀렸다.
+# ①과 ⑤는 **같은 적정 배수**를 쓰고(ADR-0015 · AAPL 실례), ②도 배수 기반이다.
+# 구조적으로도 괴리율의 55~60%를 `−log(현재배수)`라는 공통 항이 설명한다(ADR-0014).
+#
+#     python scripts/check_confidence.py KR      ← 붙여넣을 줄을 그대로 찍어 준다
+#     python scripts/check_confidence.py US
+#
+# 값은 **방법 쌍별 피어슨 상관**(로그 괴리율 기준, 전 종목)이다. 종목 하나 안에서는
+# 상관을 잴 수 없어(방법마다 값이 하나뿐) 종목들 사이에서 재서 개별 종목에 적용한다 —
+# **근사다.** 이 한계는 ADR-0022에 적어 뒀다.
+#
+# **시장마다 따로 잰다. 옮겨 쓰지 않는다.** 아래 두 표가 그 규칙의 근거다 — 같은 쌍이
+# ①↔⑤에서 KR +0.263 대 US +0.763, ③↔⑤에서 KR −0.015 대 US +0.723으로 갈린다.
+# 한쪽을 복사했으면 다른 쪽 신뢰도가 통째로 틀렸을 값이다(ADR-0017의 "빌려 쓰는 것은
+# 지어내는 것"이 오차표에서 말한 것과 같은 말이다).
+#
+# 2026-08-05 실측 · KR 174종목(시총 5분위 층화) · US 198종목(S&P 500·400·600 3층).
+#
+# **KR에서 결과가 설계의 예상을 뒤집었다** — 설계는 ①②⑤(배수 기반)가 서로 겹치고
+# ③ RIM이 독립일 것으로 봤는데, 한국에서는 **③ RIM과 ①이 +0.787로 가장 겹치고**
+# ①과 ⑤는 +0.263에 그쳤다.
+#
+# **그리고 미국이 그 해석을 다시 뒤집었다.** ADR-0015가 "①과 ⑤가 같은 적정 PER을
+# 쓴다"고 적은 것은 AAPL 한 종목 관찰이었고, 한국 106종목에서 안 보이길래 ADR-0022는
+# 그것을 *한 종목 일반화의 실수*로 적었다. 그런데 **AAPL의 시장에서 재니 +0.763이다.**
+# 관찰 자체는 맞았고, 틀린 것은 그것을 **다른 시장에 옮겨 놓고 반증한** 쪽이다.
+# 일반화가 걸린 축이 종목 수가 아니라 **시장**이었다.
+METHOD_RHO: dict[str, dict[tuple[str, str], float]] = {
+    "KR": {
+        ("수익가치(RIM)", "업종 상대가치"): 0.787,
+        ("수익가치(RIM)", "역사적 밴드"): 0.325,
+        ("수익가치(RIM)", "정규화 이익"): -0.015,
+        ("업종 상대가치", "역사적 밴드"): 0.229,
+        ("업종 상대가치", "정규화 이익"): 0.263,
+        ("역사적 밴드", "정규화 이익"): -0.300,
+    },
+    "US": {
+        ("수익가치(RIM)", "업종 상대가치"): 0.706,
+        ("수익가치(RIM)", "역사적 밴드"): -0.031,
+        ("수익가치(RIM)", "정규화 이익"): 0.723,
+        ("업종 상대가치", "역사적 밴드"): 0.260,
+        ("업종 상대가치", "정규화 이익"): 0.763,
+        ("역사적 밴드", "정규화 이익"): -0.199,
+    },
+}
+
+# 실질 축 수가 이 아래면 등급에 상한을 씌운다. 현행 코드가 "방법이 1개뿐이면 무조건
+# 낮음"으로 못박은 규칙(valuation.py)을 연장한 것이다.
+#
+# **`NEFF_MID`는 3.0에서 2.8로 내렸다.** 3.0으로 두면 '높음'이 수학적으로 도달 불가다 —
+# 실측 상관에서 가능한 조합의 최댓값이 **2.98**(②역사적밴드 + ③RIM + ⑤정규화이익, 서로
+# 가장 덜 겹치는 셋)이라 3단 배지가 사실상 2단이 된다. 2.8은 그 조합 하나만 통과시킨다.
+#
+# 2.8도 관대하지 않다 — 174종목 표본에서 관측된 3방법 조합의 최댓값은 **2.66**이었고,
+# 2.98 조합은 한 번도 안 나왔다. 즉 **지금 표본 기준으로는 여전히 '높음'이 0%**다.
+# 그 사실을 알고 고른 값이다: '높음'은 "서로 가장 안 겹치는 세 방법이 전부 섰다"는
+# 뜻으로만 남기고, 흔해지라고 문턱을 데이터에 맞춰 내리지는 않는다.
+NEFF_LOW, NEFF_MID = 2.0, 2.8
+
+
+def effective_axes(methods, market: str,
+                   rho_table: dict | None = None) -> tuple[float, bool]:
+    """(실질 축 수, 상한을 걸어도 되는가) — 겹치는 방법을 몇 개로 쳐야 하나 (ADR-0022).
+
+    표본조사의 설계효과 식을 그대로 쓴다::
+
+        n_eff = n / (1 + (n − 1) × ρ̄)
+
+    `ρ̄`가 0이면 `n_eff = n`(전부 독립), 1이면 `1`(사실상 한 축)이다.
+
+    둘째 반환값이 False면 **상한을 걸지 않는다.** 상관을 모르는 쌍이 하나라도 있으면
+    그렇게 한다 — 지어낸 상관으로 등급을 깎느니 안 깎는 쪽이 정직하다(ADR-0011).
+    EPV처럼 새 축이 들어왔는데 상관을 아직 안 잰 경우가 여기 걸린다.
+    """
+    ms = sorted(set(methods or []))
+    n = len(ms)
+    if n <= 1:
+        # 쌍이 없다. 현행도 방법이 1개면 무조건 '낮음'이라 동작이 같다.
+        return float(n), True
+    table = (rho_table if rho_table is not None
+             else METHOD_RHO.get((market or "").upper(), {}))
+    rhos = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            key = (ms[i], ms[j])
+            if key not in table:
+                return float(n), False        # 모르는 쌍 → 상한 없음
+            rhos.append(table[key])
+    # 음의 상관은 0으로 자른다. n_eff > n은 "독립보다 더 독립"이라 뜻이 없다.
+    rho_bar = max(0.0, float(np.mean(rhos)))
+    return n / (1.0 + (n - 1) * rho_bar), True
 
 
 def roe_bucket(roe: float | None) -> str | None:
@@ -192,12 +295,11 @@ def _design_matrix(d: pd.DataFrame) -> tuple[np.ndarray, list[float], list[str],
     return np.column_stack(cols), knots, rb_levels, sec_levels
 
 
-def fit_leg(df: pd.DataFrame, leg: str) -> dict | None:
-    """한 다리의 계수를 적합한다. 표본이 모자라면 None.
+def _prep(df: pd.DataFrame) -> pd.DataFrame | None:
+    """적합용 프레임 준비 — 결측·비양수·무한대를 걷고 ROE 구간·업종 라벨을 채운다.
 
-    df: multiple·mcap·sector·roe 열을 가진 프레임. 결측·비양수 배수는 버린다.
-    반환: {leg, intercept, beta_size, roe_coef, sector_coef, n, mcap_min, mcap_max,
-           sector_median_mcap, sector_median_roe_coef}
+    `fit_leg`와 `loo_leg_error`가 **같은 전처리를 쓰게 하려고** 빼냈다. 갈라지면 측정이
+    적합과 다른 표본을 재게 되는데, 그러면 `LEG_MAE`가 실제 오차와 어긋난다.
     """
     d = df[["multiple", "mcap", "sector", "roe"]].copy()
     d["multiple"] = pd.to_numeric(d["multiple"], errors="coerce")
@@ -211,11 +313,62 @@ def fit_leg(df: pd.DataFrame, leg: str) -> dict | None:
     d = d[ok]
     if len(d) < MIN_FIT_SAMPLE:
         return None
-
     d["rb"] = d["roe"].map(roe_bucket)
     # 결측 업종은 명시적으로 '기타'로 보낸다. astype(str)에 맡기면 pandas 2.x에서
     # None이 문자열 "None"이 되어 자기 더미를 갖고, 기타 통합을 우회한다(버전 의존).
     d["sec"] = sector_labels(d["sector"].fillna(OTHER_SECTOR).astype(str))
+    return d
+
+
+def loo_leg_error(df: pd.DataFrame) -> dict | None:
+    """leave-one-out 절대오차 — `LEG_MAE`를 만드는 측정 자체다 (ADR-0017·0022).
+
+    **이 함수가 저장소에 있는 이유가 있다.** `LEG_MAE`의 원래 값을 만든 스크립트가 없어서,
+    ADR-0014의 β 불일치를 두고 *"그 스크립트가 저장소에 없어 특정하지 못했다"*로 끝난
+    적이 있다(HANDOFF.md). 같은 일이 반복되지 않게 측정을 코드로 남긴다.
+
+    재적합을 n번 하지 않고 **PRESS 잔차**로 낸다 — OLS에서 leave-one-out 잔차는
+    `e_i / (1 − h_ii)`와 정확히 같다(`h_ii`는 해트 행렬 대각). 근사가 아니라 항등식이다.
+
+    **다만 설계행렬은 전체 표본으로 한 번 정하고 고정한다** — 업종 라벨 통합(min_n),
+    ROE 구간, 규모 마디(분위수)는 종목 하나를 빼도 다시 정하지 않는다. 즉 leave-one-out인
+    것은 **계수**이지 특징 설계가 아니다. 이 차이를 숨기지 않는다.
+    """
+    d = _prep(df)
+    if d is None:
+        return None
+    y = np.log(d["multiple"].to_numpy(float))
+    X, *_ = _design_matrix(d)
+    beta, _res, rank, _sv = np.linalg.lstsq(X, y, rcond=None)
+    if rank < X.shape[1]:
+        return None
+    resid = y - X @ beta
+    # h_ii = x_i (XᵀX)⁻¹ x_iᵀ. 랭크 경계에서도 견디게 pinv를 쓴다.
+    hat = np.einsum("ij,jk,ik->i", X, np.linalg.pinv(X.T @ X), X)
+    # h_ii → 1이면 그 점을 빼는 순간 적합이 무의미해진다(자기 자신이 유일한 근거).
+    # 1e-9로 잘라 폭주를 막되, 몇 곳이 그랬는지 함께 돌려준다.
+    saturated = int(np.sum(hat > 1 - 1e-6))
+    e_loo = resid / (1 - np.clip(hat, 0.0, 1 - 1e-9))
+    ss = float(np.sum((y - y.mean()) ** 2))
+    return {
+        "n": len(d),
+        "mae": float(np.mean(np.abs(e_loo))),          # ← LEG_MAE에 넣는 값
+        "mae_in_sample": float(np.mean(np.abs(resid))),  # 부풀려진 값 — 대조용
+        "r2_loo": float(1 - np.sum(e_loo ** 2) / ss) if ss > 0 else float("nan"),
+        "saturated": saturated,
+    }
+
+
+def fit_leg(df: pd.DataFrame, leg: str) -> dict | None:
+    """한 다리의 계수를 적합한다. 표본이 모자라면 None.
+
+    df: multiple·mcap·sector·roe 열을 가진 프레임. 결측·비양수 배수는 버린다.
+    반환: {leg, intercept, beta_size, roe_coef, sector_coef, n, mcap_min, mcap_max,
+           sector_median_mcap, sector_median_roe_coef}
+    """
+    d = _prep(df)
+    if d is None:
+        return None
     y = np.log(d["multiple"].to_numpy(float))
 
     X, knots, rb_levels, sec_levels = _design_matrix(d)

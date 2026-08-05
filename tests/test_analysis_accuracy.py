@@ -657,3 +657,112 @@ class BasisShareTests(unittest.TestCase):
         total = sum(METHOD_WEIGHTS[m] for m in FUNDAMENTAL_METHODS)
         intrinsic = sum(METHOD_WEIGHTS[m] for m in INTRINSIC_METHODS)
         self.assertAlmostEqual(intrinsic / total, 0.1667, places=3)
+
+
+class ConfidenceGradeTests(unittest.TestCase):
+    """신뢰도 = min(흩어짐 등급, 실질 축 수 상한) (ADR-0022)."""
+
+    def setUp(self):
+        from src.analysis.valuation import confidence_grade
+        self.grade = confidence_grade
+
+    def test_independent_methods_keep_the_spread_grade(self):
+        # 겹치지 않으면 등급이 바뀌면 안 된다. 이 작업은 부풀린 것을 되돌리는 것이지
+        # 전부 깎는 것이 아니다.
+        for disp, want in ((0.05, "높음"), (0.25, "중간"), (0.60, "낮음")):
+            final, spread, cap = self.grade(disp, 4, n_eff=4.0, capped=True)
+            self.assertEqual(spread, want)
+            self.assertEqual(final, want, f"disp={disp}에서 독립인데 등급이 깎였다")
+            self.assertEqual(cap, "높음")
+
+    def test_overlapping_methods_are_capped_even_when_tightly_clustered(self):
+        # 이 작업의 핵심. 값이 거의 같아도(disp 0.01) 실질 축이 하나면 '높음'을 줄 수 없다.
+        # AAPL이 정확히 이 모양이다 — ①과 ⑤가 같은 적정 PER을 써서 값이 가깝다(ADR-0015).
+        final, spread, cap = self.grade(0.01, 2, n_eff=1.05, capped=True)
+        self.assertEqual(spread, "높음")
+        self.assertEqual(cap, "낮음")
+        self.assertEqual(final, "낮음")
+
+    def test_partial_overlap_caps_at_middle(self):
+        final, _s, cap = self.grade(0.01, 3, n_eff=2.4, capped=True)
+        self.assertEqual(cap, "중간")
+        self.assertEqual(final, "중간")
+
+    def test_cap_never_raises_a_grade(self):
+        # 상한은 내리기만 한다. 흩어짐이 크면 축이 아무리 독립이어도 '낮음'이다.
+        final, _s, cap = self.grade(0.90, 4, n_eff=4.0, capped=True)
+        self.assertEqual(cap, "높음")
+        self.assertEqual(final, "낮음")
+
+    def test_unknown_correlation_disables_the_cap(self):
+        # 상관을 모르면 상한을 걸지 않는다 — 지어낸 값으로 깎지 않는다(ADR-0011).
+        final, _s, cap = self.grade(0.01, 3, n_eff=1.0, capped=False)
+        self.assertEqual(cap, "높음")
+        self.assertEqual(final, "높음")
+
+    def test_single_method_is_low_as_before(self):
+        # 현행 동작 — 방법이 1개면 흩어짐을 보지 않고 '낮음'이다. 바뀌면 안 된다.
+        self.assertEqual(self.grade(0.0, 1, n_eff=1.0, capped=True)[0], "낮음")
+        self.assertEqual(self.grade(None, 3, n_eff=3.0, capped=True)[0], "낮음")
+
+    def test_empty_rho_table_is_a_no_op(self):
+        # METHOD_RHO를 채우기 전에는 아무 등급도 바뀌면 안 된다. 표를 채우는 것이
+        # **이 기능을 켜는 스위치**라는 뜻이고, 잘못 채우면 그때 드러난다.
+        from src.analysis.warranted import METHOD_RHO, effective_axes
+
+        if not METHOD_RHO:
+            n_eff, capped = effective_axes(["a", "b", "c"], "KR")
+            self.assertFalse(capped)
+            self.assertEqual(self.grade(0.01, 3, n_eff, capped)[0], "높음")
+
+
+class MeasuredRhoTests(unittest.TestCase):
+    """실측 상관표가 실제로 상한을 켜는가 (ADR-0022).
+
+    위 `ConfidenceGradeTests`는 산식을 지어낸 값으로 검증한다. 여기서는 **저장소에
+    들어 있는 실측 표**를 그대로 써서, 표가 비거나 쌍이 하나 빠졌을 때 상한이 조용히
+    꺼지는 것을 잡는다 — `effective_axes`가 모르는 쌍을 만나면 `capped=False`를
+    돌려주므로, 표가 망가져도 예외 없이 **아무 일도 안 일어나는 쪽**으로 실패한다.
+    """
+
+    def setUp(self):
+        from src.analysis.valuation import FUNDAMENTAL_METHODS
+        from src.analysis.warranted import METHOD_RHO
+        self.methods = sorted(FUNDAMENTAL_METHODS)
+        self.table = METHOD_RHO
+
+    def test_both_markets_are_measured(self):
+        # 미국이 빠져 있던 동안 미국 종목은 상한이 아예 안 걸렸다(옛 산식 그대로).
+        self.assertEqual(sorted(self.table), ["KR", "US"])
+
+    def test_every_pair_is_present_so_the_cap_actually_turns_on(self):
+        from src.analysis.warranted import effective_axes
+
+        for market in self.table:
+            with self.subTest(market=market):
+                n_eff, capped = effective_axes(self.methods, market)
+                self.assertTrue(capped, f"{market}: 쌍이 빠져 상한이 꺼졌다")
+                self.assertLess(n_eff, len(self.methods))
+
+    def test_markets_are_measured_separately_not_copied(self):
+        # 한 시장 값을 다른 시장에 옮겨 쓰지 않는다(ADR-0017). ①↔⑤가 KR +0.263 대
+        # US +0.763, ③↔⑤가 KR −0.015 대 US +0.723으로 갈린다 — 복사했다면 신뢰도가
+        # 통째로 틀렸을 크기의 차이다.
+        self.assertNotEqual(self.table["KR"], self.table["US"])
+        pair = ("업종 상대가치", "정규화 이익")
+        self.assertGreater(self.table["US"][pair] - self.table["KR"][pair], 0.4)
+
+    def test_aapl_shape_is_no_longer_high(self):
+        """ADR-0022가 성패 판정으로 걸었던 기준. 이 표를 채운 이유가 이것이다.
+
+        AAPL은 ①과 ⑤만 서는데 둘이 **같은 적정 PER**을 쓴다(ADR-0015). 값이 가까워
+        흩어짐은 '높음'을 주지만(실측 disp 0.121 · 199 대 156), 실질 축은 1개 남짓이다.
+        """
+        from src.analysis.valuation import confidence_grade
+        from src.analysis.warranted import effective_axes
+
+        n_eff, capped = effective_axes(["업종 상대가치", "정규화 이익"], "US")
+        final, spread, _cap = confidence_grade(0.121, 2, n_eff, capped)
+        self.assertEqual(spread, "높음", "흩어짐만 보면 여전히 '높음'이다")
+        self.assertLess(n_eff, 2.0)
+        self.assertEqual(final, "낮음")

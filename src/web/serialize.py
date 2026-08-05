@@ -738,6 +738,9 @@ def analyze(market: str, query: str, peer_count: int = 9,
         "verdict": {
             "verdict": val.verdict, "gap": num(val.gap), "confidence": val.confidence,
             "dispersion": num(getattr(val, "dispersion", None)),
+            # 실질 축 수 (ADR-0022). 화면은 아직 쓰지 않지만 근거를 감추지 않는다 —
+            # 흩어짐이 작은데 신뢰도가 낮은 종목의 이유가 이 값이다.
+            "n_eff": num(getattr(val, "n_eff", None)),
             "fair_low": num(val.fair_low), "fair_mid": num(val.fair_mid),
             "fair_high": num(val.fair_high),
             "fair_mid_equal": num(val.fair_mid_equal), "gap_equal": num(val.gap_equal),
