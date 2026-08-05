@@ -36,7 +36,12 @@
     [E] 가중/비가중이 신뢰도 **등급**을 바꾸는 비율 > 10%
 
 네트워크가 필요하다(전 종목 재무·피어). CI가 아니라 `check_dcf_viability.py`와 같은
-수동 계열이다. **KR만 잰다** — 표본 틀(`get_kr_listing`)이 한국뿐이라 US는 이 결과 밖이다.
+수동 계열이다. **두 시장을 따로 잰다** — 상관을 상수로 박으려면 시장마다 자기 값이
+있어야 하고, 한국 값을 미국에 대신 쓰는 것은 지어내는 것이다(ADR-0017).
+
+한국은 시총 5분위로 층화추출하고, 미국은 표본 틀(S&P 1500)에 시총 열이 없어 단순
+무작위로 뽑는다 — 그 틀 자체가 이미 대형주 쪽으로 좁다는 뜻이라 결과를 읽을 때
+감안해야 한다.
 
 종료 코드 1은 '문제 있음'이다.
 """
@@ -59,7 +64,8 @@ from src.analysis.capital_cost import compute_capital_cost              # noqa: 
 from src.analysis.indicators import compute_indicators                  # noqa: E402
 from src.analysis.valuation import compute_valuation                   # noqa: E402
 from src.data.kr_provider import KRProvider                             # noqa: E402
-from src.data.universe import get_kr_listing                            # noqa: E402
+from src.data.universe import get_kr_listing, get_sp1500                 # noqa: E402
+from src.data.us_provider import USProvider                              # noqa: E402
 from src.data.universe_multiples import coefficients_or_none            # noqa: E402
 
 RF, MRP = 0.035, 0.06          # KRProvider 기본 가정
@@ -84,9 +90,10 @@ def _grade(disp: float) -> str:
     return "높음" if disp < 0.15 else "중간" if disp < 0.35 else "낮음"
 
 
-def _one(code: str, coef) -> dict | None:
+def _one(code: str, coef, market: str) -> dict | None:
     try:
-        d = KRProvider().load(code, peer_count=9)
+        prov = KRProvider() if market == "KR" else USProvider()
+        d = prov.load(code, peer_count=9)
         ind = compute_indicators(d)
         cc = compute_capital_cost(d, rf=RF, mrp=MRP)
         v = compute_valuation(d, ind, r_equity=cc.k_e, warranted_coef=coef)
@@ -220,43 +227,62 @@ def _sec_weighted(df: pd.DataFrame) -> int:
     return int(hit)
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--limit", type=int, default=100,
-                    help="표본 종목 수 (시총 5분위에 고르게 배분)")
-    ap.add_argument("--dump", type=str, default=None,
-                    help="종목별 원자료를 CSV로 저장 (표본 순회가 비싸 다시 재기 어렵다)")
-    args = ap.parse_args()
+def _sample(market: str, limit: int) -> list[str]:
+    """표본 틀이 시장마다 다르다 — 한국은 시총 층화, 미국은 단순 무작위."""
+    if market == "KR":
+        L = get_kr_listing()
+        pool = L[L["is_common"] & (L["Marcap"] > 0)].copy()
+        pool["q"] = pd.qcut(pool["Marcap"], 5, labels=["Q1", "Q2", "Q3", "Q4", "Q5"])
+        per_q = max(1, limit // 5)
+        samp = (pool.groupby("q", observed=True)
+                    .apply(lambda g: g.sample(min(per_q, len(g)), random_state=11),
+                           include_groups=False)
+                    .reset_index())
+        return samp["Code"].tolist()
+    u = get_sp1500()
+    return u.sample(min(limit, len(u)), random_state=11)["Symbol"].tolist()
 
-    L = get_kr_listing()
-    pool = L[L["is_common"] & (L["Marcap"] > 0)].copy()
-    pool["q"] = pd.qcut(pool["Marcap"], 5, labels=["Q1", "Q2", "Q3", "Q4", "Q5"])
-    per_q = max(1, args.limit // 5)
-    samp = (pool.groupby("q", observed=True)
-                .apply(lambda g: g.sample(min(per_q, len(g)), random_state=11),
-                       include_groups=False)
-                .reset_index())
 
-    coef = coefficients_or_none("KR")
+def run(market: str, limit: int, dump: str | None) -> int:
+    print(f"\n{'=' * 68}\n{market} — 신뢰도 산식 진단\n{'=' * 68}")
+    codes = _sample(market, limit)
+    coef = coefficients_or_none(market)
     with ThreadPoolExecutor(6) as ex:
-        rows = [r for r in ex.map(lambda c: _one(c, coef), samp["Code"]) if r]
+        rows = [r for r in ex.map(lambda c: _one(c, coef, market), codes) if r]
     if not rows:
         print("판정이 나온 종목이 없다 — 네트워크나 캐시를 확인하라.")
         return 1
 
     df = pd.DataFrame(rows)
-    if args.dump:
-        df.to_csv(args.dump, index=False, encoding="utf-8-sig")
-        print(f"원자료 {len(df)}행을 {args.dump}에 저장했다.\n")
-    print(f"표본 {len(samp)}종목 · 판정이 나온 종목 {len(df)}")
+    if dump:
+        df.to_csv(dump, index=False, encoding="utf-8-sig")
+        print(f"원자료 {len(df)}행을 {dump}에 저장했다.\n")
+    print(f"표본 {len(codes)}종목 · 판정이 나온 종목 {len(df)}")
     print("신뢰도 구성 — " + " · ".join(
         f"{k} {v:.0%}" for k, v in df["confidence"].value_counts(normalize=True).items()))
     print("축 개수 구성 — " + " · ".join(
         f"n={int(k)} {v:.0%}" for k, v in
         df["n_methods"].value_counts(normalize=True).sort_index().items()) + "\n")
 
-    bad = (_sec_corr(df) + _sec_disp_by_n(df) + _sec_high(df)
-           + _sec_cross(df) + _sec_weighted(df))
+    return (_sec_corr(df) + _sec_disp_by_n(df) + _sec_high(df)
+            + _sec_cross(df) + _sec_weighted(df))
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("markets", nargs="*", default=["KR", "US"],
+                    help="잴 시장 (기본: KR US)")
+    ap.add_argument("--limit", type=int, default=100, help="시장별 표본 종목 수")
+    ap.add_argument("--dump", type=str, default=None,
+                    help="종목별 원자료를 CSV로 저장 (표본 순회가 비싸 다시 재기 어렵다)")
+    args = ap.parse_args()
+
+    bad = 0
+    for m in [x.upper() for x in args.markets]:
+        if m not in ("KR", "US"):
+            continue
+        dump = args.dump.replace(".csv", f"_{m}.csv") if args.dump else None
+        bad += run(m, args.limit, dump)
     print("=" * 68)
     print(f"문제 {bad}건")
     print("이 스크립트는 **산식을 고르지 않는다.** 무엇이 얼마나 망가졌는지만 재고,")

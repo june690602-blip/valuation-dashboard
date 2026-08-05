@@ -100,6 +100,67 @@ CONSENSUS_METHOD = "선행 이익(컨센서스)"
 INTRINSIC_METHODS = ("수익가치(RIM)",)
 RELATIVE_METHODS = ("업종 상대가치", "역사적 밴드", "정규화 이익")
 
+# ── 축 간 상관 (ADR-0021) ────────────────────────────────────────────
+# **실측 상수다.** `METHOD_WEIGHTS`·`LEG_MAE`와 같은 성격 — 여기서 추정하지 않고
+# `scripts/check_confidence.py`로 재서 손으로 옮긴다. 다시 재면 이 표도 손으로 고쳐야 한다.
+#
+# 2026-08-05 실측(KR 192종목 · US 200종목 · 괴리율 피어슨):
+# ①③·①⑤·③⑤가 서로 0.55~0.79로 묶이고 **②만 셋 모두와 독립**이다(|r| ≤ 0.27).
+# 두 시장이 각자 표본으로 같은 구조를 보였다 — 우연이 아니라 구조다. ADR-0014가
+# 규명한 대로 배수 기반 축들은 괴리율에 `−log(현재배수)` 항을 공유하는데, ②는 횡단면이
+# 아니라 **자기 과거** 분위를 보므로 그 항을 공유하지 않는다.
+#
+# **미측정 시장은 넣지 않는다.** 한국 값을 대신 쓰는 것은 지어내는 것이다(ADR-0017).
+# 없으면 `effective_axes()`가 None을 내고 보정 없이 현행 산식으로 간다.
+AXIS_CORR = {
+    "KR": {("업종 상대가치", "역사적 밴드"): -0.009,
+           ("업종 상대가치", "수익가치(RIM)"): 0.665,
+           ("업종 상대가치", "정규화 이익"): 0.554,
+           ("역사적 밴드", "수익가치(RIM)"): 0.070,
+           ("역사적 밴드", "정규화 이익"): -0.071,
+           ("수익가치(RIM)", "정규화 이익"): 0.788},
+    "US": {("업종 상대가치", "역사적 밴드"): 0.169,
+           ("업종 상대가치", "수익가치(RIM)"): 0.720,
+           ("업종 상대가치", "정규화 이익"): 0.711,
+           ("역사적 밴드", "수익가치(RIM)"): 0.270,
+           ("역사적 밴드", "정규화 이익"): 0.052,
+           ("수익가치(RIM)", "정규화 이익"): 0.699},
+}
+
+# 유효 축이 이보다 적으면 '사실상 한 축'으로 본다. 현행 코드가 이미 "방법이 1개면
+# 낮음"이라고 정해 뒀고, 이 상수는 그 **1개를 개수가 아니라 유효 개수로 세는 것**이다.
+# 실측에서 ①③⑤ 세 축이 함께 서도 N_eff가 1.23~1.30이었다 — 겉으로 셋인데 하나다.
+# 1.5는 판단값이지만 두 시장의 조합별 N_eff가 1.30(①③⑤)과 1.71(①②) 사이에서
+# 갈라져 그 틈에 놓았다.
+MIN_EFFECTIVE_AXES = 1.5
+
+
+def effective_axes(weights: dict, market: str | None) -> float | None:
+    """유효 축 수 `N_eff = 1 / (wᵀ R w)`. 상관을 재지 않은 시장이면 None.
+
+    w는 재정규화된 **실효 가중치**(합이 1)이므로 분자 `(Σw)²`가 1이라 생략된다.
+    축이 서로 독립이면 R이 단위행렬이라 N_eff = 1/Σw²이고, 동일가중 n개에서 정확히
+    n이 된다. 완전상관이면 R이 전부 1이라 N_eff = 1이다.
+
+    **판정에 들어간 축만 본다** — ④는 병기값이라 여기 없다(ADR-0006).
+    """
+    table = AXIS_CORR.get((market or "").upper())
+    if not table:
+        return None
+    axes = [m for m in weights if m in METHOD_WEIGHTS and m != CONSENSUS_METHOD]
+    if not axes:
+        return None
+    quad = 0.0
+    for a in axes:
+        for b in axes:
+            r = 1.0 if a == b else table.get((a, b), table.get((b, a)))
+            if r is None:      # 상관을 재지 않은 쌍 — 값을 지어내지 않는다
+                return None
+            quad += weights[a] * weights[b] * r
+    if quad <= 0:
+        return None
+    return 1.0 / quad
+
 
 def _weighted(estimates: list) -> tuple[float, float, float, dict]:
     """(low, mid, high, 재정규화 가중치) — 주어진 방법들만으로 가중평균한다."""
@@ -146,7 +207,9 @@ class ValuationResult:
     fair_mid_equal: float | None = None  # 동일가중 종합(민감도 비교용)
     gap_equal: float | None = None       # 동일가중 괴리율
     verdict_equal: str | None = None     # 동일가중 판정
-    dispersion: float | None = None      # 방법 간 중심값 변동계수(σ/|μ|) — 신뢰도 산출 근거
+    dispersion: float | None = None      # 방법 간 중심값 변동계수(σ/|μ|) — 상관 보정 **전**
+    dispersion_adj: float | None = None  # 상관 보정 후(ADR-0021). 상관표가 없으면 None
+    effective_axes: float | None = None  # 유효 축 수 N_eff — 겉으로 4축이어도 실측 1.8~2.1
     # ── 컨센서스 반영 종합 (①②③④) — 병기용, 판정에는 쓰지 않는다 ──
     # 값 자체보다 `consensus_premium`(펀더멘털 대비 얼마나 위인가)이 읽을 거리다:
     # "지금 주가가 정당화되려면 시장이 기대하는 실적 개선이 실제로 와야 한다"는 크기.
@@ -1007,13 +1070,43 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
                 "컨센서스 선행 이익(④) 하나에만 의존해 냈습니다 — 이 판정은 시장 기대와 "
                 "독립적이지 않습니다. 보수적으로 해석하세요."))
 
+        # ── 신뢰도 (ADR-0021) ──────────────────────────────────────
+        # 편차가 작은 것이 '확실하다'가 아니라 **'같은 것을 두 번 쟀다'**일 수 있다.
+        # 실측에서 ①③⑤가 서로 0.55~0.79로 상관됐고, 현행 '높음'의 67~83%가 같은
+        # 회귀 배수를 쓰는 ①⑤에 실효 가중의 과반을 싣고 있었다. 그래서 편차를
+        # 유효 축 수로 되돌린 뒤 등급을 매긴다. **문턱은 그대로 둔다** — 바꾼 것은
+        # 재는 자이지 자의 눈금이 아니다.
+        res.effective_axes = effective_axes(res.weights, d.market)
         if len(mids) >= 2 and res.fair_mid:
             disp = float(np.std(mids) / abs(np.mean(mids)))
             res.dispersion = disp
-            res.confidence = "높음" if disp < 0.15 else "중간" if disp < 0.35 else "낮음"
-            if res.confidence == "낮음":
-                res.notes.append(ValuationNote("warn", f"평가 방법 간 편차가 큽니다(±{disp:.0%}). "
-                                 "판정을 보수적으로 해석하세요."))
+            n_eff = res.effective_axes
+            if n_eff is not None:
+                # 상관이 줄여 놓은 만큼 되돌린다. 축이 독립이면 N_eff = n이라 배율이
+                # 정확히 1이 되어 현행과 같아진다 — 상관이 있을 때만 움직인다.
+                #
+                # **배율을 1 아래로 내리지 않는다.** 실측 상관 중 ①②(−0.009)와
+                # ②⑤(−0.071)는 음수라 그대로 두면 N_eff가 n을 넘어 신뢰도를 **올린다**.
+                # 그 크기는 n=90~123 표본의 잡음 수준이고, 잡음을 근거로 "더 확실하다"고
+                # 말할 수는 없다. 이 산식은 신뢰도를 낮추기만 한다.
+                res.dispersion_adj = disp * max(1.0, float(np.sqrt(len(mids) / n_eff)))
+            grade_on = res.dispersion_adj if res.dispersion_adj is not None else disp
+            if n_eff is not None and n_eff < MIN_EFFECTIVE_AXES:
+                # 겉으로 두셋이어도 유효 축이 하나면, 방법이 하나일 때와 같은 처지다.
+                res.confidence = "낮음"
+                res.notes.append(ValuationNote(
+                    "warn",
+                    f"평가 방법이 {len(mids)}개지만 서로 같은 재료를 쓰고 있어 사실상 "
+                    f"{n_eff:.1f}개 몫입니다(유효 축 수). 방법끼리 값이 가까워도 "
+                    "'독립적으로 합의했다'는 뜻이 아니라 같은 입력을 다시 읽은 것이라 "
+                    "신뢰도를 낮음으로 봅니다."))
+            else:
+                res.confidence = ("높음" if grade_on < 0.15
+                                  else "중간" if grade_on < 0.35 else "낮음")
+                if res.confidence == "낮음":
+                    res.notes.append(ValuationNote(
+                        "warn", f"평가 방법 간 편차가 큽니다(±{grade_on:.0%}). "
+                        "판정을 보수적으로 해석하세요."))
         else:
             res.confidence = "낮음"
             res.notes.append(ValuationNote(
