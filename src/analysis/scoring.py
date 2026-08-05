@@ -79,6 +79,43 @@ def comparable_peers(peers: pd.DataFrame, self_mcap: float | None,
     return df[keep.fillna(False)]
 
 
+# 화면이 배수를 어느 자로 재는가 (ADR-0020). `screen_multiple`의 두 번째 반환값.
+BASIS_DISCLOSED = "공시"        # 피어 프레임 = 제공자 공시값. 업종 중앙값과 같은 자다
+BASIS_OWN = "자체계산"           # indicators = 우리가 계산한 값. 중앙값과 자가 다르다
+
+
+def self_multiple(peers: pd.DataFrame, col: str):
+    """피어 프레임의 **자사 행**에서 배수를 꺼낸다 (없으면 None).
+
+    업종 중앙값(`peer_median`)과 같은 프레임·같은 출처에서 가져오므로, 이 값과 중앙값의
+    비교는 양변이 같은 자를 쓴다. 그것이 이 함수가 있는 이유다(#86).
+    """
+    if col not in peers.columns or "is_self" not in peers.columns:
+        return None
+    me = peers[peers["is_self"]]
+    if me.empty:
+        return None
+    v = me.iloc[0].get(col)
+    return None if v is None or pd.isna(v) else float(v)
+
+
+def screen_multiple(peers: pd.DataFrame, col: str, own_calc: float | None):
+    """화면이 쓸 배수와 그 근거 — `(값, 근거)`.
+
+    **「현재」와 「업종 중앙값」은 같은 자여야 한다**(ADR-0020). 그래서 공시값(피어 프레임)을
+    먼저 쓴다. 우리가 계산한 값(`indicators`)은 같은 회사의 같은 지표를 다른 자로 잰
+    것이라, 그것을 공시값들의 중앙값과 나란히 놓으면 비교가 기울어진다 — 실측에서 5종목
+    중 2종목의 판정이 그 차이만으로 뒤집혔다(`scripts/check_multiple_definition.py`).
+
+    공시값이 없으면 자체계산으로 내려간다. 값을 감추는 것보다 낫지만, **그때는 부르는 쪽이
+    비교 판정을 만들면 안 된다** — 근거를 함께 돌려주는 이유가 그것이다.
+    """
+    v = self_multiple(peers, col)
+    if v is not None:
+        return v, BASIS_DISCLOSED
+    return (own_calc, BASIS_OWN) if own_calc is not None else (None, None)
+
+
 def peer_median(peers: pd.DataFrame, col: str, exclude_self: bool = True,
                 min_n: int = 3):
     """정제된 피어 중앙값 (표본 min_n개 미만이면 None).

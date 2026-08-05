@@ -13,8 +13,9 @@ from src.analysis.commentary import (GROUP_BASIS, GROUP_READING,
                                      build_commentary, verdict_conflict)
 from src.analysis.indicators import compute_indicators
 from src.analysis.scenario import build_scenarios
-from src.analysis.scoring import (comparable_peers, compute_scores, peer_median,
-                                   rank_peers_cheapness, sanitize_peer_frame)
+from src.analysis.scoring import (BASIS_DISCLOSED, comparable_peers, compute_scores,
+                                   peer_median, rank_peers_cheapness, sanitize_peer_frame,
+                                   screen_multiple)
 from src.analysis.valuation import compute_valuation
 from src.data.models import actual_prices
 from src.ui import charts
@@ -330,13 +331,15 @@ def render_valuation_tab(d, ind, val):
     rows = []
     band_q50 = {"per": (val.per_q or {}).get(50), "pbr": (val.pbr_q or {}).get(50)}
     for key in ("per", "pbr", "psr", "ev_ebitda", "p_fcf", "div_yield", "peg"):
-        cur = ind.valuation.get(key)
+        # 「현재」는 업종 중앙값과 **같은 자**로 잰 값이어야 한다(ADR-0020 · #86).
+        cur, basis = screen_multiple(peers, key, ind.valuation.get(key))
         med = peer_median(peers, key)
         row = {"지표": label(key),
                "현재": fmt_value(key, cur, d.currency),
                "업종 중앙값": fmt_value(key, med, d.currency),
                "자기 과거 중앙값": fmt_x(band_q50.get(key)) if band_q50.get(key) else "—"}
-        if cur is not None and med:
+        # 자가 다르면(자체계산 폴백) 비교 판정을 만들지 않는다 — 기울어진 비교이기 때문이다.
+        if cur is not None and med and basis == BASIS_DISCLOSED:
             diff = cur / med - 1
             cheaper = diff < 0 if key != "div_yield" else diff > 0
             row["vs 업종"] = f"{'🔵' if cheaper else '🔴'} {abs(diff) * 100:.0f}% {'낮음' if diff < 0 else '높음'}"
@@ -959,9 +962,11 @@ def render():
         st.warning(_clash.short.replace("<b>", "**").replace("</b>", "**"), icon="⚠️")
 
     m = st.columns(6)
+    # 헤더 지표도 밸류에이션 탭과 **같은 값**을 쓴다(ADR-0020 · #86).
+    _hdr_peers = sanitize_peer_frame(d.peers)
     m[0].metric("시가총액", fmt_money(d.market_cap, d.currency))
-    m[1].metric("PER (TTM)", fmt_x(ind.valuation.get("per")))
-    m[2].metric("PBR", fmt_x(ind.valuation.get("pbr")))
+    m[1].metric("PER", fmt_x(screen_multiple(_hdr_peers, "per", ind.valuation.get("per"))[0]))
+    m[2].metric("PBR", fmt_x(screen_multiple(_hdr_peers, "pbr", ind.valuation.get("pbr"))[0]))
     m[3].metric("ROE (TTM)", fmt_pct(ind.profitability.get("roe")))
     m[4].metric("베타", f"{cc.beta_l:.2f}" if cc.beta_l is not None else "—")
     m[5].metric("WACC", fmt_pct(cc.wacc) if cc.wacc else "N/A")

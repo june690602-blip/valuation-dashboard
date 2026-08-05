@@ -393,6 +393,8 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 .val-consname { font-size: 12.5px; color: var(--ink-2); }
 .val-consval { font-size: 13.5px; color: var(--ink-2); }
 .val-consgap { font-size: 12px; color: var(--ink-3); }
+/* 표 아래 한 줄 — 판정을 내지 *못한* 이유를 밝히는 자리(ADR-0020). 판정이 아니므로 무채(R4). */
+.table-note { padding: 8px 0 0; font-size: 12px; color: var(--ink-3); line-height: 1.6; }
 
 /* 공식·출처 접기 — 계산식·인용·출처는 필요한 사람만 편다.
    네이티브 <details>를 쓴다: 이 블록들은 innerHTML로 나중에 꽂히는데, JS로 배선하면

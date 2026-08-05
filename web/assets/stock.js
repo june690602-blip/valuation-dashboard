@@ -960,7 +960,8 @@
     var t = D.tiles, fin = D.meta.is_financial;
     var items = [
       ['시가총액', t.market_cap != null ? fmtMoney(t.market_cap) : na('주가 또는 상장주식수를 확인하지 못했습니다.')],
-      ['PER (TTM)', t.per != null ? fmtX(t.per) : na('적자(EPS≤0)이거나 이익 데이터가 없어 PER를 계산할 수 없습니다.')],
+      // 'TTM'을 떼었다 — 이 값은 이제 공시 배수라 관측 창을 우리가 정하지 않는다(ADR-0020).
+      ['PER', t.per != null ? fmtX(t.per) : na('적자(EPS≤0)이거나 이익 데이터가 없어 PER를 계산할 수 없습니다.')],
       ['PBR', t.pbr != null ? fmtX(t.pbr) : na('자본(BPS) 데이터가 없어 PBR를 계산할 수 없습니다.')],
       ['ROE (TTM)', t.roe != null ? fmtPct(t.roe) : na('순이익 또는 자기자본을 받지 못해 ROE를 계산할 수 없습니다.')],
       ['베타 (β)', t.beta != null ? t.beta.toFixed(2) : na('상장 기간이 짧아 회귀 표본이 부족합니다 — 자본비용 탭은 β=1을 가정합니다.')],
@@ -1180,6 +1181,19 @@
       var last = i === D.multiples.length - 1;
       return '<div class="row" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr' + (last ? ';border-bottom:none' : '') + '"><span style="font-size:13.5px">' + esc(r.label) + '</span><span class="mono r" style="font-size:13.5px">' + fmtMult(r.key, r.current) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + fmtMult(r.key, r.med) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + (r.own_band != null ? fmtX(r.own_band) : '—') + '</span><span class="r" style="font-size:12.5px">' + vs + '</span></div>';
     }).join('');
+    // 공시 배수를 받지 못해 자체계산으로 내려간 지표는 업종 중앙값과 자가 달라 비교 판정을
+    // 내지 않는다(ADR-0020 · #86). 'vs 업종'이 왜 비었는지를 화면이 밝힌다.
+    // 업종 중앙값이 **있는데도** 판정을 못 낸 경우만 밝힌다. 중앙값 자체가 없는 지표
+    // (P/FCF·PEG — 피어에 대해 수집하지 않는다)는 근거와 무관하게 원래 비교가 안 되므로,
+    // 거기까지 이 문장을 붙이면 거의 모든 종목에 항상 뜨는 잡음이 된다.
+    var ownCalc = (D.multiples || []).filter(function (r) {
+      return r.basis === '자체계산' && r.med != null;
+    });
+    if (ownCalc.length) {
+      rows += '<div class="table-note">' +
+        esc(ownCalc.map(function (r) { return r.label; }).join(' · ')) +
+        '은(는) 공시 배수를 받지 못해 자체계산 값입니다 — 업종 중앙값과 계산 기준이 달라 비교 판정을 내지 않습니다.</div>';
+    }
     $('multiplesTable').innerHTML = head + rows;
     renderBand();
     renderScenario();
