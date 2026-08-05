@@ -11,6 +11,8 @@
   var ATTR = DV.ATTR, el = DV.el, esc = DV.esc, $ = DV.$, niceStep = DV.niceStep,
       wireSeg = DV.wireSeg, tiles = DV.tiles, tilesHtml = DV.tilesHtml, loadBasket = DV.loadBasket,
       saveBasket = DV.saveBasket;
+  /* 파이썬 쌍둥이가 있는 수식은 finmath.js 한 벌 — CI가 Node로 실행해 대조한다(#84). */
+  var FM = window.DVMath;
 
 
   /* ── 미니 마크다운 (Gemini 응답: ### 제목 · **굵게** · - 목록 · > 인용) ── */
@@ -472,19 +474,18 @@
     if (yTop <= yBot) yTop = yBot + yStep;
     var X = function (v) { return padL + Math.max(0, Math.min(perMax, v)) / perMax * xw; };
     var Y = function (v) { return padT + (1 - (Math.max(yBot, Math.min(yTop, v)) - yBot) / (yTop - yBot)) * plotH; };
-    var med = function (a) { var s = a.slice().sort(function (x, y) { return x - y; }), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
     // 축 범위는 자사를 포함해 잡고(자사 점이 화면 밖으로 나가면 안 된다), **업종 중앙 십자선은
     // 자사를 뺀 피어만으로** 낸다. 자사를 넣으면 중앙선이 자사 쪽으로 끌려 실제보다 업종에
     // 가까워 보이고, 표본이 홀수면 중앙값이 자사 자신이 되어 가로선이 자기 점 위에 그려진다
-    // (삼성전자 실측: 피어 9개에서 ROE 십자선 18.86% = 자사 ROE). 서버의 peer_median도
-    // exclude_self=True로 자사를 뺀다 — 같은 개념을 두 곳에서 계산하다 표본 정의가 갈렸다.
-    var peerOnly = pts.filter(function (p) { return !p.self; });
-    var medBase = peerOnly.length ? peerOnly : pts;
-    var medPer = med(medBase.map(function (p) { return p.per; }));
-    var medRoe = med(medBase.map(function (p) { return p.roe; }));
+    // (삼성전자 실측: 피어 9개에서 ROE 십자선 18.86% = 자사 ROE). 같은 개념을 두 곳에서
+    // 계산하다 표본 정의가 갈렸던 자리라(#78), 이제 수식과 표본 정의를 finmath.js 한 벌로
+    // 두고 서버의 peer_median과 CI가 대조한다(#84). 피어가 3개 미만이면 중앙값을 만들지
+    // 않는다 — 그 표본은 업종을 대표하지 못하고, 파이썬 쪽도 같은 이유로 None을 준다.
+    var medPer = FM.peerMedian(pts, 'per'), medRoe = FM.peerMedian(pts, 'roe');
+    var hasMed = medPer != null && medRoe != null;
     var els = [];
     // 저PER·고ROE 사분면 — 의미색은 아주 옅게만
-    els.push(el('rect', { x: padL, y: padT, width: X(medPer) - padL, height: Y(medRoe) - padT, fill: 'var(--dv-green)', fillOpacity: 0.05 }));
+    if (hasMed) els.push(el('rect', { x: padL, y: padT, width: X(medPer) - padL, height: Y(medRoe) - padT, fill: 'var(--dv-green)', fillOpacity: 0.05 }));
     // 그리드 — 주가차트와 같은 헤어라인
     for (var gv = yBot; gv <= yTop + 1e-9; gv += yStep) {
       els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(gv), y2: Y(gv), stroke: 'var(--line)', strokeWidth: 1 }));
@@ -500,12 +501,15 @@
     if (yBot < 0) els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(0), y2: Y(0), stroke: 'var(--line-strong)', strokeWidth: 1 }));
     els.push(el('line', { x1: padL, x2: padL + xw, y1: padT + plotH, y2: padT + plotH, stroke: 'var(--line-strong)', strokeWidth: 1 }));
     els.push(el('line', { x1: padL, x2: padL, y1: padT, y2: padT + plotH, stroke: 'var(--line-strong)', strokeWidth: 1 }));
-    // 업종 중앙값 십자선 — 사분면의 실제 기준
-    els.push(el('line', { x1: X(medPer), x2: X(medPer), y1: padT, y2: padT + plotH, stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
-    els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(medRoe), y2: Y(medRoe), stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
-    els.push(el('text', { x: X(medPer) + 5, y: padT + plotH - 6, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)' }, '업종 중앙 ' + medPer.toFixed(1) + '×'));
-    els.push(el('text', { x: padL + xw - 3, y: Y(medRoe) - 5, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, '업종 중앙 ' + medRoe.toFixed(1) + '%'));
-    els.push(el('text', { x: padL + 8, y: padT + 15, fontSize: 11, fill: 'var(--dv-green)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '저PER · 고ROE'));
+    // 업종 중앙값 십자선 — 사분면의 실제 기준. 중앙값이 없으면 사분면 자체가 성립하지 않아
+    // 십자선도 '저PER · 고ROE' 라벨도 그리지 않는다(점과 축은 그대로 읽을 수 있다).
+    if (hasMed) {
+      els.push(el('line', { x1: X(medPer), x2: X(medPer), y1: padT, y2: padT + plotH, stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
+      els.push(el('line', { x1: padL, x2: padL + xw, y1: Y(medRoe), y2: Y(medRoe), stroke: 'var(--dv-slate)', strokeWidth: 1, strokeDasharray: '4 3', opacity: 0.75 }));
+      els.push(el('text', { x: X(medPer) + 5, y: padT + plotH - 6, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)' }, '업종 중앙 ' + medPer.toFixed(1) + '×'));
+      els.push(el('text', { x: padL + xw - 3, y: Y(medRoe) - 5, fontSize: 9.5, fill: 'var(--dv-slate)', fontFamily: 'var(--font-mono)', textAnchor: 'end' }, '업종 중앙 ' + medRoe.toFixed(1) + '%'));
+      els.push(el('text', { x: padL + 8, y: padT + 15, fontSize: 11, fill: 'var(--dv-green)', fontFamily: 'var(--font-sans)', fontWeight: 600 }, '저PER · 고ROE'));
+    }
     // 점 = 클릭 가능한 그룹(data-q 검색키 · data-key 매칭키). 넓은 투명 히트원으로 클릭/hover 쉬움.
     // 라벨 자리는 본인부터 잡고(위→아래→오른→왼), 자리가 없으면 숨겨 hover 때만 보여준다.
     var boxes = [], rendered = [];
@@ -956,7 +960,8 @@
     var t = D.tiles, fin = D.meta.is_financial;
     var items = [
       ['시가총액', t.market_cap != null ? fmtMoney(t.market_cap) : na('주가 또는 상장주식수를 확인하지 못했습니다.')],
-      ['PER (TTM)', t.per != null ? fmtX(t.per) : na('적자(EPS≤0)이거나 이익 데이터가 없어 PER를 계산할 수 없습니다.')],
+      // 'TTM'을 떼었다 — 이 값은 이제 공시 배수라 관측 창을 우리가 정하지 않는다(ADR-0020).
+      ['PER', t.per != null ? fmtX(t.per) : na('적자(EPS≤0)이거나 이익 데이터가 없어 PER를 계산할 수 없습니다.')],
       ['PBR', t.pbr != null ? fmtX(t.pbr) : na('자본(BPS) 데이터가 없어 PBR를 계산할 수 없습니다.')],
       ['ROE (TTM)', t.roe != null ? fmtPct(t.roe) : na('순이익 또는 자기자본을 받지 못해 ROE를 계산할 수 없습니다.')],
       ['베타 (β)', t.beta != null ? t.beta.toFixed(2) : na('상장 기간이 짧아 회귀 표본이 부족합니다 — 자본비용 탭은 β=1을 가정합니다.')],
@@ -1176,6 +1181,19 @@
       var last = i === D.multiples.length - 1;
       return '<div class="row" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr' + (last ? ';border-bottom:none' : '') + '"><span style="font-size:13.5px">' + esc(r.label) + '</span><span class="mono r" style="font-size:13.5px">' + fmtMult(r.key, r.current) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + fmtMult(r.key, r.med) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + (r.own_band != null ? fmtX(r.own_band) : '—') + '</span><span class="r" style="font-size:12.5px">' + vs + '</span></div>';
     }).join('');
+    // 공시 배수를 받지 못해 자체계산으로 내려간 지표는 업종 중앙값과 자가 달라 비교 판정을
+    // 내지 않는다(ADR-0020 · #86). 'vs 업종'이 왜 비었는지를 화면이 밝힌다.
+    // 업종 중앙값이 **있는데도** 판정을 못 낸 경우만 밝힌다. 중앙값 자체가 없는 지표
+    // (P/FCF·PEG — 피어에 대해 수집하지 않는다)는 근거와 무관하게 원래 비교가 안 되므로,
+    // 거기까지 이 문장을 붙이면 거의 모든 종목에 항상 뜨는 잡음이 된다.
+    var ownCalc = (D.multiples || []).filter(function (r) {
+      return r.basis === '자체계산' && r.med != null;
+    });
+    if (ownCalc.length) {
+      rows += '<div class="table-note">' +
+        esc(ownCalc.map(function (r) { return r.label; }).join(' · ')) +
+        '은(는) 공시 배수를 받지 못해 자체계산 값입니다 — 업종 중앙값과 계산 기준이 달라 비교 판정을 내지 않습니다.</div>';
+    }
     $('multiplesTable').innerHTML = head + rows;
     renderBand();
     renderScenario();
@@ -1194,7 +1212,9 @@
     function caseDelta(name) { return name === '비관' ? state.scnBear : name === '낙관' ? state.scnBull : 0; }
     function caseTiles() {
       return tilesHtml(s.cases.map(function (cs) {
-        var dlt = caseDelta(cs.name), m = cs.multiple * (1 + state.scnMult), p = s.eps_base * (1 + dlt) * m;
+        // 케이스 가격은 finmath.js 한 벌 — 파이썬 쌍둥이(scenario.case_price)와 CI가 대조한다(#84).
+        var dlt = caseDelta(cs.name), m = cs.multiple * (1 + state.scnMult);
+        var p = FM.scenarioCasePrice(s.eps_base, dlt, cs.multiple, state.scnMult);
         var up = D.meta.price ? p / D.meta.price - 1 : null;
         return [cs.name, fmtPrice(p), '', {
           kickColor: CASE_TONE[cs.name],
@@ -1212,7 +1232,7 @@
         if (tot) parts.push('민감도 ' + tot + '칸 중 <b>' + green + '칸(' + Math.round(green / tot * 100) + '%)</b>이 현재가 위');
       }
       var bear = s.cases[0], up = null;
-      if (bear && D.meta.price) up = s.eps_base * (1 + state.scnBear) * bear.multiple * (1 + state.scnMult) / D.meta.price - 1;
+      if (bear && D.meta.price) up = FM.scenarioCasePrice(s.eps_base, state.scnBear, bear.multiple, state.scnMult) / D.meta.price - 1;
       if (up != null) parts.push('비관 케이스는 현재가 대비 <b style="color:' + (up >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">' + fmtSigned(up) + '</b>' + (up >= 0 ? ' (하방 완충이 있는 편)' : ' (비관 가정 실현 시 하락 여지)'));
       return parts.length ? '지금 가정에서는 ' + parts.join(', ') + '입니다.' : '';
     }
@@ -1954,23 +1974,93 @@
   }
 
   /* ══════════ 데이터 로드 ══════════ */
-  function setStatus(on, msg, isErr) {
-    var s = $('status'); s.classList.toggle('on', on);
-    if (msg) $('statusMsg').innerHTML = (isErr ? '<span style="color:var(--danger)">⚠ ' + esc(msg) + '</span><div style="font-size:12px;color:var(--ink-3);margin-top:8px">종목을 바꿔 다시 시도하세요. (클릭하면 닫힘)</div>' : esc(msg));
-    s.querySelector('.spin').style.display = isErr ? 'none' : 'block';
+  /* ── 수집 중 카드 ──
+     단계는 파이프라인 순서 그대로다: 시세·재무·뉴스 → 피어 → 업종 회귀 계수.
+     서버가 뒤 단계를 보고하기 시작하면 앞 단계는 끝난 것이므로 그때 체크한다 —
+     추측이 아니라 순서에서 나오는 사실이다. 계수는 캐시(24시간)가 살아 있으면
+     보고 자체가 없으니, 응답이 오면 "캐시"로 적고 함께 닫는다. */
+  var LD_ROWS = ['ldFetch', 'ldPeers', 'ldCoef'];
+  var LD_STAGE = { '피어 수집': 1, '업종 회귀 계수': 2 };
+  var _ldT0 = 0, _ldTick = null;
+
+  function ldReset() {
+    var card = $('ldCard'); if (!card) return;
+    card.classList.remove('err');
+    $('ldTitle').textContent = '데이터를 불러오는 중';
+    $('ldErr').style.display = 'none';
+    $('ldFoot').style.display = '';
+    LD_ROWS.forEach(function (id, i) {
+      var r = $(id); if (!r) return;
+      r.classList.remove('done');
+      r.classList.toggle('wait', i > 0);
+      var sub = r.querySelector('.ld-sub');
+      if (sub && sub.dataset.base) sub.textContent = sub.dataset.base;
+    });
   }
+
+  /* 지금 도는 단계까지 앞줄을 전부 체크하고, 그 줄에 n/m을 적는다. */
+  function ldAt(idx, done, total) {
+    LD_ROWS.forEach(function (id, i) {
+      var r = $(id); if (!r) return;
+      r.classList.toggle('done', i < idx);
+      r.classList.toggle('wait', i > idx);
+    });
+    var row = $(LD_ROWS[idx]); if (!row || total == null) return;
+    var sub = row.querySelector('.ld-sub');
+    if (!sub) return;
+    if (!sub.dataset.base) sub.dataset.base = sub.textContent;
+    sub.textContent = sub.dataset.base + ' — ' + done + '/' + total;
+  }
+
+  function ldTickStart() {
+    _ldT0 = Date.now();
+    clearInterval(_ldTick);
+    _ldTick = setInterval(function () {
+      var f = $('ldFoot'); if (!f) return;
+      var s = Math.round((Date.now() - _ldT0) / 1000);
+      f.innerHTML = '<span class="mono">' + s + '초</span> 경과<br>다시 열 때는 캐시로 즉시 열려요.';
+    }, 300);
+  }
+
+  function setStatus(on, msg, isErr) {
+    var s = $('status');
+    s.classList.toggle('on', on);
+    if (!on) { clearInterval(_ldTick); return; }
+    if (isErr) {
+      clearInterval(_ldTick);
+      $('ldCard').classList.add('err');
+      $('ldTitle').textContent = '불러오지 못했습니다';
+      $('ldFoot').style.display = 'none';
+      var e = $('ldErr');
+      e.style.display = '';
+      e.innerHTML = esc(msg || '분석에 실패했습니다.')
+        + '<div style="font-size:var(--fs-note);color:var(--ink-3);margin-top:8px">종목을 바꿔 다시 시도하세요. (클릭하면 닫힘)</div>';
+      return;
+    }
+    ldReset();
+    // ETF는 재무제표·피어·회귀 계수가 없다(3축 분석). 없는 단계를 띄워 두면
+    // 영영 체크되지 않는 줄이 남아 '멈춘 것처럼' 보인다 — 아예 감춘다.
+    var etf = state.kind === 'etf';
+    $('ldPeers').style.display = etf ? 'none' : '';
+    $('ldCoef').style.display = etf ? 'none' : '';
+    $('ldFetch').querySelector('.ld-lbl').textContent = etf ? 'ETF 지표 · 보유 종목' : '시세 · 재무제표 · 뉴스';
+    ldAt(0, null, null);
+    ldTickStart();
+  }
+
   var _reqSeq = 0;
   var _progT = null;
   function stopProgress() { if (_progT) { clearInterval(_progT); _progT = null; } }
   function startProgress(seq) {
-    // 서버의 진행 상태(피어 수집 n/m)를 폴링해 대기 체감을 줄인다 — 실측값이라 정직하다
+    // 서버의 진행 상태를 폴링한다 — 실측값이라 정직하다(가짜 진행률 없음).
     stopProgress();
     var pu = 'api/progress?market=' + encodeURIComponent(state.market) + '&query=' + encodeURIComponent(state.query);
     _progT = setInterval(function () {
       if (seq !== _reqSeq) { stopProgress(); return; }
       fetch(pu).then(function (r) { return r.json(); }).then(function (p) {
         if (seq !== _reqSeq || !p || !p.total) return;
-        $('statusMsg').textContent = "'" + state.query + "' " + p.stage + ' ' + p.done + '/' + p.total + '…';
+        var idx = LD_STAGE[p.stage];
+        if (idx != null) ldAt(idx, p.done, p.total);
       }).catch(function () {});
     }, 700);
   }

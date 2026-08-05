@@ -22,8 +22,9 @@ from src.analysis.capital_cost import compute_capital_cost
 from src.analysis.commentary import GROUP_BASIS, build_commentary, verdict_conflict
 from src.analysis.etf import compute_etf
 from src.analysis.indicators import compute_indicators
-from src.analysis.scoring import (comparable_peers, peer_median,
-                                   rank_peers_cheapness, sanitize_peer_frame)
+from src.analysis.scoring import (BASIS_DISCLOSED, comparable_peers, peer_median,
+                                   rank_peers_cheapness, sanitize_peer_frame,
+                                   screen_multiple)
 from src.analysis.valuation import CONSENSUS_METHOD as VAL_CONSENSUS_METHOD
 from src.analysis.valuation import compute_valuation
 from src.data.models import actual_prices
@@ -367,17 +368,19 @@ def _multiples(d, ind, val) -> list:
     band50 = {"per": (val.per_q or {}).get(50), "pbr": (val.pbr_q or {}).get(50)}
     rows = []
     for key in ("per", "pbr", "psr", "ev_ebitda", "p_fcf", "div_yield", "peg"):
-        cur = ind.valuation.get(key)
+        # 「현재」는 업종 중앙값과 **같은 자**로 잰 값이어야 한다(ADR-0020 · #86).
+        cur, basis = screen_multiple(peers, key, ind.valuation.get(key))
         med = peer_median(peers, key)
         vs, cheaper = None, None
-        if cur is not None and med:
+        # 자가 다르면(자체계산 폴백) 비교 판정을 만들지 않는다 — 기울어진 비교이기 때문이다.
+        if cur is not None and med and basis == BASIS_DISCLOSED:
             diff = cur / med - 1
             cheaper = (diff < 0) if key != "div_yield" else (diff > 0)
             vs = abs(diff) * 100
         rows.append({
             "key": key, "label": MULTIPLE_LABELS[key],
             "current": num(cur), "med": num(med), "own_band": num(band50.get(key)),
-            "vs": num(vs), "cheaper": cheaper,
+            "vs": num(vs), "cheaper": cheaper, "basis": basis,
             "is_pct": key == "div_yield",
         })
     return rows
@@ -715,6 +718,9 @@ def analyze(market: str, query: str, peer_count: int = 9,
     # 해설은 한 번만 만들고, 판정↔근거 충돌 판단에 같은 목록을 쓴다(두 번 만들면 갈릴 수 있다).
     _commentary = build_commentary(d, ind, scores, cc, val)
     _conflict = verdict_conflict(val, [c for c in _commentary if c.group == GROUP_BASIS])
+    # 타일이 밸류에이션 탭·피어표와 같은 프레임을 보게 한다(#86). _multiples가 쓰는 것과
+    # 같은 정제 프레임이라, 한 화면 안에서 같은 지표가 두 값이 되지 않는다.
+    _tile_peers = sanitize_peer_frame(d.peers)
 
     payload = {
         "meta": {
@@ -794,9 +800,13 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "conflict": ({"short": _conflict.short, "detail": _conflict.detail}
                          if _conflict else None),
         },
+        # 타일도 밸류에이션 탭과 **같은 값**을 쓴다(ADR-0020 · #86). 예전에는 타일이
+        # 자체계산, 탭이 자체계산, 피어표가 공시값이라 한 종목의 PER이 화면에서 두 값이었다.
         "tiles": {
-            "market_cap": num(d.market_cap), "per": num(ind.valuation.get("per")),
-            "pbr": num(ind.valuation.get("pbr")), "roe": num(ind.profitability.get("roe")),
+            "market_cap": num(d.market_cap),
+            "per": num(screen_multiple(_tile_peers, "per", ind.valuation.get("per"))[0]),
+            "pbr": num(screen_multiple(_tile_peers, "pbr", ind.valuation.get("pbr"))[0]),
+            "roe": num(ind.profitability.get("roe")),
             "beta": num(cc.beta_l), "wacc": num(cc.wacc),
         },
         "indicators": {

@@ -12,7 +12,7 @@
 <style>
   .tbl { margin-top: 12px; }
   .note { font-size: 12px; color: var(--ink-3); line-height: 1.65; }
-  .warn { border: 1px solid var(--line-strong); background: var(--paper-2); border-radius: var(--radius-md); padding: 14px 16px; font-size: 13px; color: var(--ink-2); line-height: 1.7; }
+  .warn { border: 1px solid var(--line-strong); background: var(--paper-2); border-radius: var(--radius-md); padding: 14px 16px; font-size: 13px; color: var(--ink-2); line-height: 1.7; box-shadow: var(--shadow-card); }
   .linkbtns { display: flex; gap: 10px; flex-wrap: wrap; }
   .bar { height: 8px; background: var(--paper-3); border-radius: var(--radius-pill); overflow: hidden; }
   .bar > i { display: block; height: 100%; background: var(--dv-navy); }
@@ -24,13 +24,13 @@
 <a class="skip-link" href="#main">본문으로 건너뛰기</a>
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
 
-  <header class="app-header" style="min-height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:24px;padding:0 24px;background:var(--paper-veil);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
-    <a class="brand" href="home.html" aria-label="투자지표 홈" style="display:flex;align-items:center;gap:8px;flex:none;white-space:nowrap;color:inherit;text-decoration:none"><span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
-      <span class="brand-name" style="font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing:-0.01em">투자지표</span>
+  <header class="app-header">
+    <a class="brand" href="home.html" aria-label="투자지표 홈"><span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
+      <span class="brand-name">투자지표</span>
       <span style="font-family:var(--font-mono);font-size:10px;color:var(--ink-3);letter-spacing:0.1em;border:1px solid var(--line);padding:2px 4px;border-radius:var(--radius-sm)">ADMIN</span>
     </a>
-    <nav style="display:flex;gap:2px;align-items:center;white-space:nowrap">
-      <a href="home.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">← 사이트로</a>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a class="nav-link" href="home.html">← 사이트로</a>
     </nav>
     <div style="margin-left:auto"><button id="refreshBtn" class="btn btn-secondary btn-sm" style="display:none">↺ 새로고침</button></div>
   </header>

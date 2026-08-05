@@ -46,16 +46,18 @@ sys.stdout.reconfigure(encoding="utf-8")
 OK, BAD, NA = "[확인]", "[문제]", "[불가]"
 _tally = {OK: 0, BAD: 0, NA: 0}
 
-# 지금 열려 있는 문제의 수 — 전부 이슈로 등록돼 있고 순서대로 닫는다.
-#   #73 공용 셸(네비 규격 4가지·헤더 구현 2벌) · #74 브레이크포인트 12가지·타이포/간격 토큰 부재
-#   #75 카드 깊이가 화면마다 다름
+# 지금 열려 있는 문제의 수. R4가 남긴 셋(#73 공용 셸 · #74 타이포/간격/브레이크포인트 ·
+# #75 카드 깊이)은 전부 닫혔다 — 아래 이력 참고.
 # 이 스크립트는 **이 수보다 늘어날 때만** 실패한다(R5). 문제를 찍고도 종료코드 0을 반환하면
 # CI에 걸어도 머지를 막지 못해 보고서에 그친다. 반대로 열린 이슈까지 실패로 처리하면 CI가
 # 늘 빨간 상태가 되어 아무도 보지 않게 된다 — 그래서 기준선을 적어 두고 회귀만 막는다.
 # **이슈를 닫으면 이 값을 함께 내린다.**
 # #74가 타이포·브레이크포인트·간격 셋을 닫았다 — 5 → 2.
-# 남은 둘: 네비 규격 4가지(#73) · 카드 그림자(#75).
-KNOWN_OPEN = 2
+# #73이 공용 셸을 한 벌로 모았다(네비 4벌·헤더 2벌 → 각 1벌) — 2 → 1.
+# #75가 카드 깊이를 한 단으로 모았다(관문만 예외) — 1 → 0.
+# **이제 열린 문제가 없다.** 이 값이 0이라는 것은 새로 생기는 어긋남이 곧바로 CI를
+# 빨갛게 만든다는 뜻이다 — 기준선이 회귀를 가려 주던 상태가 끝났다.
+KNOWN_OPEN = 0
 
 
 def say(verdict: str, title: str, detail: str = "") -> None:
@@ -111,7 +113,7 @@ SKIP = re.compile(r"preview-home-")
 #   높이는 역할이 다르다는 신호라 남겼고, 구현 통합은 화면 구성이 함께 움직여 R5의 것이다.
 SHELL_SITES = {
     "web/home.html": {
-        "impl": "class:.site-header",
+        "impl": "class:.app-header gateway",
         "role": "관문",
         "height": "64px(min-height)",
         "bg": "--paper-veil",
@@ -120,58 +122,58 @@ SHELL_SITES = {
         "nav": ".nav-link 13px / gap 2px",
     },
     "web/guide.html": {
-        "impl": "class:.site-header",
+        "impl": "class:.app-header",
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
         "brand_px": "22px",
         "brand_mark": True,
-        "nav": ".top-nav a 13.5px / gap 4px",
+        "nav": ".nav-link 13px / gap 2px",
     },
     "web/test.html": {
-        "impl": "class:.site-header",
+        "impl": "class:.app-header",
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
         "brand_px": "22px",
         "brand_mark": True,
-        "nav": ".site-nav a 13.5px / gap 4px",
+        "nav": ".nav-link 13px / gap 2px",
     },
     "web/stock.html": {
-        "impl": "inline",
+        "impl": "class:.app-header",
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
         "brand_px": "22px",
         "brand_mark": True,
-        "nav": "inline a 13px / gap 2px",
+        "nav": ".nav-link 13px / gap 2px",
     },
     "web/bond.html": {
-        "impl": "inline",
+        "impl": "class:.app-header",
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
         "brand_px": "22px",
         "brand_mark": True,
-        "nav": "inline a 13px / gap 2px",
+        "nav": ".nav-link 13px / gap 2px",
     },
     "web/portfolio.html": {
-        "impl": "inline",
+        "impl": "class:.app-header",
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
         "brand_px": "22px",
         "brand_mark": True,
-        "nav": "inline a 13px / gap 2px",
+        "nav": ".nav-link 13px / gap 2px",
     },
     "web/admin.html": {
-        "impl": "inline",
+        "impl": "class:.app-header",
         "role": "작업대",
         "height": "58px(min-height)",
         "bg": "--paper-veil",
         "brand_px": "22px",
         "brand_mark": True,
-        "nav": "inline a 13px / gap 2px",
+        "nav": ".nav-link 13px / gap 2px",
     },
 }
 
@@ -253,6 +255,47 @@ def contrast(a: str, b: str) -> float:
 HEADER_RE = re.compile(r"<header[^>]*>", re.I)
 
 
+def _strip_media(text: str) -> str:
+    """@media 블록과 주석을 뺀다.
+
+    주석을 함께 빼는 이유: 주석이 클래스 이름을 언급하면(「셸은 meridian.css에 있다」처럼)
+    뒤따르는 규칙까지 한 덩어리로 잡혀 없는 문제가 잡힌다. 실제로 그렇게 걸렸다.
+    미디어 쿼리를 빼는 이유: 좁은 화면용 축소값은 '값을 다시 적은 것'이 아니다.
+    """
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    out, i = [], 0
+    while True:
+        m = re.search(r"@media[^{]*\{", text[i:])
+        if not m:
+            out.append(text[i:])
+            break
+        out.append(text[i:i + m.start()])
+        j, depth = i + m.end(), 1
+        while j < len(text) and depth:
+            depth += (text[j] == "{") - (text[j] == "}")
+            j += 1
+        i = j
+    return "".join(out)
+
+
+def _brand_size_in(css: str) -> float | None:
+    """`.brand-name`의 font-size를 px로 돌려준다. 토큰(var(--fs-*))이면 :root에서 푼다."""
+    m = re.search(r"\.brand-name[^{}]*\{([^{}]*)\}", css)
+    if not m:
+        m = re.search(r'class="brand-name"[^>]*style="([^"]*)"', css)
+        if not m:
+            return None
+    body = m.group(1)
+    lit = re.search(r"font-size:\s*([0-9.]+)px", body)
+    if lit:
+        return float(lit.group(1))
+    tok = re.search(r"font-size:\s*var\((--[\w-]+)\)", body)
+    if tok:
+        val = re.search(rf"{tok.group(1)}:\s*([0-9.]+)px", read("web/assets/meridian.css"))
+        return float(val.group(1)) if val else None
+    return None
+
+
 def check_shell() -> None:
     head("A. 공용 셸 — 헤더·네비·브랜드가 한 벌인가")
 
@@ -320,27 +363,34 @@ def check_shell() -> None:
         say(OK, f"로고마크가 {len(SHELL_SITES)}장 전부에 있다",
             "meridian.css의 .brand-mark 한 곳에서 정의한다 — 한 번 고치면 7장이 함께 움직인다.")
 
-    # 레지스트리에 적힌 크기가 실제 파일과 같은가. 여기까지 보지 않으면 레지스트리는
-    # **자기 자신하고만 비교**한다 — #74에서 워드마크를 21 → 22px로 옮겼을 때
-    # 화면은 22px인데 레지스트리는 21px이라고 말하면서도 [확인]이 떴다.
-    # 기준은 각 화면의 base 선언이라 미디어 쿼리 안의 축소값은 제외한다(가장 큰 값).
-    actual: dict[str, str] = {}
-    for page in SHELL_SITES:
-        found = [float(m.group(1))
-                 for line in read(page).splitlines() if "brand-name" in line
-                 for m in FONT_SIZE_RE.finditer(line)]
-        actual[Path(page).name] = f"{max(found):g}px" if found else "없음"
+    # 워드마크 크기는 이제 meridian.css 한 곳에서 정한다(#73). 그래서 보는 것이 둘로 갈린다:
+    #   1) 공용 파일의 값이 레지스트리와 같은가
+    #   2) 페이지가 그 값을 **다시 적지 않았는가** (미디어 쿼리 안의 축소는 화면 사정이라 뺀다)
+    # 여기까지 보지 않으면 레지스트리는 자기 자신하고만 비교한다 — #74에서 워드마크를
+    # 21 → 22px로 옮겼을 때 화면은 22px인데 레지스트리는 21px이라 말하면서 [확인]이 떴다.
     sizes = {r["brand_px"] for r in SHELL_SITES.values()}
-    drift = {name: got for (page, r), (name, got) in zip(SHELL_SITES.items(), actual.items())
-             if got != r["brand_px"]}
+    shared_css = read("web/assets/meridian.css")
+    shared_px = _brand_size_in(shared_css)
+    redeclared: list[str] = []
+    for page in SHELL_SITES:
+        text = read(page)
+        base = _strip_media(text)
+        if _brand_size_in(base) is not None:
+            redeclared.append(Path(page).name)
     if len(sizes) > 1:
         say(BAD, f"브랜드 워드마크 크기가 {len(sizes)}가지", " · ".join(sorted(sizes)))
-    elif drift:
-        say(BAD, f"레지스트리와 화면이 어긋난다 — 워드마크 {len(drift)}장",
-            "\n".join(f"{name}: 화면 {got} · 레지스트리 {sizes and sorted(sizes)[0]}"
-                      for name, got in drift.items()))
+    elif shared_px is None:
+        say(BAD, "meridian.css에 워드마크 크기가 없다",
+            ".brand-name의 font-size가 공용 파일에 있어야 7장이 함께 움직인다.")
+    elif f"{shared_px:g}px" != sorted(sizes)[0]:
+        say(BAD, "레지스트리와 공용 CSS가 어긋난다 — 워드마크",
+            f"meridian.css {shared_px:g}px · 레지스트리 {sorted(sizes)[0]}")
+    elif redeclared:
+        say(BAD, f"워드마크 크기를 다시 적은 화면 {len(redeclared)}장", ", ".join(redeclared)
+            + "\n공용 값이 있는데 페이지가 또 적으면 공용 값을 고쳐도 그 화면만 따라오지 않는다.")
     else:
-        say(OK, f"브랜드 워드마크 크기가 하나 ({sorted(sizes)[0]}) — 7장 실측과 일치")
+        say(OK, f"브랜드 워드마크 크기가 하나 ({shared_px:g}px) — meridian.css가 유일한 출처",
+            "7장 어디에도 다시 적힌 곳이 없다(미디어 쿼리 안의 축소는 화면 사정이라 뺀다).")
 
     # ── 여기부터는 **의도적으로 남긴 차이**다 ──
     heights: dict[str, list[str]] = {}
@@ -351,6 +401,24 @@ def check_shell() -> None:
         + "\n홈은 관문이라 한 단계 크고, 나머지는 작업대라 낮다. 브랜드·톤은 같으므로\n"
           "'다른 사이트'로 읽히지 않는다 — 다른 방이라는 신호만 남긴다.")
 
+    # 네비도 레지스트리만 보면 '한 벌이라고 적어 두기'가 된다. 실제 마크업을 읽는다:
+    #   1) 헤더 <nav> 안의 <a>가 전부 .nav-link 인가 (인라인 style이 남았는가)
+    #   2) 페이지가 .nav-link/.site-nav를 base에서 다시 정의했는가
+    nav_inline: list[str] = []
+    nav_redeclared: list[str] = []
+    for page in SHELL_SITES:
+        text = read(page)
+        m = re.search(r'<nav class="site-nav"[^>]*>(.*?)</nav>', text, re.S)
+        if m is None:
+            nav_inline.append(f"{Path(page).name}: .site-nav 없음")
+            continue
+        for a in re.finditer(r"<a\b[^>]*>", m.group(1)):
+            if "style=" in a.group(0) or 'class="nav-link"' not in a.group(0):
+                nav_inline.append(f"{Path(page).name}: {a.group(0)[:60]}")
+        base = _strip_media(text)
+        if re.search(r"\.(nav-link|site-nav)\b[^{}]*\{[^{}]*(font-size|gap)\s*:", base):
+            nav_redeclared.append(Path(page).name)
+
     navs = {r["nav"] for r in SHELL_SITES.values()}
     if len(navs) > 1:
         say(BAD, f"네비 링크 규격이 {len(navs)}가지 — 이슈로 남김",
@@ -358,8 +426,50 @@ def check_shell() -> None:
             + f"\n헤더 구현도 {len(impls)}벌이다: "
             + " / ".join(f"{k}({len(v)})" for k, v in impls.items())
             + "\n한 벌로 합치려면 마크업이 함께 움직여 화면 구성 변경이 된다 — R5의 범위다.")
+    elif nav_inline or nav_redeclared:
+        detail = "\n".join(nav_inline)
+        if nav_redeclared:
+            detail += ("\n규격을 다시 적은 화면: " + ", ".join(nav_redeclared)
+                       + " — 공용 .nav-link를 고쳐도 이 화면만 따라오지 않는다.")
+        say(BAD, f"네비 규격은 하나로 등록됐는데 화면이 따르지 않는다 ({len(nav_inline) + len(nav_redeclared)}건)",
+            detail)
     else:
         say(OK, "네비 링크 규격이 하나")
+
+    # 규격이 같아도 **내용**이 갈릴 수 있다. 실제로 갈려 있었다 — 6장은 '위험 프로파일'을,
+    # 설명서만 '포트폴리오'를 넣고 있어서 **포트폴리오 화면은 자기가 메뉴에 없었다**.
+    # 그 화면에서 나가면 홈을 거치지 않고는 돌아올 수 없었고, '지금 여기' 표시도 못 달았다.
+    # 관리 화면은 예외다 — 사이트 메뉴를 노출하지 않는 것이 의도다(이슈 #73).
+    MENU_EXEMPT = {"web/admin.html"}
+    menus: dict[tuple, list[str]] = {}
+    for page in SHELL_SITES:
+        if page in MENU_EXEMPT:
+            continue
+        m = re.search(r'<nav class="site-nav"[^>]*>(.*?)</nav>', read(page), re.S)
+        if m is None:
+            continue
+        menus.setdefault(tuple(re.findall(r'href="([^"]+)"', m.group(1))), []).append(Path(page).name)
+    if len(menus) > 1:
+        say(BAD, f"메뉴 내용이 {len(menus)}가지",
+            "\n".join(" · ".join(k) + "\n    → " + ", ".join(v) for k, v in menus.items())
+            + "\n한 화면에만 있는 항목은 다른 화면에서 갈 길이 없다는 뜻이다.")
+    elif menus:
+        items, pages = next(iter(menus.items()))
+        say(OK, f"메뉴 내용이 한 벌 ({len(items)}개 · {len(pages)}장)",
+            " · ".join(items) + "\n관리 화면은 사이트 메뉴를 노출하지 않는다(의도된 예외).")
+
+    # 자기 화면을 메뉴에서 '지금 여기'로 표시하는가 — 표시가 없으면 어디 있는지 알 수 없다.
+    no_current = []
+    for page in SHELL_SITES:
+        if page in MENU_EXEMPT:
+            continue
+        m = re.search(r'<nav class="site-nav"[^>]*>(.*?)</nav>', read(page), re.S)
+        if m is None or 'aria-current="page"' not in m.group(1):
+            no_current.append(Path(page).name)
+    if no_current:
+        say(BAD, f"'지금 여기' 표시가 없는 화면 {len(no_current)}장", ", ".join(no_current))
+    else:
+        say(OK, "모든 화면이 메뉴에서 자기 자리를 표시한다")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -479,19 +589,34 @@ def check_shadow_hierarchy() -> None:
         say(OK, f"--shadow-card는 카드급에만 쓰인다 ({len(users)}곳)",
             "PR #48의 규약이 회귀하지 않았다.")
 
-    # 페이지별 카드 그림자 유무 — 같은 '카드'가 화면마다 다른 깊이면 위계가 아니라 우연이다
+    # 페이지별 카드 그림자 유무 — 같은 '카드'가 화면마다 다른 깊이면 위계가 아니라 우연이다.
+    #
+    # 홈은 **등록된 예외**다(#75에서 확정). 관문은 "어디로 갈지" 하나를 고르게 하는 화면이라
+    # 주역이 지면에서 확실히 떠야 해서 lg/sm 3단을 쓴다. 나머지는 작업대라 한 단이다.
+    # 예외를 그냥 통과시키면 '방치'와 구분이 안 되므로, **홈이 실제로 3단을 쓰는지**까지 본다 —
+    # 홈이 평평해지는 순간 그건 예외가 아니라 빠뜨린 것이다.
+    GATEWAY = "web/home.html"
     per_page: dict[str, int] = {}
     for page in PAGES:
         per_page[Path(page).name] = read(page).count("var(--shadow-card)")
-    flat = [k for k, v in per_page.items() if v == 0]
-    lifted = [k for k, v in per_page.items() if v > 0]
+    bench = {k: v for k, v in per_page.items() if k != Path(GATEWAY).name}
+    flat = [k for k, v in bench.items() if v == 0]
+    lifted = [k for k, v in bench.items() if v > 0]
+    home_css = read(GATEWAY)
+    home_tiers = [t for t in ("--shadow-lg", "--shadow-sm") if f"var({t})" in home_css]
     if flat and lifted:
         say(BAD, "카드 그림자를 쓰는 화면과 안 쓰는 화면이 갈린다",
-            f"뜬 카드: {', '.join(f'{k}({per_page[k]})' for k in lifted)}\n"
+            f"뜬 카드: {', '.join(f'{k}({bench[k]})' for k in lifted)}\n"
             f"평평한 화면: {', '.join(flat)}\n"
             "같은 '테두리 있는 상자'가 화면에 따라 떠 있기도 하고 붙어 있기도 하다.")
+    elif len(home_tiers) < 2:
+        say(BAD, "관문(홈)이 예외로 등록됐는데 위계가 없다",
+            f"홈에서 찾은 단: {', '.join(home_tiers) or '없음'}\n"
+            "홈이 3단(lg/sm)을 쓰기 때문에 한 단 규약에서 뺐다 — 평평해졌다면 예외가 아니라 빠뜨린 것이다.")
     else:
-        say(OK, "카드 깊이가 화면마다 같다")
+        say(OK, f"작업대 {len(lifted)}장이 카드 한 단으로 같다 (--shadow-card)",
+            "관문(홈)만 예외 — " + " / ".join(home_tiers) + " 3단으로 주역을 띄운다.\n"
+            "오버레이(.ld-card)는 지면 위 카드가 아니라 지면을 덮는 판이라 --shadow-lg를 쓴다.")
 
 
 # ══════════════════════════════════════════════════════════════════════

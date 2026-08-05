@@ -13,18 +13,6 @@
   .tbl { margin-top: 14px; }
   .fld label { display: block; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
   /* 로딩 카드 — 실제 네트워크 완료에 연동된 단계 표시(가짜 진행률 없음) */
-  .ld-card { width: min(360px, 88vw); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 22px 22px 16px; box-shadow: var(--shadow-lg); }
-  .ld-title { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--ink); }
-  .ld-row { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; }
-  .ld-ic { flex: none; width: 16px; height: 16px; margin-top: 2px; box-sizing: border-box; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite; }
-  .ld-row.done .ld-ic { border: none; animation: none; text-align: center; }
-  .ld-row.done .ld-ic::after { content: '✓'; color: var(--dv-positive); font-size: 14px; font-weight: 700; line-height: 16px; }
-  .ld-lbl { font-size: 13px; color: var(--ink); font-weight: 600; }
-  .ld-row.done .ld-lbl { color: var(--ink-3); font-weight: 500; }
-  .ld-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; line-height: 1.4; }
-  .ld-row.done .ld-sub { visibility: hidden; }
-  .ld-foot { font-size: 11px; color: var(--ink-3); margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); line-height: 1.55; }
-  .ld-foot .mono { font-family: var(--font-mono); color: var(--ink-2); }
   /* 인라인 시계열 로딩(만기·국가 변경 시) */
   .mini-spin { display: inline-block; width: 12px; height: 12px; box-sizing: border-box; border: 2px solid var(--line-strong); border-top-color: var(--ink); border-radius: 50%; animation: sp 0.8s linear infinite; vertical-align: -2px; margin-right: 8px; }
   .hist-loading { color: var(--ink-3); font-size: 12.5px; padding: 20px 0; }
@@ -39,16 +27,17 @@
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
 
   <!-- ══ TOP NAV (공통) ══ -->
-  <header class="app-header" style="min-height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:24px;padding:0 24px;background:var(--paper-veil);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
-    <a class="brand" href="home.html" aria-label="투자지표 홈" style="display:flex;align-items:center;gap:8px;flex:none;white-space:nowrap;color:inherit;text-decoration:none"><span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
-      <span class="brand-name" style="font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing:-0.01em">투자지표</span>
+  <header class="app-header">
+    <a class="brand" href="home.html" aria-label="투자지표 홈"><span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
+      <span class="brand-name">투자지표</span>
     </a>
-    <nav style="display:flex;gap:2px;align-items:center;white-space:nowrap;overflow-x:auto;scrollbar-width:none">
-      <a href="home.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">홈</a>
-      <a href="stock.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">주식 가치평가</a>
-      <a href="bond.html" aria-current="page" style="padding:8px 10px;color:var(--ink);font-size:13px;font-weight:700;text-decoration:none;border-bottom:2px solid var(--ink)">금리</a>
-      <a href="test.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">위험 프로파일</a>
-      <a href="guide.html" target="_blank" rel="noopener" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">사용설명서 ↗</a>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a class="nav-link" href="home.html">홈</a>
+      <a class="nav-link" href="stock.html">주식 가치평가</a>
+      <a class="nav-link" href="bond.html" aria-current="page">금리</a>
+      <a class="nav-link" href="portfolio.html">포트폴리오</a>
+      <a class="nav-link" href="test.html">위험 프로파일</a>
+      <a class="nav-link" href="guide.html" target="_blank" rel="noopener">사용설명서 ↗</a>
     </nav>
     <div style="margin-left:auto;display:flex;align-items:center;gap:14px">
       <span style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3)" id="asof">—</span>
@@ -121,7 +110,7 @@
           <div id="pyChart" style="margin-top:12px"></div>
         </div>
       </div>
-      <div style="border:1px solid var(--line);border-radius:var(--radius-md);margin-top:22px">
+      <div style="border:1px solid var(--line);border-radius:var(--radius-md);margin-top:22px;box-shadow:var(--shadow-card)">
         <details><summary style="cursor:pointer;padding:12px 14px;font-size:13px;color:var(--ink-2);font-weight:600">무이표채(제로쿠폰)로 직관 확인하기</summary>
           <div style="padding:2px 14px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.7">쿠폰율을 <b>0</b>으로 두면 맥컬리 듀레이션이 <b>정확히 잔존만기와 같아</b>집니다 — 현금흐름이 만기 한 번뿐이라 가중평균 회수기간=만기이기 때문입니다. 쿠폰을 올릴수록 중간에 돈을 돌려받아 듀레이션이 짧아지는 것도 확인해 보세요.</div>
         </details>
@@ -156,6 +145,7 @@
 </div>
 
 <script src="assets/common.js"></script>
+<script src="assets/finmath.js"></script>
 <script src="assets/bond.js"></script>
 <script src="assets/feedback.js" defer></script>
 </body>

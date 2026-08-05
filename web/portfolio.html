@@ -21,16 +21,17 @@
 <div style="min-height:100vh;display:flex;flex-direction:column;background:var(--paper)">
 
   <!-- ══ TOP NAV (공통) ══ -->
-  <header class="app-header" style="min-height:58px;flex:none;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:24px;padding:0 24px;background:var(--paper-veil);backdrop-filter:blur(8px);position:sticky;top:0;z-index:30">
-    <a class="brand" href="home.html" aria-label="투자지표 홈" style="display:flex;align-items:center;gap:8px;flex:none;white-space:nowrap;color:inherit;text-decoration:none"><span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
-      <span class="brand-name" style="font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing:-0.01em">투자지표</span>
+  <header class="app-header">
+    <a class="brand" href="home.html" aria-label="투자지표 홈"><span class="brand-mark" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 9 12l3.5 3L20 6.5"/><path d="M15.5 6.5H20V11"/></svg></span>
+      <span class="brand-name">투자지표</span>
     </a>
-    <nav style="display:flex;gap:2px;align-items:center;white-space:nowrap;overflow-x:auto;scrollbar-width:none">
-      <a href="home.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">홈</a>
-      <a href="stock.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">주식 가치평가</a>
-      <a href="bond.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">금리</a>
-      <a href="test.html" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">위험 프로파일</a>
-      <a href="guide.html" target="_blank" rel="noopener" style="padding:8px 10px;color:var(--ink-3);font-size:13px;font-weight:500;text-decoration:none">사용설명서 ↗</a>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a class="nav-link" href="home.html">홈</a>
+      <a class="nav-link" href="stock.html">주식 가치평가</a>
+      <a class="nav-link" href="bond.html">금리</a>
+      <a class="nav-link" href="portfolio.html" aria-current="page">포트폴리오</a>
+      <a class="nav-link" href="test.html">위험 프로파일</a>
+      <a class="nav-link" href="guide.html" target="_blank" rel="noopener">사용설명서 ↗</a>
     </nav>
   </header>
 
@@ -52,7 +53,7 @@
           <button id="addCash" class="btn btn-secondary btn-sm">💰 예금 추가</button>
         </div>
       </div>
-      <div id="emptyMsg" style="display:none;border:1px solid var(--line-strong);background:var(--paper-2);border-radius:var(--radius-md);padding:20px;margin-top:16px;font-size:13px;color:var(--ink-2);line-height:1.7"></div>
+      <div id="emptyMsg" style="display:none;border:1px solid var(--line-strong);background:var(--paper-2);border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:20px;margin-top:16px;font-size:13px;color:var(--ink-2);line-height:1.7"></div>
       <div id="composition" style="margin-top:16px"></div>
       <div id="compTotal" style="font-size:12px;color:var(--ink-3);margin-top:8px"></div>
       <div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">주식은 📈 주식 가치평가 페이지에서 분석 후 <b>＋ 포트폴리오에 담기</b>로 추가돼요(브라우저에 저장). 부동산 직접투자는 일별 시세가 없어 <b>리츠 ETF로 대용</b>합니다.</div>
@@ -127,6 +128,7 @@
 <div id="status"><div class="spin"></div></div>
 
 <script src="assets/common.js"></script>
+<script src="assets/finmath.js"></script>
 <script src="assets/portfolio.js"></script>
 <script src="assets/feedback.js" defer></script>
 </body>
