@@ -1183,7 +1183,12 @@
     }).join('');
     // 공시 배수를 받지 못해 자체계산으로 내려간 지표는 업종 중앙값과 자가 달라 비교 판정을
     // 내지 않는다(ADR-0020 · #86). 'vs 업종'이 왜 비었는지를 화면이 밝힌다.
-    var ownCalc = (D.multiples || []).filter(function (r) { return r.basis === '자체계산'; });
+    // 업종 중앙값이 **있는데도** 판정을 못 낸 경우만 밝힌다. 중앙값 자체가 없는 지표
+    // (P/FCF·PEG — 피어에 대해 수집하지 않는다)는 근거와 무관하게 원래 비교가 안 되므로,
+    // 거기까지 이 문장을 붙이면 거의 모든 종목에 항상 뜨는 잡음이 된다.
+    var ownCalc = (D.multiples || []).filter(function (r) {
+      return r.basis === '자체계산' && r.med != null;
+    });
     if (ownCalc.length) {
       rows += '<div class="table-note">' +
         esc(ownCalc.map(function (r) { return r.label; }).join(' · ')) +
