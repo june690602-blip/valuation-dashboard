@@ -191,6 +191,17 @@ CLIENT_MATH = {
     },
 }
 
+# 배수 비교표를 그리는 자리 — 「현재」와 「업종 중앙값」이 **같은 자**로 잰 값이어야 한다
+# (ADR-0020 · #86). 한 회사의 같은 배수가 두 출처로 존재했고(우리 계산 vs 제공자 공시),
+# 그 둘을 나란히 놓고 비교해서 5종목 중 2종목의 판정이 정의 차이만으로 뒤집혔다.
+# 정의를 고르는 자리는 `scoring.screen_multiple` 하나여야 한다.
+SCREEN_MULTIPLE_SITES = {
+    "src/web/serialize.py": "Meridian 웹 — _multiples() · tiles",
+    "src/ui/pages/stock.py": "Streamlit — 배수 비교표 · 헤더 지표",
+}
+# 옛 방식: indicators 값을 곧장 비교에 넣던 자리. 되살아나면 잡는다.
+SCREEN_MULTIPLE_BANNED = r"cur\s*=\s*ind\.valuation\.get\("
+
 # 네트워크·키 없이 도는 검증 스크립트 — PR마다 자동으로 돌아야 회귀를 막는다.
 STATIC_CHECKS = {
     "scripts/check_design.py": "R4 디자인 일관성 — 토큰·셸·대비",
@@ -457,6 +468,30 @@ def check_client_math() -> None:
         say(OK, "등록된 파이썬 분석 모듈이 모두 웹에서 쓰이거나 대조로 묶여 있다",
             ("\n".join(spec_only) + "\n웹이 임포트하지는 않지만 브라우저 구현과 전 격자 대조된다 — "
              "실행 가능한 명세로 남아 있다.") if spec_only else "")
+
+    # 같은 지표를 두 **출처**로 재는 것도 같은 종류의 결함이다(ADR-0020 · #86).
+    # 두 언어(E 위쪽)가 아니라 한 화면 안에서 갈리는 경우다.
+    bad = []
+    for rel, what in SCREEN_MULTIPLE_SITES.items():
+        if not (ROOT / rel).exists():
+            bad.append(f"{rel} — 등록된 파일이 없다. 레지스트리를 갱신할 것")
+            continue
+        src = read(rel)
+        if "screen_multiple(" not in src:
+            bad.append(f"{rel} ({what}) — screen_multiple()을 쓰지 않는다")
+        elif "BASIS_DISCLOSED" not in src:
+            bad.append(f"{rel} ({what}) — 근거를 보지 않는다. 자체계산 폴백에서도 비교 판정이 나간다")
+        if re.search(SCREEN_MULTIPLE_BANNED, src):
+            bad.append(f"{rel} ({what}) — indicators 값을 곧장 비교에 넣는 옛 방식이 남아 있다")
+    if bad:
+        say(BAD, f"「현재」와 「업종 중앙값」의 자가 어긋난 자리 {len(bad)}곳",
+            "\n".join(bad) +
+            "\n업종 중앙값은 피어 프레임(공시값)에서 나온다. 「현재」가 다른 출처면 그 비교는\n"
+            "기울어져 있고, 그 비율이 그대로 '싸다/비싸다' 판정이 된다.")
+    else:
+        say(OK, f"배수 비교표 {len(SCREEN_MULTIPLE_SITES)}곳이 모두 같은 자를 쓴다",
+            "\n".join(f"{rel} — {what}" for rel, what in SCREEN_MULTIPLE_SITES.items()) +
+            "\n정의를 고르는 자리는 scoring.screen_multiple 하나다.")
 
 
 # ── F. 직렬화 층위 ───────────────────────────────────────────────────
