@@ -1,0 +1,353 @@
+유니버스 1500종목 (S&P 1500 ∩ SEC CIK)
+
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+  50/1500  13초  (남은 예상 386초)  {'ok': 45, 'no_shares': 4, 'cached': 1}
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+  100/1500  27초  (남은 예상 378초)  {'ok': 92, 'no_shares': 7, 'cached': 1}
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+  150/1500  40초  (남은 예상 356초)  {'ok': 138, 'no_shares': 11, 'cached': 1}
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
+C:\Users\bogeun\OneDrive\Desktop\투자지표\valuation-dashboard\scripts\backtest_collect_us.py:171: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  df["fiscal_end"] = df["filed"] - pd.Timedelta(days=75)
