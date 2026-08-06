@@ -25,20 +25,10 @@
 | [0011](0011-peer-size-window-and-no-fallback.md) | ①은 규모 비교가능 피어(1/5~5배)만 쓰고 부족하면 제외한다 | 채택됨 |
 | [0013](0013-peer-selection-by-size-proximity.md) | 피어 후보를 '업종 시총 상위 N'이 아니라 '업종 내 시총 인접 N'으로 뽑는다 | 채택됨 |
 | [0014](0014-relative-value-by-regression.md) | ①을 피어 중앙값이 아니라 업종·규모·수익성 회귀로 낸다 | 채택됨 |
-| [0015](0015-normalized-earnings-axis.md) | 정규화 이익(장기 평균)을 판정의 네 번째 축으로 더한다 | 채택됨 (창 5년 한계는 [0025]가 대체) |
+| [0015](0015-normalized-earnings-axis.md) | 정규화 이익(5년 평균)을 판정의 네 번째 축으로 더한다 | 채택됨 |
 | [0016](0016-no-dcf-epv-instead.md) | DCF를 짓지 않는다 — EPV가 더 넓고, 축을 늘리기 전에 할 것이 있다 | 채택됨 |
 | [0017](0017-estimation-error-and-margin-of-safety.md) | 추정 오차와 안전마진을 화면에 낸다 (판정 문턱은 그대로) | 채택됨 |
 | [0018](0018-declare-what-the-verdict-rests-on.md) | 이 판정이 무엇에 기대는지 화면에 밝힌다 | 채택됨 |
 | [0019](0019-client-math-parity-by-executing-the-browser-code.md) | 이식된 수식은 한 파일에 모으고, 브라우저가 받는 그 파일을 실행해 대조한다 | 채택됨 |
 | [0020](0020-one-ruler-for-multiples-on-screen.md) | 화면의 배수는 공시값 한 벌로 재고, 자가 다르면 비교하지 않는다 | 채택됨 |
 | [0021](0021-size-term-spline.md) | 적정 배수의 규모 항을 직선 하나가 아니라 마디 있는 스플라인으로 낸다 | 채택됨 |
-| [0022](0022-confidence-counts-effective-axes.md) | 신뢰도는 방법의 개수가 아니라 실질 축 수로 상한을 씌운다 | 채택됨 |
-| [0023](0023-no-epv-earnings-axes-overlap.md) | EPV를 짓지 않는다 — 두 시장 모두 이익 기반 축과 겹쳤다 | 채택됨 (결정 1은 [0024]가 대체) |
-| [0024](0024-independence-is-not-a-correlation-ceiling.md) | 축의 독립성은 상관 상한으로 재지 않는다 — 재려던 해악을 ADR-0022가 이미 값 매긴다 | 채택됨 |
-| [0025](0025-normalize-window-eight-years.md) | 정규화 이익의 창을 8년으로 — 5년으로 둔 이유가 사실이 아니었다 | 채택됨 |
-| [0026](0026-band-window-is-a-decision-not-a-default.md) | ② 역사적 밴드의 창을 명시적으로 7년으로 — 창은 결정이지 기본 인자가 아니다 | 채택됨 |
-| [0027](0027-ca-bundle-for-non-ascii-paths.md) | 인증서를 ASCII 경로로 비춰 둔다 — 한글 폴더에서 시세가 통째로 죽는 것을 막는다 | 채택됨 |
-| [0028](0028-backtest-the-verdict-has-predictive-power.md) | 판정은 예측력이 있다 — 다만 ②는 아무것도 하지 않았다 | 채택됨 |
-| [0029](0029-one-year-was-the-wrong-ruler.md) | 1년은 이 도구의 주장에 맞는 자가 아니었다 — 축들은 3~5년에서 살아난다 | 채택됨 |
-| [0030](0030-us-does-not-replicate.md) | 미국에서는 재현되지 않는다 — 두 시장에서 살아남은 것은 부정 결과 둘뿐 | 채택됨 |
-| [0031](0031-us-fails-in-both-regimes-and-the-band-rule-fires.md) | 미국은 두 국면 모두에서 안 된다 — 그리고 ②를 빼라는 규칙이 처음으로 발동했다 | 채택됨 |

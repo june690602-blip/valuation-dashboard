@@ -2,10 +2,6 @@
 
 - 상태: 채택됨
 - 날짜: 2026-08-03
-- **보완됨**: [ADR-0026](0026-band-window-is-a-decision-not-a-default.md)(2026-08-06).
-  이 문서는 *"창이 '5년'이 아니었다"*를 찾아 **거짓 라벨을 지웠지만** 창 자체를 정하지는
-  않았다 — 창은 계속 `base.py`의 `period="5y"` 기본 인자가 정하고 있었다. ADR-0026이
-  `BAND_WINDOW_YEARS = 7`로 명시했다. **아래 두 관문(corr 0.90 · 최소 3년)은 그대로 선다.**
 - 관련: [ADR-0006](0006-fundamental-verdict-consensus-alongside.md)(판정 = ①②③ · ④ 병기),
   [ADR-0007](0007-book-quality-gate-for-rim.md)(같은 모양의 게이트), `scripts/check_size_bias.py`(규모 편향 진단)
 - 관련 코드: `src/analysis/valuation.py`의 `_band_quality()`·`BAND_CORR_LIMIT`·`BAND_MIN_YEARS`,

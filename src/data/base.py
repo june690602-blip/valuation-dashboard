@@ -9,15 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import pandas as pd
-
-from . import ca_bundle
-
-# **yfinance보다 먼저 부른다.** yfinance가 쓰는 libcurl은 경로에 한글이 있으면 인증서
-# 파일을 못 열고, 그 실패가 "possibly delisted"로 보고돼 원인을 가린다(ADR-0027).
-# 필요할 때만 움직이고, 이미 정상이면 아무것도 안 한다.
-ca_bundle.install()
-
-import yfinance as yf  # noqa: E402
+import yfinance as yf
 
 from .cache import file_cache
 from .models import FIN_COLUMNS, PEER_COLUMNS, CompanyData
@@ -247,14 +239,6 @@ def extract_ttm(tk: yf.Ticker, shares: float | None) -> tuple[pd.Series | None, 
 # (예전엔 fetch_prices만 캐시가 없어 매 분석마다 5년치를 다시 받았다 — 1시간 캐시는
 #  일관성뿐 아니라 호출 수에서도 이득이다.)
 PRICE_TTL_HOURS = 1
-
-# 개별 종목 시세를 몇 년 받을 것인가 — **② 역사적 밴드의 창이 이 값을 정하지 않게 하려고**
-# 이름을 붙였다(ADR-0026). 예전에는 반대였다: 밴드의 창이 `period="5y"` 기본 인자였고,
-# 여기를 건드리면 판정이 말없이 바뀌었다. 이제 밴드는 `BAND_WINDOW_YEARS`로 스스로 자르고,
-# 이 값은 **그 창을 덮기만 하면 되는 여유분**이다. 작아지면 밴드가 조용히 짧아지므로
-# `tests/test_band_window.py`가 두 값의 어긋남을 막는다.
-# ETF 경로는 이 값을 쓰지 않는다 — 화면이 '최근 5년 추이'라고 적고 있어 기본값 5년 그대로다.
-PRICE_PERIOD = "10y"
 
 
 @file_cache("price_frame", ttl_hours=PRICE_TTL_HOURS)
