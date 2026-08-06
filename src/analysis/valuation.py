@@ -514,6 +514,20 @@ BAND_CORR_LIMIT = 0.90   # 이 이상이면 배수의 분위가 주가의 분위
 BAND_MIN_YEARS = 3.0     # '자기 과거 분위'라 부르려면 이만큼은 봐야 한다
 BAND_MIN_OBS = 200       # 기간은 길어도 관측이 드물면 분포가 몇몇 날에 좌우된다
 
+# 창을 **명시적으로** 정한다 (ADR-0026). 예전에는 이 상수가 없었고, 밴드의 창은
+# `base.py`의 `fetch_price_frame(..., period="5y")` 기본 인자가 정하고 있었다 —
+# 즉 "5년"은 결정이 아니라 **부작용**이었다(ADR-0012가 라벨을 실측값으로 바꾼 이유이기도 하다).
+# 7년인 근거는 `scripts/check_band_window.py`가 KR 127종목에서 잰 표다: 창이 길수록
+# 펀더멘털이 움직일 시간이 생겨 `BAND_CORR_LIMIT` 탈락(=배수가 아니라 주가의 분위)이
+# 21%→13%로 줄고, **5년에서 7년까지는 이력 부족 손실이 0**이며, 8년을 넘으면 개선이
+# 멈추고 커버리지만 깎인다.
+BAND_WINDOW_YEARS = 7.0
+
+# ADR-0010의 RIM 게이트가 쓰는 PBR 중앙값의 창. **밴드 창과 일부러 다르다.**
+# 그 게이트의 임계 `BOOK_REJECTED_PBR`은 5년 중앙값을 보고 정한 판단값이라, 창을 바꾸면
+# 재본 적 없는 임계가 된다. 창을 옮기려면 임계를 다시 재고 새 ADR을 써야 한다(ADR-0026).
+GATE_PBR_WINDOW_YEARS = 5.0
+
 
 def _band_quality(mult: pd.Series, px: pd.Series, fund: pd.Series) -> dict:
     """이 밴드가 배수를 재는가, 주가를 다시 쓴 것인가 (ADR-0012).
@@ -572,6 +586,20 @@ def _band_quality(mult: pd.Series, px: pd.Series, fund: pd.Series) -> dict:
                 f"상관은 {corr:+.2f}입니다. 주가의 분위와 구분되는 배수의 분위로 봅니다.")
 
 
+def _last_years(s: pd.Series, years: float) -> pd.Series:
+    """마지막 `years`년만 남긴다. 이미 그보다 짧으면 **손대지 않는다**.
+
+    자를 것이 있을 때만 `Timedelta`를 만든다 — 창을 아주 크게 두면 `Timedelta`가
+    범위를 넘어 터진다(실측: 999년). 상수를 잘못 두는 것이 예외로 죽을 일은 아니다.
+    """
+    if not len(s):
+        return s
+    win_days = int(365.25 * years)
+    if (s.index[-1] - s.index[0]).days <= win_days:
+        return s
+    return s[s.index > s.index[-1] - pd.Timedelta(days=win_days)]
+
+
 def _band(d: CompanyData, current_fund: float | None, kind: str):
     """(밴드 df, 현재 배수 백분위, FairValue 구성요소, 분위 배수 dict, 품질 dict) — kind: 'per'|'pbr'
 
@@ -588,13 +616,25 @@ def _band(d: CompanyData, current_fund: float | None, kind: str):
     # 과거를 그 뒤 지급된 배당만큼 낮춰 잡아 과거 PER·PBR이 실제보다 낮게 깔리고, 그만큼
     # 적정가(분위 배수 × 현재 펀더멘털)가 낮아져 현재가가 늘 비싸 보인다. 고배당일수록 심하다.
     px = actual_prices(d)
-    mult = (px / daily).dropna()
+    # 창을 여기서 자른다 — 안 자르면 밴드의 창이 '주가를 몇 년 받았나'가 되어, 데이터
+    # 수집 쪽을 건드리는 순간 판정이 **말없이** 바뀐다(ADR-0026). 자를 것이 없으면
+    # (주가가 창보다 짧으면) 그대로다. `_band_quality`가 실측 창을 다시 재서 화면에 낸다.
+    px = _last_years(px, BAND_WINDOW_YEARS)
+    mult = (px / daily.reindex(px.index)).dropna()
     quality = _band_quality(mult, px, daily) if len(mult) else None
     if len(mult) < BAND_MIN_OBS:
         return None, None, None, None, quality
     q = mult.quantile([0.10, 0.25, 0.50, 0.75, 0.90])
     qdict = {int(p * 100): float(v) for p, v in q.items()}
     qdict["current"] = float(mult.iloc[-1])
+    # ADR-0010의 RIM 게이트는 이 dict의 50분위를 읽는다. **그 임계(BOOK_REJECTED_PBR)는
+    # 5년 중앙값에서 정해진 값**이라, 밴드 창을 7년으로 옮겼다고 게이트까지 따라가면
+    # 재본 적 없는 임계로 RIM을 빼게 된다. 그래서 게이트 몫은 5년으로 따로 잰다
+    # (ADR-0026 결정 3). 게이트를 옮기려면 임계를 다시 재고 별도 ADR을 써야 한다.
+    gate_mult = _last_years(mult, GATE_PBR_WINDOW_YEARS)
+    qdict["gate_median"] = float(gate_mult.median()) if len(gate_mult) else None
+    qdict["gate_years"] = (float((gate_mult.index[-1] - gate_mult.index[0]).days / 365.25)
+                           if len(gate_mult) > 1 else None)
     pct = float((mult < mult.iloc[-1]).mean() * 100)
     band = pd.DataFrame({"price": px})   # 밴드와 같은 기준이어야 차트에서 위치가 맞는다
     for p, v in q.items():
@@ -705,7 +745,12 @@ def _book_quality(d: CompanyData, pbr: float | None, roe: float | None,
     share = (intan / ta) if (intan is not None and ta and ta > 0) else None
     bb = fin["buyback"].dropna() if "buyback" in fin.columns else None
     ratio = (float(bb.sum()) / eq) if (bb is not None and len(bb) and eq and eq > 0) else None
-    pbr_5y = (pbr_q or {}).get(50)
+    # **밴드의 50분위가 아니라 게이트용 5년 중앙값을 읽는다**(ADR-0026 결정 3). 밴드 창이
+    # 7년으로 옮겨 갔어도 이 게이트의 임계는 5년에서 정해진 값이라 따라가지 않는다.
+    # 옛 캐시·옛 호출로 `gate_median`이 없으면 50분위로 물러선다(예전 동작).
+    pbr_5y = (pbr_q or {}).get("gate_median")
+    if pbr_5y is None:
+        pbr_5y = (pbr_q or {}).get(50)
     under, of_years = _underearning(d, r)
     out = {"pbr": pbr, "intangible_share": share, "buyback_ratio": ratio,
            "years": int(len(bb)) if bb is not None else 0,

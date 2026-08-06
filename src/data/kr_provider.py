@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from .base import (DataProvider, build_peer_table, extract_financials,
-                   fill_self_from_financials,
+from .base import (PRICE_PERIOD, DataProvider, build_peer_table,
+                   extract_financials, fill_self_from_financials,
                    extract_ttm, fetch_index_prices, fetch_prices,
                    fetch_prices_raw, trim_peers)
 from .models import FIN_COLUMNS, CompanyData, Consensus, recomm_label
@@ -139,12 +139,12 @@ class KRProvider(DataProvider):
             warnings.append(f"재무제표: {dart_src} {dart_fin.shape[0]}개년 사용 "
                             "(EBITDA·차입금 등 일부는 yfinance로 보완)")
 
-        prices = fetch_prices(yt)
+        prices = fetch_prices(yt, PRICE_PERIOD)
         price = float(prices.iloc[-1])
         # 미조정 종가 — 역사적 PER·PBR 밴드와 52주 범위용(수정종가는 과거를 배당만큼
         # 낮춰 잡아 과거 배수가 실제보다 낮게 나온다). 실패해도 분석 계층이 폴백한다.
         try:
-            prices_raw = fetch_prices_raw(yt)
+            prices_raw = fetch_prices_raw(yt, PRICE_PERIOD)
         except Exception:
             prices_raw = None
             warnings.append("미조정 시세를 받지 못해 역사적 밴드·52주 범위를 수정주가로 계산합니다 "
@@ -193,7 +193,8 @@ class KRProvider(DataProvider):
         official["재무출처"] = fin_source
 
         benchmark = "KOSDAQ" if meta["krx_market"].upper().startswith("KOSDAQ") else "KOSPI"
-        index_prices = fetch_index_prices("^KQ11" if benchmark == "KOSDAQ" else "^KS11")
+        index_prices = fetch_index_prices("^KQ11" if benchmark == "KOSDAQ" else "^KS11",
+                                          PRICE_PERIOD)
 
         # 피어: (1순위) AI 업종분류 동종기업 → (폴백) KRX 업종분류 시총 상위
         listing = get_kr_listing().set_index("Code")
