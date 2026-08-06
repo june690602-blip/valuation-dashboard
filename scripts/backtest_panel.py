@@ -65,7 +65,14 @@ RAW = OUT / "raw"
 REBALANCE_MONTH, REBALANCE_DAY = 6, 1          # 3월 공시가 모두 반영된 뒤 (사전등록 §2)
 YEARS = range(2017, 2026)                      # 12개월 선행수익률이 필요해 2025가 마지막
 HORIZON_DAYS = 365
-RF, MRP = 0.035, 0.06                          # check_analysis.py·check_epv_viability.py와 동일
+# check_analysis.py·check_epv_viability.py와 **같은 가정**. 갈라지면 진단이 화면과 다른
+# 자본비용으로 재게 된다. 시장마다 따로 둔다(ADR-0017).
+RF_MRP = {"KR": (0.035, 0.06), "US": (0.045, 0.05)}
+MARKET = {"KR": {"currency": "KRW", "index": "^KS11", "bench": "KOSPI",
+                 "dir": "backtest"},
+          "US": {"currency": "USD", "index": "^GSPC", "bench": "S&P 500",
+                 "dir": "backtest_us"}}
+RF, MRP = RF_MRP["KR"]                         # main()이 시장에 맞춰 덮어쓴다
 MIN_YEARS_KNOWN = 3                            # ⑤의 NORMALIZE_MIN_YEARS와 같은 하한
 EPV = "EPV"
 
@@ -93,12 +100,39 @@ def load_all() -> dict:
     return out
 
 
-def known_at(fin: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
-    """t 시점에 **공시돼 있던** 회계연도만. 접수일을 모르면 회계연도말+90일로 물러선다."""
+def effective_filed(fin: pd.DataFrame) -> pd.Series:
+    """회계연도별 '이 값이 알려진 날'. 접수일이 없으면 회계연도말+90일.
+
+    **같은 날짜가 겹치면 뒤로 물린다.** EDGAR의 첫 XBRL 보고서는 3개 회계연도를
+    한꺼번에 담아서(당기·전기·전전기) 세 해의 `filed`가 같아진다. 그대로 두면
+    계단 시리즈의 인덱스가 중복돼 `_fundamental_daily`가 예외로 죽는다(실측: 미국
+    1,259종목 중 1,124곳).
+
+    겹친 해를 **버리지 않고 1년씩 앞당기는** 이유: 그 숫자들은 실제로 그때 공개돼
+    있었다. XBRL 태깅이 2009~2011년에 단계 도입된 것은 **SEC의 사정이지 정보의
+    사정이 아니다** — 2011 회계연도 실적은 2012년 종이 10-K에 있었다. 사업보고서는
+    1년 간격으로 나오므로 간격도 365일로 둔다.
+
+    보수적인 대안은 겹친 해를 버리는 것이고 그러면 룩어헤드 위험이 0이 되지만,
+    밴드·정규화의 창이 그만큼 짧아진다. 어느 쪽이든 ADR에 적는다.
+    """
     filed = pd.to_datetime(fin.get("filed"), errors="coerce")
     fallback = pd.to_datetime(fin["fiscal_end"], errors="coerce") + pd.Timedelta(days=90)
-    eff = filed.fillna(fallback) if filed is not None else fallback
-    return fin[eff <= t]
+    eff = (filed.fillna(fallback) if filed is not None else fallback).sort_index()
+    v = eff.to_numpy(copy=True)
+    year = pd.Timedelta(days=365)
+    for i in range(len(v) - 2, -1, -1):          # 최신에서 과거로 내려오며 순서를 강제
+        if pd.isna(v[i]) or pd.isna(v[i + 1]):
+            continue
+        if v[i] >= v[i + 1]:
+            v[i] = v[i + 1] - year
+    return pd.Series(v, index=eff.index)
+
+
+def known_at(fin: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
+    """t 시점에 **공시돼 있던** 회계연도만."""
+    eff = effective_filed(fin)
+    return fin.loc[eff.index][eff <= t]
 
 
 def synth(code: str, fin: pd.DataFrame, px: pd.Series, meta: dict,
@@ -119,10 +153,10 @@ def synth(code: str, fin: pd.DataFrame, px: pd.Series, meta: dict,
         return None
 
     f = known.copy()
-    filed = pd.to_datetime(f.get("filed"), errors="coerce")
     f["fiscal_end_true"] = pd.to_datetime(f["fiscal_end"], errors="coerce")
-    # `_fundamental_daily`가 +90일을 더하므로 여기서 90일을 빼 두면 실제 공시일이 된다
-    f["fiscal_end"] = (filed - pd.Timedelta(days=90)).fillna(f["fiscal_end_true"])
+    # `_fundamental_daily`가 +90일을 더하므로 여기서 90일을 빼 두면 실제 공시일이 된다.
+    # 겹친 날짜는 `effective_filed`가 이미 풀어 놨다 — 안 풀면 인덱스 중복으로 죽는다.
+    f["fiscal_end"] = effective_filed(known) - pd.Timedelta(days=90)
     f["shares_outstanding"] = shares
     f["eps"] = pd.to_numeric(f["net_income"], errors="coerce") / shares
     # 표준 컬럼을 **전부** 세운다. 없는 채로 두면 분석 계층이 `fin["interest_expense"]`처럼
@@ -131,15 +165,17 @@ def synth(code: str, fin: pd.DataFrame, px: pd.Series, meta: dict,
         if col not in f.columns:
             f[col] = np.nan
 
+    mk = meta.get("market") or "KR"
+    cfg = MARKET.get(mk, MARKET["KR"])
     return CompanyData(
         ticker=code, yahoo_ticker=code, name=meta.get("name") or code,
-        market="KR", currency="KRW", sector=meta.get("sector") or "기타",
+        market=mk, currency=cfg["currency"], sector=meta.get("sector") or "기타",
         industry=meta.get("sector") or "기타",
         price=price, market_cap=shares * price, shares_outstanding=shares,
         financials=f, ttm=None,                          # ttm=None — 분기 정보 유입 차단
         prices=px_t, index_prices=index_px[index_px.index <= t],
-        benchmark_name="KOSPI", peers=_EMPTY_PEERS, prices_raw=px_t,
-        is_financial=False, consensus=None, financial_currency="KRW")
+        benchmark_name=cfg["bench"], peers=_EMPTY_PEERS, prices_raw=px_t,
+        is_financial=False, consensus=None, financial_currency=cfg["currency"])
 
 
 def snapshot_row(d: CompanyData) -> dict | None:
@@ -264,9 +300,16 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dates", type=int, nargs="*", help="연도만 골라 돌린다(디버깅)")
     ap.add_argument("--variant", default="base", choices=VARIANTS)
+    ap.add_argument("--market", default="KR", choices=["KR", "US"])
     args = ap.parse_args()
     warnings.filterwarnings("ignore")
-    print(f"변형: {args.variant} — {apply_variant(args.variant)}")
+
+    global OUT, RAW, RF, MRP
+    cfg = MARKET[args.market]
+    OUT = ROOT / "data" / cfg["dir"]
+    RAW = OUT / "raw"
+    RF, MRP = RF_MRP[args.market]
+    print(f"시장: {args.market} · 변형: {args.variant} — {apply_variant(args.variant)}")
 
     data = load_all()
     if not data:
@@ -275,9 +318,9 @@ def main() -> int:
     print(f"종목 {len(data)}곳 적재")
 
     import yfinance as yf
-    h = yf.Ticker("^KS11").history(period="max", auto_adjust=False)["Close"].dropna()
+    h = yf.Ticker(cfg["index"]).history(period="max", auto_adjust=False)["Close"].dropna()
     h.index = pd.to_datetime(h.index).tz_localize(None)
-    print(f"KOSPI 지수 {len(h)}행 ({h.index[0].date()}~)\n")
+    print(f"{cfg['bench']} 지수 {len(h)}행 ({h.index[0].date()}~)\n")
 
     years = args.dates or list(YEARS)
     frames, meta_rows = [], []
