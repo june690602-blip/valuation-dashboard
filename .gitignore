@@ -38,3 +38,6 @@ Thumbs.db
 
 # 백테스트 연구용 수집 데이터(파생물 · 대용량)
 data/backtest/
+
+# 미국 백테스트 수집 데이터(파생물)
+data/backtest_us/

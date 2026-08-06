@@ -39,3 +39,6 @@
 | [0026](0026-band-window-is-a-decision-not-a-default.md) | ② 역사적 밴드의 창을 명시적으로 7년으로 — 창은 결정이지 기본 인자가 아니다 | 채택됨 |
 | [0027](0027-ca-bundle-for-non-ascii-paths.md) | 인증서를 ASCII 경로로 비춰 둔다 — 한글 폴더에서 시세가 통째로 죽는 것을 막는다 | 채택됨 |
 | [0028](0028-backtest-the-verdict-has-predictive-power.md) | 판정은 예측력이 있다 — 다만 ②는 아무것도 하지 않았다 | 채택됨 |
+| [0029](0029-one-year-was-the-wrong-ruler.md) | 1년은 이 도구의 주장에 맞는 자가 아니었다 — 축들은 3~5년에서 살아난다 | 채택됨 |
+| [0030](0030-us-does-not-replicate.md) | 미국에서는 재현되지 않는다 — 두 시장에서 살아남은 것은 부정 결과 둘뿐 | 채택됨 |
+| [0031](0031-us-fails-in-both-regimes-and-the-band-rule-fires.md) | 미국은 두 국면 모두에서 안 된다 — 그리고 ②를 빼라는 규칙이 처음으로 발동했다 | 채택됨 |
