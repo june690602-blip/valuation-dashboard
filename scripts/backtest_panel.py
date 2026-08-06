@@ -63,7 +63,14 @@ OUT = ROOT / "data" / "backtest"
 RAW = OUT / "raw"
 
 REBALANCE_MONTH, REBALANCE_DAY = 6, 1          # 3월 공시가 모두 반영된 뒤 (사전등록 §2)
-YEARS = range(2017, 2026)                      # 12개월 선행수익률이 필요해 2025가 마지막
+# 어디까지 거슬러 가나 — **데이터가 허락하는 데까지**다 (사전등록 개정 3).
+#   KR: DART 전체 재무제표 API의 하한이 회계연도 2013이라(2015년 보고서의 전전기)
+#       ⑤의 최소 3년을 채우는 첫 시점이 2016이다. 2015는 0종목(실측).
+#   US: EDGAR는 2007년부터라 2012에 953종목이 선다(실측). 개정 1이 2017로 잡았던 것은
+#       한국에 맞추려던 것뿐이고 다른 이유가 없었다 — 시점 9개가 이 연구의 병목이었다.
+# 12개월 선행수익률이 필요해 양쪽 다 2025가 마지막이다.
+START_YEAR = {"KR": 2016, "US": 2012}
+YEARS = range(START_YEAR["KR"], 2026)          # main()이 시장에 맞춰 덮어쓴다
 HORIZON_DAYS = 365
 # check_analysis.py·check_epv_viability.py와 **같은 가정**. 갈라지면 진단이 화면과 다른
 # 자본비용으로 재게 된다. 시장마다 따로 둔다(ADR-0017).
@@ -322,7 +329,7 @@ def main() -> int:
     h.index = pd.to_datetime(h.index).tz_localize(None)
     print(f"{cfg['bench']} 지수 {len(h)}행 ({h.index[0].date()}~)\n")
 
-    years = args.dates or list(YEARS)
+    years = args.dates or list(range(START_YEAR[args.market], 2026))
     frames, meta_rows = [], []
     for y in years:
         t = pd.Timestamp(y, REBALANCE_MONTH, REBALANCE_DAY)
