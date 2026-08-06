@@ -124,16 +124,9 @@
         + (nz.ratio < 1 ? '현재 이익이 정상보다 높습니다' : '현재 이익이 정상보다 낮습니다')
         + '</div>';
     }
-    // 창(8년)을 채웠는지 아닌지로 문구가 갈린다 — 예전에는 "공시 이력이 짧아 효과가
-    // 약하다"고 한 줄로 적었지만, 그 전제가 사실이 아니었다(ADR-0025). 한국은 이제
-    // 문헌과 같은 8년을 채우고, **미국은 yfinance 이력이 4년이라 여전히 못 채운다.**
-    // 그래서 종목마다 다른 말을 해야 한다.
-    body += '<div class="foldrow-foot">' + nz.years + '개년 평균입니다. '
-      + (nz.years >= 8
-        ? '근거 문헌(Anderson &amp; Brooks 2006)이 쓴 창과 같습니다.'
-        : '근거 문헌(Anderson &amp; Brooks 2006)은 8년을 쓰는데 이 종목은 공시 이력이'
-          + ' 그만큼 없어 효과가 그만큼 약합니다.')
-      + ' 창이 통째로 호황이면 평균도 호황입니다 — 이 방법은 사이클을'
+    body += '<div class="foldrow-foot">' + nz.years + '개년 평균입니다. 근거 문헌'
+      + '(Anderson &amp; Brooks 2006)은 8년을 쓰지만 공시 이력이 짧아 그만큼 효과가'
+      + ' 약합니다. 5년이 통째로 호황이면 평균도 호황입니다 — 이 방법은 사이클을'
       + ' <b>완화할 뿐 제거하지 않습니다</b>.</div>';
     return fold('어떻게 나온 값인가', body);
   }
@@ -1394,11 +1387,7 @@
       }
     }
     // 표
-    // 항목 열에 하한을 준다 — 연도가 6개에서 8개로 늘면서(ADR-0025) 이 열이 좁아져
-    // 모바일에서 '영업이익'이 '영업이 익'으로 잘렸다. 연도 열은 minmax(0,1fr)이라야
-    // 남는 폭을 고르게 나눈다(1fr만 쓰면 내용 폭이 하한이 되어 표가 넘친다).
-    var tb = f.table,
-      cols = 'minmax(56px,1.4fr) repeat(' + tb.years.length + ',minmax(0,1fr))';
+    var tb = f.table, cols = '1.4fr repeat(' + tb.years.length + ',1fr)';
     var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:8px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + (unit === 'B' ? '10억 달러' : unit === 'M' ? '백만 달러' : unit + '원') + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
     var body = Object.keys(tb.rows).map(function (name, ri) {
       var isEps = name === 'EPS', krw = CUR === 'KRW';

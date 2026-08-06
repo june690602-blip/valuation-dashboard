@@ -196,12 +196,7 @@ def _wiki_index_table(url: str) -> pd.DataFrame:
 # 들어와야 1,100행을 넘고 하한이 $0.54B로 내려간다. 하한을 낮추는 것이 이 유니버스를
 # 넓힌 이유이므로, 그 계층이 빠진 결과는 7일 동안 붙들고 있으면 안 된다.
 # validate가 실패하면 file_cache는 저장하지 않고 마지막 정상 캐시를 대신 내준다.
-# `Index` 열도 validate가 본다 — 캐시 이름(`sp1500`)만으로는 **열이 늘기 전에 저장된
-# 7일짜리 캐시가 그대로 통과한다.** 이름에 버전을 붙이는 대신 실제 모양을 확인하는 쪽을
-# 골랐다(`_coefficients_usable`이 같은 이유로 같은 선택을 했다 — 버전을 올리는 걸 잊어도
-# 이 검사는 막는다).
-@file_cache("sp1500", ttl_hours=24 * 7,
-            validate=lambda df: len(df) > 1000 and "Index" in df.columns)
+@file_cache("sp1500", ttl_hours=24 * 7, validate=lambda df: len(df) > 1000)
 def get_sp1500() -> pd.DataFrame:
     """S&P 500 + 400 MidCap + 600 SmallCap = 약 1,500종목.
 
@@ -214,17 +209,11 @@ def get_sp1500() -> pd.DataFrame:
 
     세 목록 모두 같은 위키백과 표 스키마라 새 의존성이 없다. 한 지수를 못 받아도
     나머지로 진행한다 — 표본이 조금 줄 뿐 계수는 여전히 설 수 있다.
-
-    **어느 지수에서 왔는지를 `Index` 열에 남긴다.** 이 표에는 시가총액 열이 없어
-    (ADR-0013 결정 넷이 미국 피어 선정에서 같은 제약을 적었다) 규모로 표본을 나눌 수가
-    없는데, 세 지수가 곧 대·중·소형 구분이라 그 자체가 규모 층이다. 1,500종목의 시총을
-    따로 받으면 종목마다 왕복이 한 번씩 더 드는데, 이미 나뉘어 온 것을 버리고 다시 살
-    이유가 없다. `check_confidence.py`가 층화표집에 쓴다.
     """
-    frames = [get_sp500()[["Symbol", "Sector", "SubIndustry"]].assign(Index="S&P 500")]
-    for url, name in ((SP400_URL, "S&P 400"), (SP600_URL, "S&P 600")):
+    frames = [get_sp500()[["Symbol", "Sector", "SubIndustry"]]]
+    for url in (SP400_URL, SP600_URL):
         try:
-            frames.append(_wiki_index_table(url).assign(Index=name))
+            frames.append(_wiki_index_table(url))
         except Exception:
             continue
     # 세 지수는 배타적이라 정상적으로는 겹치지 않는다. 재편 중 위키백과 페이지들이

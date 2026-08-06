@@ -47,12 +47,9 @@ import pandas as pd
 
 from ..data.models import CompanyData, actual_prices, currency_mismatch
 from .scoring import comparable_peers, peer_median
-from .warranted import NEFF_LOW, NEFF_MID, effective_axes, leg_error
+from .warranted import leg_error
 
 VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
-# 신뢰도 등급 — **순서가 곧 크기다**(ADR-0022). 흩어짐이 낸 등급과 실질 축 수가 씌운
-# 상한 중 낮은 쪽을 쓰므로, 두 값을 비교할 자가 필요하다.
-CONFIDENCE_ORDER = ["낮음", "중간", "높음"]
 
 
 def _verdict(gap: float) -> str:
@@ -104,56 +101,6 @@ INTRINSIC_METHODS = ("수익가치(RIM)",)
 RELATIVE_METHODS = ("업종 상대가치", "역사적 밴드", "정규화 이익")
 
 
-def confidence_grade(dispersion: float | None, n_methods: int,
-                     n_eff: float | None = None,
-                     capped: bool = False) -> tuple[str, str, str]:
-    """(최종 등급, 흩어짐 등급, 상한) — 신뢰도를 정한다 (ADR-0022).
-
-    **흩어짐만 보면 '방법이 서로 독립'이라는 전제가 깔린다.** 그 전제가 틀렸다 — ①과 ⑤는
-    같은 적정 배수를 쓰고(ADR-0015 · AAPL), 구조적으로도 괴리율의 55~60%를
-    `−log(현재배수)`라는 공통 항이 설명한다(ADR-0014). 방법이 겹치면 값이 가깝게 나오는데,
-    그것은 '확실하다'가 아니라 **'같은 자로 여러 번 쟀다'**다.
-
-    그래서 흩어짐이 낸 등급에 **실질 축 수가 씌우는 상한**을 걸고 둘 중 낮은 쪽을 쓴다.
-    현행이 "방법이 1개뿐이면 무조건 낮음"으로 못박은 규칙에서 `1`을 실질 축 수로 바꾼 것이
-    설계의 전부다.
-
-    **곱셈 보정이 아닌 이유가 있다.** 처음에는 `disp`를 겹침만큼 부풀리려 했는데, ①과 ⑤가
-    같은 배수를 쓰면 두 값이 거의 같아 `disp ≈ 0`이고 **0에는 무엇을 곱해도 0**이다.
-    보정이 가장 필요한 자리에서 아무 일도 하지 않는다.
-
-    `capped`가 False면 상한을 걸지 않는다 — 상관을 모르는 방법 쌍이 있다는 뜻이고,
-    지어낸 상관으로 등급을 깎느니 안 깎는 쪽이 정직하다(ADR-0011).
-    """
-    if n_methods < 2 or dispersion is None:
-        return "낮음", "낮음", "낮음"
-    spread = "높음" if dispersion < 0.15 else "중간" if dispersion < 0.35 else "낮음"
-    cap = "높음"
-    if capped and n_eff is not None:
-        cap = "낮음" if n_eff < NEFF_LOW else "중간" if n_eff < NEFF_MID else "높음"
-    return min(spread, cap, key=CONFIDENCE_ORDER.index), spread, cap
-
-
-def psr_error_phrase(leg_err: dict | None) -> str:
-    """PSR 오차 폭을 말하는 구절 — **잰 값이 없으면 숫자를 대지 않는다** (ADR-0017·0022).
-
-    예전에는 `"±150% 수준"`이 문장에 하드코딩돼 있었다. 그 값은 **한국** PSR MAE
-    0.921에서 나온 것인데 문구에 시장 구분이 없어 **미국 종목 화면에도 한국 숫자가
-    떴다.** 미국 PSR은 0.656(±93%)이라 다른 값이고, 바로 옆 ADR-0017이 *"한국 값을
-    대신 쓰는 것은 지어내는 것"*이라며 금지한 그 행위다 — 실화면(WBD)에서 "측정된 적이
-    없습니다"와 "±150% 수준"이 몇 줄 간격으로 나란히 섰다.
-
-    그래서 이 시장에서 실제로 잰 값(`leg_error`)만 읽는다. 그 값은 **회귀를 재서 나온
-    것**이라 피어 중앙값 폴백 경로에는 없다(`res.leg_error`가 그때 비어 있다). 없으면
-    폭을 말하지 않고 없다고 말한다.
-    """
-    psr = next((m for m in (leg_err or {}).get("measured", [])
-                if m["leg"] == "psr"), None)
-    if psr is None:
-        return "실측 오차가 가장 큰 배수인데 이 경로의 오차는 아직 측정된 적이 없어서"
-    return f"실측 오차가 가장 커서(전 종목 검증에서 ±{psr['up']:.0%} 수준)"
-
-
 def _weighted(estimates: list) -> tuple[float, float, float, dict]:
     """(low, mid, high, 재정규화 가중치) — 주어진 방법들만으로 가중평균한다."""
     w = np.array([METHOD_WEIGHTS.get(e.method, 0.25) for e in estimates], dtype=float)
@@ -200,9 +147,6 @@ class ValuationResult:
     gap_equal: float | None = None       # 동일가중 괴리율
     verdict_equal: str | None = None     # 동일가중 판정
     dispersion: float | None = None      # 방법 간 중심값 변동계수(σ/|μ|) — 신뢰도 산출 근거
-    # 실질 축 수 (ADR-0022). 방법을 몇 개 썼든 서로 겹치면 이 값이 그보다 작다.
-    # 신뢰도 등급의 **상한**이 여기서 나온다 — 흩어짐만으로 낸 등급과 둘 중 낮은 쪽을 쓴다.
-    n_eff: float | None = None
     # ── 컨센서스 반영 종합 (①②③④) — 병기용, 판정에는 쓰지 않는다 ──
     # 값 자체보다 `consensus_premium`(펀더멘털 대비 얼마나 위인가)이 읽을 거리다:
     # "지금 주가가 정당화되려면 시장이 기대하는 실적 개선이 실제로 와야 한다"는 크기.
@@ -401,15 +345,10 @@ def _leg_sensitivity(fairs: list[float]) -> float | None:
 
 
 # ── ⑤ 정규화 이익 ────────────────────────────────────────────────────
-# 창은 문헌과 같은 8년이다 — Anderson & Brooks(2006, JBFA 33(7-8) 1063-1086)가 쓴 창이고,
-# ADR-0015는 *"DART 이력이 6년이라 그 이상은 못 만든다"*는 이유로 5년에 머물렀다.
-# **그 이유가 사실이 아니었다**(ADR-0025) — 6년은 DART가 아니라 `opendart.py`가 보고서를
-# 2개만 받아서 나온 값이고, 실제 이력은 중앙 13년이다(`scripts/check_dart_depth.py`).
-# 창을 늘리는 대가는 재서 확인했다: 커버리지 62%→62%, 종목당 호출 3→5회(하루 1회, 캐시).
-# 최소 3년은 '평균'이라 부를 수 있는 하한이다.
-# **이 값을 올리려면 `opendart.HISTORY_YEARS`도 함께 올려야 한다** — 데이터가 그만큼
-# 안 오면 창은 조용히 짧아진다. `tests/test_normalized_earnings.py`가 그것을 막는다.
-NORMALIZE_WINDOW = 8
+# 창을 5년으로 두는 이유 — 문헌(Anderson & Brooks 2006, JBFA 33(7-8) 1063-1086)은 8년을
+# 쓰지만 DART 이력이 6년이라 그 이상은 만들 수 없다. 효과가 그만큼 약해지는 것을 ADR-0015
+# 한계에 적었다. 최소 3년은 '평균'이라 부를 수 있는 하한이다.
+NORMALIZE_WINDOW = 5
 NORMALIZE_MIN_YEARS = 3
 
 
@@ -514,20 +453,6 @@ BAND_CORR_LIMIT = 0.90   # 이 이상이면 배수의 분위가 주가의 분위
 BAND_MIN_YEARS = 3.0     # '자기 과거 분위'라 부르려면 이만큼은 봐야 한다
 BAND_MIN_OBS = 200       # 기간은 길어도 관측이 드물면 분포가 몇몇 날에 좌우된다
 
-# 창을 **명시적으로** 정한다 (ADR-0026). 예전에는 이 상수가 없었고, 밴드의 창은
-# `base.py`의 `fetch_price_frame(..., period="5y")` 기본 인자가 정하고 있었다 —
-# 즉 "5년"은 결정이 아니라 **부작용**이었다(ADR-0012가 라벨을 실측값으로 바꾼 이유이기도 하다).
-# 7년인 근거는 `scripts/check_band_window.py`가 KR 127종목에서 잰 표다: 창이 길수록
-# 펀더멘털이 움직일 시간이 생겨 `BAND_CORR_LIMIT` 탈락(=배수가 아니라 주가의 분위)이
-# 21%→13%로 줄고, **5년에서 7년까지는 이력 부족 손실이 0**이며, 8년을 넘으면 개선이
-# 멈추고 커버리지만 깎인다.
-BAND_WINDOW_YEARS = 7.0
-
-# ADR-0010의 RIM 게이트가 쓰는 PBR 중앙값의 창. **밴드 창과 일부러 다르다.**
-# 그 게이트의 임계 `BOOK_REJECTED_PBR`은 5년 중앙값을 보고 정한 판단값이라, 창을 바꾸면
-# 재본 적 없는 임계가 된다. 창을 옮기려면 임계를 다시 재고 새 ADR을 써야 한다(ADR-0026).
-GATE_PBR_WINDOW_YEARS = 5.0
-
 
 def _band_quality(mult: pd.Series, px: pd.Series, fund: pd.Series) -> dict:
     """이 밴드가 배수를 재는가, 주가를 다시 쓴 것인가 (ADR-0012).
@@ -586,20 +511,6 @@ def _band_quality(mult: pd.Series, px: pd.Series, fund: pd.Series) -> dict:
                 f"상관은 {corr:+.2f}입니다. 주가의 분위와 구분되는 배수의 분위로 봅니다.")
 
 
-def _last_years(s: pd.Series, years: float) -> pd.Series:
-    """마지막 `years`년만 남긴다. 이미 그보다 짧으면 **손대지 않는다**.
-
-    자를 것이 있을 때만 `Timedelta`를 만든다 — 창을 아주 크게 두면 `Timedelta`가
-    범위를 넘어 터진다(실측: 999년). 상수를 잘못 두는 것이 예외로 죽을 일은 아니다.
-    """
-    if not len(s):
-        return s
-    win_days = int(365.25 * years)
-    if (s.index[-1] - s.index[0]).days <= win_days:
-        return s
-    return s[s.index > s.index[-1] - pd.Timedelta(days=win_days)]
-
-
 def _band(d: CompanyData, current_fund: float | None, kind: str):
     """(밴드 df, 현재 배수 백분위, FairValue 구성요소, 분위 배수 dict, 품질 dict) — kind: 'per'|'pbr'
 
@@ -616,25 +527,13 @@ def _band(d: CompanyData, current_fund: float | None, kind: str):
     # 과거를 그 뒤 지급된 배당만큼 낮춰 잡아 과거 PER·PBR이 실제보다 낮게 깔리고, 그만큼
     # 적정가(분위 배수 × 현재 펀더멘털)가 낮아져 현재가가 늘 비싸 보인다. 고배당일수록 심하다.
     px = actual_prices(d)
-    # 창을 여기서 자른다 — 안 자르면 밴드의 창이 '주가를 몇 년 받았나'가 되어, 데이터
-    # 수집 쪽을 건드리는 순간 판정이 **말없이** 바뀐다(ADR-0026). 자를 것이 없으면
-    # (주가가 창보다 짧으면) 그대로다. `_band_quality`가 실측 창을 다시 재서 화면에 낸다.
-    px = _last_years(px, BAND_WINDOW_YEARS)
-    mult = (px / daily.reindex(px.index)).dropna()
+    mult = (px / daily).dropna()
     quality = _band_quality(mult, px, daily) if len(mult) else None
     if len(mult) < BAND_MIN_OBS:
         return None, None, None, None, quality
     q = mult.quantile([0.10, 0.25, 0.50, 0.75, 0.90])
     qdict = {int(p * 100): float(v) for p, v in q.items()}
     qdict["current"] = float(mult.iloc[-1])
-    # ADR-0010의 RIM 게이트는 이 dict의 50분위를 읽는다. **그 임계(BOOK_REJECTED_PBR)는
-    # 5년 중앙값에서 정해진 값**이라, 밴드 창을 7년으로 옮겼다고 게이트까지 따라가면
-    # 재본 적 없는 임계로 RIM을 빼게 된다. 그래서 게이트 몫은 5년으로 따로 잰다
-    # (ADR-0026 결정 3). 게이트를 옮기려면 임계를 다시 재고 별도 ADR을 써야 한다.
-    gate_mult = _last_years(mult, GATE_PBR_WINDOW_YEARS)
-    qdict["gate_median"] = float(gate_mult.median()) if len(gate_mult) else None
-    qdict["gate_years"] = (float((gate_mult.index[-1] - gate_mult.index[0]).days / 365.25)
-                           if len(gate_mult) > 1 else None)
     pct = float((mult < mult.iloc[-1]).mean() * 100)
     band = pd.DataFrame({"price": px})   # 밴드와 같은 기준이어야 차트에서 위치가 맞는다
     for p, v in q.items():
@@ -745,12 +644,7 @@ def _book_quality(d: CompanyData, pbr: float | None, roe: float | None,
     share = (intan / ta) if (intan is not None and ta and ta > 0) else None
     bb = fin["buyback"].dropna() if "buyback" in fin.columns else None
     ratio = (float(bb.sum()) / eq) if (bb is not None and len(bb) and eq and eq > 0) else None
-    # **밴드의 50분위가 아니라 게이트용 5년 중앙값을 읽는다**(ADR-0026 결정 3). 밴드 창이
-    # 7년으로 옮겨 갔어도 이 게이트의 임계는 5년에서 정해진 값이라 따라가지 않는다.
-    # 옛 캐시·옛 호출로 `gate_median`이 없으면 50분위로 물러선다(예전 동작).
-    pbr_5y = (pbr_q or {}).get("gate_median")
-    if pbr_5y is None:
-        pbr_5y = (pbr_q or {}).get(50)
+    pbr_5y = (pbr_q or {}).get(50)
     under, of_years = _underearning(d, r)
     out = {"pbr": pbr, "intangible_share": share, "buyback_ratio": ratio,
            "years": int(len(bb)) if bb is not None else 0,
@@ -921,14 +815,14 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
                 f"① 업종 상대가치는 배수 {res.relative_legs}개의 중앙값입니다. 그중 하나만 빼도 "
                 f"중앙값이 {s:.0%} 움직입니다 — 다리가 적어 배수 하나가 결론을 좌우한다는 뜻이니, "
                 "①의 중심값 하나보다 범위와 다른 방법과의 차이를 함께 보세요."))
-        # PSR은 실측 오차가 가장 큰 다리인데 하필 적자 기업 전용이다. 정밀해 보이면
-        # 안 된다는 ADR-0014 한계 절이 이걸 밝히라고 요구한다.
+        # PSR은 회귀로도 MAE 0.921(±150%)로 넷 중 가장 부정확한데 하필 적자 기업 전용
+        # 다리다. 정밀해 보이면 안 된다는 ADR-0014 한계 절이 이걸 밝히라고 요구한다.
         if any(p["leg"] == "psr" for p in res.relative_parts):
             res.notes.append(ValuationNote(
                 "info",
-                f"이 종목은 적자라 ①에 매출 기준 배수(PSR)가 들어갔습니다. "
-                f"PSR이 {psr_error_phrase(res.leg_error)}, ①의 중심값보다 범위와 다른 "
-                "방법과의 차이를 함께 보세요."))
+                "이 종목은 적자라 ①에 매출 기준 배수(PSR)가 들어갔습니다. 네 배수 중 "
+                "PSR이 실측 오차가 가장 커서(전 종목 검증에서 ±150% 수준), ①의 중심값보다 "
+                "범위와 다른 방법과의 차이를 함께 보세요."))
     elif mismatch:
         res.skipped.append(("업종 상대가치", ccy_reason))
     else:
@@ -1116,21 +1010,10 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
         if len(mids) >= 2 and res.fair_mid:
             disp = float(np.std(mids) / abs(np.mean(mids)))
             res.dispersion = disp
-            n_eff, capped = effective_axes(list(res.weights or {}), d.market)
-            res.n_eff = n_eff
-            res.confidence, spread, cap = confidence_grade(
-                disp, len(mids), n_eff, capped)
+            res.confidence = "높음" if disp < 0.15 else "중간" if disp < 0.35 else "낮음"
             if res.confidence == "낮음":
                 res.notes.append(ValuationNote("warn", f"평가 방법 간 편차가 큽니다(±{disp:.0%}). "
                                  "판정을 보수적으로 해석하세요."))
-            if cap != spread and res.confidence == cap:
-                # 상한이 실제로 등급을 내린 경우에만 말한다. 안 그러면 "흩어짐은 작은데
-                # 신뢰도가 낮다"가 이유 없이 보인다.
-                res.notes.append(ValuationNote(
-                    "info",
-                    f"이 판정에 쓴 방법 {len(res.weights or {})}개는 서로 겹칩니다 — 실질적으로 "
-                    f"{n_eff:.1f}개 몫입니다. 값이 가깝게 나온 것이 '여러 방법이 독립적으로 "
-                    "합의했다'는 뜻은 아닙니다."))
         else:
             res.confidence = "낮음"
             res.notes.append(ValuationNote(

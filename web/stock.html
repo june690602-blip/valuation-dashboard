@@ -168,11 +168,6 @@
   #hv-B > div, #warnWrap > div { box-shadow: var(--shadow-card); }
   .analysis-details summary::-webkit-details-marker { display: none; }
   .analysis-details[open] summary .chev { transform: rotate(180deg); }
-  /* 연간 재무제표 표 — 연도가 8개다(ADR-0025). 좁은 화면에서는 9열이 들어가지 않아
-     숫자끼리 붙으므로(EPS 5자리) 폭을 지키고 가로로 넘긴다. 데스크톱은 653px라
-     min-width에 걸리지 않아 지금과 똑같이 보인다. */
-  #finTableBody { overflow-x: auto; }
-  #finTableBody > div { min-width: 460px; }
   /* 로딩/에러 오버레이 */
   @media (max-width: 900px) {
     .app-header-actions { flex: 1 1 260px; min-width: 0; }

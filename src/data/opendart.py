@@ -204,23 +204,6 @@ def _parse_report(j: dict, base: int) -> dict[int, dict]:
     return out
 
 
-# 몇 해를 남길 것인가 — **⑤ 정규화 이익의 창이 이 값을 정한다**(ADR-0025).
-# 창이 쓰는 것은 프레임의 마지막 N행이므로 그보다 깊게 받아도 판정은 안 쓴다.
-# 이 값이 `valuation.NORMALIZE_WINDOW`보다 작아지면 창이 조용히 짧아진다 —
-# `tests/test_normalized_earnings.py`가 그 어긋남을 막는다.
-HISTORY_YEARS = 8
-
-# 사업보고서 하나에 3년이 들어 있다(당기·전기·전전기). 그래서 3년 간격으로 받으면
-# 빈 해가 없다 — 연도마다 받으면 같은 깊이에 3배를 부른다.
-YEARS_PER_REPORT = 3
-
-
-def _report_years(base: int) -> list[int]:
-    """받을 사업연도 — `HISTORY_YEARS`를 덮는 데 필요한 만큼만."""
-    n = -(-HISTORY_YEARS // YEARS_PER_REPORT)          # 올림 나눗셈
-    return [base - YEARS_PER_REPORT * i for i in range(n)]
-
-
 @file_cache("dart_fin", ttl_hours=24)
 def _dart_financials_df(stock_code: str) -> pd.DataFrame:
     """DART 연간 재무제표 → 표준 스키마 DataFrame (index=회계연도, 과거→최신). 캐시용."""
@@ -244,10 +227,9 @@ def _dart_financials_df(stock_code: str) -> pd.DataFrame:
     if base is None:
         raise ValueError("no annual report")
     fs_div = reports[base].get("_fs", "CFS")
-    for y in _report_years(base)[1:]:      # 동일 연결/별도 기준으로 이력 연장
-        older = _fetch_report(key, corp, y, fs_div=fs_div)
-        if older:
-            reports[y] = older
+    older = _fetch_report(key, corp, base - 3, fs_div=fs_div)  # 동일 연결/별도 기준으로 이력 연장
+    if older:
+        reports[base - 3] = older
 
     data: dict[int, dict] = {}
     for ry in sorted(reports, reverse=True):  # 최신 보고서 우선(재작성 반영)
@@ -264,7 +246,7 @@ def _dart_financials_df(stock_code: str) -> pd.DataFrame:
         if c in df.columns:
             mask = mask | df[c].notna()
     df = df[mask] if mask.any() else df
-    df = df.tail(HISTORY_YEARS)
+    df = df.tail(6)
     fallback_dates = pd.Series(
         [pd.Timestamp(int(y), 12, 31) for y in df.index], index=df.index
     )
