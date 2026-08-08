@@ -31,3 +31,4 @@
 | [0018](0018-declare-what-the-verdict-rests-on.md) | 이 판정이 무엇에 기대는지 화면에 밝힌다 | 채택됨 |
 | [0019](0019-client-math-parity-by-executing-the-browser-code.md) | 이식된 수식은 한 파일에 모으고, 브라우저가 받는 그 파일을 실행해 대조한다 | 채택됨 |
 | [0020](0020-size-term-spline.md) | 적정 배수의 규모 항을 직선 하나가 아니라 마디 있는 스플라인으로 낸다 | 채택됨 |
+| [0021](0021-confidence-by-effective-axes.md) | 신뢰도는 방법 간 편차가 아니라 유효 축 수로 보정한 편차로 낸다 | 채택됨 |
