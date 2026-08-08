@@ -824,12 +824,21 @@
     // 편차는 **판정에 쓰인 방법들**(①②③)에 대해서만 잰다 — ④는 종합에 안 들어가므로
     // 방법 수도 v.weights의 키 수로 센다(v.estimates는 ④를 포함한 전부다).
     var nMeth = Object.keys(v.weights || {}).length || (v.estimates || []).length;
-    var confTip = v.dispersion != null
-      ? '판정에 쓰인 방법 간 중심값 편차 ±' + Math.round(v.dispersion * 100) + '% (' + nMeth + '개 방법) — '
+    /* 등급은 **보정 후** 편차로 매긴다(ADR-0021). 보정 전 숫자를 보여 주면 "±12%인데
+       중간"처럼 화면이 자기모순으로 읽힌다. 상관을 안 잰 시장이면 보정값이 없어
+       종전대로 원본 편차를 쓴다 — 그때는 등급도 원본으로 매겨졌으므로 어긋나지 않는다. */
+    var dispShown = v.dispersion_adj != null ? v.dispersion_adj : v.dispersion;
+    var nEff = v.effective_axes;
+    var confTip = dispShown != null
+      ? '판정에 쓰인 방법 간 중심값 편차 ±' + Math.round(dispShown * 100) + '% (' + nMeth + '개 방법'
+        + (nEff != null ? ', 서로 겹쳐서 사실상 ' + nEff.toFixed(1) + '개 몫' : '') + ') — '
         + (v.confidence === '높음' ? '방법 간 값이 좁게 모여 있습니다(±15% 미만).'
           : v.confidence === '중간' ? '방법 간 값이 다소 흩어져 있습니다(±15~35%).'
           : '방법 간 값이 크게 흩어져 있습니다(±35% 이상). 판정을 보수적으로 해석하세요.')
-        + ' 값이 모인 정도이지 방법들이 독립적으로 합의했다는 뜻은 아닙니다. ④ 선행 이익은 판정에 넣지 않으므로 이 편차에도 들어가지 않습니다.'
+        + (nEff != null
+            ? ' 이 편차는 방법들이 서로 얼마나 겹치는지를 반영해 보정한 값입니다 — 같은 재료를 쓰는 방법끼리 값이 가까운 것은 합의가 아니라 같은 입력을 다시 읽은 것이라, 그만큼 되돌려 잡았습니다.'
+            : ' 값이 모인 정도이지 방법들이 독립적으로 합의했다는 뜻은 아닙니다.')
+        + ' ④ 선행 이익은 판정에 넣지 않으므로 이 편차에도 들어가지 않습니다.'
       : nMeth <= 1 ? '사용 가능한 평가 방법이 1개뿐이라 낮음으로 처리합니다.'
       : '편차 정보를 계산하지 못했습니다.';
     var finYear = (D.financials && D.financials.years && D.financials.years.length)

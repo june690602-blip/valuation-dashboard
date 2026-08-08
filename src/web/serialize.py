@@ -732,6 +732,10 @@ def analyze(market: str, query: str, peer_count: int = 9,
         "verdict": {
             "verdict": val.verdict, "gap": num(val.gap), "confidence": val.confidence,
             "dispersion": num(getattr(val, "dispersion", None)),
+            # 등급은 **보정 후** 값으로 매긴다(ADR-0021). 화면이 보정 전 숫자만 보여 주면
+            # "±12%인데 중간"처럼 자기모순으로 읽힌다. 상관을 안 잰 시장이면 둘 다 None이다.
+            "dispersion_adj": num(getattr(val, "dispersion_adj", None)),
+            "effective_axes": num(getattr(val, "effective_axes", None)),
             "fair_low": num(val.fair_low), "fair_mid": num(val.fair_mid),
             "fair_high": num(val.fair_high),
             "fair_mid_equal": num(val.fair_mid_equal), "gap_equal": num(val.gap_equal),
