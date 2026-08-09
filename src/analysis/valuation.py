@@ -102,6 +102,21 @@ METHOD_WEIGHTS = {
 FUNDAMENTAL_METHODS = ("업종 상대가치", "수익가치(RIM)", "정규화 이익")
 CONSENSUS_METHOD = "선행 이익(컨센서스)"
 
+# 값은 내지만 판정 종합에 넣지 않는 방법과 **그 사유**. 화면이 아니라 여기 사는 이유는
+# 사유가 ADR의 주장이기 때문이다 — 판정 구성이 바뀔 때 이 표와 ADR을 함께 고치면 되고,
+# 화면은 문자열을 받아 그리기만 한다. 손으로 적힌 문구는 구성이 바뀔 때 조용히 썩는다.
+EXCLUSION_REASONS = {
+    "역사적 밴드":
+        "값은 계산했지만 판정에는 넣지 않습니다 — 이 방법만 문헌 계보가 없는 실무 관행이고, "
+        "한국 1,288종목·10시점 백테스트에서 단독 예측력이 확인되지 않았습니다"
+        "(IC 0.030 · t=1.59). 차트와 백분위는 그대로 두었습니다 — '자기 역사 대비 지금 "
+        "어디인가'는 '미래를 맞히는가'와 다른 질문입니다. 상세 · docs/adr/0035",
+    CONSENSUS_METHOD:
+        "컨센서스 선행 이익은 시장의 실적 기대를 입력으로 씁니다. 판정을 시장 기대와 "
+        "독립적으로 유지하려고 종합에서 빼고, '컨센서스 반영' 값으로 따로 병기합니다. "
+        "상세 · docs/adr/0006",
+}
+
 # 값을 **무엇에서** 만드는가 (ADR-0018). 이 분류가 판정의 성격을 가른다.
 #   절대가치 — 회사가 벌 것과 할인율에서 만든다. 지금은 ③ RIM뿐이다.
 #   상대가치 — 시장이 매긴 배수가 입력이다. ①은 다른 회사가 시장에서 받는 배수,
@@ -284,6 +299,12 @@ class ValuationResult:
     normalized_per: float | None = None      # 적용한 회귀 적정 PER
     weights: dict = field(default_factory=dict)   # 펀더멘털 종합에 쓴 가중치 (재정규화)
     skipped: list = field(default_factory=list)   # [(방법명, 건너뛴 사유)] — 번호 자리 유지용
+    # [(방법명, 판정에서 뺀 사유)] — **`skipped`와 다르다.** `skipped`는 계산이 성립하지
+    # 않아 값이 없는 것이고, 이것은 **값은 있는데 판정 종합에 넣지 않은** 것이다(②·④).
+    # 사유 문자열을 여기서 내보내는 이유: 그 사유는 ADR-0006·0035의 주장이라 ADR과 같은
+    # 곳에 살아야 한다. 화면이 손으로 적으면 판정 구성이 바뀔 때마다 조용히 썩는다 —
+    # ①②③이 여덟 자리에 손으로 적혀 있다가 실제 구성과 어긋난 것이 바로 그 사고다.
+    excluded_from_verdict: list = field(default_factory=list)
     # ②·④가 함께 쓰는 '자기 과거 PER 중앙값' 하나에 **컨센서스 반영 적정가**가 실제로 얼마나
     # 매달려 있나(0~1). 명목 가중 합(0.60)이 아니라 **중심값 크기까지 반영한 실효 의존도**다 —
     # 이 배수가 10% 틀리면 그 값도 이 비율만큼 틀린다. 펀더멘털 종합에는 ②만 들어가므로
@@ -1098,6 +1119,13 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
     # 그러면 바로 아래 주석이 약속하는 문장("이 차이가 곧 시장 기대분")이 거짓이 된다.
     # ②를 판정에서만 빼고 병기에 남겨 두는 것은 **선택지가 아니라 버그**다.
     with_fwd = core + [e for e in res.estimates if e.method == CONSENSUS_METHOD]
+    # 값은 냈는데 판정에 안 들어간 방법과 그 사유. 화면의 '판정 제외 · 참고' 배지가 이걸
+    # 그대로 읽는다 — 가중 칸을 빈칸으로 두면 '빠뜨렸나'로 읽히기 때문이다.
+    for e in res.estimates:
+        if e.method in FUNDAMENTAL_METHODS:
+            continue
+        res.excluded_from_verdict.append((e.method, EXCLUSION_REASONS.get(
+            e.method, "값은 계산했지만 판정 종합에는 넣지 않았습니다.")))
     if with_fwd:
         # 컨센서스 반영 종합 — ④가 실제로 있을 때만 펀더멘털과 다른 값이 된다.
         (res.fair_low_consensus, res.fair_mid_consensus,

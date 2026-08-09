@@ -652,6 +652,33 @@ class BasisShareTests(unittest.TestCase):
         self.assertEqual(intrinsic, 0.0)
         self.assertAlmostEqual(relative, 1.0, places=9)
 
+    def test_excluded_from_verdict_carries_the_reason_not_just_the_name(self):
+        """값은 냈는데 판정에 안 들어간 방법은 **사유와 함께** 나가야 한다.
+
+        화면은 가중 칸이 빈 방법에 '판정 제외 · 참고' 배지를 붙이는데, 사유가 없으면
+        배지가 일반 문구밖에 못 쓴다. 그리고 사유를 화면에 손으로 적으면 판정 구성이
+        바뀔 때 조용히 썩는다 — ①②③이 여덟 자리에 하드코딩돼 실제 구성과 어긋나 있던
+        것이 정확히 그 사고다. 그래서 사유는 ADR과 같은 파일(파이썬)에서 나간다.
+
+        `skipped`와 섞이면 안 된다: 그쪽은 **값이 없는** 것이고 이쪽은 **값은 있는** 것이다.
+        """
+        from src.analysis.valuation import FUNDAMENTAL_METHODS, compute_valuation
+
+        # ②와 ③이 함께 서는 픽스처 — ②는 계산되지만 판정에는 안 들어간다(ADR-0035).
+        res = compute_valuation(_company_for_band([1.0, 1.6, 2.6, 4.2, 6.8, 11.0]),
+                                _flat_indicators(), r_equity=0.09)
+        got = dict(res.excluded_from_verdict)
+        self.assertIn("역사적 밴드", got, "값을 낸 ②가 제외 목록에 없다")
+        self.assertNotIn("역사적 밴드", res.weights or {}, "②가 판정 가중에 남아 있다")
+        self.assertIn("0035", got["역사적 밴드"], "사유가 근거 ADR을 가리키지 않는다")
+
+        # 계산된 방법만 들어간다 — 값이 없어 건너뛴 것은 `skipped`의 몫이다
+        computed = {e.method for e in res.estimates}
+        self.assertTrue(set(got) <= computed,
+                        "값을 내지 않은 방법이 제외 목록에 섞였다")
+        # 판정에 든 방법은 여기 없어야 한다
+        self.assertEqual(set(got) & set(FUNDAMENTAL_METHODS), set())
+
     def test_all_axes_standing_leave_rim_a_minority(self):
         from src.analysis.valuation import (FUNDAMENTAL_METHODS, INTRINSIC_METHODS,
                                             METHOD_WEIGHTS)
