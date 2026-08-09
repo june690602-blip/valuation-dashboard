@@ -203,6 +203,14 @@ class ValuationResult:
     # 실질 축 수 (ADR-0022). 방법을 몇 개 썼든 서로 겹치면 이 값이 그보다 작다.
     # 신뢰도 등급의 **상한**이 여기서 나온다 — 흩어짐만으로 낸 등급과 둘 중 낮은 쪽을 쓴다.
     n_eff: float | None = None
+    # `confidence`가 어느 쪽에서 나왔는지 — 화면이 **숫자와 설명을 맞추려면** 둘이 필요하다.
+    # `dispersion`(±%)이 뜻하는 등급은 `confidence_spread`이고, `n_eff`가 씌운 상한은
+    # `confidence_cap`이며, 최종 `confidence`는 둘 중 낮은 쪽이다. 상한이 등급을 내린
+    # 종목에서 ±%만 보고 설명을 고르면 **숫자와 문장이 서로 모순된다**(PR #130이 찾은 버그).
+    # 임계(0.15/0.35 · NEFF_LOW/MID)를 JS에 옮겨 적지 않으려고 등급 자체를 내보낸다 —
+    # 같은 수식이 두 언어에 사는 것이 #84·ADR-0019가 잡은 문제다.
+    confidence_spread: str | None = None   # 흩어짐만으로 낸 등급
+    confidence_cap: str | None = None      # 실질 축 수가 씌운 상한 등급
     # ── 컨센서스 반영 종합 (①②③④) — 병기용, 판정에는 쓰지 않는다 ──
     # 값 자체보다 `consensus_premium`(펀더멘털 대비 얼마나 위인가)이 읽을 거리다:
     # "지금 주가가 정당화되려면 시장이 기대하는 실적 개선이 실제로 와야 한다"는 크기.
@@ -1120,6 +1128,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
             res.n_eff = n_eff
             res.confidence, spread, cap = confidence_grade(
                 disp, len(mids), n_eff, capped)
+            res.confidence_spread, res.confidence_cap = spread, cap
             if res.confidence == "낮음":
                 res.notes.append(ValuationNote("warn", f"평가 방법 간 편차가 큽니다(±{disp:.0%}). "
                                  "판정을 보수적으로 해석하세요."))
