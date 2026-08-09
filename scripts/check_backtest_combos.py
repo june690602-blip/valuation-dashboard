@@ -98,7 +98,7 @@ CANDIDATES = {
     "B5 EPV추가 5축":     _plain({**W, EPV: W[RIM]}),
     "B6 ②③만(옛 백테)":  _plain({BAND: W[BAND], RIM: W[RIM]}),
 }
-CANDIDATE_COUNT_NOTE = ("A 5개 + B 6개 + C 3개(변형 패널) = **14개**를 봤다. "
+CANDIDATE_COUNT_NOTE = ("A 5개 + B 6개 + C 3개(변형 패널) + F 3개(개정 4) = **17개**를 봤다. "
                         "후보가 많을수록 우연히 잘 맞는 것이 하나는 나온다.")
 
 # ── 사후 관찰 — **사전등록 밖이다** ─────────────────────────────────
@@ -110,6 +110,88 @@ POSTHOC = {
     "P2 ①⑤ 만": _plain({REL: W[REL], NORM: W[NORM]}),
     "P3 ①③⑤+EPV": _plain({REL: W[REL], RIM: W[RIM], NORM: W[NORM], EPV: W[RIM]}),
 }
+
+# ── F-Score (사전등록 개정 4) — 후보가 14개에서 17개가 됐다 ────────────
+# **다른 축들과 종류가 다르다.** ①②③⑤·EPV는 log(적정가/주가)를 내는데 F-Score는
+# 가격을 내지 않으므로 점수 자체가 신호다. IC와 분위는 순위만 쓰므로 그대로 서지만,
+# '괴리율'이라는 이름을 붙이지 않는다 — 이름을 잘못 붙이면 다음 사람이 %로 읽는다.
+#
+# 분모로 나눠 쓰는 이유: `fscore_max`가 9·8·7로 섞인다(실측 2025년 644/183/31).
+# 6/9와 6/8을 같은 값으로 두면 데이터가 얇은 종목이 체계적으로 낮은 점수를 받는다.
+BIG_UNDER = "크게 저평가"          # VERDICTS[0] — 표본의 42%가 여기 있다(ADR-0028)
+FS_HIGH, FS_LOW = (7, 9), (0, 3)   # 사전등록 개정 4가 못 박은 바구니. **고치지 않는다**
+FS_MIN_BUCKET = 15                 # 한쪽 바구니가 이보다 얇으면 그 시점은 못 잰다
+
+
+def _fs_ratio(row):
+    """F-Score ÷ 분모. 못 서면 NaN — 다른 후보와 같은 결측 규약."""
+    s, m = row.get("fscore"), row.get("fscore_max")
+    if s is None or m is None or not np.isfinite(s) or not np.isfinite(m) or m <= 0:
+        return np.nan
+    return float(s) / float(m)
+
+
+def _fs_ratio_ex_eq(row):
+    """7번(신주발행)을 뺀 8점 척도 — 그 신호가 유통주식수 근사라 가장 약하다."""
+    s, m = row.get("fscore_ex_eq"), row.get("fscore_max")
+    if s is None or m is None or not np.isfinite(s) or not np.isfinite(m) or m <= 0:
+        return np.nan
+    den = float(m) - (1.0 if float(m) >= 8 else 0.0)   # EQ_OFFER가 섰던 만큼만 뺀다
+    return float(s) / den if den > 0 else np.nan
+
+
+def _rank_blend(gap_fn):
+    """판정 괴리율과 F-Score를 **순위로** 반반 섞는다 (F3).
+
+    **이 결합식은 사전등록에 없다.** 개정 4는 *"판정에 얹으면"*이라고만 적었고 어떻게
+    얹는지를 못 박지 않았다 — 그래서 F3은 셋 중 가장 약한 증거이고, 개정 4가 이미
+    *"F3만 통과하면 채택하지 않는다"*고 적어 둔 이유가 이것이다.
+    가장 단순한 것을 하나만 고른다: 두 순위의 평균. 여러 결합식을 재서 좋은 것을
+    고르면 그것이 과최적화다.
+
+    두 신호의 단위가 다르므로(로그 괴리율 vs 0~1 비율) **값이 아니라 순위**를 섞는다.
+    """
+    def f(sub: pd.DataFrame) -> pd.Series:
+        gap = sub.apply(gap_fn, axis=1)
+        fs = sub.apply(_fs_ratio, axis=1)
+        both = gap.notna() & fs.notna()
+        out = pd.Series(np.nan, index=sub.index)
+        if both.sum() < 30:
+            return out
+        out[both] = (gap[both].rank(pct=True) + fs[both].rank(pct=True)) / 2.0
+        return out
+    return f
+
+
+FSCORE_CANDIDATES = {
+    "F1 F점수 단독":       _fs_ratio,
+    "F1b F점수 8점척도":   _fs_ratio_ex_eq,
+}
+
+
+def fscore_within_verdict(panel: pd.DataFrame, verdict: str = BIG_UNDER) -> pd.DataFrame:
+    """**F2 — 핵심 가설.** 같은 판정 바구니 안에서 F-Score가 수익률을 가르나.
+
+    사전등록 개정 4: *"'크게 저평가' 안 F-Score 상위(7~9) − 하위(0~3) 수익률 차
+    ≥ +3.0%p 이고 t > 2"*. 바구니는 **원점수**로 자른다 — 개정 4가 그렇게 적었다.
+    분모가 섞이는 문제는 비율 기준 결과를 나란히 내서 드러낸다.
+    """
+    rows = []
+    for t, sub in panel.groupby("date"):
+        b = sub[(sub["verdict"] == verdict) & sub["fwd_12m"].notna()
+                & sub["fscore"].notna()]
+        hi = b[b["fscore"].between(*FS_HIGH)]["fwd_12m"]
+        lo = b[b["fscore"].between(*FS_LOW)]["fwd_12m"]
+        rows.append({
+            "date": t, "year": t.year, "n_bucket": len(b),
+            "n_hi": len(hi), "n_lo": len(lo),
+            "ret_hi": float(hi.mean()) if len(hi) >= FS_MIN_BUCKET else np.nan,
+            "ret_lo": float(lo.mean()) if len(lo) >= FS_MIN_BUCKET else np.nan,
+            "ic_in_bucket": (float(b["fscore"].rank().corr(b["fwd_12m"].rank()))
+                             if len(b) >= 30 else np.nan)})
+    df = pd.DataFrame(rows)
+    df["diff"] = df["ret_hi"] - df["ret_lo"]
+    return df
 
 
 # ── 채점 ────────────────────────────────────────────────────────────
@@ -205,6 +287,97 @@ def drop_high_drift(panel: pd.DataFrame, limit: float) -> pd.DataFrame:
     return out
 
 
+def report_fscore(panel: pd.DataFrame, keep: dict) -> None:
+    """F1·F2·F3 — 사전등록 개정 4. **통과 조건을 화면에 함께 찍는다.**
+
+    조건을 옆에 안 찍으면 읽는 사람이 숫자를 보고 선을 새로 긋는다. 개정 4가
+    효과 크기 하한을 넣은 이유가 그것이라, 하한도 코드에 상수로 둔다.
+    """
+    F1_SPREAD_FLOOR, F2_DIFF_FLOOR, F3_IC_FLOOR = 0.030, 0.030, 0.010
+
+    if "fscore" not in panel.columns or panel["fscore"].notna().sum() == 0:
+        print("\n[F-Score] 패널에 fscore 열이 없다 — backtest_panel.py를 다시 돌려라.")
+        return
+
+    cov = panel["fscore"].notna().mean()
+    mx = panel["fscore_max"].dropna().value_counts().sort_index(ascending=False)
+    print(f"\n\n{'=' * 78}\n[개정 4] F-Score — 사전등록한 가설 셋\n{'=' * 78}")
+    print(f"커버리지 {cov:.1%} · 분모 분포 "
+          + " · ".join(f"{int(k)}점척도 {v}" for k, v in mx.items()))
+
+    # ── F1 단독 ──
+    f_rows = []
+    for name, fn in FSCORE_CANDIDATES.items():
+        pdf = evaluate(panel, name, fn)
+        f_rows.append((name, summarise(pdf, IN_SAMPLE), summarise(pdf, OUT_SAMPLE)))
+    _table("[F1] F-Score 단독으로 예측력이 있나", f_rows)
+    o = f_rows[0][2]
+    ok1 = (o["ic"] > 0 and o["t"] > 2 and o["spread"] >= F1_SPREAD_FLOOR
+           and o["pos"] >= 3)
+    print(f"  통과 조건: IC>0 · t>2 · Q5−Q1 ≥ {F1_SPREAD_FLOOR:.1%} · 5시점 중 3 이상 양(+)")
+    print(f"  → F1 {'통과' if ok1 else '실패'}"
+          f"  (IC {o['ic']:.3f} · t {o['t']:.2f} · 스프레드 {o['spread']:.1%}"
+          f" · 양 {o['pos']}/{o['k']})")
+
+    # ── F2 '크게 저평가' 안에서 갈리나 (핵심) ──
+    fv = fscore_within_verdict(panel)
+    out = fv[fv["year"].isin(OUT_SAMPLE)]
+    diff, tval = float(np.nanmean(out["diff"])), _t_stat(out["diff"].to_numpy(float))
+    print(f"\n[F2] '{BIG_UNDER}' 바구니 안에서 F-Score가 가르나 — **핵심 가설**")
+    print(f"{'시점':<12}{'바구니':>7}{'상위n':>7}{'하위n':>7}"
+          f"{'상위수익':>10}{'하위수익':>10}{'차':>9}")
+    print("─" * 62)
+    for r in fv.itertuples():
+        mark = "" if r.year in OUT_SAMPLE else "  (선택)"
+        hi = f"{r.ret_hi:>9.1%}" if np.isfinite(r.ret_hi) else "        —"
+        lo = f"{r.ret_lo:>9.1%}" if np.isfinite(r.ret_lo) else "        —"
+        df_ = f"{r.diff:>8.1%}" if np.isfinite(r.diff) else "       —"
+        print(f"{str(r.date.date()):<12}{r.n_bucket:>7}{r.n_hi:>7}{r.n_lo:>7}"
+              f"{hi}{lo}{df_}{mark}")
+    ok2 = np.isfinite(diff) and diff >= F2_DIFF_FLOOR and np.isfinite(tval) and tval > 2
+    print(f"\n  검증기간 평균 차 {diff:+.1%} · t {tval:.2f}"
+          f"  (바구니 안 IC 평균 {np.nanmean(out['ic_in_bucket']):.3f})")
+    print(f"  통과 조건: 차 ≥ {F2_DIFF_FLOOR:.1%} 이고 t > 2  "
+          f"(바구니 {FS_HIGH[0]}~{FS_HIGH[1]}점 vs {FS_LOW[0]}~{FS_LOW[1]}점, 개정 4가 못 박은 그대로)")
+    print(f"  → F2 {'통과' if ok2 else '실패'}")
+
+    # ── F3 판정에 얹으면 ──
+    b1 = summarise(keep["B1 현행 4축"], OUT_SAMPLE)
+    blend_rows = []
+    for t, sub in panel.groupby("date"):
+        g = _rank_blend(_plain(W))(sub)
+        s = score_date(g, sub["fwd_12m"])
+        s.update({"date": t, "year": t.year, "cand": "F3 B1+F점수",
+                  "cover": s["n"] / len(sub) if len(sub) else np.nan})
+        blend_rows.append(s)
+    bl = pd.DataFrame(blend_rows)
+    _table("[F3] 판정에 F-Score를 순위로 반반 얹으면 (기준선 = B1 현행 4축)",
+           [("B1 현행(기준선)", summarise(keep["B1 현행 4축"], IN_SAMPLE), b1),
+            ("F3 B1+F점수", summarise(bl, IN_SAMPLE), summarise(bl, OUT_SAMPLE))])
+    d3 = summarise(bl, OUT_SAMPLE)["ic"] - b1["ic"]
+    t3 = _t_stat((bl[bl["year"].isin(OUT_SAMPLE)]["ic"].to_numpy(float)
+                  - keep["B1 현행 4축"][keep["B1 현행 4축"]["year"].isin(OUT_SAMPLE)]
+                  ["ic"].to_numpy(float)))
+    ok3 = np.isfinite(d3) and d3 >= F3_IC_FLOOR and np.isfinite(t3) and t3 > 2
+    print(f"  Δ IC {d3:+.4f} · t {t3:.2f}  |  통과 조건: Δ ≥ +{F3_IC_FLOOR:.3f} 이고 t > 2")
+    print(f"  → F3 {'통과' if ok3 else '실패'}")
+    print("  ※ F3의 결합식(순위 반반)은 **사전등록에 없다.** 개정 4가 'F3만 통과하면"
+          " 채택하지 않는다'고 적은 이유다.")
+
+    # ── 개정 4가 미리 정한 판단표 ──
+    print(f"\n{'─' * 78}\n[판단] 개정 4가 숫자를 보기 전에 정한 것")
+    if ok2:
+        print("  F2 통과 → **품질 층으로 넣는다.** 판정 문구를 F-Score와 함께 읽게 한다.")
+    elif ok1:
+        print("  F2 실패·F1 통과 → **넣지 않는다.** 예측은 하지만 우리 판정과 겹친다는 뜻이다.")
+    else:
+        print("  F1·F2 둘 다 실패 → **넣지 않는다.** 문헌에 있어도 넣지 않는다.")
+    if ok3 and not ok2:
+        print("  F3만 통과 → **채택 근거로 쓰지 않는다**(파생 통계, ADR-0031의 교훈).")
+    fv.to_csv(DATA / "fscore_by_date.csv", index=False)
+    print(f"  시점별 원자료 → {DATA / 'fscore_by_date.csv'}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="분할 안 한 전체기간도 낸다")
@@ -284,6 +457,8 @@ def main() -> int:
     _table("[사후] 사전등록 밖 — **결론이 아니라 다음 표본에서 확인할 가설이다**",
            [(n, summarise(evaluate(panel, n, f), IN_SAMPLE),
              summarise(evaluate(panel, n, f), OUT_SAMPLE)) for n, f in POSTHOC.items()])
+
+    report_fscore(panel, keep)
 
     per_date = pd.concat(keep.values(), ignore_index=True)
     per_date.to_csv(DATA / "ic_by_date.csv", index=False)
