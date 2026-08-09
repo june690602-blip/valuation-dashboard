@@ -67,7 +67,12 @@ _tally = {OK: 0, BAD: 0, NA: 0}
 #   5 → 3: #84 — 이식된 수식을 finmath.js 한 벌로 모으고, 브라우저가 받는 그 파일을 Node로
 #          실행해 파이썬 쌍둥이와 전 격자 대조하게 했다(ADR-0019). '두 언어에 4곳'과
 #          'bond_math를 웹이 안 씀'이 함께 닫힌다 — 쌍둥이가 실행 가능한 명세가 됐다.
-KNOWN_OPEN = 3
+#   3 → 2: HANDOFF-AXES 1단계가 근거 상자들을 접힘으로 바꾸며 그 자리의 값이 JS 문자열에서
+#          meridian.css로 올라갔다(.srcfold.inrow · .srcfold-body .mono · .foldrow 첫 항목).
+#          ㉠ 'CSS의 67%가 페이지 안'이 이 관문의 기준 아래로 내려왔다.
+#          **의도해서 닫은 것이 아니라 따라온 것이다** — 남은 둘(㉡ 인라인 밀도 ·
+#          ㉢ serialize.py의 계산)은 그대로다.
+KNOWN_OPEN = 2
 
 WEB_JS = ["common.js", "finmath.js", "stock.js", "stock-price-chart.js", "portfolio.js",
           "bond.js", "test.js", "feedback.js", "analytics.js"]

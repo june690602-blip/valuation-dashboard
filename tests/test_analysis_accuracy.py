@@ -643,20 +643,27 @@ class BasisShareTests(unittest.TestCase):
         from src.analysis.valuation import INTRINSIC_METHODS, RELATIVE_METHODS
 
         # ③이 빠진 종목: 명목 가중이 아니라 재정규화된 실효 가중이라 절대가 정확히 0이다.
-        weights = {"업종 상대가치": 0.375, "역사적 밴드": 0.375, "정규화 이익": 0.25}
+        # ②가 판정에서 빠지며(ADR-0035) 이 자리의 가중도 ①⑤ 둘로만 선다 — 이 표에
+        # ②를 남겨 두면 상대가치 합이 1에 못 미쳐, **분류가 판정 방법을 남김없이
+        # 가른다**는 계약이 깨진 것을 이 테스트가 잡는다.
+        weights = {"업종 상대가치": 0.5, "정규화 이익": 0.5}
         intrinsic = sum(w for m, w in weights.items() if m in INTRINSIC_METHODS)
         relative = sum(w for m, w in weights.items() if m in RELATIVE_METHODS)
         self.assertEqual(intrinsic, 0.0)
         self.assertAlmostEqual(relative, 1.0, places=9)
 
-    def test_all_four_axes_leave_rim_a_minority(self):
+    def test_all_axes_standing_leave_rim_a_minority(self):
         from src.analysis.valuation import (FUNDAMENTAL_METHODS, INTRINSIC_METHODS,
                                             METHOD_WEIGHTS)
 
-        # 넷이 다 서도 절대가치는 16.7%다 — 이것이 '평균 9.3%'의 상한이다.
+        # 축이 다 서도 절대가치는 소수다 — 이것이 실측 '평균 9.3%'의 상한이다.
+        # **②가 판정에서 빠지며(ADR-0035) 이 상한이 16.7% → 23.1%로 올랐다.** 빠진
+        # 25%가 남은 셋에 나뉘어 붙기 때문이고, 그중 ③만이 절대가치 축이다. 도구가
+        # 시장 배수에 덜 기대게 되는 방향인데, **의도한 것이 아니라 따라온 것**이라
+        # 여기 적어 둔다 — 다음에 이 수를 보는 사람이 근거로 삼지 않도록.
         total = sum(METHOD_WEIGHTS[m] for m in FUNDAMENTAL_METHODS)
         intrinsic = sum(METHOD_WEIGHTS[m] for m in INTRINSIC_METHODS)
-        self.assertAlmostEqual(intrinsic / total, 0.1667, places=3)
+        self.assertAlmostEqual(intrinsic / total, 0.2308, places=3)
 
 
 class ConfidenceGradeTests(unittest.TestCase):
@@ -715,10 +722,13 @@ class ConfidenceGradeTests(unittest.TestCase):
         등급 문자열을 파이썬이 내보내는 이유는 임계(0.15/0.35)를 JS에 옮겨 적지 않기
         위해서다 — 같은 수식이 두 언어에 사는 것이 #84·ADR-0019가 잡은 문제다.
         """
-        # 이익이 11배로 커지는 픽스처는 ②와 ③이 함께 서서 흩어짐이 실제로 계산된다
-        # (실측 disp 0.71). 이익이 평평한 쪽은 방법이 하나뿐이라 이 경로를 못 지난다.
-        res = compute_valuation(_company_for_band([1.0, 1.6, 2.6, 4.2, 6.8, 11.0]),
-                                _flat_indicators(), r_equity=0.09)
+        # **픽스처를 ②에서 ①로 갈았다(ADR-0035).** 예전에는 이익이 11배로 커지는
+        # `_company_for_band`가 ②③을 함께 세웠는데, ②가 판정에서 빠지자 ③ 하나만 남아
+        # 흩어짐이 아예 계산되지 않았다 — 테스트가 조용히 무의미해지는 대신 **빨갛게**
+        # 터진 자리다. 피어를 준 픽스처는 ①③이 서서 흩어짐이 실제로 나온다(실측 0.117).
+        res = compute_valuation(
+            _company_with_peers([(1.0, 12.0), (1.2, 14.0), (0.8, 9.0), (1.1, 20.0)]),
+            _flat_indicators(), r_equity=0.09)
         self.assertIsNotNone(res.dispersion, "픽스처가 흩어짐을 못 냈다 — 이 테스트가 무의미해진다")
         self.assertIn(res.confidence_spread, ("높음", "중간", "낮음"))
         self.assertIn(res.confidence_cap, ("높음", "중간", "낮음"))

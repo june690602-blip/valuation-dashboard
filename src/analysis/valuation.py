@@ -1,12 +1,16 @@
-"""적정주가 삼각측량: ① 업종 상대가치 ② 역사적 밴드 ③ RIM ④ 선행 이익(컨센서스).
+"""적정주가 삼각측량: ① 업종 상대가치 ② 역사적 밴드 ③ RIM ④ 선행 이익(컨센서스)
+⑤ 정규화 이익. **판정에 드는 것은 ①③⑤ 셋뿐이다**(②는 ADR-0035, ④는 ADR-0006).
 
 **종합을 두 개 낸다(ADR-0006, 0003을 대체).**
 
-- **펀더멘털 적정가** = ①②③ 가중평균. 이것이 `fair_mid`이고 **판정(`verdict`)의 근거**다.
+- **펀더멘털 적정가** = ①③⑤ 가중평균. 이것이 `fair_mid`이고 **판정(`verdict`)의 근거**다.
   전부 회사가 이미 낸 실적·자산에서 나온 값이라, 시장이 지금 무엇을 기대하든 그것과
   독립적으로 계산된다.
-- **컨센서스 반영 적정가** = ①②③④ 가중평균. `fair_mid_consensus`로 따로 들고 화면에
+- **컨센서스 반영 적정가** = ①③⑤④ 가중평균. `fair_mid_consensus`로 따로 들고 화면에
   나란히 보여준다. 판정에는 쓰지 않는다.
+
+두 값의 차이가 정확히 **④의 몫**이어야 하므로, 판정에서 뺀 방법은 병기에서도 뺀다 —
+②를 한쪽에만 남기면 "이 차이가 곧 시장 기대분"이라는 화면의 문장이 거짓이 된다.
 
 왜 갈랐나. ④는 애널리스트의 12개월 선행 EPS 추정을 입력으로 쓴다. 그 자체가 틀린
 재료라서가 아니다 — 내재가치는 원래 미래지향적이고, 선행 이익 배수가 가격 설명력이
@@ -88,10 +92,14 @@ METHOD_WEIGHTS = {
     "수익가치(RIM)": 0.15,
 }
 
-# 회사가 이미 낸 실적·자산만으로 서는 방법들 — **판정은 이 넷으로만 낸다**(ADR-0006·0015).
-# 위 가중치를 이 넷에 대해 재정규화해 쓴다(0.25/0.25/0.15/0.25 → 0.278/0.278/0.167/0.278).
-# 순위(이익 멀티플 > 장부가)는 그대로 유지되고, 빠지는 것은 ④의 몫뿐이다.
-FUNDAMENTAL_METHODS = ("업종 상대가치", "역사적 밴드", "수익가치(RIM)", "정규화 이익")
+# 회사가 이미 낸 실적·자산만으로 서는 방법들 — **판정은 이 셋으로만 낸다**(ADR-0006·0015·0035).
+# 위 가중치를 이 셋에 대해 재정규화해 쓴다(0.25/0.15/0.25 → 0.385/0.231/0.385).
+# 순위(이익 멀티플 > 장부가)는 그대로 유지되고, 빠지는 것은 ②와 ④의 몫이다.
+#
+# **② 역사적 밴드가 여기서 빠진 것이 ADR-0035다.** 넷 중 유일하게 논문 계보가 없었고
+# (이슈 #132), 백테스트에서 단독 IC 0.030(t=1.59)으로 예측력이 확인되지 않았다.
+# 계산은 그대로 하고 화면·차트에도 남는다 — **판정에 넣지 않을 뿐이다.**
+FUNDAMENTAL_METHODS = ("업종 상대가치", "수익가치(RIM)", "정규화 이익")
 CONSENSUS_METHOD = "선행 이익(컨센서스)"
 
 # 값을 **무엇에서** 만드는가 (ADR-0018). 이 분류가 판정의 성격을 가른다.
@@ -100,8 +108,12 @@ CONSENSUS_METHOD = "선행 이익(컨센서스)"
 #              ②는 자기가 과거에 시장에서 받던 배수, ⑤도 ①의 회귀 배수를 쓴다.
 # `scripts/check_valuation_basis.py`가 이것을 가져다 쓴다 — 진단과 화면이 같은 분류를
 # 봐야 "실측은 9.3%인데 화면은 다른 말"이 되지 않는다.
+# 이 둘은 **판정에 드는 방법을 남김없이 가르는 것**이 계약이다(테스트가 그 등식을 지킨다).
+# 그래서 ②가 판정에서 빠질 때 여기서도 함께 빠진다 — ②가 상대가치가 아니게 된 것이
+# 아니라, 이 분류가 답하는 질문("이 판정이 무엇에 기대는가")에 ②가 더 이상 참여하지
+# 않기 때문이다.
 INTRINSIC_METHODS = ("수익가치(RIM)",)
-RELATIVE_METHODS = ("업종 상대가치", "역사적 밴드", "정규화 이익")
+RELATIVE_METHODS = ("업종 상대가치", "정규화 이익")
 
 
 def confidence_grade(dispersion: float | None, n_methods: int,
@@ -189,7 +201,7 @@ class ValuationNote:
 @dataclass
 class ValuationResult:
     estimates: list = field(default_factory=list)   # [FairValue] — ④ 포함, 전부
-    # ── 펀더멘털 종합 (①②③) — 판정의 근거 ──
+    # ── 펀더멘털 종합 (①③⑤) — 판정의 근거 ──
     fair_low: float | None = None
     fair_mid: float | None = None
     fair_high: float | None = None
@@ -211,7 +223,7 @@ class ValuationResult:
     # 같은 수식이 두 언어에 사는 것이 #84·ADR-0019가 잡은 문제다.
     confidence_spread: str | None = None   # 흩어짐만으로 낸 등급
     confidence_cap: str | None = None      # 실질 축 수가 씌운 상한 등급
-    # ── 컨센서스 반영 종합 (①②③④) — 병기용, 판정에는 쓰지 않는다 ──
+    # ── 컨센서스 반영 종합 (①③⑤④) — 병기용, 판정에는 쓰지 않는다 ──
     # 값 자체보다 `consensus_premium`(펀더멘털 대비 얼마나 위인가)이 읽을 거리다:
     # "지금 주가가 정당화되려면 시장이 기대하는 실적 개선이 실제로 와야 한다"는 크기.
     fair_low_consensus: float | None = None
@@ -1077,18 +1089,23 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
             res.skipped.append(("선행 이익(컨센서스)", "밴드·피어 멀티플 부족"))
 
     # ── 종합 (ADR-0006) ─────────────────────────────────────────────
-    # 두 개를 낸다. **판정은 ①②③(펀더멘털)으로만** 내고, ④를 얹은 값은 따로 들어
+    # 두 개를 낸다. **판정은 ①③⑤(펀더멘털)으로만** 내고, ④를 얹은 값은 따로 들어
     # 화면에 나란히 세운다. 가중치는 둘 다 METHOD_WEIGHTS를 각자의 방법 집합에 대해
     # 재정규화해 쓴다 — 순위(선행이익 > 이익 멀티플 > 장부가)는 그대로다.
     core = [e for e in res.estimates if e.method in FUNDAMENTAL_METHODS]
-    if res.estimates:
+    # 병기는 **판정 방법 + ④**여야 한다. `res.estimates`를 그대로 쓰면 ②까지 섞이는데,
+    # ADR-0035로 ②가 판정에서 빠진 뒤에는 두 값의 차이가 더 이상 '④의 몫'이 아니게 된다.
+    # 그러면 바로 아래 주석이 약속하는 문장("이 차이가 곧 시장 기대분")이 거짓이 된다.
+    # ②를 판정에서만 빼고 병기에 남겨 두는 것은 **선택지가 아니라 버그**다.
+    with_fwd = core + [e for e in res.estimates if e.method == CONSENSUS_METHOD]
+    if with_fwd:
         # 컨센서스 반영 종합 — ④가 실제로 있을 때만 펀더멘털과 다른 값이 된다.
         (res.fair_low_consensus, res.fair_mid_consensus,
-         res.fair_high_consensus, res.weights_consensus) = _weighted(res.estimates)
+         res.fair_high_consensus, res.weights_consensus) = _weighted(with_fwd)
         res.gap_consensus = res.fair_mid_consensus / d.price - 1
         res.verdict_consensus = _verdict(res.gap_consensus)
 
-    # ①②③이 하나도 없으면(통화 불일치 등으로 전부 제외) 판정을 낼 재료가 ④뿐이다.
+    # ①③⑤가 하나도 없으면(통화 불일치 등으로 전부 제외) 판정을 낼 재료가 ④뿐이다.
     # 이때는 화면을 비우는 대신 ④에 기대되, 그 사실을 감추지 않는다.
     res.fundamental_only = bool(core)
     basis = core or res.estimates
@@ -1117,7 +1134,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
         if not res.fundamental_only:
             res.notes.append(ValuationNote(
                 "warn",
-                "회사 실적·자산으로 서는 방법(①②③)이 전부 계산되지 않아, 판정을 "
+                "회사 실적·자산으로 서는 방법(①③⑤)이 전부 계산되지 않아, 판정을 "
                 "컨센서스 선행 이익(④) 하나에만 의존해 냈습니다 — 이 판정은 시장 기대와 "
                 "독립적이지 않습니다. 보수적으로 해석하세요."))
 
@@ -1153,7 +1170,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
         flip = res.verdict_consensus != res.verdict
         res.notes.append(ValuationNote(
             "info",
-            f"판정은 회사가 이미 낸 실적·자산(①②③)만으로 냈습니다. 애널리스트 컨센서스 "
+            f"판정은 회사가 이미 낸 실적·자산(①③⑤)만으로 냈습니다. 애널리스트 컨센서스 "
             f"선행 이익(④)까지 넣으면 적정가가 {res.consensus_premium:+.0%} "
             f"달라집니다" + (f" — 판정도 '{res.verdict_consensus}'로 갈립니다." if flip else ".") +
             " 이 차이가 곧 '지금 주가가 정당화되려면 시장이 기대하는 만큼의 실적 변화가 "
