@@ -37,7 +37,17 @@ Thumbs.db
 .gstack/
 
 # 백테스트 연구용 수집 데이터(파생물 · 대용량)
-data/backtest/
+# raw/(67MB · 3,864파일)와 pack/(18MB)은 넣지 않는다 — 파생물이고, 주가는 Yahoo·FDR에서
+# 받은 것이라 공개 재배포가 원천 약관에 걸릴 수 있다. 기기 사이 이동은
+# `scripts/backtest_pack.py pack`으로 3개 파일로 묶어 직접 옮긴다.
+#
+# **예외 둘만 추적한다** — panel.parquet(0.5MB)은 파생 집계(괴리율·수익률·점수)라
+# 주가 시계열이 아니고, 이것만 있으면 ADR-0028·0033·0034를 **누구나 재채점**할 수 있다
+# (`check_backtest_combos.py`). 매니페스트가 어느 커밋으로 만들어졌는지 밝혀 스테일을
+# 알 수 있게 한다. 디렉터리 자체를 무시하면 git이 안으로 내려가지 않으므로 `/*`로 쓴다.
+data/backtest/*
+!data/backtest/panel.parquet
+!data/backtest/panel_manifest.json
 
 # 미국 백테스트 수집 데이터(파생물)
 data/backtest_us/
