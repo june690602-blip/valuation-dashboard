@@ -676,8 +676,42 @@ class BasisShareTests(unittest.TestCase):
         computed = {e.method for e in res.estimates}
         self.assertTrue(set(got) <= computed,
                         "값을 내지 않은 방법이 제외 목록에 섞였다")
+        # **`skipped`와 겹치지 않는다.** 화면은 값이 없는 행을 `skipped` 쪽 '제외' 행으로
+        # 그리므로, 겹치면 그 사유가 어디에도 안 뜬다(PR #139가 기대는 계약이다).
+        self.assertEqual(set(got) & {m for m, _ in res.skipped}, set(),
+                         "같은 방법이 skipped와 제외 목록에 동시에 있다")
         # 판정에 든 방법은 여기 없어야 한다
+        self.assertEqual(set(got) & set(res.weights or {}), set())
         self.assertEqual(set(got) & set(FUNDAMENTAL_METHODS), set())
+
+    def test_the_band_cannot_carry_the_verdict_through_the_fallback(self):
+        """①③⑤가 하나도 없을 때 **②가 판정을 끌면 안 된다** (ADR-0035).
+
+        폴백이 `core or res.estimates`였다. ②가 판정 축이던 동안에는 둘이 같았다 —
+        `res.estimates`에서 core를 빼면 ④뿐이었으니까. ②를 core에서 빼자 그 자리가
+        벌어져서, **폴백을 타는 종목에서만 ②가 판정을 끌게 됐다.** 예측력이 없다고
+        판단해 뺀 축이 뒷문으로 돌아온다.
+
+        여기서 함께 못 박는 것: 판정에 실제로 쓰인 방법은 제외 목록에 오르지 않는다.
+        기준이 상수 목록이면 폴백 종목에서 ④가 **가중도 있고 제외 목록에도 오른다.**
+        """
+        from src.analysis.valuation import compute_valuation
+
+        # 이익이 11배로 커지는 픽스처는 ②③이 선다. ③을 장부가 게이트로 떨어뜨리면
+        # 판정 축이 하나도 안 남고 ②만 값을 가진 상태가 된다 — 폴백이 타는 자리다.
+        d = _company_for_band([1.0, 1.6, 2.6, 4.2, 6.8, 11.0])
+        d.financials = d.financials.copy()
+        d.financials["total_equity"] = 1.0        # PBR을 게이트 위로 밀어 ③을 뺀다
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.09)
+
+        computed = {e.method for e in res.estimates}
+        self.assertIn("역사적 밴드", computed, "픽스처가 ②를 못 세웠다 — 이 테스트가 무의미해진다")
+        self.assertNotIn("역사적 밴드", res.weights or {},
+                         "②가 폴백을 타고 판정으로 돌아왔다")
+        weights = set(res.weights or {})
+        excluded = {m for m, _ in res.excluded_from_verdict}
+        self.assertEqual(weights & excluded, set(),
+                         f"판정에 쓰인 방법이 제외 목록에도 있다: {weights & excluded}")
 
     def test_all_axes_standing_leave_rim_a_minority(self):
         from src.analysis.valuation import (FUNDAMENTAL_METHODS, INTRINSIC_METHODS,

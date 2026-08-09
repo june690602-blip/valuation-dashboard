@@ -1119,13 +1119,6 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
     # 그러면 바로 아래 주석이 약속하는 문장("이 차이가 곧 시장 기대분")이 거짓이 된다.
     # ②를 판정에서만 빼고 병기에 남겨 두는 것은 **선택지가 아니라 버그**다.
     with_fwd = core + [e for e in res.estimates if e.method == CONSENSUS_METHOD]
-    # 값은 냈는데 판정에 안 들어간 방법과 그 사유. 화면의 '판정 제외 · 참고' 배지가 이걸
-    # 그대로 읽는다 — 가중 칸을 빈칸으로 두면 '빠뜨렸나'로 읽히기 때문이다.
-    for e in res.estimates:
-        if e.method in FUNDAMENTAL_METHODS:
-            continue
-        res.excluded_from_verdict.append((e.method, EXCLUSION_REASONS.get(
-            e.method, "값은 계산했지만 판정 종합에는 넣지 않았습니다.")))
     if with_fwd:
         # 컨센서스 반영 종합 — ④가 실제로 있을 때만 펀더멘털과 다른 값이 된다.
         (res.fair_low_consensus, res.fair_mid_consensus,
@@ -1135,13 +1128,34 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
 
     # ①③⑤가 하나도 없으면(통화 불일치 등으로 전부 제외) 판정을 낼 재료가 ④뿐이다.
     # 이때는 화면을 비우는 대신 ④에 기대되, 그 사실을 감추지 않는다.
+    #
+    # **폴백은 `res.estimates`가 아니라 `with_fwd`다.** ②가 판정에 들기 전에는 둘이
+    # 같았다(core가 ①②③⑤였으니 나머지가 ④뿐). ADR-0035로 ②가 core에서 빠지자
+    # `res.estimates`에 ②가 남아, **폴백을 타는 종목에서만 ②가 판정을 끌게 된다** —
+    # 예측력이 없다고 판단해 뺀 축이 뒷문으로 돌아오는 것이고, 바로 위 주석의
+    # "재료가 ④뿐이다"도 거짓이 된다. 재료가 정말 없으면 판정을 내지 않는 쪽이 맞다.
     res.fundamental_only = bool(core)
-    basis = core or res.estimates
+    basis = core or with_fwd
     if basis:
         mids = [e.mid for e in basis]
         res.fair_low, res.fair_mid, res.fair_high, res.weights = _weighted(basis)
         res.gap = res.fair_mid / d.price - 1
         res.verdict = _verdict(res.gap)
+        # 값은 냈는데 판정에 안 들어간 방법과 그 사유. 화면의 '판정 제외 · 참고' 배지가
+        # 이걸 그대로 읽는다 — 가중 칸을 빈칸으로 두면 '빠뜨렸나'로 읽히기 때문이다.
+        #
+        # **판정 축 목록이 아니라 `res.weights`에서 뺀다.** 둘은 같지 않다: 펀더멘털이
+        # 하나도 안 서면 판정을 ④로 내는데(`basis = res.estimates`), 그때 ④는 가중을
+        # 갖는다. 상수 목록으로 재면 그 종목에서 ④가 **가중도 있고 제외 목록에도 오르는**
+        # 모순이 된다. 화면도 `v.weights`로 배지를 켜므로 같은 것을 보게 맞춘다.
+        #
+        # `res.estimates`만 돈다 — 값을 못 낸 방법은 `skipped`의 몫이고, 둘이 겹치면
+        # 같은 사실이 두 곳에 살게 된다(화면은 그 사유를 그리지도 않는다).
+        for e in res.estimates:
+            if e.method in res.weights:
+                continue
+            res.excluded_from_verdict.append((e.method, EXCLUSION_REASONS.get(
+                e.method, "값은 계산했지만 판정 종합에는 넣지 않았습니다.")))
         # 이 판정이 무엇에 기대는가 (ADR-0018). **명목 가중이 아니라 실효 가중**이다 —
         # 방법이 빠지고 재정규화된 뒤의 값이라, 141종목 실측에서 절대가치 중앙값이
         # 0.0%였다(명목 16.7%). 평균 9.3%가 그 사실을 가리고 있었다.
