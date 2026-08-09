@@ -867,6 +867,16 @@
     var nMeth = Object.keys(v.weights || {}).length || (v.estimates || []).length;
     // 같은 키에서 번호와 이름도 만든다 — '① 업종 상대가치 · ② 역사적 밴드 · …'.
     var methList = methodsOf(v.weights).map(function (mn) { return METHOD_TAB[mn][0] + ' ' + mn; }).join(' · ');
+    // 회사 실적·자산으로 서는 방법이 하나도 안 서면 파이썬이 ④로 물러선다
+    // (`basis = core or …` · 통화 불일치 등). **그때는 v.weights에 ④가 들어 있다.**
+    // 목록을 가중치에서 만드는 이상 ④가 목록에 뜨는데, 뒤 문장이 "④는 판정에 넣지
+    // 않습니다"라고 못 박고 있으면 한 문장 안에서 스스로를 뒤집는다. 그 꼬리를 조건부로 둔다.
+    // 이 상태는 `fundamental_only`가 false로 알려 주고, 해설 카드도 따로 뜬다.
+    var fundOnly = v.fundamental_only !== false;
+    var fairTip = (methList ? methList + '의 가중평균입니다. ' + (fundOnly ? '모두 ' : '') : '')
+      + (fundOnly
+        ? '회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.'
+        : '회사가 이미 낸 실적·자산만으로 서는 방법이 이 종목에서는 하나도 계산되지 않아, 판정이 ④ 컨센서스 선행 이익에 기대고 있습니다 — 이 판정은 시장 기대와 독립적이지 않습니다.');
     // ±%가 뜻하는 등급은 `confidence_spread`이고, 최종 등급은 실질 축 수(ADR-0022)가
     // 씌운 상한과 둘 중 **낮은 쪽**이다. 그래서 설명을 최종 등급으로 고르면 안 된다 —
     // 상한이 등급을 내린 종목에서 "±10% … 다소 흩어져 있습니다(±15~35%)"처럼 숫자와
@@ -1015,7 +1025,7 @@
           // 현재가 vs 적정가 vs 괴리율 — 수치 요약
           '<div style="margin-top:6px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)">' +
             '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
-            '<span>펀더멘털 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b> <span class="na" tabindex="0" data-tip="' + (methList ? methList + '의 가중평균입니다. 모두 ' : '') + '회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.">ⓘ</span></span>' +
+            '<span>펀더멘털 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b> <span class="na" tabindex="0" data-tip="' + fairTip + '">ⓘ</span></span>' +
             '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
           consLine +
           evidenceFold +
