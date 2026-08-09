@@ -49,6 +49,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 from src.analysis.capital_cost import compute_capital_cost              # noqa: E402
 from src.analysis.epv import (epv_per_share,                            # noqa: E402
                               normalized_operating_income)
+from src.analysis.fscore import fscore                                  # noqa: E402
 from src.analysis.indicators import compute_indicators                  # noqa: E402
 from src.analysis.valuation import (FUNDAMENTAL_METHODS,                # noqa: E402
                                     compute_valuation)
@@ -199,17 +200,73 @@ def snapshot_row(d: CompanyData) -> dict | None:
             "roe": ni / eq if ni is not None else None}
 
 
+# ── 조정 누락 가격 (데이터 품질 관문) ────────────────────────────────
+# KRX 일간 가격제한은 ±30%다(2015년 이후 · 그 전 ±15%). 그보다 큰 하루 **상승**은 실제
+# 등락이 아니라 **분할·병합 조정 누락**이다. 실측: 제일바이오 +300배(2026-02-09) ·
+# 모아텍 +256배(2008-12-19) · DH오토넥스 +9배(2024-09-24).
+#
+# 이것이 왜 치명적인가 — **순위 통계는 멀쩡한데 평균 통계만 무너진다.** 오염된 패널에서
+# B1의 IC는 0.110으로 정상이었는데(ADR-0028의 0.103) Q5−Q1은 +13.1%에서 **−79.1%**로
+# 뒤집혔고 '크게 고평가' 평균이 **+66.9%**가 됐다. 728배 하나가 5분위 평균을 통째로 끌었다.
+# IC만 보고 "재현됐다"고 넘어갔으면 사전등록의 성공선(스프레드 하한)을 오염된 자로
+# 판정했을 것이다.
+#
+# 두 가지를 **일부러 하지 않는다**:
+#   1. **값을 고치지 않는다.** 조정 비율을 우리가 추정하면 없는 가격을 지어내는 것이다.
+#      그 관측만 버린다(실측 25/7,674 = 0.33%).
+#   2. **하락 쪽은 걸러내지 않는다.** 정리매매에는 가격제한폭이 **없어서** −80% 하루가
+#      정당하다. 그것을 버리면 ADR-0028이 폐지 332곳을 넣어 없앤 생존편향이 되돌아온다.
+#      (하락까지 걸렀을 때 제거량이 0.33% → 1.72%로 다섯 배가 됐다 — 대부분 정리매매다.)
+#
+# **지속성을 함께 요구한다** — 스케일이 바뀌면 그 수준이 유지되고, 정리매매 급등은
+# 유지되지 않는다. 셋 다 판단값이다(`BAND_CORR_LIMIT`과 같은 성격).
+JUMP_UP = 1.0          # 하루 +100% 초과 (제한폭 ±30%에 신규상장·거래재개 여유를 얹은 값)
+JUMP_PERSIST = 5       # 이후 5거래일
+JUMP_RATIO = 2.0       # 그 중앙값이 직전가의 2배를 넘으면 스케일이 바뀐 것
+
+# **이 관문은 한국 전용이다.** 근거가 "KRX 일간 제한폭 ±30%를 넘었다"인데 미국에는
+# 일간 제한폭이 **없다** — 임상 결과가 나온 바이오가 하루에 두 배가 되고 그 수준을
+# 유지하는 것은 조정 누락이 아니라 실제 등락이다. 같은 상수를 미국에 씌우면 진짜
+# 급등주를 표본에서 빼서 예측력을 **지어내게** 된다(빠지는 쪽이 대체로 '고평가'다).
+# 그리고 미국은 yfinance의 분할 조정이 실제로 잘 돼 있다.
+# 미국에 관문이 필요한지는 **따로 재야 하고, 재기 전까지는 끄는 것이 안전하다** —
+# ADR-0030·0031의 미국 숫자를 이 변경으로 말없이 움직이지 않는 쪽이기도 하다.
+JUMP_GUARD_MARKETS = ("KR",)
+MARKET_CODE = "KR"     # main()이 덮어쓴다
+
+
+def scale_jump_dates(px: pd.Series) -> list:
+    """조정 누락으로 보이는 날짜들. **값을 고치지 않고 날짜만** 돌려준다."""
+    if MARKET_CODE not in JUMP_GUARD_MARKETS:
+        return []
+    r = px.pct_change()
+    out = []
+    for d in r.index[r.to_numpy() > JUMP_UP]:
+        i = px.index.get_loc(d)
+        if i < 1:
+            continue
+        after = px.iloc[i:i + JUMP_PERSIST]
+        if len(after) and float(np.median(after)) > JUMP_RATIO * float(px.iloc[i - 1]):
+            out.append(d)
+    return out
+
+
 def forward_return(px: pd.Series, t: pd.Timestamp, entry: float) -> tuple[float | None, bool]:
     """(12개월 가격수익률, 중도 폐지 여부).
 
     폐지되면 **정리매매 종가까지의 수익률을 실현하고 잔여기간은 현금**으로 둔다
     (사전등록 §3). 실제 체결가가 이미 폐지 사유를 반영하므로 사유로 나누지 않는다.
+
+    창 안에 조정 누락(위 관문)이 있으면 **None** — 그 관측은 수익률을 못 만든다.
+    폐지 여부는 그대로 돌려준다(패널의 폐지 편입 집계가 어긋나지 않게).
     """
     end = t + pd.Timedelta(days=HORIZON_DAYS)
     win = px[(px.index > t) & (px.index <= end)]
     if not len(win):
         return None, False
     delisted = (end - win.index[-1]).days > 30
+    if any(t < d <= end for d in scale_jump_dates(px)):
+        return None, delisted
     return float(win.iloc[-1] / entry - 1.0), delisted
 
 
@@ -262,6 +319,19 @@ def evaluate(t: pd.Timestamp, data: dict, index_px: pd.Series) -> pd.DataFrame:
         if epv and epv > 0:
             row[EPV] = float(np.log(epv / d.price))
         row["epv_years"] = oi_years
+
+        # F-Score (사전등록 개정 4) — **괴리율이 아니라 점수다.** 다른 축들은
+        # log(적정가/주가)로 들어가는데 이것은 가격을 내지 않으므로 점수 그대로 싣는다.
+        # `d.financials`는 이미 공시일로 잘린 프레임이라(`known_at`) EPV와 같은 경로를
+        # 타고 룩어헤드가 생기지 않는다.
+        # 분모(`fscore_max`)를 함께 싣는 이유: 옛 연도에는 `total_debt`가 있는 해와
+        # 없는 해가 섞여 **시점마다 분모가 달라질 수 있다**(사전등록 개정 4 커버리지 절).
+        # 점수만 실으면 6/9와 6/8을 나중에 구별할 수 없다.
+        fs = fscore(d.financials)
+        if fs:
+            row["fscore"] = fs["score"]
+            row["fscore_max"] = fs["max_score"]
+            row["fscore_ex_eq"] = fs["score_ex_equity"]      # 7번(신주발행) 뺀 8점 척도
         rows.append(row)
 
     df = pd.DataFrame(rows)
@@ -311,12 +381,15 @@ def main() -> int:
     args = ap.parse_args()
     warnings.filterwarnings("ignore")
 
-    global OUT, RAW, RF, MRP
+    global OUT, RAW, RF, MRP, MARKET_CODE
     cfg = MARKET[args.market]
     OUT = ROOT / "data" / cfg["dir"]
     RAW = OUT / "raw"
     RF, MRP = RF_MRP[args.market]
-    print(f"시장: {args.market} · 변형: {args.variant} — {apply_variant(args.variant)}")
+    MARKET_CODE = args.market
+    guard = "켬" if args.market in JUMP_GUARD_MARKETS else "끔(미국은 일간 제한폭이 없다)"
+    print(f"시장: {args.market} · 변형: {args.variant} — {apply_variant(args.variant)}"
+          f" · 조정누락 관문 {guard}")
 
     data = load_all()
     if not data:

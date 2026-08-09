@@ -43,3 +43,5 @@
 | [0030](0030-us-does-not-replicate.md) | 미국에서는 재현되지 않는다 — 두 시장에서 살아남은 것은 부정 결과 둘뿐 | 채택됨 |
 | [0031](0031-us-fails-in-both-regimes-and-the-band-rule-fires.md) | 미국은 두 국면 모두에서 안 된다 — 그리고 ②를 빼라는 규칙이 처음으로 발동했다 | 채택됨 |
 | [0032](0032-complementarity-gate-was-inverted.md) | 상보성 관문(≥50%)을 폐기한다 — 지표가 뒤집혀 있었고 두 시장 모두 답을 반대로 냈다 | 채택됨 |
+| [0033](0033-unadjusted-splits-broke-mean-statistics.md) | 조정 누락 주가가 평균 통계만 무너뜨렸다 — 순위 통계는 멀쩡했다 | 채택됨 |
+| [0034](0034-fscore-predicts-but-failed-its-own-gate.md) | F-Score는 예측력이 있는데 자기 관문을 통과하지 못했다 — 넣지 않는다 | 채택됨 |
