@@ -1,5 +1,26 @@
 # 인계문 — (B) 백테스트 연구
 
+> ## 🔁 데이터를 다시 받지 않아도 된다 (2026-08-09)
+>
+> **`data/backtest/panel.parquet`이 저장소에 있다**(0.5MB · 7,674행 · 10시점 ·
+> 매니페스트는 `panel_manifest.json`). 이것만으로 **재채점이 바로 된다**:
+>
+> ```bash
+> python scripts/check_backtest_combos.py
+> ```
+>
+> 문턱·가중치·조합 실험은 여기까지로 충분하다. **판정 코드를 바꾸고 다시 재려면**
+> 패널을 새로 만들어야 하고 그때는 `raw/`가 필요하다 — 그건 저장소에 없다
+> (67MB · 3,864파일 · 주가 재배포 문제). 두 길이 있다:
+>
+> ```bash
+> python scripts/backtest_pack.py unpack     # 다른 기기에서 pack/ 3개를 옮겨 왔을 때
+> python scripts/backtest_collect.py --limit 1000   # 처음부터 (실측 48분 · --resume 가능)
+> ```
+>
+> 기기 사이 이동은 `backtest_pack.py pack`으로 **3,864개 → 3개(18MB)**로 묶어 직접 옮긴다.
+> `panel_manifest.json`의 `code_commit`이 지금 HEAD와 다르면 **그 패널은 스테일이다.**
+
 > ## ✅ 이 작업은 끝났다 — [ADR-0028](adr/0028-backtest-the-verdict-has-predictive-power.md)
 >
 > 아래는 **착수 전에 쓴 문서**다. 무엇을 예상했고 무엇이 실제로 어땠는지 대조하려고
