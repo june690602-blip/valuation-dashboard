@@ -652,6 +652,27 @@ class BasisShareTests(unittest.TestCase):
         self.assertEqual(intrinsic, 0.0)
         self.assertAlmostEqual(relative, 1.0, places=9)
 
+    def test_screen_notes_derive_the_method_marks_instead_of_writing_them(self):
+        """화면에 나가는 문장의 ①③⑤는 **상수에서 유도**돼야 한다.
+
+        손으로 적으면 축이 바뀔 때마다 썩는다 — 실제로 "①②③"이 여덟 자리에 적힌 채
+        실제 구성(①②③⑤)과 어긋나 있었고, ②를 빼면서 또 어긋날 뻔했다(PR #139).
+        이 테스트가 지키는 것은 문구가 아니라 **유도한다는 사실**이다: 축 목록을 바꾸면
+        문장도 따라 바뀌어야 한다.
+        """
+        from src.analysis import valuation as V
+
+        self.assertEqual(V.marks_of(V.FUNDAMENTAL_METHODS), "①③⑤")
+        # 번호 순으로 정렬한다 — 들어온 순서를 따라가면 화면마다 다르게 읽힌다
+        self.assertEqual(V.marks_of(["정규화 이익", "업종 상대가치"]), "①⑤")
+        # 축 목록을 바꾸면 문장이 따라온다. 이것이 깨지면 어딘가 손으로 적혀 있다는 뜻이다
+        original = V.FUNDAMENTAL_METHODS
+        try:
+            V.FUNDAMENTAL_METHODS = ("업종 상대가치", "역사적 밴드")
+            self.assertEqual(V.marks_of(V.FUNDAMENTAL_METHODS), "①②")
+        finally:
+            V.FUNDAMENTAL_METHODS = original
+
     def test_excluded_from_verdict_carries_the_reason_not_just_the_name(self):
         """값은 냈는데 판정에 안 들어간 방법은 **사유와 함께** 나가야 한다.
 

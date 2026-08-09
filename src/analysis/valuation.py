@@ -102,6 +102,24 @@ METHOD_WEIGHTS = {
 FUNDAMENTAL_METHODS = ("업종 상대가치", "수익가치(RIM)", "정규화 이익")
 CONSENSUS_METHOD = "선행 이익(컨센서스)"
 
+# 방법 → 화면 번호. **번호가 연속하지 않는 것은 의도다** — ④를 옮기면 ADR-0003·0006의
+# 서술이 통째로 어긋난다. 화면(`stock.js`의 `METHOD_TAB`)이 같은 매핑을 갖고 있고,
+# 그쪽은 `v.weights`에서 유도해 그린다.
+#
+# 파이썬에도 두는 이유: 화면에 나가는 문장 중 **판정 축 목록을 말하는 것**이 있는데
+# ("…방법(①③⑤)이 전부 계산되지 않아…"), 그것을 손으로 적으면 축이 바뀔 때마다 썩는다.
+# 실제로 "①②③"이 여덟 자리에 손으로 적힌 채 실제 구성(①②③⑤)과 어긋나 있었다.
+METHOD_MARKS = {
+    "업종 상대가치": "①", "역사적 밴드": "②", "수익가치(RIM)": "③",
+    CONSENSUS_METHOD: "④", "정규화 이익": "⑤",
+}
+
+
+def marks_of(methods) -> str:
+    """['업종 상대가치', '정규화 이익'] → '①⑤'. 번호 순으로 정렬한다."""
+    got = [METHOD_MARKS[m] for m in methods if m in METHOD_MARKS]
+    return "".join(sorted(got, key="①②③④⑤".index))
+
 # 값은 내지만 판정 종합에 넣지 않는 방법과 **그 사유**. 화면이 아니라 여기 사는 이유는
 # 사유가 ADR의 주장이기 때문이다 — 판정 구성이 바뀔 때 이 표와 ADR을 함께 고치면 되고,
 # 화면은 문자열을 받아 그리기만 한다. 손으로 적힌 문구는 구성이 바뀔 때 조용히 썩는다.
@@ -1176,9 +1194,10 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
         if not res.fundamental_only:
             res.notes.append(ValuationNote(
                 "warn",
-                "회사 실적·자산으로 서는 방법(①③⑤)이 전부 계산되지 않아, 판정을 "
-                "컨센서스 선행 이익(④) 하나에만 의존해 냈습니다 — 이 판정은 시장 기대와 "
-                "독립적이지 않습니다. 보수적으로 해석하세요."))
+                f"회사 실적·자산으로 서는 방법({marks_of(FUNDAMENTAL_METHODS)})이 전부 "
+                f"계산되지 않아, 판정을 컨센서스 선행 이익({METHOD_MARKS[CONSENSUS_METHOD]}) "
+                "하나에만 의존해 냈습니다 — 이 판정은 시장 기대와 독립적이지 않습니다. "
+                "보수적으로 해석하세요."))
 
         if len(mids) >= 2 and res.fair_mid:
             disp = float(np.std(mids) / abs(np.mean(mids)))
@@ -1212,8 +1231,9 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
         flip = res.verdict_consensus != res.verdict
         res.notes.append(ValuationNote(
             "info",
-            f"판정은 회사가 이미 낸 실적·자산(①③⑤)만으로 냈습니다. 애널리스트 컨센서스 "
-            f"선행 이익(④)까지 넣으면 적정가가 {res.consensus_premium:+.0%} "
+            f"판정은 회사가 이미 낸 실적·자산({marks_of(res.weights or {})})만으로 냈습니다. "
+            f"애널리스트 컨센서스 선행 이익({METHOD_MARKS[CONSENSUS_METHOD]})까지 넣으면 "
+            f"적정가가 {res.consensus_premium:+.0%} "
             f"달라집니다" + (f" — 판정도 '{res.verdict_consensus}'로 갈립니다." if flip else ".") +
             " 이 차이가 곧 '지금 주가가 정당화되려면 시장이 기대하는 만큼의 실적 변화가 "
             "실제로 와야 하는 크기'입니다."))
