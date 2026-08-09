@@ -138,6 +138,50 @@
   var D = null;
   var EXAMPLES = { KR: [['삼성전자', '005930'], ['현대차', '005380'], ['NAVER', '035420'], ['KB금융', '105560']], US: [['Apple', 'AAPL'], ['Microsoft', 'MSFT'], ['Coca-Cola', 'KO'], ['Rivian', 'RIVN']] };
 
+  /* ── 방법 번호 ────────────────────────────────────────────────────────
+     방법 → 적정가 재료 번호·재료 탭 (요약 표에서 근거가 되는 탭으로 바로 이동).
+     번호가 연속하지 않는 것은 의도다 — ④를 옮기면 ADR-0003·0006의 서술이 통째로
+     어긋나고, ④만 병기라는 사실이 표에서 계속 드러난다.
+
+     **문구의 번호를 손으로 적지 않는다.** 판정에 드는 방법은 종목마다 다르고
+     (②·③은 품질 관문에서 빠지고, AAPL은 ①⑤만 선다) 축 구성 자체도 바뀐다.
+     `v.weights`의 키가 그 종목에서 실제로 쓴 방법이므로 번호는 거기서 만든다 —
+     헤더 신뢰도 툴팁이 방법 수를 세는 방식(아래 renderHeader)과 같은 근거다.
+     화면 아홉 자리가 `①②③`으로 굳어 있었고, ⑤가 축이 된(ADR-0015) 뒤로 그 아홉 자리는
+     어느 종목에서도 맞지 않았다. */
+  var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'], '선행 이익(컨센서스)': ['④', null], '정규화 이익': ['⑤', 'financials'] };
+  var CANON = ['업종 상대가치', '역사적 밴드', '수익가치(RIM)', '정규화 이익', '선행 이익(컨센서스)'];
+  var MARK_ORDER = '①②③④⑤';
+
+  /* 가중치 표의 키 → 번호순 방법 이름. 모르는 방법이 섞여 있으면 **빈 배열**이다 —
+     번호를 반만 적으면 "하나 빠뜨렸나"로 읽힌다. 틀린 설명보다 없는 설명이 낫다
+     (신뢰도 툴팁이 등급을 모를 때 문장을 안 붙이는 것과 같은 태도다). */
+  function methodsOf(weights) {
+    var names = Object.keys(weights || {});
+    if (!names.length || names.some(function (m) { return !METHOD_TAB[m]; })) return [];
+    return names.sort(function (a, b) { return MARK_ORDER.indexOf(METHOD_TAB[a][0]) - MARK_ORDER.indexOf(METHOD_TAB[b][0]); });
+  }
+  function marksOf(weights) {
+    return methodsOf(weights).map(function (m) { return METHOD_TAB[m][0]; }).join('');
+  }
+  /* 판정(펀더멘털 종합)에 쓴 번호 — '①②③⑤'. 만들지 못하면 빈 문자열이고, 그때는
+     앞뒤 장식(`' · '`·괄호)도 함께 사라져 문장이 번호 없이 그대로 읽힌다. */
+  function verdictMarks(open, close) {
+    var s = marksOf((D && D.verdict || {}).weights);
+    return s ? (open || '') + s + (close || '') : '';
+  }
+  /* '①②③⑤ 가중평균(①27.8 · ②27.8 · ③16.7 · ⑤27.8%)' — 퍼센트도 손으로 적지 않는다.
+     파이썬이 **재정규화한 뒤의** 값이라 방법이 하나 빠진 종목에서도 표의 '가중 %' 배지와
+     같은 숫자가 된다. 접힘 안에 적어 두었던 '①38.5 · ②38.5 · ③23.1'이 바로 그래서
+     틀려 있었다 — ⑤가 들어오기 전 셋만 쓰던 시절의 숫자였다. */
+  function weightBreak(weights) {
+    var ms = methodsOf(weights);
+    if (!ms.length) return '';
+    return marksOf(weights) + ' 가중평균(' + ms.map(function (mn) {
+      return METHOD_TAB[mn][0] + (Math.round(weights[mn] * 1000) / 10);
+    }).join(' · ') + '%)';
+  }
+
   /* ══════════ 차트 (데이터 구동) ══════════ */
 
   function bulletChart() {
@@ -159,7 +203,7 @@
     els.push(el('text', { x: 0, y: 20, fontSize: 12, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, '현재가'));
     els.push(el('text', { x: 0, y: 52, fontSize: 30, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(cur)));
     els.push(el('path', { d: 'M196 43 h44 m-9 -7 l9 7 l-9 7', fill: 'none', stroke: 'var(--ink-3)', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }));
-    els.push(el('text', { x: 256, y: 20, fontSize: 12, fill: accent, fontFamily: 'var(--font-sans)' }, '펀더멘털 적정가 · ①②③'));
+    els.push(el('text', { x: 256, y: 20, fontSize: 12, fill: accent, fontFamily: 'var(--font-sans)' }, '펀더멘털 적정가' + verdictMarks(' · ')));
     els.push(el('text', { x: 256, y: 52, fontSize: 30, fill: accent, fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(avg)));
     if (upside != null) {
       els.push(el('rect', { x: 452, y: 24, width: 92, height: 34, rx: 17, fill: accent }));
@@ -214,7 +258,7 @@
     var accent = up ? 'var(--dv-green)' : 'var(--dv-clay)';
     els.push(el('text', { x: 0, y: 14, fontSize: 11, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, '현재가'));
     els.push(el('text', { x: 0, y: 44, fontSize: 22, fill: 'var(--ink)', fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(cur)));
-    els.push(el('text', { x: 0, y: 84, fontSize: 11, fill: accent, fontFamily: 'var(--font-sans)' }, '펀더멘털 적정가 · ①②③'));
+    els.push(el('text', { x: 0, y: 84, fontSize: 11, fill: accent, fontFamily: 'var(--font-sans)' }, '펀더멘털 적정가' + verdictMarks(' · ')));
     els.push(el('text', { x: 0, y: 114, fontSize: 22, fill: accent, fontFamily: 'var(--font-mono)', fontWeight: 600 }, won(avg)));
     if (upside != null) {
       els.push(el('rect', { x: W - 92, y: 14, width: 92, height: 32, rx: 16, fill: accent }));
@@ -818,9 +862,11 @@
     var mono = 'var(--font-mono)', disp = 'var(--font-display)';
     var sub = [m.sector, m.industry].filter(Boolean).join(' · ');
     // 신뢰도 툴팁 — 산출 근거(방법 간 편차 = 변동계수)를 실제 수치로 설명.
-    // 편차는 **판정에 쓰인 방법들**(①②③)에 대해서만 잰다 — ④는 종합에 안 들어가므로
+    // 편차는 **판정에 쓰인 방법들**에 대해서만 잰다 — ④는 종합에 안 들어가므로
     // 방법 수도 v.weights의 키 수로 센다(v.estimates는 ④를 포함한 전부다).
     var nMeth = Object.keys(v.weights || {}).length || (v.estimates || []).length;
+    // 같은 키에서 번호와 이름도 만든다 — '① 업종 상대가치 · ② 역사적 밴드 · …'.
+    var methList = methodsOf(v.weights).map(function (mn) { return METHOD_TAB[mn][0] + ' ' + mn; }).join(' · ');
     // ±%가 뜻하는 등급은 `confidence_spread`이고, 최종 등급은 실질 축 수(ADR-0022)가
     // 씌운 상한과 둘 중 **낮은 쪽**이다. 그래서 설명을 최종 등급으로 고르면 안 된다 —
     // 상한이 등급을 내린 종목에서 "±10% … 다소 흩어져 있습니다(±15~35%)"처럼 숫자와
@@ -858,7 +904,7 @@
       : (v.gap != null
         ? '현재가가 펀더멘털 적정가보다 ' + gapAbs + '% ' + (v.gap > 0 ? '낮습니다 — 상승여력' : '높습니다 — 하락위험') + '.'
         : '적정가를 계산하지 못했습니다.');
-    // 판정은 ①②③(회사가 이미 낸 실적·자산)으로만 낸다. ④ 컨센서스를 얹은 값은 판정을
+    // 판정은 회사가 이미 낸 실적·자산으로만 낸다. ④ 컨센서스를 얹은 값은 판정을
     // 대신하지 않고 **바로 옆에** 선다 — 두 값의 차이가 "지금 주가가 정당화되려면 시장이
     // 기대하는 만큼의 실적 변화가 실제로 와야 하는 크기"라서, 붙여 놔야 읽힌다(ADR-0006).
     // 탭으로 가르지 않는 이유도 같다: 비교가 사라지면 이 숫자는 아무 말도 하지 않는다.
@@ -969,7 +1015,7 @@
           // 현재가 vs 적정가 vs 괴리율 — 수치 요약
           '<div style="margin-top:6px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)">' +
             '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
-            '<span>펀더멘털 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b> <span class="na" tabindex="0" data-tip="① 업종 상대가치 · ② 역사적 밴드 · ③ RIM의 가중평균입니다. 셋 다 회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.">ⓘ</span></span>' +
+            '<span>펀더멘털 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b> <span class="na" tabindex="0" data-tip="' + (methList ? methList + '의 가중평균입니다. 모두 ' : '') + '회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.">ⓘ</span></span>' +
             '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
           consLine +
           evidenceFold +
@@ -1039,11 +1085,7 @@
     // 방법별 표
     var est = D.verdict.estimates || [], v = D.verdict;
     var head = '<div class="row head" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr"><span class="col-label">방법</span><span class="col-label r">적정가 범위</span><span class="col-label r">중심</span><span class="col-label">근거</span></div>';
-    // 방법 → 적정가 재료 번호·재료 탭 (요약 표에서 근거가 되는 탭으로 바로 이동)
-    var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'], '선행 이익(컨센서스)': ['④', null], '정규화 이익': ['⑤', 'financials'] };
-    /* 번호가 연속하지 않는 것은 의도다 — ④를 옮기면 ADR-0003·0006의 서술이 통째로
-       어긋나고, ①②③⑤가 판정이고 ④만 병기라는 사실이 표에서 계속 드러난다. */
-    var CANON = ['업종 상대가치', '역사적 밴드', '수익가치(RIM)', '정규화 이익', '선행 이익(컨센서스)'];
+    // METHOD_TAB·CANON은 모듈 위쪽 한 벌 — 헤더 툴팁·불릿차트도 같은 표를 본다.
     var estMap = {}; est.forEach(function (e) { estMap[e.method] = e; });
     var skipMap = {}; (v.skipped || []).forEach(function (sk) { skipMap[sk.method] = sk.reason; });
     var order = CANON.concat(est.map(function (e) { return e.method; }).filter(function (m) { return CANON.indexOf(m) < 0; }));
@@ -1088,7 +1130,7 @@
       }
       return '';
     }).join('');
-    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">펀더멘털 적정가 (①②③ 가중평균) <span class="val-sub">— 판정 근거</span></span><span></span><span class="mono r" style="font-size:14px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
+    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">펀더멘털 적정가 (' + verdictMarks('', ' ') + '가중평균) <span class="val-sub">— 판정 근거</span></span><span></span><span class="mono r" style="font-size:14px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
     // 컨센서스 반영 값은 같은 표 안, 종합 바로 아래 한 행으로 선다. 별도 탭·별도 카드로
     // 떼면 두 값을 나란히 볼 수 없고, 이 도구에서 읽을 거리가 가장 많은 것은 둘의 차이다.
     if (v.fair_mid_consensus != null) {
@@ -1105,15 +1147,19 @@
     var sens = '';
     if (v.fair_mid_equal != null) {
       var flip = v.verdict_equal && v.verdict_equal !== v.verdict;
-      sens = '<b>민감도</b> · 판정 방법(①②③)을 동일가중(단순평균)하면 적정가 <b class="mono">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b>' + esc(v.verdict_equal) + '</b>로 <b>갈립니다</b>' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.<br/>';
+      sens = '<b>민감도</b> · 판정 방법' + verdictMarks('(', ')') + '을 동일가중(단순평균)하면 적정가 <b class="mono">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b>' + esc(v.verdict_equal) + '</b>로 <b>갈립니다</b>' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.<br/>';
     }
     // 건너뛴 방법이 있으면 가중치가 재정규화됐음을 명시 — 각 행의 '가중 %'가 실제 적용값
     var renorm = (v.skipped || []).length && est.length
       ? '<b>제외된 방법의 가중치</b> · 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.<br/>' : '';
+    // 종합 두 줄 — 번호도 퍼센트도 이 종목에 실제로 적용된 가중치에서 만든다.
+    var combo = [['판정', weightBreak(v.weights)], ['병기', weightBreak(v.weights_consensus)]]
+      .filter(function (p) { return p[1]; })
+      .map(function (p) { return p[0] + ' = ' + p[1]; }).join(' · ');
     var formula = fold('계산식과 출처 · 민감도 · ④를 판정에서 뺀 이유',
       '<b>계산식</b><br/>' +
       '① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 과거 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 과거 PER 중앙값<br/>' +
-      '<b>종합</b> · 판정 = ①②③ 가중평균(①38.5 · ②38.5 · ③23.1%, 기본 가중 25·25·15를 셋으로 재정규화) · 병기 = ①②③④ 가중평균(④35 · ①25 · ②25 · ③15%)<br/>' +
+      (combo ? '<b>종합</b> · ' + combo + ' — 기본 가중을 이 종목에서 실제로 쓴 방법에 대해 재정규화한 값입니다<br/>' : '') +
       renorm +
       '<b>④를 판정에서 뺀 이유</b> · ④는 시장의 실적 기대를 입력으로 쓰므로, 섞으면 이 도구의 판정이 시장 기대를 얼마나 따라갔는지 볼 수 없게 됩니다. 게다가 ②와 ④는 같은 배수(자기 과거 PER 중앙값)에 다른 EPS를 곱한 값이라 독립된 관점이 아니고, 사후검증(백테스트)도 ④는 시점별 컨센서스가 없어 불가능합니다. 상세 · docs/adr/0006<br/>' +
       '<b>가중치 근거</b> · 가격 설명력 순위(선행이익 &gt; 이익 멀티플 &gt; 장부가): Liu·Nissim·Thomas 2002(JAR, 미국)·2007(FAJ, 10개국) + 국내 가치관련성 연구. 수치 자체는 순위의 정성적 인코딩이며 한국 데이터로 추정한 값이 아닙니다. 국내 컨센서스 낙관편의(자본시장연구원 2025) 유의<br/>' +
@@ -1167,7 +1213,7 @@
     var c = D.consensus;
     if (!c || c.error) {
       meta.textContent = '커버리지 없음';
-      body.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:4px 0">애널리스트 컨센서스가 없는 종목입니다 — 증권사가 분석 리포트를 내지 않는 소형주에 흔합니다. 판정은 원래 ①②③으로만 내므로 판정 자체는 그대로지만, 대조해 볼 시장 시각이 없다는 뜻입니다.</div>';
+      body.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:4px 0">애널리스트 컨센서스가 없는 종목입니다 — 증권사가 분석 리포트를 내지 않는 소형주에 흔합니다. 판정은 원래 ' + (verdictMarks() || '회사 실적·자산') + '만으로 내므로 판정 자체는 그대로지만, 대조해 볼 시장 시각이 없다는 뜻입니다.</div>';
       return;
     }
     meta.textContent = (c.n_analysts != null ? '애널리스트 ' + c.n_analysts + '명 평균'
@@ -1181,7 +1227,7 @@
     var rows = [];
     if (c.forward_eps != null) rows.push('12개월 선행 EPS(컨센서스) <b class="mono">' + fmtPrice(c.forward_eps) + '</b>' + (c.implied_growth != null ? ' — 최근 12개월 실적 대비 <b style="color:' + tone(c.implied_growth) + '">' + fmtSigned(c.implied_growth) + '</b>의 이익 변화를 전제합니다' : ''));
     if (c.forward_per != null) rows.push('선행 PER <b class="mono">' + fmtX(c.forward_per) + '</b> — 트레일링 PER와의 차이가 시장이 반영 중인 실적 전망입니다');
-    if (c.model_vs_target != null) rows.push('펀더멘털 적정가(①②③)는 컨센서스 목표주가보다 <b style="color:' + tone(c.model_vs_target) + '">' + fmtSigned(c.model_vs_target) + '</b> — 두 값은 재료가 겹치지 않습니다(우리 쪽은 이미 낸 실적·자산, 증권가 쪽은 앞으로의 전망). 가까울수록 서로 다른 접근이 같은 결론을 가리킨다는 뜻입니다');
+    if (c.model_vs_target != null) rows.push('펀더멘털 적정가' + verdictMarks('(', ')') + '는 컨센서스 목표주가보다 <b style="color:' + tone(c.model_vs_target) + '">' + fmtSigned(c.model_vs_target) + '</b> — 두 값은 재료가 겹치지 않습니다(우리 쪽은 이미 낸 실적·자산, 증권가 쪽은 앞으로의 전망). 가까울수록 서로 다른 접근이 같은 결론을 가리킨다는 뜻입니다');
     // 목표주가 역산 — 증권가가 어떤 멀티플을 깔았는지 되짚어 차이의 원인을 보여준다
     if (c.target_mean != null && c.forward_eps) {
       var impliedPer = c.target_mean / c.forward_eps;
@@ -1537,7 +1583,7 @@
       ? '이 기간에 모형은 <b class="mono">' + (bt.signal_days || 0).toLocaleString('en-US') + '거래일</b> 동안 저평가(+' + thPct + '%↑) 신호를 켰습니다. 아래 그림에서 <b>초록 면이 그 구간</b>이고, 그때 주가가 어디였는지는 아래 칸에서 같은 x축으로 확인할 수 있어요.'
       : '확보된 기간에 이 종목이 우리 기준 <b>저평가(+' + thPct + '%↑)</b>였던 적은 없습니다 — 아래 그림에 초록 면이 없는 이유예요. (다른 종목·기간에서는 신호가 잡히기도 합니다.)')
       + ' <b>이 탭은 성과를 주장하지 않습니다</b> — 겹치지 않는 12개월 표본이 <b class="mono">' + nEv + '개</b>뿐이라, 평균수익·승률을 내면 숫자만 그럴듯하고 통계가 되지 못합니다.';
-    // 판정(①②③)과 이 신호(②+③)는 재료도 창(window)도 달라 **같은 종목에 반대를 말할 수 있다**.
+    // 화면의 판정과 이 신호(②+③)는 재료도 창(window)도 달라 **같은 종목에 반대를 말할 수 있다**.
     // 그 대비를 화면이 보여주지 않으면 사용자는 "어느 쪽이 맞나"에서 멈춘다. 차이의 이유까지 적는다.
     var vg = D.verdict && D.verdict.gap, ld = t.latest_discount;
     if (vg != null && ld != null) {
@@ -1606,7 +1652,7 @@
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600;color:var(--dv-positive)">강세 논거</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.8">' + li(bulls) + '</ul></div>' +
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600;color:var(--dv-negative)">약세 논거·리스크</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.8">' + li(bears) + '</ul></div></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">' +
-        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">적정가 추정 범위 · 괴리율</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="mono" style="font-size:22px;font-weight:600">' + target + '</span><span style="font-size:13px;color:' + (up ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + upside + '</span></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">①②③(회사 실적·자산 기반) 추정 범위이며 추천 목표가가 아닙니다</div></div>' +
+        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">적정가 추정 범위 · 괴리율</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="mono" style="font-size:22px;font-weight:600">' + target + '</span><span style="font-size:13px;color:' + (up ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + upside + '</span></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">' + verdictMarks() + '(회사 실적·자산 기반) 추정 범위이며 추천 목표가가 아닙니다</div></div>' +
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">관찰을 재검토할 기준</div><div style="font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-top:10px">52주 최저 <b class="mono">' + stop + '</b> 이탈 시 현재 추세 해석을 다시 확인하세요. 신뢰도 <b>' + esc(v.confidence || '—') + '</b> — 방법 간 편차가 크면 보수적으로 해석하세요.</div></div></div>' +
       '<div style="font-size:10.5px;color:var(--ink-3);margin-top:14px;line-height:1.6">본 스탠스는 대시보드 산출 데이터에 기반한 규칙적 요약이며, 서술형 AI 평가·최종 판단은 이용자 책임입니다. 특정 종목의 매수·매도 추천이 아닙니다.</div>';
     var ob = $('opBtn'); if (ob) ob.addEventListener('click', function () { aiFetch('opinion', $('opOut'), ob); });
