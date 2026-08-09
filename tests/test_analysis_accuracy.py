@@ -705,6 +705,36 @@ class ConfidenceGradeTests(unittest.TestCase):
         self.assertEqual(self.grade(0.0, 1, n_eff=1.0, capped=True)[0], "낮음")
         self.assertEqual(self.grade(None, 3, n_eff=3.0, capped=True)[0], "낮음")
 
+    def test_result_exposes_both_grades_so_the_screen_can_match_number_to_text(self):
+        """`dispersion`이 뜻하는 등급과 최종 등급을 **둘 다** 내보내야 한다.
+
+        화면은 ±%를 찍고 설명을 고른다. 설명을 **최종 등급**으로 고르면, 상한이 등급을
+        내린 종목에서 *"±10% … 다소 흩어져 있습니다(±15~35%)"*처럼 숫자와 문장이
+        모순된다(PR #130이 찾은 버그). 그래서 `confidence_spread`가 필요하다.
+
+        등급 문자열을 파이썬이 내보내는 이유는 임계(0.15/0.35)를 JS에 옮겨 적지 않기
+        위해서다 — 같은 수식이 두 언어에 사는 것이 #84·ADR-0019가 잡은 문제다.
+        """
+        # 이익이 11배로 커지는 픽스처는 ②와 ③이 함께 서서 흩어짐이 실제로 계산된다
+        # (실측 disp 0.71). 이익이 평평한 쪽은 방법이 하나뿐이라 이 경로를 못 지난다.
+        res = compute_valuation(_company_for_band([1.0, 1.6, 2.6, 4.2, 6.8, 11.0]),
+                                _flat_indicators(), r_equity=0.09)
+        self.assertIsNotNone(res.dispersion, "픽스처가 흩어짐을 못 냈다 — 이 테스트가 무의미해진다")
+        self.assertIn(res.confidence_spread, ("높음", "중간", "낮음"))
+        self.assertIn(res.confidence_cap, ("높음", "중간", "낮음"))
+        # 최종 등급은 둘 중 낮은 쪽이어야 한다 — 화면이 이 관계를 전제로 문장을 만든다
+        order = ["낮음", "중간", "높음"]
+        self.assertEqual(res.confidence,
+                         min(res.confidence_spread, res.confidence_cap,
+                             key=order.index))
+
+    def test_spread_grade_follows_the_dispersion_not_the_cap(self):
+        # 상한이 등급을 내려도 `confidence_spread`는 흩어짐이 낸 등급을 그대로 유지해야
+        # 한다. 이것이 깨지면 화면은 다시 ±%와 어긋나는 문장을 쓰게 된다.
+        _final, spread, cap = self.grade(0.01, 2, n_eff=1.05, capped=True)
+        self.assertEqual(spread, "높음", "흩어짐 등급이 상한에 오염됐다")
+        self.assertEqual(cap, "낮음")
+
     def test_empty_rho_table_is_a_no_op(self):
         # METHOD_RHO를 채우기 전에는 아무 등급도 바뀌면 안 된다. 표를 채우는 것이
         # **이 기능을 켜는 스위치**라는 뜻이고, 잘못 채우면 그때 드러난다.
