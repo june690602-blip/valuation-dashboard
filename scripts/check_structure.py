@@ -138,8 +138,9 @@ INLINE_BUDGET = {
     # #82가 타일 6벌을 tiles()로 바꾸며 19건이 빠졌다(343 → 324). 이 PR이 공식·출처 접기와
     # 병기 블록을 CSS 클래스로 올리며 다시 내려갔다: 324 → 308.
     # HANDOFF-AXES 1단계가 근거 넷(기대는 곳·오차·민감도·재정규화)을 접힘 안으로 옮기며
-    # 그 상자들의 인라인 스타일이 통째로 빠졌다: 308 → 303.
-    "web/assets/stock.js": 303,
+    # 그 상자들의 인라인 스타일이 통째로 빠졌다: 308 → 303. 이어서 요약 표의 '근거' 칸이
+    # 통째로 접힘이 되며 그 칸의 글자 스타일도 CSS로 올라갔다: 303 → 301.
+    "web/assets/stock.js": 301,
     "web/assets/stock-price-chart.js": 1,
     "web/assets/portfolio.js": 30,
     "web/assets/bond.js": 19,

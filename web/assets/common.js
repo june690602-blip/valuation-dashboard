@@ -125,9 +125,13 @@
      html은 우리가 조립한 문자열이라 esc()를 걸지 않는다(라벨만 이스케이프한다).
 
      stock.js에 있던 것을 여기로 옮겼다 — 접는 자리가 늘어나는 중이라 두 벌째가 생기기
-     직전이었고, 그것이 R5가 적은 '공용 헬퍼 9종이 최대 4벌'로 가는 첫 걸음이다. */
-  function fold(label, html) {
-    return '<details class="srcfold"><summary>' + esc(label) + '</summary>' +
+     직전이었고, 그것이 R5가 적은 '공용 헬퍼 9종이 최대 4벌'로 가는 첫 걸음이다.
+
+     cls는 변형 클래스 하나(`inrow`)를 받는다. 접힘이 **자기 칸 전체**일 때는 위에 그을
+     선도 띄울 여백도 없어야 하는데, 그 값을 부르는 쪽에서 인라인으로 적기 시작하면
+     R4의 토큰이 닿지 않는 자리가 또 하나 생긴다. 클래스 이름만 넘기고 값은 CSS에 둔다. */
+  function fold(label, html, cls) {
+    return '<details class="srcfold' + (cls ? ' ' + cls : '') + '"><summary>' + esc(label) + '</summary>' +
       '<div class="srcfold-body">' + html + '</div></details>';
   }
 

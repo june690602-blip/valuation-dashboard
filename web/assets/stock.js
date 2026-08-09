@@ -65,12 +65,12 @@
   function na(reason) { return '<span class="na" tabindex="0" data-tip="' + esc(reason) + '">—</span>'; }
   function compactWon(v) { if (v == null) return '—'; return CUR === 'KRW' ? Math.round(v / 1000).toLocaleString('en-US') + '천' : '$' + Math.round(v).toLocaleString('en-US'); }
 
-  /* ①이 회귀로 나왔으면 계수 분해를 접어서 붙인다 — 기본은 결과 배수 한 줄이고,
-     검증하려는 사람만 펼친다(ADR-0014 결정 다섯). fold()가 네이티브 <details>라
-     렌더 경로가 늘어도 배선을 잊을 일이 없다.
+  /* ①이 회귀로 나왔을 때의 계수 분해 — **접힘 본문만** 돌려준다. 접는 것은 부르는 쪽이
+     한다(요약 표의 '근거' 칸이 통째로 접힘 하나가 되었기 때문이다). 검증하려는 사람만
+     펼치는 것은 그대로다(ADR-0014 결정 다섯).
      β를 펼침 영역에 적는 것은 이 방법이 '소형주 할인은 정당하다'를 전제로 깐다는
      사실을 사용자가 볼 수 있어야 하기 때문이다(ADR-0014 한계). */
-  function warrantedFold(parts) {
+  function warrantedBasis(parts) {
     if (!parts || !parts.length) return '';
     var LEGNAME = { pbr: 'PBR', per: 'PER', psr: 'PSR', ev_ebitda: 'EV/EBITDA' };
     var body = parts.map(function (p) {
@@ -99,11 +99,11 @@
     body += '<div class="foldrow-foot">이 회사 규모 구간의 규모 계수 β=' + b.toFixed(2)
       + ' — 여기서 시총이 10배면 배수를 ' + (Math.pow(10, b)).toFixed(2) + '배로 봅니다'
       + ' (표본 ' + n + '종목). ' + prem + '</div>';
-    return fold('어떻게 나온 값인가', body);
+    return body;
   }
 
-  /* ⑤의 근거 — 이 축이 다른 축과 갈리는 이유는 정규화 비율 하나다. 그것을 접어 둔다. */
-  function normalizedFold(nz) {
+  /* ⑤의 근거 — 이 축이 다른 축과 갈리는 이유는 정규화 비율 하나다. 여기도 본문만 돌려준다. */
+  function normalizedBasis(nz) {
     if (!nz || nz.eps == null || nz.per == null) return '';
     var body = '<div>' + nz.years + '년 평균 순이익으로 계산한 정상 EPS '
       + won(nz.eps) + '</div>'
@@ -125,7 +125,7 @@
           + ' 그만큼 없어 효과가 그만큼 약합니다.')
       + ' 창이 통째로 호황이면 평균도 호황입니다 — 이 방법은 사이클을'
       + ' <b>완화할 뿐 제거하지 않습니다</b>.</div>';
-    return fold('어떻게 나온 값인가', body);
+    return body;
   }
 
   var VERDICTS = ['크게 저평가', '저평가', '적정 수준', '고평가', '크게 고평가'];
@@ -887,10 +887,12 @@
           '%</b>는 시장이 비슷한 회사에 매긴 배수에서, <b>' +
           Math.round(v.intrinsic_share * 100) +
           '%</b>는 회사가 벌 것에서 직접 계산한 값(RIM)에서 나옵니다.'
+        // 길 안내가 정확해야 한다 — 제외 사유도 이제 접혀 있으므로 어느 접힘을 눌러야
+        // 하는지까지 말한다. 접기 전에는 "아래 방법 표에 있습니다"로 충분했다.
         : '<b>이 판정은 전부 시장 배수에 기대고 있습니다</b> — 회사가 벌 것에서 직접 ' +
-          '계산하는 방법(RIM)이 이 종목에서는 성립하지 않아 빠졌습니다(사유는 아래 방법 표에 ' +
-          '있습니다). 그래서 이 값은 "회사의 내재가치"가 아니라 <b>"비슷한 회사들이 시장에서 ' +
-          '받는 값"</b>으로 읽어야 합니다.');
+          '계산하는 방법(RIM)이 이 종목에서는 성립하지 않아 빠졌습니다(사유는 아래 방법 표의 ' +
+          '<b>‘왜 제외됐나’</b>에 있습니다). 그래서 이 값은 "회사의 내재가치"가 아니라 ' +
+          '<b>"비슷한 회사들이 시장에서 받는 값"</b>으로 읽어야 합니다.');
     }
     var le = v.leg_error || {}, errBody = '';
     var meas = le.measured || [], unmeas = le.unmeasured || [];
@@ -1065,16 +1067,24 @@
             ? '<span class="na method-off" tabindex="0" data-tip="컨센서스 선행 이익은 시장의 실적 기대를 입력으로 씁니다. 판정을 시장 기대와 독립적으로 유지하려고 종합에서 빼고, 아래 &#39;컨센서스 반영&#39; 값으로 따로 병기합니다.">판정 제외 · 참고</span>'
             : '');
         if (mark) nameCell = '<span>' + nameCell + ' ' + mark + '</span>';
-        // ①이 회귀로 나왔을 때만 계수 분해를 접어서 덧붙인다. 피어 중앙값 폴백에는
-        // 분해할 계수가 없으므로 relative_parts도 비어 있다(ADR-0014).
-        var why = (name === '업종 상대가치' && v.relative_basis === 'regression')
-          ? warrantedFold(v.relative_parts)
-          : (name === '정규화 이익' ? normalizedFold(v.normalized) : '');
-        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + why + '</span></div>';
+        // ①이 회귀로 나왔을 때만 계수 분해가 따라붙는다. 피어 중앙값 폴백에는 분해할
+        // 계수가 없으므로 relative_parts도 비어 있다(ADR-0014).
+        var extra = (name === '업종 상대가치' && v.relative_basis === 'regression')
+          ? warrantedBasis(v.relative_parts)
+          : (name === '정규화 이익' ? normalizedBasis(v.normalized) : '');
+        // 근거 칸이 통째로 접힘 하나다. 예전에는 재료 문구("업종·규모·수익성 회귀 PER
+        // 13.0배, PBR 3.18배, EV/EBITDA 10.5배 · 다리 3개")가 다섯 줄 늘 펼쳐져 있었다 —
+        // 배수 세 개와 다리 수는 **검증하는 사람의 숫자**지 결론을 읽는 사람의 것이 아니다.
+        // 접힘 안 첫 줄로 넣고, 계수 분해가 있으면 그 아래에 이어 붙인다(같은 질문의
+        // 답이라 접힘을 둘로 나누지 않는다).
+        var whyCell = fold('어떻게 나온 값인가', esc(e.note) + extra, 'inrow');
+        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span>' + whyCell + '</span></div>';
       }
       if (skipMap[name] != null) {
-        // 건너뛴 방법도 번호 자리를 유지해 ①~④가 항상 순서대로 보이게 한다
-        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;opacity:.55"><span style="font-size:13px;color:var(--ink-3)">' + (mt ? '<span class="methods-mno">' + mt[0] + '</span>' : '') + esc(name) + '</span><span class="mono r" style="font-size:12.5px;color:var(--ink-3)">—</span><span class="r" style="font-size:12px;color:var(--ink-3)">제외</span><span style="font-size:12px;color:var(--ink-3)">' + esc(skipMap[name]) + '</span></div>';
+        // 건너뛴 방법도 번호 자리를 유지해 ①~④가 항상 순서대로 보이게 한다.
+        // 제외 사유도 접는다 — '제외'라는 사실은 중심 칸이 이미 말하고, 게이트가 무엇을
+        // 보고 뺐는지는 따지러 온 사람의 몫이다(HANDOFF-AXES 1단계의 '게이트 제외 사유').
+        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;opacity:.55"><span style="font-size:13px;color:var(--ink-3)">' + (mt ? '<span class="methods-mno">' + mt[0] + '</span>' : '') + esc(name) + '</span><span class="mono r" style="font-size:12.5px;color:var(--ink-3)">—</span><span class="r" style="font-size:12px;color:var(--ink-3)">제외</span><span>' + fold('왜 제외됐나', esc(skipMap[name]), 'inrow') + '</span></div>';
       }
       return '';
     }).join('');
