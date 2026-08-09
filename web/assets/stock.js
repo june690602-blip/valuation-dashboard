@@ -1088,6 +1088,10 @@
     // METHOD_TAB·CANON은 모듈 위쪽 한 벌 — 헤더 툴팁·불릿차트도 같은 표를 본다.
     var estMap = {}; est.forEach(function (e) { estMap[e.method] = e; });
     var skipMap = {}; (v.skipped || []).forEach(function (sk) { skipMap[sk.method] = sk.reason; });
+    // 계산은 됐는데 판정 가중이 없는 방법의 사유. `skipped`(계산 자체가 성립 안 함)와는
+    // 다른 목록이다. **사유는 파이썬이 보낸다** — "왜 뺐나"는 ADR의 주장이지 화면이
+    // 아는 사실이 아니라, 그 문장은 결정을 내린 파일 옆에 살아야 한다(`skipped`와 같은 이유).
+    var exclMap = {}; (v.excluded_from_verdict || []).forEach(function (ex) { exclMap[ex.method] = ex.reason; });
     var order = CANON.concat(est.map(function (e) { return e.method; }).filter(function (m) { return CANON.indexOf(m) < 0; }));
     var rows = order.map(function (name) {
       var mt = METHOD_TAB[name];
@@ -1105,11 +1109,17 @@
         // 왜 없는지를 배지로 말한다(ADR-0006). ④가 그 첫 사례였는데, **방법 이름으로 ④만
         // 집어내던 것을 `v.weights`에 없는 방법 전체로 넓혔다.** 어느 축이 판정에서 빠지든
         // (ADR-0035의 ②가 그렇게 된다) 그 칸이 조용히 비지 않는다 — 위 번호 유도와 같은 근거다.
+        // 사유는 `excluded_from_verdict`가 있으면 그것을 쓰고, 없으면 여기 문구로 물러선다.
+        // 물러설 자리를 남기는 것이 요점이다 — 필드를 보내는 파이썬 변경과 이 파일의
+        // 머지 순서가 어느 쪽이든 화면이 말이 된다.
+        var offTip = exclMap[name] != null
+          ? esc(exclMap[name])
+          : (name === (v.consensus_method || '선행 이익(컨센서스)')
+            ? '컨센서스 선행 이익은 시장의 실적 기대를 입력으로 씁니다. 판정을 시장 기대와 독립적으로 유지하려고 종합에서 빼고, 아래 &#39;컨센서스 반영&#39; 값으로 따로 병기합니다.'
+            : '값은 계산했지만 판정 종합에는 넣지 않았습니다. 이 방법의 적정가 범위는 위에 그대로 있고, 판정에 실제로 쓴 방법은 아래 &#39;계산식과 출처&#39;의 종합 줄이 밝힙니다.');
         var mark = wgt != null
           ? '<span class="mono" style="font-size:10.5px;color:var(--ink-3)">가중 ' + Math.round(wgt * 100) + '%</span>'
-          : '<span class="na method-off" tabindex="0" data-tip="' + (name === (v.consensus_method || '선행 이익(컨센서스)')
-            ? '컨센서스 선행 이익은 시장의 실적 기대를 입력으로 씁니다. 판정을 시장 기대와 독립적으로 유지하려고 종합에서 빼고, 아래 &#39;컨센서스 반영&#39; 값으로 따로 병기합니다.'
-            : '값은 계산했지만 판정 종합에는 넣지 않았습니다. 이 방법의 적정가 범위는 위에 그대로 있고, 판정에 실제로 쓴 방법은 아래 &#39;계산식과 출처&#39;의 종합 줄이 밝힙니다.') + '">판정 제외 · 참고</span>';
+          : '<span class="na method-off" tabindex="0" data-tip="' + offTip + '">판정 제외 · 참고</span>';
         if (mark) nameCell = '<span>' + nameCell + ' ' + mark + '</span>';
         // ①이 회귀로 나왔을 때만 계수 분해가 따라붙는다. 피어 중앙값 폴백에는 분해할
         // 계수가 없으므로 relative_parts도 비어 있다(ADR-0014).
