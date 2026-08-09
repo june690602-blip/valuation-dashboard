@@ -10,7 +10,7 @@
   var DV = window.DV;
   var ATTR = DV.ATTR, el = DV.el, esc = DV.esc, $ = DV.$, niceStep = DV.niceStep,
       wireSeg = DV.wireSeg, tiles = DV.tiles, tilesHtml = DV.tilesHtml, loadBasket = DV.loadBasket,
-      saveBasket = DV.saveBasket;
+      saveBasket = DV.saveBasket, fold = DV.fold;
   /* 파이썬 쌍둥이가 있는 수식은 finmath.js 한 벌 — CI가 Node로 실행해 대조한다(#84). */
   var FM = window.DVMath;
 
@@ -65,22 +65,12 @@
   function na(reason) { return '<span class="na" tabindex="0" data-tip="' + esc(reason) + '">—</span>'; }
   function compactWon(v) { if (v == null) return '—'; return CUR === 'KRW' ? Math.round(v / 1000).toLocaleString('en-US') + '천' : '$' + Math.round(v).toLocaleString('en-US'); }
 
-  /* 공식·인용·출처 접기 — 화면 위에 늘 펼쳐 두면 결론을 읽으러 온 사람에게는 소음이고,
-     지워 버리면 검증하러 온 사람이 근거를 잃는다. 접어서 둘 다 만족시킨다.
-     네이티브 <details>라 innerHTML로 꽂아도 배선이 필요 없다 — 렌더 경로가 늘어도
-     "여기서 wireCollapse를 잊었다"가 생기지 않는다. 키보드·스크린리더도 공짜로 따라온다.
-     html은 우리가 조립한 문자열이라 esc()를 걸지 않는다(라벨만 이스케이프한다). */
-  function fold(label, html) {
-    return '<details class="srcfold"><summary>' + esc(label) + '</summary>' +
-      '<div class="srcfold-body">' + html + '</div></details>';
-  }
-
-  /* ①이 회귀로 나왔으면 계수 분해를 접어서 붙인다 — 기본은 결과 배수 한 줄이고,
-     검증하려는 사람만 펼친다(ADR-0014 결정 다섯). fold()가 네이티브 <details>라
-     렌더 경로가 늘어도 배선을 잊을 일이 없다.
+  /* ①이 회귀로 나왔을 때의 계수 분해 — **접힘 본문만** 돌려준다. 접는 것은 부르는 쪽이
+     한다(요약 표의 '근거' 칸이 통째로 접힘 하나가 되었기 때문이다). 검증하려는 사람만
+     펼치는 것은 그대로다(ADR-0014 결정 다섯).
      β를 펼침 영역에 적는 것은 이 방법이 '소형주 할인은 정당하다'를 전제로 깐다는
      사실을 사용자가 볼 수 있어야 하기 때문이다(ADR-0014 한계). */
-  function warrantedFold(parts) {
+  function warrantedBasis(parts) {
     if (!parts || !parts.length) return '';
     var LEGNAME = { pbr: 'PBR', per: 'PER', psr: 'PSR', ev_ebitda: 'EV/EBITDA' };
     var body = parts.map(function (p) {
@@ -109,11 +99,11 @@
     body += '<div class="foldrow-foot">이 회사 규모 구간의 규모 계수 β=' + b.toFixed(2)
       + ' — 여기서 시총이 10배면 배수를 ' + (Math.pow(10, b)).toFixed(2) + '배로 봅니다'
       + ' (표본 ' + n + '종목). ' + prem + '</div>';
-    return fold('어떻게 나온 값인가', body);
+    return body;
   }
 
-  /* ⑤의 근거 — 이 축이 다른 축과 갈리는 이유는 정규화 비율 하나다. 그것을 접어 둔다. */
-  function normalizedFold(nz) {
+  /* ⑤의 근거 — 이 축이 다른 축과 갈리는 이유는 정규화 비율 하나다. 여기도 본문만 돌려준다. */
+  function normalizedBasis(nz) {
     if (!nz || nz.eps == null || nz.per == null) return '';
     var body = '<div>' + nz.years + '년 평균 순이익으로 계산한 정상 EPS '
       + won(nz.eps) + '</div>'
@@ -135,7 +125,7 @@
           + ' 그만큼 없어 효과가 그만큼 약합니다.')
       + ' 창이 통째로 호황이면 평균도 호황입니다 — 이 방법은 사이클을'
       + ' <b>완화할 뿐 제거하지 않습니다</b>.</div>';
-    return fold('어떻게 나온 값인가', body);
+    return body;
   }
 
   var VERDICTS = ['크게 저평가', '저평가', '적정 수준', '고평가', '크게 고평가'];
@@ -890,23 +880,24 @@
     // 둘 다 시장 배수 기반이면 편차가 작아도 '확실하다'가 아니라 **'같은 것을 두 번 쟀다'**다.
     // 141종목 실측에서 절대가치 실효 비중의 **중앙값이 0.0%**이고 53%가 절대가치 축 없이
     // 판정된다 — 그 사실을 사용자가 볼 수 없었다. 색은 쓰지 않는다(R4).
-    var basisLine = '';
+    var basisBody = '';
     if (v.intrinsic_share != null && v.relative_share != null && v.fundamental_only) {
-      basisLine = '<div class="cons-callout err">' + (v.intrinsic_share > 0
+      basisBody = (v.intrinsic_share > 0
         ? '<b>이 판정이 기대는 곳</b> — <b>' + Math.round(v.relative_share * 100) +
           '%</b>는 시장이 비슷한 회사에 매긴 배수에서, <b>' +
           Math.round(v.intrinsic_share * 100) +
           '%</b>는 회사가 벌 것에서 직접 계산한 값(RIM)에서 나옵니다.'
+        // 길 안내가 정확해야 한다 — 제외 사유도 이제 접혀 있으므로 어느 접힘을 눌러야
+        // 하는지까지 말한다. 접기 전에는 "아래 방법 표에 있습니다"로 충분했다.
         : '<b>이 판정은 전부 시장 배수에 기대고 있습니다</b> — 회사가 벌 것에서 직접 ' +
-          '계산하는 방법(RIM)이 이 종목에서는 성립하지 않아 빠졌습니다(사유는 아래 방법 표에 ' +
-          '있습니다). 그래서 이 값은 "회사의 내재가치"가 아니라 <b>"비슷한 회사들이 시장에서 ' +
-          '받는 값"</b>으로 읽어야 합니다.') + '</div>';
+          '계산하는 방법(RIM)이 이 종목에서는 성립하지 않아 빠졌습니다(사유는 아래 방법 표의 ' +
+          '<b>‘왜 제외됐나’</b>에 있습니다). 그래서 이 값은 "회사의 내재가치"가 아니라 ' +
+          '<b>"비슷한 회사들이 시장에서 받는 값"</b>으로 읽어야 합니다.');
     }
-    var le = v.leg_error || {}, errLine = '';
+    var le = v.leg_error || {}, errBody = '';
     var meas = le.measured || [], unmeas = le.unmeasured || [];
     if ((meas.length || unmeas.length) && v.fair_mid != null) {
       var unmeasTxt = unmeas.length ? esc(unmeas.join('·')) : '';
-      var errBody;
       if (meas.length) {
         errBody = '<b>이 추정이 얼마나 틀리는가</b> — ①에 쓴 배수의 실측 오차는 ' +
           meas.map(function (x) {
@@ -928,8 +919,19 @@
           fmtPrice(v.fair_mid * (1 + le.margin)) + '</b> 이하여야 합니다(가장 부정확한 ' +
           esc(le.worst_leg) + ' 다리 기준).';
       }
-      errLine = '<div class="cons-callout err">' + errBody + '</div>';
     }
+    /* 근거 둘(무엇에 기대는가 · 얼마나 틀리는가)을 접힘 하나로 묶는다.
+       예전에는 판정 헤드라인 바로 아래에 펼쳐진 상자 둘로 섰다. 옳은 내용이지만 결론을
+       읽으러 온 사람에게는 첫 화면이 그만큼 길어지고, 정작 **읽어야 하는 사람은 상자가
+       늘 거기 있어서 오히려 안 읽는다**. 접어서 누른 사람에게만 보인다.
+       상자 둘을 각각 접지 않고 하나로 묶는 이유: 접힘이 셋씩 줄서면 접기 전과 같은
+       소음이 된다. 이 자리는 앞으로도 늘어난다(HANDOFF-AXES 4단계의 가중치 폭 ±6%가
+       여기로 들어온다) — **그릇을 하나로 두고 안에 쌓는다.**
+       ⚠ 접어도 사라지지 않아야 하는 것은 여기 넣지 않는다 — 면책·AI 생성 표시·판정
+       충돌 경고는 첫 화면에 그대로 둔다. */
+    var evidence = [basisBody, errBody].filter(Boolean).join('<br/>');
+    var evidenceFold = evidence
+      ? fold('근거 보기 — 이 판정이 무엇에 기대고, 얼마나 틀리는가', evidence) : '';
     // ── B (기본) ──
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
@@ -969,9 +971,8 @@
             '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
             '<span>펀더멘털 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b> <span class="na" tabindex="0" data-tip="① 업종 상대가치 · ② 역사적 밴드 · ③ RIM의 가중평균입니다. 셋 다 회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.">ⓘ</span></span>' +
             '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
-          basisLine +
-          errLine +
           consLine +
+          evidenceFold +
           '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (D.computed_at ? ' · 계산 ' + esc(D.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button></div></div>';
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
@@ -1066,16 +1067,24 @@
             ? '<span class="na method-off" tabindex="0" data-tip="컨센서스 선행 이익은 시장의 실적 기대를 입력으로 씁니다. 판정을 시장 기대와 독립적으로 유지하려고 종합에서 빼고, 아래 &#39;컨센서스 반영&#39; 값으로 따로 병기합니다.">판정 제외 · 참고</span>'
             : '');
         if (mark) nameCell = '<span>' + nameCell + ' ' + mark + '</span>';
-        // ①이 회귀로 나왔을 때만 계수 분해를 접어서 덧붙인다. 피어 중앙값 폴백에는
-        // 분해할 계수가 없으므로 relative_parts도 비어 있다(ADR-0014).
-        var why = (name === '업종 상대가치' && v.relative_basis === 'regression')
-          ? warrantedFold(v.relative_parts)
-          : (name === '정규화 이익' ? normalizedFold(v.normalized) : '');
-        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span style="font-size:12px;color:var(--ink-3)">' + esc(e.note) + why + '</span></div>';
+        // ①이 회귀로 나왔을 때만 계수 분해가 따라붙는다. 피어 중앙값 폴백에는 분해할
+        // 계수가 없으므로 relative_parts도 비어 있다(ADR-0014).
+        var extra = (name === '업종 상대가치' && v.relative_basis === 'regression')
+          ? warrantedBasis(v.relative_parts)
+          : (name === '정규화 이익' ? normalizedBasis(v.normalized) : '');
+        // 근거 칸이 통째로 접힘 하나다. 예전에는 재료 문구("업종·규모·수익성 회귀 PER
+        // 13.0배, PBR 3.18배, EV/EBITDA 10.5배 · 다리 3개")가 다섯 줄 늘 펼쳐져 있었다 —
+        // 배수 세 개와 다리 수는 **검증하는 사람의 숫자**지 결론을 읽는 사람의 것이 아니다.
+        // 접힘 안 첫 줄로 넣고, 계수 분해가 있으면 그 아래에 이어 붙인다(같은 질문의
+        // 답이라 접힘을 둘로 나누지 않는다).
+        var whyCell = fold('어떻게 나온 값인가', esc(e.note) + extra, 'inrow');
+        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' + nameCell + '<span class="mono r" style="font-size:13.5px;color:var(--ink-2)">' + won(e.low) + '–' + won(e.high) + '</span><span class="mono r" style="font-size:13.5px">' + won(e.mid) + '</span><span>' + whyCell + '</span></div>';
       }
       if (skipMap[name] != null) {
-        // 건너뛴 방법도 번호 자리를 유지해 ①~④가 항상 순서대로 보이게 한다
-        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;opacity:.55"><span style="font-size:13px;color:var(--ink-3)">' + (mt ? '<span class="methods-mno">' + mt[0] + '</span>' : '') + esc(name) + '</span><span class="mono r" style="font-size:12.5px;color:var(--ink-3)">—</span><span class="r" style="font-size:12px;color:var(--ink-3)">제외</span><span style="font-size:12px;color:var(--ink-3)">' + esc(skipMap[name]) + '</span></div>';
+        // 건너뛴 방법도 번호 자리를 유지해 ①~④가 항상 순서대로 보이게 한다.
+        // 제외 사유도 접는다 — '제외'라는 사실은 중심 칸이 이미 말하고, 게이트가 무엇을
+        // 보고 뺐는지는 따지러 온 사람의 몫이다(HANDOFF-AXES 1단계의 '게이트 제외 사유').
+        return '<div class="row" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;opacity:.55"><span style="font-size:13px;color:var(--ink-3)">' + (mt ? '<span class="methods-mno">' + mt[0] + '</span>' : '') + esc(name) + '</span><span class="mono r" style="font-size:12.5px;color:var(--ink-3)">—</span><span class="r" style="font-size:12px;color:var(--ink-3)">제외</span><span>' + fold('왜 제외됐나', esc(skipMap[name]), 'inrow') + '</span></div>';
       }
       return '';
     }).join('');
@@ -1089,24 +1098,29 @@
         '<span class="val-consgap">현재가 대비 ' + fmtSigned(v.gap_consensus) +
         (v.consensus_premium != null ? ' · 펀더멘털 대비 ' + fmtSigned(v.consensus_premium) : '') + '</span></div>';
     }
-    // 동일가중 민감도 — 가중치 선택이 결론을 좌우하지 않는지 투명하게 병기
+    // 동일가중 민감도 — 가중치 선택이 결론을 좌우하지 않는지 투명하게 병기.
+    // 표 아래에 펼쳐 두던 것을 아래 접힘 안으로 옮겼다(HANDOFF-AXES 1단계): 이것은 결론이
+    // 아니라 결론이 얼마나 흔들리는지의 근거고, 4단계가 여기에 가중치 폭(±6%)을 얹는다.
+    // '갈림'에 경고색을 쓰지 않는다 — 판정에는 색을 쓰지 않는다(R4). 굵기로만 말한다.
     var sens = '';
     if (v.fair_mid_equal != null) {
       var flip = v.verdict_equal && v.verdict_equal !== v.verdict;
-      sens = '<div style="font-size:11.5px;color:var(--ink-3);margin-top:6px;padding-top:8px;border-top:1px dashed var(--line)">민감도 · 판정 방법(①②③)을 동일가중(단순평균)하면 적정가 <b class="mono" style="color:var(--ink-2)">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b style="color:var(--warning)">' + esc(v.verdict_equal) + '</b>로 갈림' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.</div>';
+      sens = '<b>민감도</b> · 판정 방법(①②③)을 동일가중(단순평균)하면 적정가 <b class="mono">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b>' + esc(v.verdict_equal) + '</b>로 <b>갈립니다</b>' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.<br/>';
     }
-    var formula = fold('계산식과 출처 · ④를 판정에서 뺀 이유',
+    // 건너뛴 방법이 있으면 가중치가 재정규화됐음을 명시 — 각 행의 '가중 %'가 실제 적용값
+    var renorm = (v.skipped || []).length && est.length
+      ? '<b>제외된 방법의 가중치</b> · 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.<br/>' : '';
+    var formula = fold('계산식과 출처 · 민감도 · ④를 판정에서 뺀 이유',
       '<b>계산식</b><br/>' +
       '① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 과거 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 과거 PER 중앙값<br/>' +
       '<b>종합</b> · 판정 = ①②③ 가중평균(①38.5 · ②38.5 · ③23.1%, 기본 가중 25·25·15를 셋으로 재정규화) · 병기 = ①②③④ 가중평균(④35 · ①25 · ②25 · ③15%)<br/>' +
+      renorm +
       '<b>④를 판정에서 뺀 이유</b> · ④는 시장의 실적 기대를 입력으로 쓰므로, 섞으면 이 도구의 판정이 시장 기대를 얼마나 따라갔는지 볼 수 없게 됩니다. 게다가 ②와 ④는 같은 배수(자기 과거 PER 중앙값)에 다른 EPS를 곱한 값이라 독립된 관점이 아니고, 사후검증(백테스트)도 ④는 시점별 컨센서스가 없어 불가능합니다. 상세 · docs/adr/0006<br/>' +
       '<b>가중치 근거</b> · 가격 설명력 순위(선행이익 &gt; 이익 멀티플 &gt; 장부가): Liu·Nissim·Thomas 2002(JAR, 미국)·2007(FAJ, 10개국) + 국내 가치관련성 연구. 수치 자체는 순위의 정성적 인코딩이며 한국 데이터로 추정한 값이 아닙니다. 국내 컨센서스 낙관편의(자본시장연구원 2025) 유의<br/>' +
+      sens +
       bookQualityLine(v) +
       '<b>출처</b> · 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)');
-    // 건너뛴 방법이 있으면 가중치가 재정규화됐음을 명시 — 각 행의 '가중 %'가 실제 적용값
-    var renorm = (v.skipped || []).length && est.length
-      ? '<div style="font-size:11px;color:var(--ink-3);margin-top:8px">제외된 방법의 가중치는 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.</div>' : '';
-    $('methodsTable').innerHTML = est.length ? head + rows + total + sens + renorm + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
+    $('methodsTable').innerHTML = est.length ? head + rows + total + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
     // 점수
     $('scoreOverall').textContent = D.scores.overall != null ? Math.round(D.scores.overall) : '—';
     $('radarChart').innerHTML = radarChart();

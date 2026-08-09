@@ -379,10 +379,6 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 .cons-callout b { color: var(--ink); }
 /* 판정과 백테스트 신호가 반대 방향일 때 — 룰만 경고색으로 바꾼다(글자는 무채 유지, R4). */
 .cons-callout.clash { border-left-color: var(--warning); }
-/* 추정 오차·안전마진(ADR-0017) — 판정도 아니고 기계의 관찰도 아니라 '이 도구가 얼마나
-   틀리는가'다. 그래서 네이비(기계 관찰)를 쓰지 않고 룰을 무채로 둔다. */
-.cons-callout.err { border-left-color: var(--line-strong); }
-.cons-callout.err .mono { font-family: var(--font-mono); }
 /* 판정에 들어가지 않는 방법(④)에 붙는 표식. 가중 칸을 그냥 비우면 '빠뜨렸나'로 읽힌다. */
 .method-off {
   font-size: 10.5px; color: var(--ink-3);
@@ -414,13 +410,27 @@ a:hover { color: var(--ink); text-decoration: underline; text-decoration-thickne
 }
 .srcfold[open] > summary::before { transform: rotate(45deg); }
 .srcfold > summary:hover { color: var(--ink-2); }
+/* 표 행의 '근거' 칸처럼 접힘이 **자기 칸 전체**일 때 — 위에 그을 선도, 띄울 여백도 없다.
+   기본형은 이미 있는 글 아래에 붙는 형태(점선으로 잘라 낸다)라 그대로 쓰면 행마다 점선이
+   다섯 줄 생겨 접기 전보다 시끄러워진다. */
+.srcfold.inrow { margin-top: 0; border-top: none; padding-top: 0; }
+.srcfold.inrow > summary { font-size: 12px; }
+.srcfold.inrow > .srcfold-body { margin-top: 6px; }
 .srcfold-body { margin-top: 10px; font-size: 11px; color: var(--ink-3); line-height: 1.8; }
 .srcfold-body b { color: var(--ink-2); font-weight: 600; }
+/* `.mono`는 이 저장소에서 전역이 아니라 담는 그릇마다 정의된다(`.tbl`·`.ld-foot`).
+   접힘이 표 밖(헤더)에도 서게 되면서 그 자리의 숫자가 조용히 비례폭으로 떨어졌다 —
+   접힘 자신이 자기 그릇 몫을 갖는다. `.cons-callout.err`에 있던 같은 규칙을 여기로
+   옮긴 것이다(그 상자는 이 접힘으로 대체됐다). */
+.srcfold-body .mono { font-family: var(--font-mono); }
 
 /* 접힘 안에서 '근거를 항목별로 쌓는' 부품 — 적정가 ①⑤의 계수 분해가 쓴다.
    JS 문자열에 style="…"로 적으면 R4의 토큰이 닿지 않고(값이 CSS 밖에 산다),
    check_structure.py의 인라인 예산에도 걸린다. 여기 한 번만 적는다. */
 .foldrow { margin-bottom: 8px; }
+/* 접힘 본문이 '재료 문구 한 줄 + 분해'로 서면서 둘이 2px로 붙었다(실측). 첫 항목만
+   띄운다 — 나머지 사이는 .foldrow의 아래 여백이 이미 맡는다. */
+.srcfold-body > .foldrow:first-of-type { margin-top: 8px; }
 .foldrow-name { font-weight: 600; }
 .foldrow-sum { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; }
 .foldrow-note { color: var(--ink-3); }
