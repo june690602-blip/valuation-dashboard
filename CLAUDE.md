@@ -3,11 +3,38 @@
 > 이 파일은 GitHub에서 `@claude`가 호출될 때(또는 로컬 Claude Code에서) 따르는 규칙입니다.
 > 친구가 이슈/PR에 `@claude ...`로 요청하면 Claude가 아래 규칙에 맞춰 수정하고 PR을 올립니다.
 
+> # ▶ 지금 할 일: **D. 축을 정교화한다** → [`docs/HANDOFF-AXES.md`](docs/HANDOFF-AXES.md)
+>
+> **그 문서 하나만 읽고 시작할 수 있게 써 뒀습니다.** 아래 배경은 그 다음에 읽으세요.
+> 결정된 것 넷 — 다시 논의하지 않습니다:
+> **② 역사적 밴드를 판정에서 뺀다**(차트는 남긴다) · **가중치 숫자는 안 바꾸고 폭만
+> 보여준다** · **근거·보험성 문구는 첫 화면에서 빼고 눌러서 보게 한다** ·
+> **F-Score는 무기한 보류**([ADR-0034](docs/adr/0034-fscore-predicts-but-failed-its-own-gate.md)).
+> **다음 ADR 번호는 0035.**
+>
+> **데이터를 다시 받지 않아도 됩니다** — `data/backtest/panel.parquet`(0.5MB · 7,674행 ·
+> 10시점)이 저장소에 있어 `check_backtest_combos.py`가 바로 돕니다. 판정 코드를 바꿔
+> **패널을 다시 만들려면** `raw/`가 필요한데 그건 저장소에 없습니다(67MB · 주가 재배포
+> 문제) — `backtest_pack.py unpack`으로 옮겨 오거나 `backtest_collect.py`로 48분 재수집.
+>
+> **⚠ ②를 빼면 판정 26%가 바뀝니다**(실측). 화면 안내가 필요합니다.
+>
+> **⚠ 로컬 테스트 2건은 항상 실패합니다 — 당신 탓이 아닙니다.**
+> `tests/test_ca_bundle.py`는 이 PC의 사용자명이 비ASCII라 `%TEMP%`도 비ASCII이고,
+> 그때 `ca_bundle.install()`이 물러서는 것이 정상 동작입니다. **CI(리눅스)는 통과합니다.**
+
 > **▶ A(창 5년 → 8년)와 B(백테스트)는 끝났습니다** —
 > [ADR-0025](docs/adr/0025-normalize-window-eight-years.md) ·
 > **[ADR-0028](docs/adr/0028-backtest-the-verdict-has-predictive-power.md)**.
-> 남은 것은 하나입니다:
-> - **C. EPV를 축으로 짓기** → [`docs/HANDOFF-CONFIDENCE.md`](docs/HANDOFF-CONFIDENCE.md) 맨 위
+> **C(EPV를 축으로 짓기)는 닫혔습니다** — ADR-0028이 종합에 못 보탠다고 쟀고
+> (+0.004 · t=1.44), 재측정에서도 단독 0.122인데 종합 기여는 없습니다.
+> 배경은 [`docs/HANDOFF-CONFIDENCE.md`](docs/HANDOFF-CONFIDENCE.md)에 남깁니다.
+>
+> **B의 숫자 하나가 정정됐습니다** —
+> [ADR-0033](docs/adr/0033-unadjusted-splits-broke-mean-statistics.md): 분할·병합 조정이
+> 누락된 주가가 **평균 기반 통계만** 무너뜨리고 있었습니다(IC는 멀쩡했습니다).
+> 관문을 심은 뒤 B1 Q5−Q1은 **+6.1%**입니다. ADR-0028의 +13.1%는 표본이 달라
+> 원인 분해를 못 했고, 못 했다고 적었습니다. **평균 기반 숫자를 인용할 때 이 ADR을 함께 읽으세요.**
 >
 > **⚠ B의 결론은 두 번 좁혀졌습니다. ADR-0028만 읽지 말고 0029·0030까지 읽으세요.**
 > - **[ADR-0029](docs/adr/0029-one-year-was-the-wrong-ruler.md)** — 12개월은 이 도구의
