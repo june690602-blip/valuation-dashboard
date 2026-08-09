@@ -117,6 +117,20 @@
   /* 띠를 문자열로 조립해 다른 마크업과 함께 넣는 자리가 있어 둘로 나눠 둔다. */
   function tiles(container, items, opts) { container.innerHTML = tilesHtml(items, opts); }
 
+  /* ── 접힘 상자 ── */
+  /* 공식·인용·출처·근거 접기 — 화면 위에 늘 펼쳐 두면 결론을 읽으러 온 사람에게는 소음이고,
+     지워 버리면 검증하러 온 사람이 근거를 잃는다. 접어서 둘 다 만족시킨다.
+     네이티브 <details>라 innerHTML로 꽂아도 배선이 필요 없다 — 렌더 경로가 늘어도
+     "여기서 wireCollapse를 잊었다"가 생기지 않는다. 키보드·스크린리더도 공짜로 따라온다.
+     html은 우리가 조립한 문자열이라 esc()를 걸지 않는다(라벨만 이스케이프한다).
+
+     stock.js에 있던 것을 여기로 옮겼다 — 접는 자리가 늘어나는 중이라 두 벌째가 생기기
+     직전이었고, 그것이 R5가 적은 '공용 헬퍼 9종이 최대 4벌'로 가는 첫 걸음이다. */
+  function fold(label, html) {
+    return '<details class="srcfold"><summary>' + esc(label) + '</summary>' +
+      '<div class="srcfold-body">' + html + '</div></details>';
+  }
+
   /* ── 포트폴리오 바스켓 (localStorage) ── */
   /* 'invportfolio'는 주식·ETF·채권·포트폴리오 네 화면이 공유하는 계약이다.
      레코드 모양: { name, yahoo, ticker, type, currency, class }
@@ -152,7 +166,7 @@
   window.DV = {
     $: $, esc: esc,
     ATTR: ATTR, kebab: kebab, styleStr: styleStr, el: el,
-    niceStep: niceStep, wireSeg: wireSeg, tiles: tiles, tilesHtml: tilesHtml,
+    niceStep: niceStep, wireSeg: wireSeg, tiles: tiles, tilesHtml: tilesHtml, fold: fold,
     BASKET_KEY: BASKET_KEY, loadBasket: loadBasket, saveBasket: saveBasket,
     revealCurrentNav: revealCurrentNav
   };

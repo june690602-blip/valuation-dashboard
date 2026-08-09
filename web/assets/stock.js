@@ -10,7 +10,7 @@
   var DV = window.DV;
   var ATTR = DV.ATTR, el = DV.el, esc = DV.esc, $ = DV.$, niceStep = DV.niceStep,
       wireSeg = DV.wireSeg, tiles = DV.tiles, tilesHtml = DV.tilesHtml, loadBasket = DV.loadBasket,
-      saveBasket = DV.saveBasket;
+      saveBasket = DV.saveBasket, fold = DV.fold;
   /* 파이썬 쌍둥이가 있는 수식은 finmath.js 한 벌 — CI가 Node로 실행해 대조한다(#84). */
   var FM = window.DVMath;
 
@@ -64,16 +64,6 @@
   /* 빈 값 '—'에 이유 말풍선을 붙인다(순수 CSS 툴팁, .na) — 왜 없는지 짧게 알린다. */
   function na(reason) { return '<span class="na" tabindex="0" data-tip="' + esc(reason) + '">—</span>'; }
   function compactWon(v) { if (v == null) return '—'; return CUR === 'KRW' ? Math.round(v / 1000).toLocaleString('en-US') + '천' : '$' + Math.round(v).toLocaleString('en-US'); }
-
-  /* 공식·인용·출처 접기 — 화면 위에 늘 펼쳐 두면 결론을 읽으러 온 사람에게는 소음이고,
-     지워 버리면 검증하러 온 사람이 근거를 잃는다. 접어서 둘 다 만족시킨다.
-     네이티브 <details>라 innerHTML로 꽂아도 배선이 필요 없다 — 렌더 경로가 늘어도
-     "여기서 wireCollapse를 잊었다"가 생기지 않는다. 키보드·스크린리더도 공짜로 따라온다.
-     html은 우리가 조립한 문자열이라 esc()를 걸지 않는다(라벨만 이스케이프한다). */
-  function fold(label, html) {
-    return '<details class="srcfold"><summary>' + esc(label) + '</summary>' +
-      '<div class="srcfold-body">' + html + '</div></details>';
-  }
 
   /* ①이 회귀로 나왔으면 계수 분해를 접어서 붙인다 — 기본은 결과 배수 한 줄이고,
      검증하려는 사람만 펼친다(ADR-0014 결정 다섯). fold()가 네이티브 <details>라
@@ -890,9 +880,9 @@
     // 둘 다 시장 배수 기반이면 편차가 작아도 '확실하다'가 아니라 **'같은 것을 두 번 쟀다'**다.
     // 141종목 실측에서 절대가치 실효 비중의 **중앙값이 0.0%**이고 53%가 절대가치 축 없이
     // 판정된다 — 그 사실을 사용자가 볼 수 없었다. 색은 쓰지 않는다(R4).
-    var basisLine = '';
+    var basisBody = '';
     if (v.intrinsic_share != null && v.relative_share != null && v.fundamental_only) {
-      basisLine = '<div class="cons-callout err">' + (v.intrinsic_share > 0
+      basisBody = (v.intrinsic_share > 0
         ? '<b>이 판정이 기대는 곳</b> — <b>' + Math.round(v.relative_share * 100) +
           '%</b>는 시장이 비슷한 회사에 매긴 배수에서, <b>' +
           Math.round(v.intrinsic_share * 100) +
@@ -900,13 +890,12 @@
         : '<b>이 판정은 전부 시장 배수에 기대고 있습니다</b> — 회사가 벌 것에서 직접 ' +
           '계산하는 방법(RIM)이 이 종목에서는 성립하지 않아 빠졌습니다(사유는 아래 방법 표에 ' +
           '있습니다). 그래서 이 값은 "회사의 내재가치"가 아니라 <b>"비슷한 회사들이 시장에서 ' +
-          '받는 값"</b>으로 읽어야 합니다.') + '</div>';
+          '받는 값"</b>으로 읽어야 합니다.');
     }
-    var le = v.leg_error || {}, errLine = '';
+    var le = v.leg_error || {}, errBody = '';
     var meas = le.measured || [], unmeas = le.unmeasured || [];
     if ((meas.length || unmeas.length) && v.fair_mid != null) {
       var unmeasTxt = unmeas.length ? esc(unmeas.join('·')) : '';
-      var errBody;
       if (meas.length) {
         errBody = '<b>이 추정이 얼마나 틀리는가</b> — ①에 쓴 배수의 실측 오차는 ' +
           meas.map(function (x) {
@@ -928,8 +917,19 @@
           fmtPrice(v.fair_mid * (1 + le.margin)) + '</b> 이하여야 합니다(가장 부정확한 ' +
           esc(le.worst_leg) + ' 다리 기준).';
       }
-      errLine = '<div class="cons-callout err">' + errBody + '</div>';
     }
+    /* 근거 둘(무엇에 기대는가 · 얼마나 틀리는가)을 접힘 하나로 묶는다.
+       예전에는 판정 헤드라인 바로 아래에 펼쳐진 상자 둘로 섰다. 옳은 내용이지만 결론을
+       읽으러 온 사람에게는 첫 화면이 그만큼 길어지고, 정작 **읽어야 하는 사람은 상자가
+       늘 거기 있어서 오히려 안 읽는다**. 접어서 누른 사람에게만 보인다.
+       상자 둘을 각각 접지 않고 하나로 묶는 이유: 접힘이 셋씩 줄서면 접기 전과 같은
+       소음이 된다. 이 자리는 앞으로도 늘어난다(HANDOFF-AXES 4단계의 가중치 폭 ±6%가
+       여기로 들어온다) — **그릇을 하나로 두고 안에 쌓는다.**
+       ⚠ 접어도 사라지지 않아야 하는 것은 여기 넣지 않는다 — 면책·AI 생성 표시·판정
+       충돌 경고는 첫 화면에 그대로 둔다. */
+    var evidence = [basisBody, errBody].filter(Boolean).join('<br/>');
+    var evidenceFold = evidence
+      ? fold('근거 보기 — 이 판정이 무엇에 기대고, 얼마나 틀리는가', evidence) : '';
     // ── B (기본) ──
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
@@ -969,9 +969,8 @@
             '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
             '<span>펀더멘털 적정가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(v.fair_mid) + '</b> <span class="na" tabindex="0" data-tip="① 업종 상대가치 · ② 역사적 밴드 · ③ RIM의 가중평균입니다. 셋 다 회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.">ⓘ</span></span>' +
             '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
-          basisLine +
-          errLine +
           consLine +
+          evidenceFold +
           '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (D.computed_at ? ' · 계산 ' + esc(D.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>' +
         '<div style="display:flex;flex-direction:column;gap:8px"><button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button></div></div>';
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
@@ -1089,24 +1088,29 @@
         '<span class="val-consgap">현재가 대비 ' + fmtSigned(v.gap_consensus) +
         (v.consensus_premium != null ? ' · 펀더멘털 대비 ' + fmtSigned(v.consensus_premium) : '') + '</span></div>';
     }
-    // 동일가중 민감도 — 가중치 선택이 결론을 좌우하지 않는지 투명하게 병기
+    // 동일가중 민감도 — 가중치 선택이 결론을 좌우하지 않는지 투명하게 병기.
+    // 표 아래에 펼쳐 두던 것을 아래 접힘 안으로 옮겼다(HANDOFF-AXES 1단계): 이것은 결론이
+    // 아니라 결론이 얼마나 흔들리는지의 근거고, 4단계가 여기에 가중치 폭(±6%)을 얹는다.
+    // '갈림'에 경고색을 쓰지 않는다 — 판정에는 색을 쓰지 않는다(R4). 굵기로만 말한다.
     var sens = '';
     if (v.fair_mid_equal != null) {
       var flip = v.verdict_equal && v.verdict_equal !== v.verdict;
-      sens = '<div style="font-size:11.5px;color:var(--ink-3);margin-top:6px;padding-top:8px;border-top:1px dashed var(--line)">민감도 · 판정 방법(①②③)을 동일가중(단순평균)하면 적정가 <b class="mono" style="color:var(--ink-2)">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b style="color:var(--warning)">' + esc(v.verdict_equal) + '</b>로 갈림' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.</div>';
+      sens = '<b>민감도</b> · 판정 방법(①②③)을 동일가중(단순평균)하면 적정가 <b class="mono">' + won(v.fair_mid_equal) + '</b> (현재가 대비 ' + fmtSigned(v.gap_equal) + ')' + (flip ? ' → 판정 <b>' + esc(v.verdict_equal) + '</b>로 <b>갈립니다</b>' : ' → 판정 동일') + '. 가중치는 순위 근거의 정성적 인코딩입니다.<br/>';
     }
-    var formula = fold('계산식과 출처 · ④를 판정에서 뺀 이유',
+    // 건너뛴 방법이 있으면 가중치가 재정규화됐음을 명시 — 각 행의 '가중 %'가 실제 적용값
+    var renorm = (v.skipped || []).length && est.length
+      ? '<b>제외된 방법의 가중치</b> · 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.<br/>' : '';
+    var formula = fold('계산식과 출처 · 민감도 · ④를 판정에서 뺀 이유',
       '<b>계산식</b><br/>' +
       '① 피어 중앙값 배수(PER·PBR·EV/EBITDA) × 자사 펀더멘털 &nbsp;② 자기 과거 PER·PBR 25~75분위 × 현재 EPS·BPS &nbsp;③ RIM: V = B + B(ROE−r)·w/(1+r−w), r = CAPM 자기자본비용 &nbsp;④ 컨센서스 12개월 EPS × 자기 과거 PER 중앙값<br/>' +
       '<b>종합</b> · 판정 = ①②③ 가중평균(①38.5 · ②38.5 · ③23.1%, 기본 가중 25·25·15를 셋으로 재정규화) · 병기 = ①②③④ 가중평균(④35 · ①25 · ②25 · ③15%)<br/>' +
+      renorm +
       '<b>④를 판정에서 뺀 이유</b> · ④는 시장의 실적 기대를 입력으로 쓰므로, 섞으면 이 도구의 판정이 시장 기대를 얼마나 따라갔는지 볼 수 없게 됩니다. 게다가 ②와 ④는 같은 배수(자기 과거 PER 중앙값)에 다른 EPS를 곱한 값이라 독립된 관점이 아니고, 사후검증(백테스트)도 ④는 시점별 컨센서스가 없어 불가능합니다. 상세 · docs/adr/0006<br/>' +
       '<b>가중치 근거</b> · 가격 설명력 순위(선행이익 &gt; 이익 멀티플 &gt; 장부가): Liu·Nissim·Thomas 2002(JAR, 미국)·2007(FAJ, 10개국) + 국내 가치관련성 연구. 수치 자체는 순위의 정성적 인코딩이며 한국 데이터로 추정한 값이 아닙니다. 국내 컨센서스 낙관편의(자본시장연구원 2025) 유의<br/>' +
+      sens +
       bookQualityLine(v) +
       '<b>출처</b> · 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)');
-    // 건너뛴 방법이 있으면 가중치가 재정규화됐음을 명시 — 각 행의 '가중 %'가 실제 적용값
-    var renorm = (v.skipped || []).length && est.length
-      ? '<div style="font-size:11px;color:var(--ink-3);margin-top:8px">제외된 방법의 가중치는 사용 가능한 방법으로 <b>재정규화</b>되었습니다 — 각 행의 "가중 %"가 실제 적용값입니다.</div>' : '';
-    $('methodsTable').innerHTML = est.length ? head + rows + total + sens + renorm + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
+    $('methodsTable').innerHTML = est.length ? head + rows + total + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
     // 점수
     $('scoreOverall').textContent = D.scores.overall != null ? Math.round(D.scores.overall) : '—';
     $('radarChart').innerHTML = radarChart();
