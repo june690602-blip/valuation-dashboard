@@ -47,3 +47,4 @@
 | [0034](0034-fscore-predicts-but-failed-its-own-gate.md) | F-Score는 예측력이 있는데 자기 관문을 통과하지 못했다 — 무기한 보류 | 채택됨 |
 | [0035](0035-drop-historical-band-from-the-verdict.md) | ② 역사적 밴드를 판정에서 뺀다 — 그리고 신뢰도 배지가 함께 무너지는 것을 발견했다 | 채택됨 |
 | [0036](0036-confidence-cap-measured-as-independence-fraction.md) | 신뢰도 상한을 절대 축 수가 아니라 독립분으로 잰다 — 문턱이 단위를 잃었다 | 채택됨 |
+| [0037](0037-the-panel-is-reproducible-the-inputs-were-not.md) | 패널은 재현된다 — 재현되지 않은 것은 입력이었다 (ADR-0035 정정) | 채택됨 |

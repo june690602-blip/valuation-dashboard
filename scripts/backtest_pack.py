@@ -32,6 +32,7 @@ meta는 parquet으로 만들면 None·bool·정수가 타입 강제를 받으므
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import random
 import subprocess
@@ -48,6 +49,27 @@ DIRS = {"KR": "backtest", "US": "backtest_us"}
 # zstd는 pyarrow에 기본 포함이고 snappy보다 크게 작아진다. 없으면 기본값으로 물러선다.
 COMPRESSION = "zstd"
 VERIFY_SAMPLE = 8
+
+
+def _raw_fingerprint(raw: Path) -> str | None:
+    """raw/의 내용을 한 줄로 요약한다 — 두 패널이 **같은 입력에서 나왔는가**의 답.
+
+    종목 코드 목록과 파일 크기를 해시한다. 코드만 해시하면 같은 종목의 데이터가
+    갱신됐을 때(수집기 재실행) 지문이 안 변한다. 파일 내용 전체를 해시하면 3,876개를
+    읽어야 해서 느리다 — 크기는 그 사이의 값싼 대리 지표다.
+    """
+    if not raw.exists():
+        return None
+    parts = []
+    for p in sorted(raw.iterdir()):
+        try:
+            parts.append(f"{p.name}:{p.stat().st_size}")
+        except OSError:
+            continue
+    if not parts:
+        return None
+    h = hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
+    return f"sha256:{h} ({len(parts)}파일)"
 
 
 def _paths(market: str) -> tuple[Path, Path]:
@@ -204,11 +226,20 @@ def manifest(market: str) -> int:
         "codes": int(df["code"].nunique()),
         "columns": list(df.columns),
         "raw_stocks_at_build": len(list(raw.glob("meta_*.json"))) if raw.exists() else None,
+        # **어떤 종목이었는지까지 적는다.** 개수만으로는 두 패널이 비교 가능한지 알 수 없다.
+        # 실제로 그래서 한 번 헛짚었다 — 8/9 패널과 8/10 패널이 크게 달라 "패널이 재현되지
+        # 않는다"고 적었는데, 재보니 **빌더는 결정적이었고**(같은 코드·같은 raw로 두 번
+        # 만들면 7,656행 전 열이 최대차 0) raw/가 1,288 → 1,292로 바뀌어 있었다.
+        # 회귀 계수는 **그 시점 종목 집합으로 적합**하므로, 표본이 한 종목만 달라져도
+        # ①과 ⑤가 **전 종목에서** 움직인다. 지문이 없으면 그 사실을 알 길이 없다.
+        "raw_fingerprint": _raw_fingerprint(raw),
         "built_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
         "code_commit": head,
         "code_dirty_at_build": dirty,
         "note": ("판정 경로(src/analysis)나 backtest_panel.py가 이 커밋 이후 바뀌었으면 "
-                 "이 패널은 스테일이다. raw/를 풀고 backtest_panel.py를 다시 돌려라."),
+                 "이 패널은 스테일이다. raw/를 풀고 backtest_panel.py를 다시 돌려라. "
+                 "**두 패널을 비교하려면 code_commit과 raw_fingerprint가 둘 다 같아야 "
+                 "한다** — 하나라도 다르면 회귀 표본이 달라 축 값이 전부 움직인다."),
     }
     mp = out / "panel_manifest.json"
     mp.write_text(json.dumps(man, ensure_ascii=False, indent=2), encoding="utf-8")

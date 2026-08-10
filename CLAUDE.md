@@ -12,22 +12,23 @@
 > **F-Score는 무기한 보류**([ADR-0034](docs/adr/0034-fscore-predicts-but-failed-its-own-gate.md)).
 > **다음 ADR 번호는 0035.**
 >
-> **1단계·2단계는 끝났습니다** — 근거 접기(PR #138) ·
-> **② 역사적 밴드를 판정에서 뺐습니다**([ADR-0035](docs/adr/0035-drop-historical-band-from-the-verdict.md)).
+> **1단계·2단계·2b가 끝났습니다** — 근거 접기(PR #138) ·
+> **② 역사적 밴드를 판정에서 뺐고**([ADR-0035](docs/adr/0035-drop-historical-band-from-the-verdict.md))
+> **신뢰도 문턱을 독립분으로 고쳤습니다**([ADR-0036](docs/adr/0036-confidence-cap-measured-as-independence-fraction.md)).
 > **판정은 이제 ①③⑤**이고 가중은 ① 38.5 · ③ 23.1 · ⑤ 38.5%입니다.
-> **다음은 2b — 신뢰도 문턱**입니다. ADR-0035가 결정 3에서 열어 뒀습니다.
+> **다음은 3단계 — `per_q` 이관**입니다.
 >
 > **데이터를 다시 받지 않아도 됩니다** — `data/backtest/panel.parquet`이 저장소에 있고,
 > **`raw/`도 이 PC에 있습니다**(KR 3,876파일 · US 4,170파일). 재수집 48분이 필요 없습니다.
 >
-> **⚠ 패널이 재현되지 않습니다.** 같은 `raw/`로 두 번 만들면 한 시점의 종목 교집합이
-> 863·874 중 **369**뿐이고, 겹치는 행에서도 ①·⑤ 값이 전부 다릅니다(주가·수익률은 동일).
-> ADR-0035 §패널은 재현되지 않는다에 실측을 적었습니다. **백테스트 숫자를 인용할 때
-> 이 사실을 함께 말하세요** — 같은 패널 안에서의 비교만 유효합니다.
+> **패널은 재현됩니다**([ADR-0037](docs/adr/0037-the-panel-is-reproducible-the-inputs-were-not.md)).
+> 같은 코드·같은 `raw/`로 두 번 만들면 7,656행 전 열이 최대차 0입니다.
+> ADR-0035가 *"재현되지 않는다"*고 적은 절은 **틀렸고 ADR-0037이 정정했습니다** — 그때
+> 비교한 두 패널은 코드도 `raw/`도 달랐습니다(1,288 → 1,292 종목).
 >
-> **⚠ 신뢰도 배지가 사실상 한 값이 됐습니다.** ②가 셋 모두와 독립인 유일한 축이라,
-> 빼고 나니 한국에서 '높음'이 도달 불가이고 미국은 상수 '낮음'입니다. `NEFF_LOW`·
-> `NEFF_MID`가 ②가 있는 세계에 맞춰 정해진 값이기 때문입니다(2b에서 다룹니다).
+> **⚠ 다만 두 패널을 비교하려면 `code_commit`과 `raw_fingerprint`가 둘 다 같아야 합니다.**
+> 회귀 계수를 그 시점 종목 집합으로 적합하므로, **표본에 종목이 하나만 더 들어와도 ①과 ⑤가
+> 전 종목에서 움직입니다.** 매니페스트가 이제 `raw/` 지문을 적습니다.
 >
 > **⚠ 로컬 테스트 2건이 실패한다는 안내는 이 PC에는 해당하지 않습니다.**
 > `%TEMP%`가 `C:\Users\bogeun\...`로 ASCII이고 `node`도 설치돼 있어 **관문 11개가 전부
@@ -144,7 +145,7 @@ Streamlit(`app.py`). 두 프런트 모두 같은 분석 엔진(`src/analysis`)�
 - `src/data/` — 데이터 수집. `models.py`(시장 무관 표준 모델 `CompanyData`), `base.py`(yfinance),
   `opendart.py`(한국 공시 원본), `naver.py`, `news.py`, `gemini.py`(AI), `kr_provider.py`/`us_provider.py`.
 - `src/analysis/` — **순수 함수**로 작성(입력=CompanyData, 부작용 없음). `indicators.py`, `scoring.py`,
-  `capital_cost.py`(베타·하마다·WACC), `valuation.py`(적정주가 4방법 계산 · 판정은 ①②③ 종합 · ④는 병기, ADR-0006), `backtest.py`, `ai_analysis.py`.
+  `capital_cost.py`(베타·하마다·WACC), `valuation.py`(적정주가 5방법 계산 · **판정은 ①③⑤ 종합** · ②④는 병기·참고, ADR-0006·0035), `backtest.py`, `ai_analysis.py`.
 - `src/ui/` — `charts.py`(Plotly), `components.py`(포맷터·배지). `app.py`가 엔트리.
 
 ## 코딩 규칙
