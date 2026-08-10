@@ -197,6 +197,20 @@ CLIENT_MATH = {
         "parity": None,
         "why": "산점도 추세선. 화면 장식이라 서버가 계수를 보내지 않는다",
     },
+    # 계산은 아니지만 **같은 표가 두 언어에 사는** 자리다. 이 등록부의 취지가 정확히
+    # 그것을 드러내는 것이라 여기 적는다(peerMedian이 남긴 교훈: 같은 개념을 두 곳에서
+    # 만들면 조용히 갈라진다 — 삼성전자 12.77× vs 11.66×).
+    "stock.js:METHOD_TAB(방법→①②③④⑤)": {
+        "js": "web/assets/stock.js",
+        "python_twin": "src/analysis/valuation.py::METHOD_MARKS",
+        "ci_runs": "tests/test_method_marks_parity.py (JS 리터럴을 읽어 파이썬과 대조)",
+        "parity": "tests/test_method_marks_parity.py",
+        "why": "화면은 판정 축 번호를 `v.weights`에서 유도하고(PR #139), 파이썬은 화면에 "
+               "나가는 문장에서 `marks_of()`로 유도한다(PR #140). **번호 매핑 자체는 아직 "
+               "두 벌이다** — 방법 이름을 바꾸거나 여섯째 축이 생기면 갈린다. 둘 다 상수라 "
+               "실행 중 갈릴 일은 없어 지금 관문을 실패시키지는 않는다. 구조적 답은 "
+               "`estimates`의 각 항목에 `mark`를 실어 보내 JS가 서버 것을 쓰게 하는 것이다",
+    },
 }
 
 # 배수 비교표를 그리는 자리 — 「현재」와 「업종 중앙값」이 **같은 자**로 잰 값이어야 한다

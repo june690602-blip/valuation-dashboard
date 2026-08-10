@@ -652,6 +652,31 @@ class BasisShareTests(unittest.TestCase):
         self.assertEqual(intrinsic, 0.0)
         self.assertAlmostEqual(relative, 1.0, places=9)
 
+    def test_no_consensus_row_when_there_is_no_consensus_estimate(self):
+        """④가 없으면 병기 값을 내지 않는다 — 화면이 없는 것을 들었다고 말하게 된다.
+
+        `if with_fwd:`만 보던 동안, ④가 없는 종목에서 `with_fwd == core`라 병기 값이
+        펀더멘털과 **똑같이** 잡혔다. 화면은 `fair_mid_consensus != null`만 보고 행을
+        세우므로, 같은 숫자가 두 줄 서고 아래 줄이 *"컨센서스 반영 (④ 포함)"*이라
+        적혔다. 애널리스트 커버리지가 없는 소형주에서 흔한 상태다.
+
+        병기 값은 펀더멘털과 **나란히 놓고 차이를 읽으라고** 있는 값이다(ADR-0006).
+        같은 재료로 서면 낼 이유가 없다.
+        """
+        from src.analysis.valuation import CONSENSUS_METHOD, compute_valuation
+
+        # 피어는 있고 forward_eps는 없다 → ①③은 서고 ④는 skipped
+        res = compute_valuation(
+            _company_with_peers([(1.0, 12.0), (1.2, 14.0), (0.8, 9.0), (1.1, 20.0)]),
+            _flat_indicators(), r_equity=0.09)
+        self.assertNotIn(CONSENSUS_METHOD, {e.method for e in res.estimates},
+                         "픽스처가 ④를 세웠다 — 이 테스트가 무의미해진다")
+        self.assertIsNotNone(res.fair_mid, "판정은 나와야 한다")
+        self.assertIsNone(res.fair_mid_consensus,
+                          "④가 없는데 병기 값이 잡혔다 — 화면이 '(④ 포함)'이라 적는다")
+        self.assertIsNone(res.gap_consensus)
+        self.assertIsNone(res.verdict_consensus)
+
     def test_screen_notes_derive_the_method_marks_instead_of_writing_them(self):
         """화면에 나가는 문장의 ①③⑤는 **상수에서 유도**돼야 한다.
 
