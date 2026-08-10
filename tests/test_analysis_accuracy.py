@@ -798,9 +798,27 @@ class ConfidenceGradeTests(unittest.TestCase):
         self.assertEqual(final, "낮음")
 
     def test_partial_overlap_caps_at_middle(self):
-        final, _s, cap = self.grade(0.01, 3, n_eff=2.4, capped=True)
+        # **픽스처를 2.4에서 2.0으로 내렸다(ADR-0036).** 상한을 절대 개수가 아니라
+        # 독립분 (n_eff−1)/(n−1)으로 재게 되면서, 축이 셋일 때 2.4는 독립분 0.70으로
+        # '부분적으로 겹침'이 아니라 **꽤 독립**이다(문턱 0.600). 이 테스트가 재려는
+        # 것은 '중간'이라는 숫자가 아니라 **부분 겹침이 중간으로 잡히는가**이므로,
+        # 새 자에서 그 뜻에 해당하는 값으로 옮긴다 — 셋 중 2.0이면 독립분 0.50이다.
+        final, _s, cap = self.grade(0.01, 3, n_eff=2.0, capped=True)
         self.assertEqual(cap, "중간")
         self.assertEqual(final, "중간")
+
+    def test_two_nearly_identical_methods_are_not_half_independent(self):
+        """축이 둘일 때 `n_eff/n`을 쓰면 안 되는 이유 — 최솟값이 0.5다.
+
+        두 방법이 완전히 같은 자여도 `n_eff/n = 0.5`라, '절반은 독립'인 것처럼 나온다.
+        AAPL이 그 모양이고(①⑤가 같은 적정 PER, ADR-0015) **ADR-0022가 만들어진 이유가
+        정확히 그 종목**이다. 만들다 실제로 `n_eff/n`을 먼저 넣었고, 이 자리에서
+        AAPL이 '중간'으로 올라가는 것을 보고 독립분으로 바꿨다.
+        """
+        final, spread, cap = self.grade(0.01, 2, n_eff=1.05, capped=True)
+        self.assertEqual(spread, "높음", "흩어짐만 보면 값이 붙어 있다")
+        self.assertEqual(cap, "낮음", "사실상 한 축인데 상한이 안 걸렸다")
+        self.assertEqual(final, "낮음")
 
     def test_cap_never_raises_a_grade(self):
         # 상한은 내리기만 한다. 흩어짐이 크면 축이 아무리 독립이어도 '낮음'이다.

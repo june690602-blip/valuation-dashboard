@@ -46,7 +46,7 @@ from src.analysis.indicators import compute_indicators                  # noqa: 
 from src.analysis.valuation import (CONFIDENCE_ORDER,                   # noqa: E402
                                     FUNDAMENTAL_METHODS, compute_valuation,
                                     confidence_grade)
-from src.analysis.warranted import (NEFF_LOW, NEFF_MID,                 # noqa: E402
+from src.analysis.warranted import (NEFF_FRAC_LOW, NEFF_FRAC_MID,       # noqa: E402
                                     effective_axes)
 from src.data.kr_provider import KRProvider                             # noqa: E402
 from src.data.universe import get_kr_listing, get_sp1500                # noqa: E402
@@ -198,11 +198,15 @@ def main() -> int:
     for n, g in df.groupby("n"):
         print(f"{n:>7}{len(g):>7}{g['n_eff'].median():>12.2f}"
               f"{g['n_eff'].min():>12.2f}{g['n_eff'].max():>12.2f}")
-    lo = float((df["n_eff"] < NEFF_LOW).mean())
-    mid = float(((df["n_eff"] >= NEFF_LOW) & (df["n_eff"] < NEFF_MID)).mean())
-    print(f"\n  n_eff < {NEFF_LOW} (상한 '낮음'): {lo:.1%}"
-          f" · {NEFF_LOW}~{NEFF_MID} (상한 '중간'): {mid:.1%}"
-          f" · {NEFF_MID} 이상: {1 - lo - mid:.1%}")
+    # 상한은 **독립분** (n_eff−1)/(n−1)으로 잰다(ADR-0036) — 절대 개수는 축이 몇 개인
+    # 세계인지에 따라 같은 문턱이 다른 뜻이 된다. 여기서도 화면과 같은 자로 재야
+    # "진단은 이렇다는데 화면은 다른 말"이 되지 않는다.
+    frac = (df["n_eff"] - 1) / (df["n"] - 1).where(df["n"] > 1)
+    lo = float((frac < NEFF_FRAC_LOW).mean())
+    mid = float(((frac >= NEFF_FRAC_LOW) & (frac < NEFF_FRAC_MID)).mean())
+    print(f"\n  독립분 < {NEFF_FRAC_LOW} (상한 '낮음'): {lo:.1%}"
+          f" · {NEFF_FRAC_LOW}~{NEFF_FRAC_MID} (상한 '중간'): {mid:.1%}"
+          f" · {NEFF_FRAC_MID} 이상: {1 - lo - mid:.1%}")
     if not all(capped):
         print(f"  ※ 상관을 모르는 쌍이 있어 상한을 안 건 종목 {sum(not c for c in capped)}곳")
 
