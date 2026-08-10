@@ -1136,9 +1136,15 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
     # ADR-0035로 ②가 판정에서 빠진 뒤에는 두 값의 차이가 더 이상 '④의 몫'이 아니게 된다.
     # 그러면 바로 아래 주석이 약속하는 문장("이 차이가 곧 시장 기대분")이 거짓이 된다.
     # ②를 판정에서만 빼고 병기에 남겨 두는 것은 **선택지가 아니라 버그**다.
-    with_fwd = core + [e for e in res.estimates if e.method == CONSENSUS_METHOD]
-    if with_fwd:
-        # 컨센서스 반영 종합 — ④가 실제로 있을 때만 펀더멘털과 다른 값이 된다.
+    fwd = [e for e in res.estimates if e.method == CONSENSUS_METHOD]
+    with_fwd = core + fwd
+    # 병기 값은 **펀더멘털과 나란히 놓고 차이를 읽으라고** 있는 값이다(ADR-0006).
+    # 그래서 둘이 같은 재료로 서면 낼 이유가 없다. 두 경우가 그렇다:
+    #   ④가 없다      — 커버리지 없는 소형주. 그런데 화면은 "(④ 포함)"이라 적는다
+    #   core가 비었다  — 판정 자체를 ④로 냈다. 병기랄 것이 없다
+    # 예전에는 `if with_fwd:`만 봐서 ④ 없는 종목에도 값이 잡혔고, 두 행이 **같은 숫자를
+    # 두 번 적으면서 하나는 ④가 들었다고 말했다.** 없는 것을 들었다고 하는 것이 문제다.
+    if fwd and core:
         (res.fair_low_consensus, res.fair_mid_consensus,
          res.fair_high_consensus, res.weights_consensus) = _weighted(with_fwd)
         res.gap_consensus = res.fair_mid_consensus / d.price - 1
