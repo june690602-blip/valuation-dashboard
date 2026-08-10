@@ -46,3 +46,4 @@
 | [0033](0033-unadjusted-splits-broke-mean-statistics.md) | 조정 누락 주가가 평균 통계만 무너뜨렸다 — 순위 통계는 멀쩡했다 | 채택됨 |
 | [0034](0034-fscore-predicts-but-failed-its-own-gate.md) | F-Score는 예측력이 있는데 자기 관문을 통과하지 못했다 — 무기한 보류 | 채택됨 |
 | [0035](0035-drop-historical-band-from-the-verdict.md) | ② 역사적 밴드를 판정에서 뺀다 — 그리고 신뢰도 배지가 함께 무너지는 것을 발견했다 | 채택됨 |
+| [0036](0036-confidence-cap-measured-as-independence-fraction.md) | 신뢰도 상한을 절대 축 수가 아니라 독립분으로 잰다 — 문턱이 단위를 잃었다 | 채택됨 |

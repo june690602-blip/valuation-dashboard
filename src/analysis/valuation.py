@@ -51,7 +51,8 @@ import pandas as pd
 
 from ..data.models import CompanyData, actual_prices, currency_mismatch
 from .scoring import comparable_peers, peer_median
-from .warranted import NEFF_LOW, NEFF_MID, effective_axes, leg_error
+from .warranted import (NEFF_FRAC_LOW, NEFF_FRAC_MID, effective_axes,
+                        leg_error)
 
 VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
 # 신뢰도 등급 — **순서가 곧 크기다**(ADR-0022). 흩어짐이 낸 등급과 실질 축 수가 씌운
@@ -175,7 +176,13 @@ def confidence_grade(dispersion: float | None, n_methods: int,
     spread = "높음" if dispersion < 0.15 else "중간" if dispersion < 0.35 else "낮음"
     cap = "높음"
     if capped and n_eff is not None:
-        cap = "낮음" if n_eff < NEFF_LOW else "중간" if n_eff < NEFF_MID else "높음"
+        # **독립분으로 잰다**(ADR-0036) — n_eff는 [1, n] 사이를 움직이므로, 그 구간을
+        # 얼마나 올라왔는가가 축 수와 무관한 자다. 절대 개수로 재면 축이 몇 개인
+        # 세계인지에 따라 같은 문턱이 다른 뜻이 된다: ADR-0035로 축이 셋이 되자
+        # 옛 문턱(2.0)을 아무 조합도 못 넘어 배지가 7,656건 전부 '낮음'이 됐다.
+        frac = (n_eff - 1) / (n_methods - 1) if n_methods > 1 else 0.0
+        cap = ("낮음" if frac < NEFF_FRAC_LOW
+               else "중간" if frac < NEFF_FRAC_MID else "높음")
     return min(spread, cap, key=CONFIDENCE_ORDER.index), spread, cap
 
 
