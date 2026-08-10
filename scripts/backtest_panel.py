@@ -84,6 +84,15 @@ RF, MRP = RF_MRP["KR"]                         # main()이 시장에 맞춰 덮�
 MIN_YEARS_KNOWN = 3                            # ⑤의 NORMALIZE_MIN_YEARS와 같은 하한
 EPV = "EPV"
 
+# 패널이 기록하는 축 — **판정이 쓰는 축과 같지 않다. 같으면 안 된다.**
+# 이 패널은 연구 자료다. 판정에서 빠진 축이 패널에서도 빠지면 **그 축을 다시 잴 방법이
+# 사라진다** — 빼자는 결정이 옳았는지 되짚을 수도, 새 표본에서 재개할 수도 없다.
+# EPV가 처음부터 이렇게 기록돼 왔다(판정에 없는데 열은 있다). ADR-0035로 ② 역사적 밴드가
+# 판정에서 빠질 때 이 자리가 드러났다 — 실제로 재빌드 한 번에 `역사적 밴드` 열이 통째로
+# 사라졌고, 그러면 check_backtest_combos.py의 A2·B1·B6·C3가 잴 것을 잃는다.
+BAND = "역사적 밴드"
+PANEL_AXES = tuple(dict.fromkeys((*FUNDAMENTAL_METHODS, BAND, EPV)))
+
 _EMPTY_PEERS = pd.DataFrame(columns=PEER_COLUMNS)
 
 
@@ -310,7 +319,7 @@ def evaluate(t: pd.Timestamp, data: dict, index_px: pd.Series) -> pd.DataFrame:
                "years_known": int(len(known_at(fin, t))),
                "norm_years": v.normalized_years}
         for e in v.estimates:
-            if e.method in FUNDAMENTAL_METHODS and e.mid and e.mid > 0:
+            if e.method in PANEL_AXES and e.mid and e.mid > 0:
                 row[e.method] = float(np.log(e.mid / d.price))
 
         oi, oi_years = normalized_operating_income(d.financials)
@@ -411,7 +420,7 @@ def main() -> int:
             print(f"{t.date()}  표본 부족 — 건너뜀")
             continue
         frames.append(df)
-        got = {m: int(df[m].notna().sum()) for m in (*FUNDAMENTAL_METHODS, EPV)
+        got = {m: int(df[m].notna().sum()) for m in PANEL_AXES
                if m in df.columns}
         meta_rows.append({"date": t, "n": len(df), "n_fit": df.attrs["n_snapshot"],
                           "legs": ",".join(df.attrs["legs_fit"]),

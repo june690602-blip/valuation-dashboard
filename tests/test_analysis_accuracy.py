@@ -643,20 +643,109 @@ class BasisShareTests(unittest.TestCase):
         from src.analysis.valuation import INTRINSIC_METHODS, RELATIVE_METHODS
 
         # ③이 빠진 종목: 명목 가중이 아니라 재정규화된 실효 가중이라 절대가 정확히 0이다.
-        weights = {"업종 상대가치": 0.375, "역사적 밴드": 0.375, "정규화 이익": 0.25}
+        # ②가 판정에서 빠지며(ADR-0035) 이 자리의 가중도 ①⑤ 둘로만 선다 — 이 표에
+        # ②를 남겨 두면 상대가치 합이 1에 못 미쳐, **분류가 판정 방법을 남김없이
+        # 가른다**는 계약이 깨진 것을 이 테스트가 잡는다.
+        weights = {"업종 상대가치": 0.5, "정규화 이익": 0.5}
         intrinsic = sum(w for m, w in weights.items() if m in INTRINSIC_METHODS)
         relative = sum(w for m, w in weights.items() if m in RELATIVE_METHODS)
         self.assertEqual(intrinsic, 0.0)
         self.assertAlmostEqual(relative, 1.0, places=9)
 
-    def test_all_four_axes_leave_rim_a_minority(self):
+    def test_screen_notes_derive_the_method_marks_instead_of_writing_them(self):
+        """화면에 나가는 문장의 ①③⑤는 **상수에서 유도**돼야 한다.
+
+        손으로 적으면 축이 바뀔 때마다 썩는다 — 실제로 "①②③"이 여덟 자리에 적힌 채
+        실제 구성(①②③⑤)과 어긋나 있었고, ②를 빼면서 또 어긋날 뻔했다(PR #139).
+        이 테스트가 지키는 것은 문구가 아니라 **유도한다는 사실**이다: 축 목록을 바꾸면
+        문장도 따라 바뀌어야 한다.
+        """
+        from src.analysis import valuation as V
+
+        self.assertEqual(V.marks_of(V.FUNDAMENTAL_METHODS), "①③⑤")
+        # 번호 순으로 정렬한다 — 들어온 순서를 따라가면 화면마다 다르게 읽힌다
+        self.assertEqual(V.marks_of(["정규화 이익", "업종 상대가치"]), "①⑤")
+        # 축 목록을 바꾸면 문장이 따라온다. 이것이 깨지면 어딘가 손으로 적혀 있다는 뜻이다
+        original = V.FUNDAMENTAL_METHODS
+        try:
+            V.FUNDAMENTAL_METHODS = ("업종 상대가치", "역사적 밴드")
+            self.assertEqual(V.marks_of(V.FUNDAMENTAL_METHODS), "①②")
+        finally:
+            V.FUNDAMENTAL_METHODS = original
+
+    def test_excluded_from_verdict_carries_the_reason_not_just_the_name(self):
+        """값은 냈는데 판정에 안 들어간 방법은 **사유와 함께** 나가야 한다.
+
+        화면은 가중 칸이 빈 방법에 '판정 제외 · 참고' 배지를 붙이는데, 사유가 없으면
+        배지가 일반 문구밖에 못 쓴다. 그리고 사유를 화면에 손으로 적으면 판정 구성이
+        바뀔 때 조용히 썩는다 — ①②③이 여덟 자리에 하드코딩돼 실제 구성과 어긋나 있던
+        것이 정확히 그 사고다. 그래서 사유는 ADR과 같은 파일(파이썬)에서 나간다.
+
+        `skipped`와 섞이면 안 된다: 그쪽은 **값이 없는** 것이고 이쪽은 **값은 있는** 것이다.
+        """
+        from src.analysis.valuation import FUNDAMENTAL_METHODS, compute_valuation
+
+        # ②와 ③이 함께 서는 픽스처 — ②는 계산되지만 판정에는 안 들어간다(ADR-0035).
+        res = compute_valuation(_company_for_band([1.0, 1.6, 2.6, 4.2, 6.8, 11.0]),
+                                _flat_indicators(), r_equity=0.09)
+        got = dict(res.excluded_from_verdict)
+        self.assertIn("역사적 밴드", got, "값을 낸 ②가 제외 목록에 없다")
+        self.assertNotIn("역사적 밴드", res.weights or {}, "②가 판정 가중에 남아 있다")
+        self.assertIn("0035", got["역사적 밴드"], "사유가 근거 ADR을 가리키지 않는다")
+
+        # 계산된 방법만 들어간다 — 값이 없어 건너뛴 것은 `skipped`의 몫이다
+        computed = {e.method for e in res.estimates}
+        self.assertTrue(set(got) <= computed,
+                        "값을 내지 않은 방법이 제외 목록에 섞였다")
+        # **`skipped`와 겹치지 않는다.** 화면은 값이 없는 행을 `skipped` 쪽 '제외' 행으로
+        # 그리므로, 겹치면 그 사유가 어디에도 안 뜬다(PR #139가 기대는 계약이다).
+        self.assertEqual(set(got) & {m for m, _ in res.skipped}, set(),
+                         "같은 방법이 skipped와 제외 목록에 동시에 있다")
+        # 판정에 든 방법은 여기 없어야 한다
+        self.assertEqual(set(got) & set(res.weights or {}), set())
+        self.assertEqual(set(got) & set(FUNDAMENTAL_METHODS), set())
+
+    def test_the_band_cannot_carry_the_verdict_through_the_fallback(self):
+        """①③⑤가 하나도 없을 때 **②가 판정을 끌면 안 된다** (ADR-0035).
+
+        폴백이 `core or res.estimates`였다. ②가 판정 축이던 동안에는 둘이 같았다 —
+        `res.estimates`에서 core를 빼면 ④뿐이었으니까. ②를 core에서 빼자 그 자리가
+        벌어져서, **폴백을 타는 종목에서만 ②가 판정을 끌게 됐다.** 예측력이 없다고
+        판단해 뺀 축이 뒷문으로 돌아온다.
+
+        여기서 함께 못 박는 것: 판정에 실제로 쓰인 방법은 제외 목록에 오르지 않는다.
+        기준이 상수 목록이면 폴백 종목에서 ④가 **가중도 있고 제외 목록에도 오른다.**
+        """
+        from src.analysis.valuation import compute_valuation
+
+        # 이익이 11배로 커지는 픽스처는 ②③이 선다. ③을 장부가 게이트로 떨어뜨리면
+        # 판정 축이 하나도 안 남고 ②만 값을 가진 상태가 된다 — 폴백이 타는 자리다.
+        d = _company_for_band([1.0, 1.6, 2.6, 4.2, 6.8, 11.0])
+        d.financials = d.financials.copy()
+        d.financials["total_equity"] = 1.0        # PBR을 게이트 위로 밀어 ③을 뺀다
+        res = compute_valuation(d, _flat_indicators(), r_equity=0.09)
+
+        computed = {e.method for e in res.estimates}
+        self.assertIn("역사적 밴드", computed, "픽스처가 ②를 못 세웠다 — 이 테스트가 무의미해진다")
+        self.assertNotIn("역사적 밴드", res.weights or {},
+                         "②가 폴백을 타고 판정으로 돌아왔다")
+        weights = set(res.weights or {})
+        excluded = {m for m, _ in res.excluded_from_verdict}
+        self.assertEqual(weights & excluded, set(),
+                         f"판정에 쓰인 방법이 제외 목록에도 있다: {weights & excluded}")
+
+    def test_all_axes_standing_leave_rim_a_minority(self):
         from src.analysis.valuation import (FUNDAMENTAL_METHODS, INTRINSIC_METHODS,
                                             METHOD_WEIGHTS)
 
-        # 넷이 다 서도 절대가치는 16.7%다 — 이것이 '평균 9.3%'의 상한이다.
+        # 축이 다 서도 절대가치는 소수다 — 이것이 실측 '평균 9.3%'의 상한이다.
+        # **②가 판정에서 빠지며(ADR-0035) 이 상한이 16.7% → 23.1%로 올랐다.** 빠진
+        # 25%가 남은 셋에 나뉘어 붙기 때문이고, 그중 ③만이 절대가치 축이다. 도구가
+        # 시장 배수에 덜 기대게 되는 방향인데, **의도한 것이 아니라 따라온 것**이라
+        # 여기 적어 둔다 — 다음에 이 수를 보는 사람이 근거로 삼지 않도록.
         total = sum(METHOD_WEIGHTS[m] for m in FUNDAMENTAL_METHODS)
         intrinsic = sum(METHOD_WEIGHTS[m] for m in INTRINSIC_METHODS)
-        self.assertAlmostEqual(intrinsic / total, 0.1667, places=3)
+        self.assertAlmostEqual(intrinsic / total, 0.2308, places=3)
 
 
 class ConfidenceGradeTests(unittest.TestCase):
@@ -715,10 +804,13 @@ class ConfidenceGradeTests(unittest.TestCase):
         등급 문자열을 파이썬이 내보내는 이유는 임계(0.15/0.35)를 JS에 옮겨 적지 않기
         위해서다 — 같은 수식이 두 언어에 사는 것이 #84·ADR-0019가 잡은 문제다.
         """
-        # 이익이 11배로 커지는 픽스처는 ②와 ③이 함께 서서 흩어짐이 실제로 계산된다
-        # (실측 disp 0.71). 이익이 평평한 쪽은 방법이 하나뿐이라 이 경로를 못 지난다.
-        res = compute_valuation(_company_for_band([1.0, 1.6, 2.6, 4.2, 6.8, 11.0]),
-                                _flat_indicators(), r_equity=0.09)
+        # **픽스처를 ②에서 ①로 갈았다(ADR-0035).** 예전에는 이익이 11배로 커지는
+        # `_company_for_band`가 ②③을 함께 세웠는데, ②가 판정에서 빠지자 ③ 하나만 남아
+        # 흩어짐이 아예 계산되지 않았다 — 테스트가 조용히 무의미해지는 대신 **빨갛게**
+        # 터진 자리다. 피어를 준 픽스처는 ①③이 서서 흩어짐이 실제로 나온다(실측 0.117).
+        res = compute_valuation(
+            _company_with_peers([(1.0, 12.0), (1.2, 14.0), (0.8, 9.0), (1.1, 20.0)]),
+            _flat_indicators(), r_equity=0.09)
         self.assertIsNotNone(res.dispersion, "픽스처가 흩어짐을 못 냈다 — 이 테스트가 무의미해진다")
         self.assertIn(res.confidence_spread, ("높음", "중간", "낮음"))
         self.assertIn(res.confidence_cap, ("높음", "중간", "낮음"))

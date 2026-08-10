@@ -1,6 +1,6 @@
 {
   "market": "KR",
-  "rows": 7674,
+  "rows": 7656,
   "dates": [
     "2016-06-01",
     "2017-06-01",
@@ -13,7 +13,7 @@
     "2024-06-01",
     "2025-06-01"
   ],
-  "codes": 1049,
+  "codes": 1057,
   "columns": [
     "date",
     "code",
@@ -39,9 +39,9 @@
     "EPV",
     "역사적 밴드"
   ],
-  "raw_stocks_at_build": 1288,
-  "built_at": "2026-08-09 17:17",
-  "code_commit": "1f47178e61df097cdc733b66ebad10c74fbbb33a",
-  "code_dirty_at_build": false,
+  "raw_stocks_at_build": 1292,
+  "built_at": "2026-08-10 08:23",
+  "code_commit": "0eb08117ea21e94d7ff83404e3a9ba00adc71d90",
+  "code_dirty_at_build": true,
   "note": "판정 경로(src/analysis)나 backtest_panel.py가 이 커밋 이후 바뀌었으면 이 패널은 스테일이다. raw/를 풀고 backtest_panel.py를 다시 돌려라."
 }

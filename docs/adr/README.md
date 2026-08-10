@@ -45,3 +45,4 @@
 | [0032](0032-complementarity-gate-was-inverted.md) | 상보성 관문(≥50%)을 폐기한다 — 지표가 뒤집혀 있었고 두 시장 모두 답을 반대로 냈다 | 채택됨 |
 | [0033](0033-unadjusted-splits-broke-mean-statistics.md) | 조정 누락 주가가 평균 통계만 무너뜨렸다 — 순위 통계는 멀쩡했다 | 채택됨 |
 | [0034](0034-fscore-predicts-but-failed-its-own-gate.md) | F-Score는 예측력이 있는데 자기 관문을 통과하지 못했다 — 무기한 보류 | 채택됨 |
+| [0035](0035-drop-historical-band-from-the-verdict.md) | ② 역사적 밴드를 판정에서 뺀다 — 그리고 신뢰도 배지가 함께 무너지는 것을 발견했다 | 채택됨 |

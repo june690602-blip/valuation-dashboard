@@ -789,6 +789,10 @@ def analyze(market: str, query: str, peer_count: int = 9,
                 "detail": (val.book_quality or {}).get("detail") or "",
             },
             "skipped": [{"method": m, "reason": r} for m, r in (val.skipped or [])],
+            # 값은 있는데 판정에 안 들어간 방법 — `skipped`(값이 없는 것)와 다르다.
+            # 화면의 '판정 제외 · 참고' 배지가 사유를 여기서 읽는다(ADR-0006·0035).
+            "excluded_from_verdict": [{"method": m, "reason": r}
+                                      for m, r in (getattr(val, "excluded_from_verdict", None) or [])],
             "estimates": [{"method": e.method, "low": num(e.low), "mid": num(e.mid),
                            "high": num(e.high), "note": e.note} for e in val.estimates],
             "relative_basis": val.relative_basis,
