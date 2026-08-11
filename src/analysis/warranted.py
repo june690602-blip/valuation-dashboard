@@ -378,6 +378,11 @@ def loo_leg_error(df: pd.DataFrame) -> dict | None:
     **다만 설계행렬은 전체 표본으로 한 번 정하고 고정한다** — 업종 라벨 통합(min_n),
     ROE 구간, 규모 마디(분위수)는 종목 하나를 빼도 다시 정하지 않는다. 즉 leave-one-out인
     것은 **계수**이지 특징 설계가 아니다. 이 차이를 숨기지 않는다.
+
+    반환에는 잔차의 **사분위**도 담는다(`resid_q25`·`resid_q75`). `mae`는 오차의 크기를
+    한 숫자로 말하는 값이라 화면이 적는 '25~75분위'에 그대로 쓸 수 없다 — 자의 종류가
+    다르다. 같은 잔차 벡터에서 두 값을 함께 내보내 시나리오 폭과 오차 문구가 갈리지
+    않게 한다(테스트가 그 등식을 지킨다).
     """
     d = _prep(df)
     if d is None:
@@ -399,6 +404,13 @@ def loo_leg_error(df: pd.DataFrame) -> dict | None:
         "n": len(d),
         "mae": float(np.mean(np.abs(e_loo))),          # ← LEG_MAE에 넣는 값
         "mae_in_sample": float(np.mean(np.abs(resid))),  # 부풀려진 값 — 대조용
+        # 시나리오의 비관/낙관 폭은 **여기서** 온다. MAE가 아니라 사분위인 이유는 화면이
+        # '25 · 50 · 75분위'라고 적기 때문이다 — MAE를 그대로 쓰면 KR PER 기준 배수
+        # ×0.558~×1.791로 벌어져 시나리오 표가 사실상 아무 말도 하지 않게 된다.
+        # 부호 규약: e = log(실제) − log(적합)이므로 `실제 = 적합 × exp(e)`다.
+        # 따라서 배수의 아래쪽이 `× exp(resid_q25)`, 위쪽이 `× exp(resid_q75)`다.
+        "resid_q25": float(np.quantile(e_loo, 0.25)),
+        "resid_q75": float(np.quantile(e_loo, 0.75)),
         "r2_loo": float(1 - np.sum(e_loo ** 2) / ss) if ss > 0 else float("nan"),
         "saturated": saturated,
     }
