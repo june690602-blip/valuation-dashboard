@@ -730,6 +730,31 @@ class LooLegErrorTests(unittest.TestCase):
         self.assertIn("saturated", out)
         self.assertIsInstance(out["saturated"], int)
 
+    def test_residual_quartiles_match_press_quantiles(self):
+        # 사분위는 MAE와 **같은 잔차 벡터**에서 나와야 한다. 다른 데서 재면 시나리오 폭과
+        # 오차 문구가 서로 다른 것을 말하게 된다 — 화면 두 곳이 갈리는 고전적인 자리다.
+        from src.analysis.warranted import _design_matrix, _prep, loo_leg_error
+
+        df = _noisy()
+        d = _prep(df)
+        X, *_ = _design_matrix(d)
+        y = np.log(d["multiple"].to_numpy(float))
+        beta, _r, _rk, _s = np.linalg.lstsq(X, y, rcond=None)
+        hat = np.einsum("ij,jk,ik->i", X, np.linalg.pinv(X.T @ X), X)
+        press = (y - X @ beta) / (1 - hat)
+
+        out = loo_leg_error(df)
+        self.assertAlmostEqual(out["resid_q25"], float(np.quantile(press, 0.25)), places=9)
+        self.assertAlmostEqual(out["resid_q75"], float(np.quantile(press, 0.75)), places=9)
+
+    def test_quartile_band_is_narrower_than_the_mae_band(self):
+        # 설계 결정의 근거를 못박는다(2026-08-10 설계). LEG_MAE를 시나리오 폭에 그대로
+        # 쓰면 너무 넓어진다 — 사분위 폭은 2×MAE보다 좁아야 한다. 뒤집히면 둘 중 하나가
+        # 틀렸으니, 그때는 폭을 고치기 전에 어느 쪽이 틀렸는지부터 본다.
+        out = loo_leg_error(_noisy())
+        self.assertLess(out["resid_q25"], out["resid_q75"])
+        self.assertLess(out["resid_q75"] - out["resid_q25"], 2 * out["mae"])
+
 
 class EffectiveAxesTests(unittest.TestCase):
     """겹치는 방법을 몇 개로 쳐야 하나 (ADR-0022)."""
