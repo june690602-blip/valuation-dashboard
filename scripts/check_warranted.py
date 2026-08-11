@@ -44,6 +44,9 @@ def main() -> int:
     print("─" * 90)
     bad = 0
     new_mae: dict[str, float] = {}
+    # 잔차 사분위 — 시나리오의 비관/낙관 폭이 여기서 온다(설계 2026-08-10). MAE와 같은
+    # 벡터에서 나오지만 자의 종류가 다르다. 두 값을 나란히 찍어 폭 차이를 보이게 한다.
+    new_q: dict[str, tuple[float, float]] = {}
     for leg, (lo, hi) in LEG_BOUNDS.items():
         v = pd.to_numeric(snap.get(leg), errors="coerce")
         if v is None:
@@ -80,6 +83,7 @@ def main() -> int:
             mae_txt, ins_txt = f"{'—':>9}", f"{'—':>11}"
         else:
             new_mae[leg] = lo["mae"]
+            new_q[leg] = (lo["resid_q25"], lo["resid_q75"])
             mae_txt, ins_txt = f"{lo['mae']:>9.3f}", f"{lo['mae_in_sample']:>11.3f}"
         print(f"{leg:<12}{len(d):>7}{rm:>11.3f}{rr:>10.3f}"
               f"{coef['beta_size']:>+10.3f}{'[확인]' if good else '[문제]':>8}"
@@ -95,6 +99,20 @@ def main() -> int:
             cur = CURRENT_LEG_MAE.get(market, {}).get(leg)
             if cur is not None and abs(v - cur) / cur >= 0.05:
                 print(f"    ※ {leg}: {cur:.3f} → {v:.3f} ({(v/cur - 1):+.0%}) — 화면 문구가 바뀐다")
+    if new_q:
+        print("\n잔차 사분위 — **시나리오의 비관/낙관 폭**이 여기서 온다(설계 2026-08-10).")
+        print("MAE와 같은 잔차 벡터에서 나오지만 자의 종류가 다르다. 배수는")
+        print("`적정배수 × exp(q25)` ~ `적정배수 × exp(q75)`로 벌어진다.")
+        print(f'\n    "{market}": {{'
+              + ", ".join(f'"{k}": ({a:.3f}, {b:.3f})' for k, (a, b) in new_q.items())
+              + "},")
+        for leg, (a, b) in new_q.items():
+            mae = new_mae.get(leg)
+            # 2×MAE로 쟀을 때의 폭을 나란히 찍는다 — 둘이 얼마나 다른지가 설계에서
+            # 사분위를 고른 이유다. 이 두 줄이 붙어 있어야 다음 사람이 다시 안 묻는다.
+            mae_txt = (f"  (2×MAE로 재면 ×{np.exp(-mae):.3f} ~ ×{np.exp(mae):.3f})"
+                       if mae is not None else "")
+            print(f"    ※ {leg}: 배수 ×{np.exp(a):.3f} ~ ×{np.exp(b):.3f}{mae_txt}")
     return 1 if bad else 0
 
 
