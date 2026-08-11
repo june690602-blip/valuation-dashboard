@@ -414,7 +414,7 @@ def main() -> int:
     c_rows = []
     for var, label in (("norm5", "C1 ⑤창 5년"), ("nogate", "C2 ③게이트 끔"),
                        ("band5", "C3 ②밴드 5년"),
-                       ("roe25", "C4 ①ROE칸 25%쪼갬")):
+                       ("roeopen", "C4 ①ROE칸 다시 엶")):
         p = load(var)
         if p is None:
             c_rows.append((label, None))
