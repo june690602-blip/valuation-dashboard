@@ -12,7 +12,7 @@ import pandas as pd
 
 from src.analysis.warranted import (EXTRAPOLATION_LIMIT, MIN_FIT_SAMPLE,
                                     MIN_KNOT_TAIL, OTHER_SECTOR, ROE_EDGES,
-                                    SIZE_KNOT_QS, fit_leg, roe_bucket,
+                                    ROE_LABELS, SIZE_KNOT_QS, fit_leg, roe_bucket,
                                     loo_leg_error, sector_labels, size_knots,
                                     size_slope, size_term,
                                     warranted_multiple)
@@ -27,7 +27,7 @@ class BucketTests(unittest.TestCase):
         self.assertEqual(roe_bucket(-0.01), "-5~0%")
         self.assertEqual(roe_bucket(0.03), "0~5%")
         self.assertEqual(roe_bucket(0.12), "10~15%")
-        self.assertEqual(roe_bucket(0.40), ">15%")
+        self.assertEqual(roe_bucket(0.40), ">25%")
 
         # 모든 경계가 '아래 구간'에 속하는지 직접 못박는다 (edges[i] < v <= edges[i+1])
         self.assertEqual(roe_bucket(-0.05), "-20~-5%")
@@ -36,12 +36,26 @@ class BucketTests(unittest.TestCase):
         self.assertEqual(roe_bucket(0.10), "5~10%")
         self.assertEqual(roe_bucket(0.15), "10~15%")
 
+    def test_roe_top_bucket_is_bounded(self):
+        # ADR-0040: 최상위 칸이 `>15%`로 **열려 있으면** ROE가 아무리 뛰어도 적정 배수가
+        # 한 칸도 안 움직인다. 실측에서 삼성전자 17.6% → 59.1%가 같은 칸이었고,
+        # 11종목 중 9곳이 그랬다. 25%에서 한 번 쪼개 그 자리를 닫는다.
+        self.assertEqual(roe_bucket(0.18), "15~25%")
+        self.assertEqual(roe_bucket(0.59), ">25%")
+        self.assertEqual(roe_bucket(0.25), "15~25%")     # 경계는 아래 구간에 넣는다
+        self.assertNotEqual(roe_bucket(0.176), roe_bucket(0.591),
+                            "이 둘이 같은 칸이면 국면 맞추기를 표현할 수 없다")
+
     def test_roe_bucket_missing_is_none(self):
         self.assertIsNone(roe_bucket(None))
         self.assertIsNone(roe_bucket(float("nan")))
 
-    def test_roe_edges_are_seven_buckets(self):
-        self.assertEqual(len(ROE_EDGES) - 1, 7)
+    def test_roe_edges_are_eight_buckets(self):
+        # 7 → 8 (ADR-0040: 최상위를 25%에서 쪼갰다). 라벨과 개수가 어긋나면
+        # `fit_leg`의 더미와 `roe_bucket`의 조회가 갈라진다.
+        self.assertEqual(len(ROE_EDGES) - 1, 8)
+        self.assertEqual(len(ROE_LABELS), 8)
+        self.assertEqual(len(set(ROE_LABELS)), 8, "라벨이 겹치면 더미가 합쳐진다")
 
     def test_sector_labels_pools_thin_sectors(self):
         # 표본 10곳 미만 업종은 '기타'로 묶는다 — 셀당 표본이 얇으면 더미가 불안정하다
@@ -567,11 +581,17 @@ class LegErrorTests(unittest.TestCase):
     def test_worst_leg_drives_margin(self):
         from src.analysis.warranted import leg_error
 
+        from src.analysis.warranted import LEG_MAE
+
         e = leg_error("KR", ["per", "pbr", "ev_ebitda"])
         # 가장 나쁜 다리를 골라야 안전마진이 보수적인 쪽으로 선다.
         self.assertEqual(e["worst_leg"], "EV/EBITDA")
-        self.assertAlmostEqual(e["up"], math.exp(0.667) - 1, places=6)
-        self.assertAlmostEqual(e["margin"], math.exp(-0.667) - 1, places=6)
+        # **표의 값을 손으로 베끼지 않는다.** 이 테스트가 지키는 것은 숫자가 아니라
+        # `up = exp(MAE)−1` 항등식이다. 베껴 두면 재측정할 때마다 깨진다(ADR-0040에서 실제로
+        # 깨졌다 — 0.667 → 0.671).
+        mae = LEG_MAE["KR"]["ev_ebitda"]
+        self.assertAlmostEqual(e["up"], math.exp(mae) - 1, places=6)
+        self.assertAlmostEqual(e["margin"], math.exp(-mae) - 1, places=6)
         # 로그 MAE는 원 스케일에서 비대칭이다 — 위로 더 크고 아래로 더 작다.
         self.assertGreater(e["up"], abs(e["margin"]))
         self.assertLess(e["margin"], 0)
