@@ -180,10 +180,12 @@ ROE에서 나오므로 국면 불일치가 구조적으로 사라진다 → **�
 
 | 파일 | 무엇 |
 |---|---|
-| `scripts/check_multiple_rules.py` | 후보 F1·F2 추가 · 지표 ㉠㉡ 나란히 · 국면 전환 부분집합 · 커버리지 |
+| `scripts/check_multiple_rules.py` | 후보 F1·F2 추가 · 지표 ㉠㉡ 나란히 · 국면 전환 부분집합 · 커버리지 · 성공선 판정 |
 | `src/analysis/warranted.py` | `loo_leg_error()` 반환에 잔차 q25/q75 추가 |
 | `scripts/check_warranted.py` | 그 두 값을 출력(붙여넣을 줄로) |
 | `docs/superpowers/specs/…` | 이 문서 |
+| `docs/superpowers/plans/…` | 구현 계획 |
+| `docs/review/2026-08-10-forward-multiple-측정.md` | **측정 결과** — 이 PR의 산출물 |
 
 **PR 2 — 교체 (통과했을 때만)**
 
