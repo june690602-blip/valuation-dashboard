@@ -355,7 +355,7 @@ def evaluate(t: pd.Timestamp, data: dict, index_px: pd.Series) -> pd.DataFrame:
 # ── 변형 (사전등록 §5-C) ─────────────────────────────────────────────
 # 이미 내린 결정을 되짚는 후보 셋이다. **상수 하나만 갈아 끼우고 나머지는 전부 같다** —
 # 두 판을 따로 구현하면 무엇이 차이를 냈는지 알 수 없게 된다.
-VARIANTS = ("base", "norm5", "band5", "nogate")
+VARIANTS = ("base", "norm5", "band5", "nogate", "roe25")
 
 
 def apply_variant(name: str) -> str:
@@ -364,6 +364,15 @@ def apply_variant(name: str) -> str:
 
     if name == "base":
         return "현행 그대로"
+    if name == "roe25":                       # C4 — ADR-0038 ㉮가 찾은 것
+        # ROE 최상위 칸이 `>15%`로 열려 있어 이익이 세 배가 돼도 적정 배수가 안 움직인다.
+        # `0.25`로 한 번 쪼갠다. 사전등록: docs/review/2026-08-10-roe버킷-사전등록.md
+        # **①과 ⑤가 같은 회귀를 쓰므로 이 한 줄이 판정의 77%를 건드린다.**
+        from src.analysis import warranted as Wt
+
+        Wt.ROE_EDGES = sorted(set(Wt.ROE_EDGES[:-1] + [0.25])) + [float("inf")]
+        Wt.ROE_LABELS = Wt.ROE_LABELS[:-1] + ["15~25%", ">25%"]
+        return "① ROE 최상위 칸을 25%에서 쪼갬(ADR-0038 ㉮)"
     if name == "norm5":                       # C1 — ADR-0025가 못 잰 것
         V.NORMALIZE_WINDOW = 5
         return "⑤ 정규화 창 8년 → 5년"
