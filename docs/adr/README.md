@@ -58,5 +58,6 @@
 | [0045](0045-parallelize-the-load-path.md) | 로드 경로를 병렬로 묶는다 — 계산은 0.04초였고 나머지는 줄을 서 있었다 | 채택됨 |
 | [0048](0048-warm-the-showcase-on-boot-not-a-disk.md) | 첫 12초는 서버가 낸다 — 디스크를 붙이는 대신 기동 직후 예열한다 | 채택됨 |
 | [0049](0049-the-build-must-not-destroy-what-it-could-not-rebuild.md) | 빌드는 다시 만들지 못한 것을 파괴하면 안 된다 — 초록불이 KR 계수를 지웠다 | 채택됨 |
+| [0050](0050-a-thin-build-must-not-replace-a-thick-one.md) | 얇은 빌드가 두꺼운 빌드를 덮어쓰면 안 된다 — 그리고 기둥은 per·pbr이었다 | 채택됨 |
 | [0047](0047-the-pipeline-cache-did-not-hold-a-lock.md) | 파이프라인 캐시가 호출 중에 락을 잡지 않았다 — 그리고 AI 버튼은 한 번도 적중한 적이 없었다 | 채택됨 |
 | [0046](0046-the-peer-loop-was-the-last-queue.md) | 피어 보정 루프가 마지막 줄이었다 — 웜에서 0.01초, 콜드에서 3.60초 | 채택됨 |

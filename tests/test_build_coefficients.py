@@ -35,7 +35,9 @@ COEF = {"per": {"sector": {"기타": 1.0}, "n": 100},
         "pbr": {"sector": {"기타": 1.0}, "n": 100}}
 
 
-class CarryOverTests(unittest.TestCase):
+class _ScriptCase(unittest.TestCase):
+    """스크립트를 임시 폴더에서 돌리는 공통 준비."""
+
     def setUp(self):
         self.mod = _load()
         self.dir = Path(tempfile.mkdtemp(prefix="coef_"))
@@ -65,6 +67,8 @@ class CarryOverTests(unittest.TestCase):
              patch.object(sys, "argv", argv):
             return self.mod.main()
 
+
+class CarryOverTests(_ScriptCase):
     def test_a_market_it_could_not_build_keeps_yesterdays_file(self):
         self._seed("KR")
         code = self._run({"KR": RuntimeError("KRX 종목 목록을 가져오지 못했습니다."),
@@ -118,6 +122,82 @@ class CarryOverTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertTrue((self.out / "KR.json").exists())
         self.assertTrue((self.out / "US.json").exists())
+
+
+class ThinCoefficientTests(unittest.TestCase):
+    """얇아진 계수가 두꺼운 계수를 조용히 덮어쓰지 못하게 한다 (ADR-0050).
+
+    `_coefficients_usable`은 **모양만 본다.** 그래서 레이트리밋에 걸린 빌드가 만든
+    얇은 계수도 통과한다. 어느 다리를 지킬지는 재서 정했다 — 같은 스냅숏에서 40%로
+    깎았을 때 **per·pbr는 적정가를 중앙값 11.3% 움직였고 ev_ebitda·psr는 0.0%였다**
+    (`scripts/check_coefficient_thinning.py --isolate`).
+    """
+
+    def test_a_thinner_pillar_leg_is_rejected(self):
+        from src.data.universe_multiples import thinned_legs
+
+        prev = {"per": {"n": 1527}, "pbr": {"n": 2529}}
+        new = {"per": {"n": 624}, "pbr": {"n": 2529}}
+        self.assertEqual(thinned_legs(new, prev), [("per", 624, 1527)])
+
+    def test_the_flaky_legs_are_allowed_to_shrink(self):
+        """ev_ebitda·psr는 yfinance 원천이라 정상적인 날에도 36~41%까지 요동친다.
+        여기에 문턱을 걸면 멀쩡한 빌드를 계속 거부한다."""
+        from src.data.universe_multiples import thinned_legs
+
+        prev = {"per": {"n": 1527}, "pbr": {"n": 2529},
+                "ev_ebitda": {"n": 1376}, "psr": {"n": 1999}}
+        new = {"per": {"n": 1527}, "pbr": {"n": 2529},
+               "ev_ebitda": {"n": 565}, "psr": {"n": 728}}
+        self.assertEqual(thinned_legs(new, prev), [])
+
+    def test_a_small_dip_is_normal(self):
+        """상장·폐지로 유니버스가 조금 변하는 것까지 막으면 매일 거부된다."""
+        from src.data.universe_multiples import thinned_legs
+
+        prev = {"per": {"n": 1527}, "pbr": {"n": 2529}}
+        new = {"per": {"n": 1500}, "pbr": {"n": 2500}}
+        self.assertEqual(thinned_legs(new, prev), [])
+
+    def test_no_previous_means_no_comparison(self):
+        """처음 만드는 경우까지 막으면 브랜치가 영영 안 생긴다."""
+        from src.data.universe_multiples import thinned_legs
+
+        self.assertEqual(thinned_legs({"per": {"n": 10}}, {}), [])
+        self.assertEqual(thinned_legs({"per": {"n": 10}}, {"per": {}}), [])
+
+
+class ThinBuildCarriesOverTests(_ScriptCase):
+    """스크립트가 실제로 얇은 빌드를 거부하고 이전 것을 이어받는가."""
+
+    def test_a_thin_build_does_not_overwrite_the_thick_one(self):
+        thick = {"per": {"n": 1527, "sector": {}}, "pbr": {"n": 2529, "sector": {}}}
+        (self.out / "KR.json").write_text(json.dumps(thick), encoding="utf-8")
+        (self.out / "meta.json").write_text(json.dumps(
+            {"built_at": "2026-08-11 18:44 UTC",
+             "markets": {"KR": {"ok": True, "rows": 2687, "built_at": "2026-08-11 18:44 UTC"}}}),
+            encoding="utf-8")
+
+        thin = {"per": {"n": 624, "sector": {}}, "pbr": {"n": 2529, "sector": {}}}
+        code = self._run({"KR": (thin, 2687), "US": (COEF, 1506)})
+
+        self.assertEqual(code, 2, "얇은 빌드를 받아들이고 초록으로 끝났다")
+        kept = json.loads((self.out / "KR.json").read_text(encoding="utf-8"))
+        self.assertEqual(kept["per"]["n"], 1527, "두꺼운 계수가 얇은 것으로 덮였다")
+        meta = json.loads((self.out / "meta.json").read_text(encoding="utf-8"))
+        self.assertEqual(meta["markets"]["KR"]["error"], "thin")
+        self.assertTrue(meta["markets"]["KR"]["carried_over"])
+
+    def test_an_equally_thick_build_is_accepted(self):
+        thick = {"per": {"n": 1527, "sector": {}}, "pbr": {"n": 2529, "sector": {}}}
+        (self.out / "KR.json").write_text(json.dumps(thick), encoding="utf-8")
+
+        fresh = {"per": {"n": 1530, "sector": {}}, "pbr": {"n": 2531, "sector": {}}}
+        code = self._run({"KR": (fresh, 2690), "US": (COEF, 1506)})
+
+        self.assertEqual(code, 0)
+        got = json.loads((self.out / "KR.json").read_text(encoding="utf-8"))
+        self.assertEqual(got["per"]["n"], 1530, "멀쩡한 새 계수가 반영되지 않았다")
 
 
 class KrxListingRetryTests(unittest.TestCase):

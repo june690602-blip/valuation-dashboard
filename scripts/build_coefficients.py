@@ -82,6 +82,20 @@ def _previous(out: Path) -> dict:
         return {}
 
 
+def _thinned(market: str, out: Path, coef: dict) -> list:
+    """새 계수가 **브랜치에 있는 이전 계수보다 크게 얇은가**. 이전이 없으면 비교하지 않는다."""
+    from src.data.universe_multiples import thinned_legs
+
+    path = out / f"{market}.json"
+    if not path.exists():
+        return []
+    try:
+        old = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — 못 읽으면 비교할 이전이 없는 것과 같다
+        return []
+    return thinned_legs(coef, old)
+
+
 def _carry_over(market: str, out: Path, prev: dict, why: str) -> dict | None:
     """이번에 못 만든 시장 — 이어받을 파일이 있으면 그 사실을 meta에 적어 돌려준다."""
     if not (out / f"{market}.json").exists():
@@ -114,6 +128,16 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001 — 한 시장 실패가 다른 시장을 막지 않는다
             print(f"{BAD} {market}: {type(e).__name__}: {e}")
             coef, rows, why = None, 0, f"{type(e).__name__}"
+        if coef is not None:
+            # 모양은 맞는데 **표본이 얇으면** 받지 않는다(ADR-0050). 레이트리밋에 걸린
+            # 빌드가 두꺼운 계수를 조용히 덮어쓰는 것을 막는다 — 기둥 다리(per·pbr)만 본다.
+            thin = _thinned(market, out, coef)
+            if thin:
+                from src.data.universe_multiples import MIN_LEG_RATIO
+                for leg, a, b in thin:
+                    print(f"{BAD} {market}: {leg} 표본이 {a:,}으로 이전 {b:,}의 "
+                          f"{a / b:.0%}다({MIN_LEG_RATIO:.0%} 미만) — 수집이 깨진 것으로 본다.")
+                coef, why = None, "thin"
         if coef is None:
             entry = _carry_over(market, out, prev, why or "schema")
             if entry is not None:
