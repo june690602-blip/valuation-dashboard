@@ -150,6 +150,46 @@ def build_coefficients(snapshot: pd.DataFrame) -> dict:
     return out
 
 
+# 표본이 얇아진 계수를 받아들일 것인가 (ADR-0050).
+#
+# `_coefficients_usable`은 **모양만 본다** — 다리마다 필수 키가 있으면 통과다. 그래서
+# 레이트리밋에 걸린 빌드가 만든 얇은 계수가 두꺼운 계수를 조용히 덮어쓴다.
+#
+# 어느 다리를 지킬지는 **재서 정했다**(`scripts/check_coefficient_thinning.py --isolate`).
+# 같은 스냅숏에서 다리 묶음만 40%로 깎았을 때 적정가가 움직인 정도:
+#
+#     per·pbr만 40%          중앙값 11.3% · 최대 176.7% · 18개 중 14개가 5% 초과
+#     ev_ebitda·psr만 40%    중앙값  0.0% · 최대  23.9% · 18개 중  4개
+#
+# **per·pbr가 기둥이다.** 그 둘은 네이버 원천이라 실제 두 빌드에서 표본이 정확히 같았고
+# (2,529·1,527), ev_ebitda·psr는 yfinance 원천이라 레이트리밋으로 36~41%까지 요동친다.
+# 요동치는 쪽에 문턱을 걸면 정상적인 날에도 계속 거부한다 — 그래서 기둥에만 건다.
+#
+# 0.90인 근거: 관측된 기둥 다리의 빌드 간 변동이 **0%**이고(같은 n), 상장/폐지로 인한
+# 유니버스 변화는 하루 0.5% 미만이다. 즉 10%는 정상 변동의 20배가 넘는 여유다.
+# ⚠ 균일 축소 실측에서 **80%만 돼도 중앙값 9.5%가 움직였다** — 이 문턱은 "이 정도면
+# 품질이 좋다"는 뜻이 아니라 "명백히 수집이 깨졌다"는 선이다.
+GUARDED_LEGS = ("per", "pbr")
+MIN_LEG_RATIO = 0.90
+
+
+def thinned_legs(new: dict, prev: dict) -> list[tuple[str, int, int]]:
+    """이전보다 크게 얇아진 **기둥 다리** 목록 — `[(다리, 새 n, 이전 n)]`.
+
+    비어 있으면 새 계수를 받아들여도 된다. 이전이 없거나 n을 못 읽으면 비교하지 않는다
+    (처음 만드는 경우까지 막으면 브랜치가 영영 안 생긴다).
+    """
+    out = []
+    for leg in GUARDED_LEGS:
+        a = (new.get(leg) or {}).get("n")
+        b = (prev.get(leg) or {}).get("n")
+        if not isinstance(a, int) or not isinstance(b, int) or b <= 0:
+            continue
+        if a < b * MIN_LEG_RATIO:
+            out.append((leg, a, b))
+    return out
+
+
 def _coefficients_usable(d) -> bool:
     """캐시된 계수가 지금 코드가 기대하는 모양인가.
 
