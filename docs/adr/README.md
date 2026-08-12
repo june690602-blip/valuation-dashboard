@@ -51,3 +51,4 @@
 | [0039](0039-rim-persistence-from-literature.md) | ③ 지속계수를 문헌에서 못 박는다 (0.21/0.62/1.00) — 그리고 판정의 자를 결과 뒤에 바꿨다 | 채택됨 |
 | [0040](0040-close-the-open-top-roe-bucket.md) | ROE 최상위 칸이 열려 있던 것을 25%에서 닫는다 — 이익이 세 배가 돼도 배수가 안 움직였다 | 채택됨 |
 | [0038](0038-street-targets-are-not-an-answer-key.md) | 증권가 목표주가는 답안지가 아니다 — ④의 타깃 배수는 지금 판단할 수 없다 (3단계를 접는다) | 채택됨 |
+| [0041](0041-weight-width-is-measured-per-stock.md) | 가중치 폭은 종목마다 잰다 — 인계문의 두 탐침은 자기가 말하는 순위를 어겼다 | 채택됨 |

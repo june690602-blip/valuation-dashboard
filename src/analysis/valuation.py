@@ -216,6 +216,48 @@ def _weighted(estimates: list) -> tuple[float, float, float, dict]:
             {e.method: float(wi) for e, wi in zip(estimates, w)})
 
 
+def _rank_allowed_span(estimates: list) -> tuple[float, float, list] | None:
+    """문헌 순위가 허용하는 가중치들이 만드는 (최소, 최대, 아래 칸 방법들) 적정가.
+
+    ADR-0003이 못박은 것은 **순위뿐**이다 — LNT(2002/2007)는 ④ > ①②⑤ > ③까지만 정하고
+    숫자는 정하지 않는다. 그러면 **그 순위를 지키는 모든 가중치가 동등하게 정당하고**,
+    그것들이 만드는 값의 폭이 곧 **문헌이 실제로 못 정한 만큼**이다. 화면에 적는 것이 이것이다.
+
+    칸(tier) 안에서는 문헌이 순서를 정하지 못하므로 같게 두고, 그러면 자유도는
+    **아래 칸의 몫** ρ 하나만 남는다(w_아래 = ρ · w_위, ρ ∈ [0, 1]).
+    현재 값은 ρ = 0.15/0.25 = **0.6**이다.
+
+        f(ρ) = (Σ_위 m + ρ·Σ_아래 m) / (n_위 + ρ·n_아래)
+
+    f는 **ρ에 단조**다 — 미분의 분자가 `n_위·Σ_아래 − n_아래·Σ_위`로 ρ와 무관한 상수라
+    부호가 구간 내내 안 바뀐다. 그래서 **양 끝만 재면 최소·최대가 다 나온다**:
+
+        ρ = 0  →  위 칸만의 단순평균   (아래 칸을 빼는 극한)
+        ρ = 1  →  전체 단순평균        (동일가중 · `fair_mid_equal`과 같은 값)
+
+    ρ = 1은 순위를 **동률**로 만들어 엄밀히는 경계 밖이다(문헌은 ③ < ①⑤을 강부등호로
+    말한다). 닫힌 구간으로 잡아 폭을 **넓게** 보고하는 쪽을 택했다 — 화면에 적는 불확실성은
+    좁히는 것보다 넓히는 쪽이 안전하다.
+
+    **이 함수가 인계문의 두 탐침을 대체한다.** 인계문은 '동일가중'과 '③가중 2배'로 폭을
+    재라고 했는데, 재정규화하면 각각 (.333/.333/.333)과 (.3125/**.375**/.3125)이라
+    **둘 다 순위를 어긴다** — 뒤엣것은 ③을 최상위로 **역전**시킨다. 그 값으로 "순위가
+    허용하는 범위"라고 적으면 거짓이 된다(ADR-0041).
+
+    칸이 하나뿐이면(①⑤만 서는 종목, ④ 폴백 등) 순위가 자유도를 남기지 않으므로 None.
+    판정 근거(`basis`)는 ①③⑤의 부분집합이거나 ④ 하나라서 칸이 둘을 넘지 않는다 —
+    셋 이상이면 ρ 하나로는 못 재므로 역시 None으로 둔다(조용히 틀린 값을 내지 않는다).
+    """
+    levels = sorted({METHOD_WEIGHTS.get(e.method, 0.25) for e in estimates}, reverse=True)
+    if len(levels) != 2:
+        return None
+    top = [e for e in estimates if METHOD_WEIGHTS.get(e.method, 0.25) == levels[0]]
+    lower = [e for e in estimates if METHOD_WEIGHTS.get(e.method, 0.25) == levels[1]]
+    at_0 = float(np.mean([e.mid for e in top]))            # 아래 칸을 뺀 극한
+    at_1 = float(np.mean([e.mid for e in estimates]))      # 동일가중
+    return (min(at_0, at_1), max(at_0, at_1), [e.method for e in lower])
+
+
 @dataclass
 class FairValue:
     method: str
@@ -251,6 +293,10 @@ class ValuationResult:
     fair_mid_equal: float | None = None  # 동일가중 종합(민감도 비교용)
     gap_equal: float | None = None       # 동일가중 괴리율
     verdict_equal: str | None = None     # 동일가중 판정
+    # 문헌 순위가 허용하는 가중치들이 만드는 폭 (ADR-0041 · `_rank_allowed_span`).
+    # **전 종목 하나의 상수가 아니라 이 종목의 실제 범위**다 — 다리값이 이미 있어서
+    # 그냥 계산된다. 칸이 하나면(자유도 없음) 빈 dict로 남고 화면도 아무 말 하지 않는다.
+    weight_range: dict = field(default_factory=dict)
     dispersion: float | None = None      # 방법 간 중심값 변동계수(σ/|μ|) — 신뢰도 산출 근거
     # 실질 축 수 (ADR-0022). 방법을 몇 개 썼든 서로 겹치면 이 값이 그보다 작다.
     # 신뢰도 등급의 **상한**이 여기서 나온다 — 흩어짐만으로 낸 등급과 둘 중 낮은 쪽을 쓴다.
@@ -1269,6 +1315,26 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
                 f"가중 방식에 따라 판정이 갈립니다(가중 '{res.verdict}' vs "
                 f"동일가중 '{res.verdict_equal}'). 가중치는 순위 근거의 정성적 인코딩이니 "
                 "참고로만 보세요."))
+        # 문헌 순위가 허용하는 폭 (ADR-0041). 동일가중은 이 구간의 **한쪽 끝**이라
+        # 위 `fair_mid_equal`을 대체하는 것이 아니라 그것을 끝점으로 품는다.
+        span = _rank_allowed_span(basis)
+        if span and res.fair_mid:
+            lo, hi, lower_methods = span
+            res.weight_range = {
+                "low": lo, "high": hi,
+                "gap_low": lo / d.price - 1, "gap_high": hi / d.price - 1,
+                "rel_low": lo / res.fair_mid - 1, "rel_high": hi / res.fair_mid - 1,
+                "verdict_low": _verdict(lo / d.price - 1),
+                "verdict_high": _verdict(hi / d.price - 1),
+                # 어느 방법의 몫을 0~동률로 흔든 것인지. 화면이 문장을 만들 때 쓴다 —
+                # 손으로 '③'이라 적으면 판정 구성이 바뀔 때 조용히 썩는다(METHOD_MARKS와 같은 이유).
+                "lower_marks": marks_of(lower_methods),
+                "top_marks": marks_of([m for m in res.weights if m not in lower_methods]),
+            }
+            # 폭 안에서 판정이 갈리면 그것부터 말해야 한다 — 폭만 적고 넘어가면
+            # "숫자가 조금 움직인다"로 읽히는데, 실제로는 결론이 바뀌는 종목이 있다.
+            if res.weight_range["verdict_low"] != res.weight_range["verdict_high"]:
+                res.weight_range["flips"] = True
         if not res.fundamental_only:
             res.notes.append(ValuationNote(
                 "warn",
