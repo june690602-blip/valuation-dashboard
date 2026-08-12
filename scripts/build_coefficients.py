@@ -18,12 +18,31 @@
 `_coefficients_usable`이 그 문자열을 다리로 보고 검사에 실패한다 — 그러면 서버가
 "쓸 수 없는 계수"로 판단해 조용히 전 종목 수집으로 물러난다. 메타는 **다른 파일**에 둔다.
 
-## 실패를 어떻게 다루나
+## 실패를 어떻게 다루나 — **못 만든 것을 파괴하지 않는다** (ADR-0049)
 
-시장 하나가 실패해도 나머지는 낸다. 무료 원천은 자주 부분적으로 죽는데
-(yfinance 실측 성공률 62%), 한쪽 실패로 양쪽을 다 버리면 그날 배포에 계수가 없다.
-**두 시장 다 실패했을 때만** 0이 아닌 코드로 끝낸다 — 그래야 워크플로가 빨간불이 되고,
-이전 파일은 브랜치에 그대로 남는다(force-push를 안 하므로).
+이 문단은 예전에 이렇게 적혀 있었다:
+
+> 시장 하나가 실패해도 나머지는 낸다. … 한쪽 실패로 양쪽을 다 버리면 안 된다.
+> **두 시장 다 실패했을 때만** 0이 아닌 코드로 끝낸다 — 이전 파일은 브랜치에 그대로 남는다.
+
+**의도는 맞았고 실제는 정반대였다.** publish 단계가 출력 폴더를 **orphan force-push**하므로,
+폴더에 없는 파일은 **브랜치에서도 지워진다.** 2026-08-12 밤에 KR이 KRX 차단(`Access Denied`)
+으로 실패했고, 워크플로는 초록불로 끝나면서 **멀쩡하던 어제치 `KR.json`까지 지웠다.**
+그 뒤 서버는 404를 받아 전 종목 수집으로 물러났다(로컬 실측 263.85초 · 네이버 2,701회).
+판정 가중의 77%(①38.5+⑤38.5)가 그 계수에 걸려 있다.
+
+이제 이렇게 한다:
+
+1. 워크플로가 **브랜치의 현재 내용을 `--out`에 먼저 깔아 준다**(seed).
+2. 이 스크립트는 만든 것만 덮어쓴다 — 못 만든 시장은 **어제 파일이 그대로 남는다.**
+3. 이어받은 시장은 `meta.json`에 `carried_over: true`와 **원래 만든 시각**을 적는다.
+   안 적으면 그 파일이 얼마나 낡았는지 아무도 모른다.
+
+끝내는 코드 셋:
+
+    0  모든 시장을 **이번에** 새로 만들었다
+    2  일부를 이어받았다 — publish는 해야 하고(좋은 쪽이 갱신됐다) **워크플로는 빨간불**이어야 한다
+    1  쓸 수 있는 세트가 아예 없다 — publish 하면 안 된다
 """
 from __future__ import annotations
 
@@ -35,7 +54,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.stdout.reconfigure(encoding="utf-8")
+# 테스트가 이 파일을 import 한다 — 그때 stdout은 pytest의 캡처 객체라 reconfigure가 없다.
+getattr(sys.stdout, "reconfigure", lambda **_: None)(encoding="utf-8")
 
 OK, BAD = "[확인]", "[문제]"
 
@@ -54,6 +74,26 @@ def build(market: str) -> tuple[dict | None, int]:
     return coef, len(snap)
 
 
+def _previous(out: Path) -> dict:
+    """`--out`에 이미 깔려 있는(=브랜치에서 이어받은) 이전 meta. 없으면 빈 dict."""
+    try:
+        return json.loads((out / "meta.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — 없거나 깨졌으면 '이전이 없다'와 같다
+        return {}
+
+
+def _carry_over(market: str, out: Path, prev: dict, why: str) -> dict | None:
+    """이번에 못 만든 시장 — 이어받을 파일이 있으면 그 사실을 meta에 적어 돌려준다."""
+    if not (out / f"{market}.json").exists():
+        print(f"{BAD} {market}: 이어받을 이전 파일도 없다 — 이 시장은 비어 있게 된다.")
+        return None
+    was = (prev.get("markets", {}).get(market) or {})
+    since = was.get("built_at") or prev.get("built_at") or "알 수 없음"
+    print(f"{BAD} {market}: 이번에 못 만들어 **이전 파일을 이어받는다** (원래 만든 시각: {since})")
+    return {"ok": False, "error": why, "carried_over": True, "built_at": since,
+            "rows": was.get("rows"), "legs": was.get("legs")}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="dist/coefficients")
@@ -62,33 +102,47 @@ def main() -> int:
 
     out = ROOT / a.out
     out.mkdir(parents=True, exist_ok=True)
-    meta = {"built_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-            "markets": {}}
-    made = 0
+    prev = _previous(out)          # 워크플로가 브랜치 내용을 미리 깔아 둔다
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    meta = {"built_at": now, "markets": {}}
+    made, carried, missing = 0, 0, 0
 
     for market in a.markets:
+        why = None
         try:
             coef, rows = build(market)
         except Exception as e:  # noqa: BLE001 — 한 시장 실패가 다른 시장을 막지 않는다
             print(f"{BAD} {market}: {type(e).__name__}: {e}")
-            meta["markets"][market] = {"ok": False, "error": f"{type(e).__name__}"}
-            continue
+            coef, rows, why = None, 0, f"{type(e).__name__}"
         if coef is None:
-            meta["markets"][market] = {"ok": False, "error": "schema"}
+            entry = _carry_over(market, out, prev, why or "schema")
+            if entry is not None:
+                meta["markets"][market] = entry
+                carried += 1
+            else:
+                meta["markets"][market] = {"ok": False, "error": why or "schema"}
+                missing += 1
             continue
         (out / f"{market}.json").write_text(
             json.dumps(coef, ensure_ascii=False, indent=1), encoding="utf-8")
-        meta["markets"][market] = {"ok": True, "rows": rows, "legs": sorted(coef)}
+        meta["markets"][market] = {"ok": True, "rows": rows, "legs": sorted(coef),
+                                   "built_at": now}
         made += 1
         print(f"{OK} {market}: 표본 {rows:,}행 · 다리 {sorted(coef)}")
 
     (out / "meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
 
-    if made == 0:
-        print(f"\n{BAD} 두 시장 모두 실패했다 — 이전 파일을 덮어쓰지 않도록 실패로 끝낸다.")
+    if made + carried == 0:
+        print(f"\n{BAD} 낼 수 있는 시장이 없다 — publish 하면 안 된다(이전 파일이 지워진다).")
         return 1
-    print(f"\n{OK} {made}개 시장 → {out}")
+    if carried or missing:
+        # ⚠ `missing`을 여기 넣는 것이 중요하다. 이어받을 파일조차 없는 시장(=지금의 KR)이
+        # 초록으로 끝나면 **비어 있는 채로 아무도 모른다.** 그것이 이 사고의 시작이었다.
+        print(f"\n{BAD} 새로 만든 {made}개 · 이어받은 {carried}개 · **비어 있는 {missing}개** → {out}")
+        print("     publish는 해야 한다(좋은 쪽이 갱신됐다). 워크플로는 빨간불로 끝난다.")
+        return 2
+    print(f"\n{OK} {made}개 시장 전부 새로 만들었다 → {out}")
     return 0
 
 
