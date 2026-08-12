@@ -3,11 +3,97 @@
 > 이 파일은 GitHub에서 `@claude`가 호출될 때(또는 로컬 Claude Code에서) 따르는 규칙입니다.
 > 친구가 이슈/PR에 `@claude ...`로 요청하면 Claude가 아래 규칙에 맞춰 수정하고 PR을 올립니다.
 
-> # ▶ 지금 할 일: **없습니다** — 첫 조회 병렬화가 끝났습니다
+> # ▶ 지금 할 일: **KR 회귀 계수가 저장소 브랜치에서 사라졌습니다** (2026-08-13 발견)
 >
-> 다음에 집을 만한 것은 아래 "손대지 않은 것 셋"입니다. 그 전에 무엇을 하든
-> **`python scripts/check_load_timing.py KR 005930`을 먼저 돌려 지금 표를 뜨세요** —
-> 숫자는 캐시 상태에 따라 매번 다릅니다(주장하는 것은 숫자가 아니라 모양입니다).
+> **`data-coefficients` 브랜치에 `US.json`만 있습니다 — `KR.json`은 404입니다.**
+> 밤에 도는 `Coefficients` 워크플로가 **초록불인데** KR을 못 만들고 있습니다:
+>
+> ```
+> Access Denied — data.krx.co.kr        (Akamai가 GitHub Actions IP를 막는다)
+> [문제] KR: RuntimeError: KRX 종목 목록을 가져오지 못했습니다.
+> [확인] US: 표본 1,506행
+> [확인] 1개 시장 → dist/coefficients    ← exit 0 이라 publish가 그대로 돈다
+> ```
+>
+> `scripts/build_coefficients.py`가 **한 시장이 실패해도 exit 0**으로 끝나고, 그다음
+> publish 단계의 **orphan force-push가 이전 `KR.json`까지 지웁니다.** 워크플로 주석은
+> *"빌드가 실패하면 이 단계에 오지 않으므로 이전 파일이 브랜치에 그대로 남는다"*고
+> 적고 있는데 — **부분 실패에는 그 말이 성립하지 않습니다.**
+>
+> **왜 급한가 — 판정 가중의 77%(①38.5+⑤38.5)가 여기 걸려 있습니다.**
+> `_from_repo("KR")`이 404를 받으면 `collect_kr()`로 물러나 전 종목을 긁습니다
+> (**로컬 실측 263.85초 · 네이버 호출 2,701회**). Render의 데이터센터 IP도 KRX에
+> 막히면 그마저 실패하고, 그러면 `coefficients_or_none`이 None을 줘 **①⑤가 회귀 대신
+> 피어 중앙값 폴백**을 탑니다. ADR-0044가 *"판정의 77%가 걸린 경로"*라고 부른 그 길입니다.
+>
+> **지금 라이브는 아직 멀쩡합니다**(2026-08-13 확인) —
+> `curl 'https://valuation-dashboard.com/api/analyze?market=KR&query=005930'`의 페이로드에
+> `regression`이 있고 `peer_median`이 없습니다. 인스턴스가 살아 있는 동안 `file_cache`가
+> 옛 계수를 **stale-ok로 붙들고 있기 때문**입니다.
+> **⚠ Render 파일시스템은 휘발성이라 다음 배포에 그 캐시가 사라집니다.**
+>
+> **⚠ Render IP가 KRX에 막히는지는 재지 않았습니다.** 그것이 이 문제가 '배포마다 263초'인지
+> '판정이 조용히 바뀜'인지를 가릅니다 — **가장 먼저 확인할 것입니다.**
+>
+> 고칠 방향(정하지 않았습니다):
+> ㉠ `build_coefficients.py`가 **한 시장이라도 실패하면 exit 1** — 워크플로 주석이 이미
+>    의도한 동작이고, 그러면 이전 파일이 브랜치에 남아 이 사고가 반복되지 않습니다.
+> ㉡ **사라진 `KR.json` 복구** — 집 IP에서는 됩니다(위 263초가 그 증거입니다).
+>    `python scripts/build_coefficients.py --out dist/coefficients` 뒤 브랜치에 올립니다.
+> ㉢ CI에서 KRX를 받을 다른 길 — 막힌 것은 `data.krx.co.kr`이고, 이 저장소의 KR 경로는
+>    거기에 통째로 매달려 있습니다(상장목록·시총).
+>
+> ---
+>
+> ## ✅ 콜드 스타트 작업이 끝났습니다 (PR #159·#160·#161·#162 · ADR-0046·0047·0048)
+>
+> 무엇을 하든 **`python scripts/check_load_timing.py KR 005930`을 먼저 돌려 지금 표를
+> 뜨세요** — 숫자는 캐시 상태에 따라 매번 다릅니다(주장하는 것은 숫자가 아니라 모양입니다).
+>
+> **첫 방문자가 겪는 시간**:
+>
+> | 상황 | 전 | 후 |
+> |---|---|---|
+> | 배포 직후 · 쇼케이스 종목 | 12.33초 | **2.46초** |
+> | 배포 직후 · 쇼케이스 밖 | 12.33초 | 7.89초 |
+> | 웜 (같은 종목 재조회) | 1.4~2.0초 | 그대로 |
+>
+> ⚠ **7.89초는 #160(피어 병렬화) 이전 브랜치에서 잰 값입니다.** 넷을 다 머지한 조합은
+> 재지 않았습니다 — 인용하기 전에 다시 뜨세요.
+>
+> **㉠ 피어 보정 루프를 병렬로**([ADR-0046](docs/adr/0046-the-peer-loop-was-the-last-queue.md)).
+> ADR-0045가 *"캐시가 있고 실측 0.01초라 두었다"*고 남긴 자리인데, **캐시가 빈 상태는
+> 재지 않았던 것**이 문제였습니다. 콜드에서 3.60초(전체의 29.2%)였고, 세 측정이
+> −2.4~2.8초로 수렴합니다. 페이로드 완전 일치(KR 005930·000660).
+>
+> **㉡ 파이프라인 single-flight**([ADR-0047](docs/adr/0047-the-pipeline-cache-did-not-hold-a-lock.md)).
+> `_pipeline`의 `@lru_cache`는 호출 **중에** 락을 잡지 않아 동시 호출자 4명에 `_load`가
+> **4번** 불렸습니다. ⚠ **다만 옛 인계문의 "수집이 두 벌 돕니다"는 과장이었습니다** —
+> 원천 20개가 전부 `@file_cache`라 네트워크는 대략 한 벌이고, 두 벌 도는 것은 그 위
+> (스레드풀·계산·직렬화)입니다. **이 변경이 사는 것은 시간이 아니라 부하입니다.**
+> 덤으로 **AI 버튼의 캐시 적중이 한 번도 없었던 것**을 찾았습니다 — `analyze()`는 7인자,
+> AI 헬퍼는 5인자로 같은 함수를 불러 lru_cache가 별개 항목으로 봤습니다.
+>
+> **㉢ 기동 직후 예열**([ADR-0048](docs/adr/0048-warm-the-showcase-on-boot-not-a-disk.md)).
+> Render 파일시스템이 휘발성이라 **배포마다 캐시가 통째로 빕니다.** `_warm_cache`가
+> 계수 → 쇼케이스 종목·금리 순으로 채웁니다(실측 56초, 서버가 냄).
+> ⚠ **디스크는 일부러 안 붙였습니다** — 인스턴스가 하나로 묶이고 **무중단 배포가 사라집니다.**
+> 붙이려 하기 전에 ADR-0048의 '검토한 대안'을 읽으세요.
+>
+> **㉣ 화면·프롬프트가 손으로 적고 있던 방법 구성**(PR #159). AI 프롬프트가 `①②③`을
+> 하드코딩해 **모델에게 틀린 구성을 먹이고 있었습니다.** 판정은 ①③⑤입니다.
+>
+> **⚠ 로그 문자는 cp949로 인코딩 가능해야 합니다.** `src/web/prewarm.py`의 `✓`가
+> `대시보드실행.bat`(윈도우 콘솔)에서 `UnicodeEncodeError`를 냈고, 그 예외는 `log()`
+> 자리라 try 밖이었습니다 — **예열 스레드에서 터지면 첫 종목 뒤로 전부 조용히 죽습니다.**
+> `tests/test_prewarm.py`가 지킵니다.
+>
+> **손대지 않은 것 하나** — **Gemini를 화면 밖으로 미루기**(옛 인계문 §6).
+> **범위 밖입니다. 혼자 정하지 마세요.** 체감 2초대까지 가지만 판정 가중의 38.5%가 걸린
+> ①이 나중에 채워져 **판정 숫자가 한 번 바뀌는 화면**이 됩니다. 성능이 아니라
+> "단정하지 않는다"는 성격 문제입니다.
+>
+> ---
 >
 > **✅ 첫 조회를 병렬화했습니다** ([ADR-0045](docs/adr/0045-parallelize-the-load-path.md)).
 > **순수 계산은 0.05초였고 나머지는 전부 서로 독립인 네트워크 호출이 줄을 서 있던 것**이었습니다.
@@ -36,14 +122,8 @@
 > `serialize._peers`가 "피어 기준"을 찾는 목록입니다. 완료 순서로 붙이면 매번 달라집니다 —
 > `tests/test_load_parallel.py`가 이 순서를 지킵니다(Red-Green 확인).
 >
-> **손대지 않은 것 셋** — 다음 후보입니다:
-> ㉠ **`_pipeline`의 `@lru_cache` 중복 실행**(인계문 §7) — 같은 종목을 두 사람이 동시에
-> 조회하면 수집이 두 벌 돕니다. **별도 PR로 하세요**(섞으면 "출력이 안 바뀌었나"를 판단할 수 없습니다).
-> ㉡ **`_patch_kr_peers`의 피어별 순차 네트워크 루프** — 인계문이 몰랐던 자리입니다.
-> 캐시(12시간)가 있고 실측 0.01초라 두었습니다. 캐시가 통째로 빈 상태는 재지 않았습니다.
-> ㉢ **Gemini를 화면 밖으로 미루기**(인계문 §6) — **범위 밖입니다. 혼자 정하지 마세요.**
-> 체감 2초대까지 가지만 판정 가중의 38.5%가 걸린 ①이 나중에 채워져 **판정 숫자가 한 번
-> 바뀌는 화면**이 됩니다. 성능이 아니라 "단정하지 않는다"는 성격 문제입니다.
+> **~~손대지 않은 것 셋~~ — ㉠㉡은 끝났습니다**(ADR-0047·0046 · 위 참조).
+> ㉢ Gemini 미루기만 남았고, 그것도 **범위 밖**입니다.
 >
 > **⚠ 회귀의 업종 라벨이 새고 있었습니다 — 고쳤습니다**
 > ([ADR-0044](docs/adr/0044-the-regression-sector-label-must-be-the-exchange-one.md) · PR #155).
@@ -131,9 +211,16 @@
 > **② 역사적 밴드를 판정에서 뺀다**(차트는 남긴다) · **가중치 숫자는 안 바꾸고 폭만
 > 보여준다** · **근거·보험성 문구는 첫 화면에서 빼고 눌러서 보게 한다** ·
 > **F-Score는 무기한 보류**([ADR-0034](docs/adr/0034-fscore-predicts-but-failed-its-own-gate.md)).
-> **다음 ADR 번호는 0046.** (0038 street-targets · 0039 rim-persistence · 0040 roe-buckets가
+> **다음 ADR 번호는 0049.** (0038 street-targets · 0039 rim-persistence · 0040 roe-buckets가
 > 서로 다른 브랜치에서 동시에 잡혔습니다 — `check_adr_index.py`는 브랜치를 가로질러 보지
-> 못하므로 **새 ADR을 쓰기 전에 다른 워크트리의 `docs/adr/`를 확인하세요.**)
+> 못하므로 **새 ADR을 쓰기 전에 다른 워크트리의 `docs/adr/`를 확인하세요.**
+> 2026-08-13에도 0046·0047·0048을 세 브랜치가 나눠 썼고, 번호를 **미리 갈라 잡아** 피했습니다.)
+>
+> **⚠ `.gitattributes`의 `merge=union`은 GitHub 서버 머지에는 안 먹습니다.** 그 규칙은
+> `docs/adr/README.md`의 append-only 충돌을 없애라고 넣은 것인데, **로컬 머지에서만
+> 적용됩니다.** 실제로 2026-08-13에 PR #161·#162가 GitHub 머지 버튼에서 *"Pull Request has
+> merge conflicts"*로 거부됐습니다. 해법은 **로컬에서 `git merge origin/main` 한 번 하고
+> 푸시**하는 것입니다 — 그러면 union이 먹어 충돌 없이 합쳐지고, 그다음 머지 버튼이 통합니다.
 >
 > **③ 지속계수가 문헌값으로 바뀌었습니다**([ADR-0039](docs/adr/0039-rim-persistence-from-literature.md)) —
 > (0.6, 0.8, 1.0) → **(0.21, 0.62, 1.00)**, 중심 0.8 → **0.62**. 세 점 전부 출처가 있어
@@ -273,7 +360,10 @@ Streamlit(`app.py`). 두 프런트 모두 같은 분석 엔진(`src/analysis`)�
 + 비관/기준/낙관 시나리오.
 
 ## 실행 / 검증
-- 실행: `pip install -r requirements.txt` → `streamlit run app.py`
+- 실행: `pip install -r requirements.txt` → **`python server.py`** (→ http://localhost:5178).
+  이 줄에 `streamlit run app.py`가 적혀 있었는데, **그쪽은 레거시로 동결된 구버전**이고
+  같은 파일 위쪽이 이미 "실제 실행 진입점은 `server.py`"라고 적고 있었습니다.
+  기동하면 백그라운드에서 캐시를 예열합니다(`_warm_cache` · ADR-0048) — 로그에 `[예열]`로 뜹니다.
 - 헤드리스 검증(키 없이 됨): `python scripts/check_analysis.py KR 005930` / `US AAPL`,
   `python scripts/check_backtest.py KR 005930`
 - 규모 편향 진단(수동·네트워크 필요, CI 아님): `python scripts/check_size_bias.py --limit 400`.
@@ -297,7 +387,12 @@ Streamlit(`app.py`). 두 프런트 모두 같은 분석 엔진(`src/analysis`)�
 
 ## 구조 (핵심)
 - `src/data/` — 데이터 수집. `models.py`(시장 무관 표준 모델 `CompanyData`), `base.py`(yfinance),
-  `opendart.py`(한국 공시 원본), `naver.py`, `news.py`, `gemini.py`(AI), `kr_provider.py`/`us_provider.py`.
+  `opendart.py`(한국 공시 원본), `naver.py`, `news.py`, `gemini.py`(AI), `kr_provider.py`/`us_provider.py`,
+  `parallel.py`(서로 모르는 호출을 겹치는 `gather` · ADR-0045),
+  `cache.py`(파일 캐시 + `single_flight_memo` — **같은 것을 동시에 두 번 만들지 않는다** · ADR-0047).
+- `src/web/` — `serialize.py`(분석 결과 → 프런트 JSON), `prewarm.py`(예열 목록과 동작 · ADR-0048).
+  **쇼케이스 목록은 여기 한 벌뿐입니다** — `scripts/prewarm_cache.py`는 그 얇은 CLI이고,
+  테스트가 스크립트에 목록이 되살아나는 것을 막습니다.
 - `src/analysis/` — **순수 함수**로 작성(입력=CompanyData, 부작용 없음). `indicators.py`, `scoring.py`,
   `capital_cost.py`(베타·하마다·WACC), `valuation.py`(적정주가 5방법 계산 · **판정은 ①③⑤ 종합** · ②④는 병기·참고, ADR-0006·0035), `backtest.py`, `ai_analysis.py`.
 - `src/ui/` — `charts.py`(Plotly), `components.py`(포맷터·배지). `app.py`가 엔트리.
