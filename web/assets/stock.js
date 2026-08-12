@@ -1325,7 +1325,7 @@
       var ourMult = (e4 && e4.mid != null) ? e4.mid / c.forward_eps : null;
       rows.push('<b>목표주가 역산</b>: 증권가 목표가(' + fmtPrice(c.target_mean) + ')는 선행 EPS × <b class="mono">' + fmtX(impliedPer) + '</b>를 적용한 셈입니다' +
         (ourMult != null ? ' — 이 대시보드 ④는 보수 원칙으로 <b class="mono">' + fmtX(ourMult) + '</b>를 적용했습니다. 두 값 차이의 대부분은 "정당한 멀티플이 몇 배냐"(성장 프리미엄) 가정에서 나옵니다' : '') +
-        '. 증권사 리포트의 정성적 근거(수주·신제품·업황 전망)는 무료 데이터에 포함되지 않아 이렇게 역산으로만 추정합니다');
+        '. 증권사 리포트의 정성적 근거(수주·신제품·업황 전망)는 리포트 본문의 서술이라 숫자로 옮겨 담을 수 없어, 목표주가에서 이렇게 역산으로만 되짚습니다');
     }
     body.innerHTML =
       '<div class="tile-strip">' + strip + '</div>' +
