@@ -3,7 +3,11 @@
 > 이 파일은 GitHub에서 `@claude`가 호출될 때(또는 로컬 Claude Code에서) 따르는 규칙입니다.
 > 친구가 이슈/PR에 `@claude ...`로 요청하면 Claude가 아래 규칙에 맞춰 수정하고 PR을 올립니다.
 
-> # ▶ 지금 할 일: **첫 조회 병렬화** (계획 있음 · 아래 §성능)
+> # ▶ 지금 할 일: **첫 조회 병렬화** — [`docs/HANDOFF-PERF.md`](docs/HANDOFF-PERF.md)로 가세요
+>
+> 그 문서 하나만 읽고 시작할 수 있게 써 뒀습니다. 아래 §성능은 요약입니다.
+> **먼저 `python scripts/check_load_timing.py KR 005930`을 돌려 지금 표를 뜨세요** —
+> 인계문의 숫자는 캐시 상태에 따라 매번 다릅니다(그 문서가 주장하는 것은 숫자가 아니라 모양입니다).
 >
 > **⚠ 회귀의 업종 라벨이 새고 있었습니다 — 고쳤습니다**
 > ([ADR-0044](docs/adr/0044-the-regression-sector-label-must-be-the-exchange-one.md) · PR #155).
@@ -33,7 +37,8 @@
 > 락을 갖췄으므로 새 개념이 필요 없습니다.
 > **주의 셋**: ㉠ `progress.py`가 `threading.local()`이라 워커에서 진행 표시가 침묵합니다
 > ㉡ `warnings` 순서가 비결정적이 되면 화면 문구 순서가 바뀝니다 ㉢ 합격선은
-> **"페이로드가 한 바이트도 안 바뀐다"**입니다(골든 픽스처로 고정할 것).
+> **"페이로드가 한 바이트도 안 바뀐다"**입니다(골든 픽스처를 **먼저** 뜰 것).
+> 함정 일곱 개와 범위 밖 결정은 [`docs/HANDOFF-PERF.md`](docs/HANDOFF-PERF.md)에 있습니다.
 >
 > **✅ 신뢰도 배지를 뗐습니다** ([ADR-0043](docs/adr/0043-the-confidence-badge-did-not-do-what-it-claimed.md) · PR #154).
 > 등급이 주장하는 것을 하지 못했습니다 — 한국 '높음' **0건**, **미국은 16,598건 전부
