@@ -163,19 +163,30 @@ Render·Railway 같은 PaaS가 맞습니다. `server.py`는 `PORT`·`HOST` 환�
 리포에 포함된 준비물:
 - **`render.yaml`** — 빌드·시작 명령과 `HOST=0.0.0.0`을 담은 Render 청사진(연결하면 자동 인식)
 - **`.env.example`** — 필요한 키 템플릿(`OPENDART_API_KEY`·`GEMINI_API_KEY`)
-- **`scripts/prewarm_cache.py`** — 배포 후 쇼케이스 종목·금리 캐시를 미리 데워 첫 방문 속도를 높임
+- **`scripts/prewarm_cache.py`** — 캐시를 손으로 데우는 CLI(특정 종목만 데울 때). **배포 때는
+  안 돌려도 됩니다** — 서버가 기동 직후 같은 일을 스스로 합니다(아래).
 
 클릭 순서:
 1. [Render](https://render.com) 가입 → **New → Blueprint** → 이 GitHub 리포 연결(`render.yaml` 자동 감지).
 2. **Environment**에 비밀 키 입력: `OPENDART_API_KEY`, `GEMINI_API_KEY` (그리고 `HOST=0.0.0.0` — render.yaml에 이미 있음).
-3. 배포 완료 후 Shell(또는 로컬)에서 `python scripts/prewarm_cache.py` 1회 실행.
-4. 도메인: [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/)에서 도메인 구매 → DNS에서 Render 주소로 **CNAME** → Cloudflare 프록시로 무료 SSL·캐싱.
+3. 도메인: [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/)에서 도메인 구매 → DNS에서 Render 주소로 **CNAME** → Cloudflare 프록시로 무료 SSL·캐싱.
+
+> **첫 방문자가 콜드를 겪지 않게 서버가 기동 직후 캐시를 채웁니다**([ADR-0048](docs/adr/0048-warm-the-showcase-on-boot-not-a-disk.md)).
+> Render는 디스크를 붙이지 않으면 파일시스템이 휘발성이라 **배포·재시작마다 `data/cache/`가
+> 통째로 빕니다.** 실측한 완전 콜드는 **12.33초**이고, 예열이 없으면 그 12초는 언제나 방문자가
+> 냅니다. 백그라운드 데몬 스레드라 서버는 그동안에도 정상 응답합니다.
+>
+> 실측(빈 캐시에서 기동): 예열 **56초**(서버가 냄) → 첫 방문자 **쇼케이스 2.46초 ·
+> 쇼케이스 밖 7.89초**. 재현: `python scripts/check_load_timing.py KR 005930`
+>
+> **디스크는 일부러 안 붙였습니다** — Render 디스크는 인스턴스를 하나로 묶고 **무중단 배포를
+> 없앱니다**(새 인스턴스 전에 기존 것을 멈춤). 예열은 공짜이고 그 둘을 잃지 않습니다.
 
 > 무료로 쓰려면 `render.yaml`의 `plan: starter`를 `free`로 바꾸면 되지만, 15분 방치 시 잠들어
 > 첫 방문자가 콜드스타트(~50초)를 겪습니다. 상시 링크라면 항상 켜짐(starter, 월 $7)을 권장합니다.
 >
-> 데이터 주의: yfinance·네이버 스크래핑은 데이터센터 IP에서 더 자주 막힙니다. 위 프리워밍으로
-> 쇼케이스 종목을 미리 채워두면 첫인상에서 실패를 피할 수 있습니다(OpenDART는 정식 키 API라 안정적).
+> 데이터 주의: yfinance·네이버 스크래핑은 데이터센터 IP에서 더 자주 막힙니다. 기동 예열이
+> 쇼케이스 종목을 미리 채워 두므로 첫인상에서 실패를 피할 수 있습니다(OpenDART는 정식 키 API라 안정적).
 
 ## 폴더 구조
 
@@ -185,6 +196,7 @@ web/                       Meridian UI — 홈·주식·채권·포트폴리오�
 src/data/                  수집·표준화 (providers, opendart, naver, news, gemini, cache, progress, parallel)
 src/analysis/              순수 분석 함수 (indicators·scoring·capital_cost·valuation·backtest·commentary)
 src/web/serialize.py       분석 결과 → 프런트 JSON
+src/web/prewarm.py         기동·수동 프리워밍 목록과 동작 (한 벌만 존재)
 docs/adr/                  설계 결정 기록 (ADR)
 docs/TROUBLESHOOTING.md     트러블슈팅 로그 (증상→원인→해결→교훈)
 docs/사용설명서.md          CPA 1차 눈높이 설명서
