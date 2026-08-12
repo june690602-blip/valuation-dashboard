@@ -167,9 +167,62 @@ def _coefficients_usable(d) -> bool:
                for v in d.values())
 
 
+# 밤에 GitHub Actions가 구워 두는 계수 (이슈 #131). **main이 아니라 별도 브랜치**라
+# 이 파일이 갱신돼도 배포가 트리거되지 않고 main 히스토리도 안 더러워진다.
+# 브랜치는 orphan + force-push라 커밋이 늘 하나다.
+COEF_BRANCH = "data-coefficients"
+COEF_BASE_URL = (f"https://raw.githubusercontent.com/june690602-blip/"
+                 f"valuation-dashboard/{COEF_BRANCH}")
+COEF_FETCH_TIMEOUT = 8.0     # 여기서 오래 기다리면 고치려던 것(첫 방문자 대기)을 재현한다
+
+
+def _from_repo(market: str) -> dict | None:
+    """저장소에 구워진 계수를 받아온다. 실패하면 None — 그러면 직접 수집한다.
+
+    **이 경로가 이슈 #131의 핵심이다.** 전 종목 수집은 혼자 돌 때도 실측 58초인데,
+    이건 35KB짜리 JSON 한 번이라 0.1초다. 게다가 yfinance 레이트리밋(성공률 62%)을
+    아예 안 탄다 — 밤에 CI가 대신 맞아 준다.
+
+    실패를 **조용히 삼키고 None을 준다**: 깃허브가 죽어도 판정이 멈추면 안 되고,
+    물러날 곳(직접 수집)이 이미 있다. 즉 이 함수는 **빨라지는 길이지 의존성이 아니다.**
+
+    `COEF_BASE_URL`을 빈 값으로 두면 통째로 끈다(오프라인 개발·테스트).
+    """
+    if not COEF_BASE_URL:
+        return None
+    import json as _json
+    import urllib.request
+
+    url = f"{COEF_BASE_URL}/{market.upper()}.json"
+    try:
+        with urllib.request.urlopen(url, timeout=COEF_FETCH_TIMEOUT) as r:
+            if r.status != 200:
+                return None
+            got = _json.loads(r.read().decode("utf-8"))
+    except Exception:
+        return None
+    # 받아온 것도 **같은 검사를 통과해야 한다.** 브랜치에 깨진 파일이 올라가면
+    # 그것이 24시간 캐시로 저장돼 그날 전 종목이 피어 중앙값 폴백을 타게 된다.
+    return got if _coefficients_usable(got) else None
+
+
 @file_cache("warranted_coef_v2", ttl_hours=24, validate=_coefficients_usable)
 def get_coefficients(market: str) -> dict:
     """시장의 다리별 계수 (24시간 캐시).
+
+    읽는 순서는 셋이고 **아래로 갈수록 느리다**:
+
+        1. 로컬 파일 캐시 (24시간)          — 즉시
+        2. 저장소에 구워진 파일 (`_from_repo`) — 0.1초 · 밤에 CI가 만들어 둔 것
+        3. 전 종목 직접 수집                 — 실측 58초 · 레이트리밋에 걸리면 더
+
+    3이 이슈 #131이 없애려던 것이다. 2가 들어오면서 **사용자가 3을 겪는 일은
+    깃허브까지 죽었을 때뿐**이 됐다. 2는 빨라지는 길이지 의존성이 아니다 — 실패하면
+    조용히 3으로 내려간다.
+
+    ⚠ **밤에 도는 빌더는 이 함수를 부르면 안 된다** — 2번에서 어제 파일을 그대로
+    돌려받아 계수가 영원히 갱신되지 않는다. `scripts/build_coefficients.py`가
+    수집·적합을 직접 부르는 이유다.
 
     캐시하는 것은 **전 종목 테이블이 아니라 계수**다(숫자 약 70개). 적정 배수는
     `계수 × 자사 값`인데 계수는 시장 구조라 느리게 변하고 자사 시총·ROE는 매일 변한다.
@@ -180,6 +233,9 @@ def get_coefficients(market: str) -> dict:
     옛 캐시를 되살려 쓰면 `warranted_multiple`이 계산 불가로 물러나고, 결국 그날 전
     종목이 피어 중앙값 폴백을 타게 된다. 조용히 그러느니 처음부터 안 쓰는 게 낫다.
     """
+    seeded = _from_repo(market)
+    if seeded is not None:
+        return seeded
     snap = collect_kr() if market.upper() == "KR" else collect_us()
     return build_coefficients(snap)
 
