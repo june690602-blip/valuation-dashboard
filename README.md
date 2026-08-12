@@ -36,9 +36,14 @@ pip install -r requirements.txt
 python server.py
 ```
 
-브라우저에서 `http://localhost:5178`을 엽니다. 첫 종목 조회는 피어 수집(병렬) 때문에 수 초~수십 초
-걸리며 진행 상황(피어 수집 n/m)이 표시되고, 이후에는 캐시로 즉시 뜹니다. 기본 기능은 API 키 없이
-동작하고, OpenDART 공시 원본과 Gemini 기능은 선택 키를 넣었을 때 켜집니다.
+브라우저에서 `http://localhost:5178`을 엽니다. 첫 종목 조회는 원천을 실제로 받아오느라 수 초
+걸리고(진행 상황을 `자료 수집 n/7` → `피어 수집 n/m`으로 표시합니다), 이후에는 캐시로 즉시 뜹니다.
+기본 기능은 API 키 없이 동작하고, OpenDART 공시 원본과 Gemini 기능은 선택 키를 넣었을 때 켜집니다.
+
+> 로드 경로는 **서로 모르는 호출을 한 번에 띄웁니다**([ADR-0045](docs/adr/0045-parallelize-the-load-path.md)).
+> 순수 계산은 실측 0.05초였고 나머지는 전부 네트워크 대기라, 그 대기를 겹쳤습니다 —
+> 같은 종목·같은 캐시 상태에서 **4.22초 → 2.10초**(뉴스 캐시가 끊기면 5.68 → 2.98초).
+> 재현: `python scripts/check_load_timing.py KR 005930`
 
 ## 아키텍처
 
@@ -137,6 +142,19 @@ python scripts/check_bond.py && python scripts/check_portfolio.py
 
 같은 검증이 PR·main 푸시마다 GitHub Actions `Quality` 워크플로로 돕니다.
 
+**네트워크가 필요한 진단은 CI에 없습니다** — 따로 돌립니다.
+
+```bash
+python scripts/check_analysis.py KR 005930     # 실제 종목에서 판정·근거 확인
+python scripts/check_sector_label.py --live 005930 000660   # 회귀가 거래소 라벨을 쓰는가 (ADR-0044)
+python scripts/check_load_timing.py KR 005930  # 첫 조회가 어디서 시간을 쓰는가 (ADR-0045)
+python scripts/check_payload_parity.py save KR 005930       # 고치기 전에 골든을 뜬다
+python scripts/check_payload_parity.py compare KR 005930    # 고친 뒤 페이로드가 그대로인가
+```
+
+마지막 둘은 **성능을 고칠 때 쓰는 짝**입니다. 빨라진 것은 초시계가 말해 주지만 조용히
+달라진 값은 아무도 말해 주지 않으므로, **바꾸기 전에** 골든을 뜨고 나중에 대조합니다.
+
 ## 배포하기 (Render + Cloudflare)
 
 살아있는 파이썬 백엔드(`/api/*`)가 있어 정적 호스팅(GitHub Pages 등)으로는 안 되고,
@@ -164,7 +182,7 @@ Render·Railway 같은 PaaS가 맞습니다. `server.py`는 `PORT`·`HOST` 환�
 ```
 server.py                  정적 웹 + JSON API (표준 라이브러리만, 기본 127.0.0.1:5178)
 web/                       Meridian UI — 홈·주식·채권·포트폴리오·위험 프로파일·설명서
-src/data/                  수집·표준화 (providers, opendart, naver, news, gemini, cache, progress)
+src/data/                  수집·표준화 (providers, opendart, naver, news, gemini, cache, progress, parallel)
 src/analysis/              순수 분석 함수 (indicators·scoring·capital_cost·valuation·backtest·commentary)
 src/web/serialize.py       분석 결과 → 프런트 JSON
 docs/adr/                  설계 결정 기록 (ADR)
@@ -198,8 +216,3 @@ app.py, src/ui/            [레거시] Streamlit 구버전
 - 위험 프로파일은 공식 투자자정보확인서를 대신하지 않는 교육용 자가진단입니다.
 - 학습·분석 보조 도구이며 투자 조언이 아닙니다.
 
-## 다음 단계 후보
-
-- **회계 품질 신호**: 발생액 비율·Piotroski F-Score·Beneish M-Score·DART 감사의견 표시
-- DART 분기 연동으로 TTM까지 공시 기준 정렬 · 전 시장 괴리율 스크리닝 · 간이 DCF
-- **눈높이별 사용설명서**: 현재 전문가 눈높이 설명서에 더해, 회계 지식이 얕은 일반 투자자용 쉬운 설명 버전을 추가(핵심 지표만·쉬운 워딩)
