@@ -6,13 +6,16 @@
 """
 from __future__ import annotations
 
+from functools import partial
+
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from .base import (PRICE_PERIOD, DataProvider, build_peer_table,
-                   extract_financials, extract_ttm, fetch_index_prices,
-                   fetch_price_pair, fill_self_from_financials, trim_peers)
+from .base import (PEER_FETCH_WORKERS, PRICE_PERIOD, DataProvider,
+                   build_peer_table, extract_financials, extract_ttm,
+                   fetch_index_prices, fetch_price_pair,
+                   fill_self_from_financials, trim_peers)
 from .models import FIN_COLUMNS, CompanyData, Consensus, recomm_label
 from .naver import fetch_naver_fundamental
 from .opendart import get_dart_financials
@@ -361,22 +364,37 @@ class KRProvider(DataProvider):
         """
         if peers.empty:
             return peers
-        for yt in peers.index:
-            code = str(yt).split(".")[0]
+        codes = {yt: str(yt).split(".")[0] for yt in peers.index}
 
-            def _fill(col, val):
-                if val is not None and pd.isna(peers.at[yt, col]):
-                    peers.at[yt, col] = val
-
+        # ① 시총 덮어쓰기는 네트워크가 아니다 — 조회를 띄우기 전에 끝낸다.
+        for yt, code in codes.items():
             if code in listing.index and pd.notna(listing.loc[code].get("Marcap")):
                 peers.at[yt, "market_cap"] = float(listing.loc[code]["Marcap"])
-            try:
-                nv = fetch_naver_fundamental(code)
-            except Exception:
+
+        # ② 피어마다 네이버 페이지 **한 장**이고 서로를 기다릴 이유가 없다.
+        # ADR-0045가 병렬화한 것은 조인 **앞의** 그룹이라 이 루프는 뒤에 남아 있었다.
+        # 캐시(12시간)가 차 있으면 실측 0.01초라 안 보였는데, 캐시가 통째로 빈
+        # 첫 조회에서는 **3.60초**였다(완전 콜드 12.33초의 29.2%).
+        #
+        # 워커 수는 바로 윗줄 `build_peer_table`과 같은 `PEER_FETCH_WORKERS`다.
+        # 로드 그룹의 4가 아닌 이유: 그 숫자는 yfinance 레이트리밋(성공률 62%)에
+        # 맞춘 것이고 여기는 다른 원천(네이버)이며, 시간대도 피어 풀과 같다.
+        got = gather([(yt, partial(fetch_naver_fundamental, code))
+                      for yt, code in codes.items()],
+                     workers=PEER_FETCH_WORKERS)
+
+        # ③ **표를 채우는 것은 조인 뒤 한 스레드에서** 한다. 워커가 DataFrame을
+        # 동시에 건드리지 않게 하는 것이면서, 어느 값이 어느 행에 들어가는지가
+        # **완료 순서와 무관**해진다 — 피어 표는 규모 창 비교와 업종 상대점수의
+        # 재료라 행이 한 칸 밀리면 판정까지 조용히 달라진다.
+        for yt in peers.index:
+            nv = got[yt].or_else(None)
+            if not nv:      # 실패했거나 빈 응답 — 그 피어만 건너뛴다
                 continue
-            _fill("per", nv.get("per"))
-            _fill("forward_per", nv.get("forward_per"))
-            _fill("pbr", nv.get("pbr"))
-            _fill("div_yield", nv.get("div_yield"))
-            _fill("roe", nv.get("roe_approx"))
+            for col, key in (("per", "per"), ("forward_per", "forward_per"),
+                             ("pbr", "pbr"), ("div_yield", "div_yield"),
+                             ("roe", "roe_approx")):
+                val = nv.get(key)
+                if val is not None and pd.isna(peers.at[yt, col]):
+                    peers.at[yt, col] = val
         return peers

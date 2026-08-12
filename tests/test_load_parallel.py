@@ -256,8 +256,9 @@ class ActuallyParallelTests(unittest.TestCase):
     def test_the_load_group_overlaps_instead_of_queueing(self):
         """일곱 태스크가 각각 NAP초 자면, 총 시간은 **합이 아니라** 그 근처여야 한다.
 
-        피어 보정(`_patch_kr_peers`)은 조인 뒤의 순차 루프라 여기서 빼고 잰다 —
-        이 테스트가 보는 것은 병렬 그룹 하나다.
+        피어 보정(`_patch_kr_peers`)은 조인 뒤에 따로 도는 단계라 여기서 빼고 잰다 —
+        이 테스트가 보는 것은 병렬 그룹 하나다. (그 단계도 ADR-0046에서 병렬이 됐고,
+        겹치는지는 `PeerPatchIsParallelTests`가 따로 지킨다.)
         """
         from src.data.kr_provider import KRProvider
         with patch.object(KRProvider, "_patch_kr_peers", staticmethod(lambda p, l: p)):
@@ -384,6 +385,97 @@ class NewsOrderTests(unittest.TestCase):
         # (미리 받은 쪽이 언제 끝나는지는 스레드 사정이라 결과로만 판단한다.)
         self.assertEqual([it["title"] for it in got], ["기업:Palantir Technologies"])
         self.assertIn("Palantir Technologies", calls)
+
+
+class PeerPatchIsParallelTests(unittest.TestCase):
+    """피어 보정(`_patch_kr_peers`)의 네이버 조회도 겹쳐야 한다 (ADR-0046).
+
+    ADR-0045가 병렬화한 것은 **조인 앞의 그룹**이고, 이 루프는 조인 뒤에 남아
+    피어마다 네이버 페이지를 한 장씩 순서대로 받고 있었다. 캐시(12시간)가 차 있으면
+    실측 0.01초라 안 보였는데, **캐시가 통째로 빈 첫 조회에서는 3.60초**였다
+    (완전 콜드 12.33초 중 29.2% — `scripts/check_load_timing.py`).
+
+    빨라졌다는 것은 초시계가 말하므로, 여기서 지키는 것은 **값이 그대로라는 것**이다.
+    """
+
+    COLS = ["market_cap", "per", "forward_per", "pbr", "div_yield", "roe"]
+
+    def _frame(self, n: int) -> pd.DataFrame:
+        codes = [f"{100000 + i:06d}" for i in range(n)]
+        return pd.DataFrame(
+            {c: [float("nan")] * n for c in self.COLS},
+            index=[f"{c}.KS" for c in codes])
+
+    def _listing(self, n: int) -> pd.DataFrame:
+        codes = [f"{100000 + i:06d}" for i in range(n)]
+        return pd.DataFrame(
+            {"Name": [f"피어{i}" for i in range(n)],
+             "Market": ["KOSPI"] * n,
+             "Marcap": [1_000.0 + i for i in range(n)]},
+            index=codes)
+
+    @staticmethod
+    def _nv(code: str) -> dict:
+        seed = int(code) % 97
+        return {"per": float(seed), "forward_per": float(seed) + 0.5,
+                "pbr": float(seed) / 10, "div_yield": float(seed) / 100,
+                "roe_approx": float(seed) / 5}
+
+    def test_peer_lookups_overlap_instead_of_queueing(self):
+        """피어 여덟이 각각 NAP초 자면 총 시간은 **합이 아니라** 그 근처여야 한다."""
+        from src.data.kr_provider import KRProvider
+
+        def slow(code):
+            time.sleep(NAP)
+            return self._nv(code)
+
+        with patch("src.data.kr_provider.fetch_naver_fundamental", slow):
+            t0 = time.perf_counter()
+            KRProvider._patch_kr_peers(self._frame(8), self._listing(8))
+            elapsed = time.perf_counter() - t0
+        sequential = 8 * NAP
+        self.assertLess(elapsed, sequential * 0.5,
+                        f"{elapsed:.2f}s — 순차({sequential:.2f}s)와 구별되지 않는다")
+
+    def test_the_values_are_the_ones_the_sequential_loop_produced(self):
+        """겹쳐 받아도 **어느 값이 어느 행에 들어가는지**가 흔들리면 안 된다.
+
+        피어 표는 규모 창 비교와 업종 상대점수의 재료라, 행이 한 칸 밀리면
+        판정까지 조용히 달라진다.
+        """
+        from src.data.kr_provider import KRProvider
+
+        n = 12
+        with patch("src.data.kr_provider.fetch_naver_fundamental", self._nv):
+            out = KRProvider._patch_kr_peers(self._frame(n), self._listing(n))
+
+        for i in range(n):
+            code = f"{100000 + i:06d}"
+            yt, want = f"{code}.KS", self._nv(code)
+            self.assertEqual(out.at[yt, "per"], want["per"], yt)
+            self.assertEqual(out.at[yt, "forward_per"], want["forward_per"], yt)
+            self.assertEqual(out.at[yt, "pbr"], want["pbr"], yt)
+            self.assertEqual(out.at[yt, "div_yield"], want["div_yield"], yt)
+            self.assertEqual(out.at[yt, "roe"], want["roe_approx"], yt)
+            # 시총은 '결측 보완'이 아니라 KRX로 **덮어쓰기**다(ADR-0044 계열).
+            self.assertEqual(out.at[yt, "market_cap"], 1_000.0 + i, yt)
+
+    def test_one_failing_peer_does_not_cost_the_others(self):
+        """무료 데이터라 결측이 흔하다 — 한 피어의 실패가 나머지를 데려가면 안 된다."""
+        from src.data.kr_provider import KRProvider
+
+        def flaky(code):
+            if code == "100003":
+                raise RuntimeError("naver down")
+            return self._nv(code)
+
+        with patch("src.data.kr_provider.fetch_naver_fundamental", flaky):
+            out = KRProvider._patch_kr_peers(self._frame(6), self._listing(6))
+
+        self.assertTrue(pd.isna(out.at["100003.KS", "per"]))
+        # 실패해도 시총 덮어쓰기는 네트워크가 아니므로 그대로 적용된다.
+        self.assertEqual(out.at["100003.KS", "market_cap"], 1_003.0)
+        self.assertEqual(out.at["100005.KS", "per"], self._nv("100005")["per"])
 
 
 if __name__ == "__main__":
