@@ -318,6 +318,15 @@ def evaluate(t: pd.Timestamp, data: dict, index_px: pd.Series) -> pd.DataFrame:
                "rel_legs": v.relative_legs,
                "years_known": int(len(known_at(fin, t))),
                "norm_years": v.normalized_years}
+
+        # ③이 PBR을 되읽고 있지 않은지 재려면 **그 시점 PBR**이 있어야 한다(ADR-0010).
+        # 적정PBR = 1 + (ROE−r)·w/(1+r−w)이므로, 지속계수 w가 낮을수록 적정PBR이 전 종목
+        # 1.0에 붙고 그러면 괴리율이 사실상 1/PBR − 1이 된다. 둘을 함께 실어야
+        # `check_rim_persistence.py`가 w별로 그 상관을 잴 수 있다.
+        # `rim_fair_pbr`은 ③이 빠진 종목에서 None으로 남는다 — 빠진 것과 1.0은 다르다.
+        eq_t = d.latest("total_equity")
+        row["pbr"] = (d.market_cap / eq_t) if (eq_t and eq_t > 0 and d.market_cap) else None
+        row["rim_fair_pbr"] = v.rim_fair_pbr
         for e in v.estimates:
             if e.method in PANEL_AXES and e.mid and e.mid > 0:
                 row[e.method] = float(np.log(e.mid / d.price))
@@ -353,9 +362,13 @@ def evaluate(t: pd.Timestamp, data: dict, index_px: pd.Series) -> pd.DataFrame:
 
 
 # ── 변형 (사전등록 §5-C) ─────────────────────────────────────────────
-# 이미 내린 결정을 되짚는 후보 셋이다. **상수 하나만 갈아 끼우고 나머지는 전부 같다** —
+# 이미 내린 결정을 되짚는 후보들이다. **상수 하나만 갈아 끼우고 나머지는 전부 같다** —
 # 두 판을 따로 구현하면 무엇이 차이를 냈는지 알 수 없게 된다.
-VARIANTS = ("base", "norm5", "band5", "nogate")
+#
+# `w021`·`w062`·`w090`은 ③ 지속계수의 **중심만** 옮긴다(2026-08-11 계획 Phase A).
+# 문헌값 0.62를 채택했을 때 ③이 1/PBR을 되읽는 쪽으로 가는지 재려는 것이지,
+# IC가 가장 높은 w를 찾으려는 것이 아니다 — 그건 ADR-0003이 가중치에서 피한 짓이다.
+VARIANTS = ("base", "norm5", "band5", "nogate", "w021", "w062", "w090")
 
 
 def apply_variant(name: str) -> str:
@@ -379,6 +392,27 @@ def apply_variant(name: str) -> str:
 
         V._book_quality = open_gate
         return "③ 장부가 게이트 해제(ADR-0007·0010)"
+    if name.startswith("w0"):                 # w021 · w062 · w090 — ③ 지속계수 중심
+        center = int(name[1:]) / 100.0
+        orig = V._rim
+
+        def moved(bps, roe, r, _c=center, _orig=orig):
+            # **하단·상단은 원본 그대로 둔다.** 여기서 재는 것은 중심값의 이동뿐이고,
+            # 패널에 실리는 ③ 괴리율도 중심에서 나온다. 식을 통째로 바꾸면 무엇이
+            # 차이를 냈는지 알 수 없게 된다(위 변형들과 같은 규약).
+            fv, _ = _orig(bps, roe, r)
+            if fv is None:
+                return None, None
+            mid = max(bps + bps * (roe - r) * _c / (1 + r - _c), 0.0)
+            # 중심이 원본 범위 밖으로 나가면(w021이 그렇다 — 0.21 < 하단 0.6) 범위를 넓혀
+            # low ≤ mid ≤ high를 지킨다. 판정·패널은 mid만 쓰지만 `aggregate()`가 low·high도
+            # 가중평균하므로, 뒤집힌 채 두면 화면 범위가 거꾸로 서는 값이 만들어진다.
+            return (V.FairValue("수익가치(RIM)", min(fv.low, mid), mid, max(fv.high, mid),
+                                note=f"ROE {roe:.1%}, r {r:.1%}, 지속계수 중심 {_c}"),
+                    mid / bps)
+
+        V._rim = moved
+        return f"③ 지속계수 중심 0.8 → {center}"
     raise ValueError(name)
 
 

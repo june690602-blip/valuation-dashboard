@@ -79,7 +79,10 @@ def rim_with_center(w_center: float):
         for w in (0.6, 0.8, 1.0):
             v = bps * roe / r if w >= 1.0 else bps + bps * (roe - r) * w / (1 + r - w)
             vals[w] = max(v, 0.0)
-        mid = vals[w_center]
+        # **중심은 표에서 꺼내지 말고 식으로 낸다.** 꺼내 쓰면 w_center가 0.6/0.8/1.0일
+        # 때만 돌아가서, 문헌값 0.62 같은 값을 넣는 순간 KeyError로 죽는다.
+        mid = (bps * roe / r if w_center >= 1.0
+               else max(bps + bps * (roe - r) * w_center / (1 + r - w_center), 0.0))
         return V.FairValue("수익가치(RIM)", min(vals.values()), mid, max(vals.values()),
                            note=f"지속계수 중심 {w_center}"), (mid / bps if bps else None)
     return _rim
@@ -213,7 +216,9 @@ def shake(d, ind, cc, val, rf, mrp) -> list[dict]:
                        V.METHOD_WEIGHTS, price))
 
     # ② RIM 지속계수 (현행 중심 0.8)
-    for w_c in (0.6, 1.0):
+    # 0.62는 Fama & French(2000)의 수익성 평균회귀 연 38%를 지속으로 뒤집은 값이다
+    # — 문헌에서 온 유일한 후보라 흔들기 목록에 넣어 둔다(2026-08-11 계획).
+    for w_c in (0.6, 0.62, 1.0):
         rerun("RIM 지속계수", f"중심 0.8→{w_c}", _rim=rim_with_center(w_c))
 
     # ③ 자본비용 r (RIM 할인율) — R_f·MRP·베타가 모두 여기로 모인다
