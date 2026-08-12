@@ -175,6 +175,26 @@ INTRINSIC_METHODS = ("수익가치(RIM)",)
 RELATIVE_METHODS = ("업종 상대가치", "정규화 이익")
 
 
+def regression_sector(d: CompanyData) -> str:
+    """①⑤의 적정 배수 회귀에 넣을 업종 라벨 — **거래소 공식 분류**다 (ADR-0044).
+
+    `d.sector`를 그대로 쓰면 안 된다. 그 필드는 화면 표시와 피어 선정을 위해 Gemini가
+    덮어쓰는 자리이고, 회귀 계수표는 **KRX 표준산업분류(KR) · GICS 섹터(US)** 문자열로
+    적합돼 있다(ADR-0014). 둘을 섞으면 `warranted_multiple`의
+
+        sec = sector if sector in coef["sector_coef"] else OTHER_SECTOR
+
+    에서 조용히 '기타'로 떨어진다 — 캐시된 AI 라벨 65개 중 계수표와 맞는 것은 2개뿐이었고,
+    실측 10종목이 **전부** '기타'로 갔다(SK하이닉스 적정 PER 29.93 → 11.96).
+
+    ⚠ `d.sector`로 되돌아가는 폴백을 없애지 마라. 백테스트 패널은 애초에 AI를 타지 않아
+    `sector`에 KRX 라벨이 그대로 들어 있고 `sector_official`은 비어 있다 — 폴백이 없으면
+    ADR-0028을 재현할 때 전 종목이 '기타'가 된다. **화면과 백테스트가 같은 라벨을 쓰게
+    하는 것이 이 함수의 목적**이므로, 그 경로를 깨면 고치려던 것을 반대로 만든다.
+    """
+    return getattr(d, "sector_official", "") or d.sector
+
+
 def confidence_grade(dispersion: float | None, n_methods: int,
                      n_eff: float | None = None,
                      capped: bool = False) -> tuple[str, str, str]:
@@ -497,7 +517,7 @@ def _relative_value(d: CompanyData, eps, bps, ebitda_ps, debt_ps, cash_ps,
         if bps and bps > 0 and eps is not None:
             roe = eps / bps
         fairs, used, parts = _warranted_fairs(
-            coef, d.market_cap, d.sector, roe, eps, bps, ebitda_ps,
+            coef, d.market_cap, regression_sector(d), roe, eps, bps, ebitda_ps,
             debt_ps, cash_ps, revenue_ps,
             is_loss=not (eps and eps > 0), is_financial=d.is_financial)
         if fairs:
@@ -1208,7 +1228,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
         res.skipped.append(("정규화 이익", ccy_reason))
     else:
         fv5, nm = _normalized_value(d.financials, shares, equity, d.market_cap,
-                                    d.sector, warranted_coef)
+                                    regression_sector(d), warranted_coef)
         res.normalized_eps = nm["eps"]
         res.normalized_years = nm["years"] or None
         res.normalized_ratio = nm["ratio"]

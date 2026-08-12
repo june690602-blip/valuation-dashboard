@@ -134,6 +134,9 @@ class USProvider(DataProvider):
         name = meta["name"] if meta["in_sp500"] else (self_info.get("name") or sym)
         sector = meta["sector"] or self_info.get("sector") or ""
         industry = self_info.get("industry") or meta.get("sub_industry") or ""
+        # AI가 덮어쓰기 **전**의 GICS 섹터를 붙잡아 둔다 — 회귀 계수표와 금융업 판별이
+        # 조회하는 문자열이 이것이다(ADR-0044). KR은 `meta["sector"]`가 그 자리다.
+        sector_official = sector
 
         price = float(prices.iloc[-1])
         shares = self_info.get("shares")
@@ -249,10 +252,15 @@ class USProvider(DataProvider):
         return CompanyData(
             ticker=meta["ticker"], yahoo_ticker=sym, name=name, market="US",
             currency="USD", sector=sector, industry=industry,
+            sector_official=sector_official,
             price=price, market_cap=float(mcap), shares_outstanding=float(shares),
             financials=financials, ttm=ttm, prices=prices, prices_raw=prices_raw,
             index_prices=index_prices, benchmark_name="S&P 500",
             peers=peers, official=official, warnings=warnings,
-            is_financial=detect_financial(sector, industry, "US"),
+            # 금융업 판별도 **공식 라벨**로 한다. `US_FINANCIAL_SECTORS`는 GICS 문자열
+            # 완전일치 검사라, AI가 'Financial Services'처럼 다르게 부르면 은행이
+            # 일반기업으로 취급돼 EV/EBITDA·WACC 마스킹이 풀린다. KR은 이미 원본을
+            # 쓰고 있었고(`meta["sector"]`), 그 불일치를 여기서 맞춘다(ADR-0044).
+            is_financial=detect_financial(sector_official, industry, "US"),
             consensus=consensus, financial_currency=fin_ccy,
         )

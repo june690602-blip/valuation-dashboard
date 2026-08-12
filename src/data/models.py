@@ -162,6 +162,20 @@ class CompanyData:
     # 만들고, 그만큼 적정가가 낮아져 현재가가 비싸 보인다. 못 받으면 None → prices로 폴백.
     prices_raw: pd.Series | None = None
 
+    # 거래소가 붙인 **공식 업종 분류** — KR은 KRX 표준산업분류, US는 GICS 섹터.
+    #
+    # 위 `sector`와 나뉘어 있는 이유가 이 필드의 전부다. `sector`는 **화면에 보여 주고
+    # 피어를 고르는 데 쓰는 라벨**이라 Gemini가 더 그럴듯한 이름으로 덮어쓴다
+    # (KRX가 삼성전자를 '통신 및 방송 장비 제조업'이라고 부르는 것이 그 동기였다).
+    # 그런데 ①⑤의 적정 배수 회귀는 **KRX 라벨로 적합된 계수표**를 문자열로 조회한다
+    # (ADR-0014: "KRX 업종 중 10곳 이상인 것만 더미"). AI가 지은 이름은 그 표에 없어
+    # 전부 '기타'로 떨어졌고, 아무 예외도 나지 않아 조용했다 — ADR-0044.
+    #
+    # **회귀에 넣을 라벨은 언제나 이 필드다.** 표시·피어·프롬프트는 `sector`를 쓴다.
+    # 비어 있으면(백테스트 패널처럼 애초에 AI를 안 타는 경로) 호출부가 `sector`로
+    # 폴백하므로 기존 동작이 그대로 유지된다.
+    sector_official: str = ""
+
     official: dict = field(default_factory=dict)   # 공식/참고 지표 (pykrx PER 등)
     warnings: list = field(default_factory=list)   # 데이터 품질 경고 문구
     is_financial: bool = False                     # 금융업 여부 (지표 마스킹용)

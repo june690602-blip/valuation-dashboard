@@ -838,3 +838,76 @@ class EffectiveAxesTests(unittest.TestCase):
         table = {("a", "b"): 0.3, ("a", "c"): 0.7, ("b", "c"): 0.1}
         self.assertEqual(effective_axes(["c", "a", "b"], "KR", table),
                          effective_axes(["a", "b", "c"], "KR", table))
+
+
+class RegressionSectorLabelTests(unittest.TestCase):
+    """회귀에 넣는 업종 라벨은 **거래소 공식 분류**여야 한다 (ADR-0044).
+
+    이 관문이 막는 사고: 피어 선정용으로 Gemini가 덮어쓴 `d.sector`가 적정 배수 회귀까지
+    새어 들어가는 것. 계수표는 KRX/GICS 문자열로 적합돼 있어서 AI가 지은 이름은 조회에
+    실패하고 **조용히 '기타'로 떨어진다** — 예외도 경고도 나지 않는다.
+
+    실측(2026-08-13): 캐시된 AI 라벨 65개 중 계수표와 맞는 것이 2개였고, 대형주 10종목이
+    전부 '기타'로 갔다. SK하이닉스 적정 PER 29.93 → 11.96(−60%), 적정가 +94.8% 차이.
+    """
+
+    def setUp(self):
+        from src.analysis.warranted import fit_leg
+        self.coef = fit_leg(_synthetic(), leg="pbr")
+        self.mcap = 1e11
+        self.roe = 0.10
+
+    def _mult(self, sector):
+        from src.analysis.warranted import warranted_multiple
+        return warranted_multiple(self.coef, self.mcap, sector, self.roe)
+
+    def test_unknown_label_silently_falls_to_other(self):
+        # 이 침묵이 사고의 원인이다. **고칠 대상이 아니라 전제**로 못 박아 둔다 —
+        # 낯선 업종에서 계산 자체가 죽는 것보다는 '기타'가 낫기 때문에 그대로 둔다.
+        known, unknown = self._mult("B"), self._mult("반도체")
+        self.assertEqual(unknown["sector_used"], OTHER_SECTOR)
+        self.assertEqual(known["sector_used"], "B")
+        self.assertNotAlmostEqual(known["multiple"], unknown["multiple"], places=6,
+                                  msg="업종 효과가 없으면 이 테스트가 아무것도 지키지 못한다")
+
+    def test_regression_sector_prefers_the_official_label(self):
+        from dataclasses import dataclass
+
+        @dataclass
+        class _Stub:      # CompanyData의 두 필드만 흉내 낸다(무거운 픽스처가 필요 없다)
+            sector: str
+            sector_official: str
+
+        from src.analysis.valuation import regression_sector
+        self.assertEqual(regression_sector(_Stub("반도체", "B")), "B")
+
+    def test_regression_sector_falls_back_when_official_is_absent(self):
+        """백테스트 패널은 `sector`에 KRX 라벨이 그대로 있고 `sector_official`이 없다.
+
+        폴백을 없애면 ADR-0028 재현 시 전 종목이 '기타'가 된다 — 화면과 백테스트가 같은
+        라벨을 쓰게 하려던 변경이 정확히 반대 결과를 낸다.
+        """
+        from dataclasses import dataclass
+
+        @dataclass
+        class _Panel:
+            sector: str
+            sector_official: str = ""
+
+        from src.analysis.valuation import regression_sector
+        self.assertEqual(regression_sector(_Panel("B")), "B")
+
+    def test_company_data_defaults_keep_old_callers_working(self):
+        # `sector_official` 없이 만든 CompanyData가 여전히 동작해야 한다(테스트·백테스트).
+        from src.analysis.valuation import regression_sector
+        from src.data.models import CompanyData
+
+        self.assertIn("sector_official", CompanyData.__dataclass_fields__)
+        d = CompanyData(
+            ticker="T", yahoo_ticker="T", name="T", market="KR", currency="KRW",
+            sector="B", industry="", price=1.0, market_cap=self.mcap,
+            shares_outstanding=1.0, financials=pd.DataFrame(), ttm=None,
+            prices=pd.Series(dtype=float), index_prices=pd.Series(dtype=float),
+            benchmark_name="KOSPI", peers=pd.DataFrame())
+        self.assertEqual(d.sector_official, "")
+        self.assertEqual(regression_sector(d), "B")
