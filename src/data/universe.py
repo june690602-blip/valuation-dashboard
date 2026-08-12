@@ -5,10 +5,20 @@
 """
 from __future__ import annotations
 
+import time
+
 import numpy as np
 import pandas as pd
 
 from .cache import file_cache
+
+# KRX 목록 조회 재시도 — **막히는 것이 상시가 아니라 가끔이기 때문이다**(ADR-0049).
+# 2026-08-12 같은 GitHub 러너에서 06:17 성공(2,687행) · 19:43 `Access Denied`.
+# 이 한 번의 실패가 KR 경로 전체를 무너뜨린다(계수 · 피어 선정 · 시총 · 업종 라벨).
+# 짧은 blip이면 이걸로 넘어가고, 오래 가는 차단이면 못 넘는다 — **차단이 얼마나 지속되는지는
+# 재지 못했다.** 그래서 이 재시도는 보험이지 해법이 아니고, 해법은 "실패해도 이전 계수를
+# 파괴하지 않는 것"(`scripts/build_coefficients.py`)이다.
+KRX_RETRY_WAITS = (2.0, 6.0)
 
 # ── 한국 ────────────────────────────────────────────────────────────────
 @file_cache("kr_listing", ttl_hours=24)
@@ -20,15 +30,23 @@ def get_kr_listing() -> pd.DataFrame:
     """
     import FinanceDataReader as fdr
 
-    try:
-        base = fdr.StockListing("KRX")      # 공식 종가·시총·주식수
-    except Exception as exc:
+    base = None
+    last: Exception | None = None
+    for wait in (*KRX_RETRY_WAITS, None):       # 마지막 None = 더 안 기다리고 끝낸다
+        try:
+            base = fdr.StockListing("KRX")      # 공식 종가·시총·주식수
+            break
+        except Exception as exc:               # noqa: BLE001 — 원인을 가리지 않고 보관한다
+            last = exc
+            if wait is not None:
+                time.sleep(wait)
+    if base is None:
         # FinanceDataReader 일부 버전은 연결 실패 뒤 내부 지역변수 오류를 다시 내보내
         # 실제 원인을 가린다. 사용자에게 복구 가능한 메시지를 보여주고 원 예외는 보존한다.
         raise RuntimeError(
             "KRX 종목 목록을 가져오지 못했습니다. 인터넷 연결 또는 KRX 서비스 상태를 "
             "확인한 뒤 잠시 후 다시 시도하세요."
-        ) from exc
+        ) from last
     base = base.rename(columns={"Symbol": "Code"})
     keep = [c for c in ["Code", "Name", "Market", "Marcap", "Stocks", "Close"] if c in base.columns]
     base = base[keep].copy()

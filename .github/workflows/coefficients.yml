@@ -14,8 +14,12 @@ name: Coefficients
 
 on:
   schedule:
-    # 매일 18:40 UTC = 한국시간 03:40. 정각을 피한 건 정각에 CI가 몰려 느려지기 때문이다.
-    - cron: "40 18 * * *"
+    # 하루 **두 번** 시도한다 — KRX 차단이 상시가 아니라 가끔이기 때문이다(ADR-0049).
+    # 2026-08-12 같은 러너에서 06:17 성공 · 19:43 `Access Denied`였다. 실패가 이제
+    # 무해하므로(이전 파일을 이어받는다) 시도를 늘리는 것이 그대로 성공 확률이 된다.
+    # 정각을 피한 건 정각에 CI가 몰려 느려지기 때문이다.
+    - cron: "40 18 * * *"   # 한국시간 03:40
+    - cron: "20 2 * * *"    # 한국시간 11:20 — 아침에 막혔으면 여기서 한 번 더
   workflow_dispatch:      # 손으로도 돌릴 수 있게 — 브랜치를 처음 만들 때 이걸 쓴다
 
 permissions:
@@ -41,11 +45,37 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
+      # ⚠ **이 단계가 사고를 막는 자리다**(ADR-0049). 아래 publish가 출력 폴더를 orphan
+      # force-push 하므로, 폴더에 없는 파일은 **브랜치에서도 지워진다.** 2026-08-12 밤에
+      # KR이 KRX 차단으로 실패했을 때 정확히 그 일이 났다 — 초록불로 끝나면서 멀쩡하던
+      # 어제치 `KR.json`을 지웠고, 서버는 404를 받아 전 종목 수집(실측 263초)으로 물러났다.
+      # 브랜치의 현재 내용을 먼저 깔아 두면 **못 만든 시장은 어제 파일이 그대로 남는다.**
+      - name: Seed from the data branch (못 만든 시장은 이어받는다)
+        run: |
+          set -euo pipefail
+          mkdir -p dist/coefficients
+          if git ls-remote --exit-code --heads origin data-coefficients >/dev/null 2>&1; then
+            git fetch --depth 1 origin data-coefficients
+            git archive FETCH_HEAD | tar -x -C dist/coefficients
+            echo "이어받은 파일:"; ls -1 dist/coefficients
+          else
+            echo "data-coefficients 브랜치가 아직 없다 — 처음 만드는 것이다."
+          fi
+
+      # 끝내는 코드: 0=전부 새로 만듦 · 2=일부 이어받음(publish는 해야 한다) · 1=낼 것이 없음
       - name: Build coefficients
-        run: python scripts/build_coefficients.py --out dist/coefficients
+        id: build
+        run: |
+          set +e
+          python scripts/build_coefficients.py --out dist/coefficients
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # 1이면 낼 것이 없다 → 여기서 멈춰 publish가 브랜치를 비우지 못하게 한다.
+          [ "$code" -eq 1 ] && exit 1
+          exit 0
 
       # orphan 커밋으로 덮어쓴다 — 브랜치 히스토리가 자라지 않는다(늘 커밋 1개).
-      # 빌드가 실패하면 이 단계에 오지 않으므로 **이전 파일이 브랜치에 그대로 남는다.**
+      # 위 seed 덕분에 이 force-push는 **이번에 못 만든 시장을 지우지 않는다.**
       - name: Publish to data branch
         run: |
           set -euo pipefail
@@ -60,3 +90,13 @@ jobs:
             "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
             data-coefficients
           echo "→ https://github.com/${{ github.repository }}/tree/data-coefficients"
+
+      # **초록불이 거짓말하지 않게 한다.** 예전에는 KR을 못 만들어도 초록이었고, 그래서
+      # 아무도 몰랐다. 좋은 쪽은 이미 위에서 냈으므로 여기서 실패해도 잃는 것이 없다.
+      - name: Fail if any market was carried over
+        if: steps.build.outputs.code == '2'
+        run: |
+          echo "::error::한 시장을 이번에 만들지 못해 이전 파일을 이어받았다. \
+          계수가 그만큼 낡았다는 뜻이다 — data-coefficients 브랜치의 meta.json에서 \
+          어느 시장이 언제 만들어진 것인지 확인하라(ADR-0049)."
+          exit 1
