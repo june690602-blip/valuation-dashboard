@@ -150,9 +150,13 @@ def main() -> int:
         (out / f"{market}.json").write_text(
             json.dumps(coef, ensure_ascii=False, indent=1), encoding="utf-8")
         meta["markets"][market] = {"ok": True, "rows": rows, "legs": sorted(coef),
+                                   "leg_n": {k: (coef[k] or {}).get("n") for k in sorted(coef)},
                                    "built_at": now}
         made += 1
-        print(f"{OK} {market}: 표본 {rows:,}행 · 다리 {sorted(coef)}")
+        # **다리별 표본 수를 찍는다**(ADR-0051). 이것이 CI 캐시가 실제로 먹었는지 보는
+        # 유일한 창이다 — 얇은 빌드는 거부돼 파일로 남지 않으므로 로그가 아니면 알 수 없다.
+        legs = " · ".join(f"{k}={(coef[k] or {}).get('n')}" for k in sorted(coef))
+        print(f"{OK} {market}: 표본 {rows:,}행 · {legs}")
 
     (out / "meta.json").write_text(
         json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
