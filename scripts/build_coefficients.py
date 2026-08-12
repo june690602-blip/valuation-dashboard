@@ -69,7 +69,11 @@ def build(market: str) -> tuple[dict | None, int]:
     snap = collect_kr() if market == "KR" else collect_us()
     coef = build_coefficients(snap)
     if not _coefficients_usable(coef):
-        print(f"{BAD} {market}: 계수가 스키마 검사를 통과하지 못했다 — 내보내지 않는다.")
+        # **얼마나 모자란지 함께 찍는다**(ADR-0051). "통과하지 못했다"만으로는 다리가
+        # 아예 안 나온 것인지 하나만 빠진 것인지 알 수 없어, 며칠을 봐도 진단이 안 된다.
+        got = " · ".join(f"{k}={(v or {}).get('n')}" for k, v in sorted(coef.items()))
+        print(f"{BAD} {market}: 계수가 스키마 검사를 통과하지 못했다 — 내보내지 않는다. "
+              f"(얻은 다리: {got or '없음'} · 스냅숏 {len(snap):,}행)")
         return None, len(snap)
     return coef, len(snap)
 
