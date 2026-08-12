@@ -1,15 +1,18 @@
-"""간단한 파일 캐시.
+"""간단한 파일 캐시 + 같은 것을 동시에 두 번 만들지 않기 위한 도구.
 
 - DataFrame은 parquet, 그 외(dict/list)는 json으로 저장
 - ttl이 지나면 다시 받아오되, 원천 API가 실패하면 만료된 캐시라도 반환(stale-ok)
 - streamlit 없이도 동작해야 하므로 st.cache_data에 의존하지 않는다
+- `single_flight_memo` — 파일이 아니라 **메모리**에 기억하는 쪽. 같은 락 아이디어다.
 """
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import threading
 import time
+from collections import OrderedDict
 from functools import wraps
 from pathlib import Path
 
@@ -41,6 +44,97 @@ def _lock_for(key: str) -> threading.Lock:
         if lock is None:
             lock = _KEY_LOCKS[key] = threading.Lock()
         return lock
+
+
+def single_flight_memo(maxsize: int = 8):
+    """`lru_cache`처럼 기억하되, **같은 키를 동시에 두 번 계산하지 않는다**(ADR-0047).
+
+    `lru_cache`는 호출 **중에** 락을 잡지 않는다. 그래서 같은 종목을 두 사람이 동시에
+    조회하면 둘 다 miss를 보고 **둘 다** 파이프라인을 돌린다. 이 데코레이터는
+    `file_cache`가 파일 쪽에서 하던 것(키 단위 락 + 락 안에서 재확인)을 메모리 쪽에
+    그대로 편다.
+
+    락이 **키 단위**인 것이 요점이다 — 전역 락 하나로 묶으면 삼성전자를 계산하는 동안
+    무관한 종목까지 줄을 서서, 고치려던 것보다 나쁜 병목이 된다.
+
+    **실패는 기억하지 않는다.** 한 번의 레이트리밋이 그 종목을 계속 죽이면 안 된다
+    (`file_cache`가 빈 응답을 저장하지 않는 것과 같은 이유).
+
+    **키는 시그니처로 정규화한다** — 여기서 `lru_cache`와 갈린다. lru_cache는 철자를
+    구별해서, 기본값을 생략한 호출과 적어 준 호출이 **다른 항목**이 된다. 그 차이가
+    실제로 물었다: `_pipeline`은 `analyze()`가 `exclude`·`extra`를 적어 7인자로,
+    AI 헬퍼가 생략해 5인자로 부르고 있어서 도크스트링이 약속한 *"AI 버튼은 캐시
+    적중으로 빠르다"* 가 **한 번도 맞은 적이 없었다.** 값이 같으면 같은 항목으로 본다.
+
+    ⚠ **프로세스 안에서만 유효하다.** 인스턴스를 여러 개로 늘리면 인스턴스마다 한 벌씩
+    만든다. 지금 배포는 단일 인스턴스(`render.yaml`)라 이걸로 충분하고, 늘릴 때 답은
+    파일 락이 아니라 공유 캐시(Redis 등)다.
+    """
+
+    def deco(fn):
+        # 시그니처는 데코레이트 시점에 한 번만 읽는다(호출마다 다시 읽으면 낭비다).
+        sig = inspect.signature(fn)
+        store: OrderedDict = OrderedDict()
+        locks: dict = {}
+        waiting: dict = {}
+        guard = threading.Lock()
+
+        def hit(key):
+            """(맞았나, 값) — `guard`를 잡은 채 부른다."""
+            if key in store:
+                store.move_to_end(key)
+                return True, store[key]
+            return False, None
+
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            try:
+                bound = sig.bind(*args, **kwargs)
+                bound.apply_defaults()
+                key = tuple(bound.arguments.items())
+            except TypeError:
+                # 시그니처에 안 맞는 호출 — 캐시가 판단할 일이 아니므로 원본이
+                # 자기 TypeError를 내게 둔다.
+                return fn(*args, **kwargs)
+            with guard:
+                ok, cached = hit(key)
+                if ok:
+                    return cached
+                lock = locks.get(key)
+                if lock is None:
+                    lock = locks[key] = threading.Lock()
+                waiting[key] = waiting.get(key, 0) + 1
+            try:
+                with lock:
+                    # 기다리는 동안 앞선 호출자가 이미 채웠으면 그걸 쓴다 —
+                    # 그것이 이 락이 노리는 전부다(두 번 만들지 않는 것).
+                    with guard:
+                        ok, cached = hit(key)
+                    if ok:
+                        return cached
+                    result = fn(*args, **kwargs)   # 예외는 그대로 올린다(기억하지 않는다)
+                    with guard:
+                        store[key] = result
+                        store.move_to_end(key)
+                        while len(store) > maxsize:
+                            store.popitem(last=False)
+                    return result
+            finally:
+                # 아무도 안 기다리면 락을 치운다 — 안 그러면 종목 수만큼 쌓인다.
+                with guard:
+                    waiting[key] -= 1
+                    if waiting[key] <= 0:
+                        waiting.pop(key, None)
+                        locks.pop(key, None)
+
+        def cache_clear():
+            with guard:
+                store.clear()
+
+        wrapper.cache_clear = cache_clear
+        return wrapper
+
+    return deco
 
 
 def _key(name: str, args, kwargs) -> str:

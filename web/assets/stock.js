@@ -1800,7 +1800,6 @@
           : '이 유형은 이익·배당 기반 적정가가 어려워, 아래 참고 지표만 제공합니다.')
       : (primAxis ? primAxis.value : '');
     var holdBadge = relHead ? ' ' + badge('적정가 판정은 보류') : '';
-    var confTip = 'ETF 판정 신뢰도 — 주 신호(' + esc(D.primary) + ')의 데이터 충실도와 유형 적합성 기준입니다.';
     $('hv-B').innerHTML =
       '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
         '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:10px">' +
@@ -1808,7 +1807,12 @@
           '<div><div style="display:flex;align-items:center;gap:6px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(D.symbol) + '</span>' + badge('ETF · ' + D.type_label, 'info') + '</div>' +
           '<div style="font-family:' + disp + ';font-weight:700;font-size:22px;letter-spacing:-0.01em;line-height:1.15;margin-top:2px">' + esc(D.name) + '</div></div></div>' +
           '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(D.price) + '</div></div>' +
-        '<div style="flex:1;min-width:320px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="kick">ETF 판정</span><span style="font-size:12px;color:var(--ink-3)">신뢰도 <b class="na" tabindex="0" data-tip="' + esc(confTip) + '" style="color:var(--ink-2)">' + esc(D.confidence || '—') + '</b></span></div>' +
+        // 이 줄 오른쪽 끝에도 `신뢰도 [등급]`이 서 있었다 — 주식 쪽과 같은 이유로 뗀다.
+        // ADR-0043은 ETF 산식이 다르다는 이유로 남겨 뒀는데, 그러면 **같은 자리의 같은
+        // 단어가 화면마다 다른 뜻**이 된다. 가이드가 "신뢰도 등급은 뗐습니다"라고 말하는
+        // 옆에서 ETF만 등급을 달고 있으면 읽는 사람은 어느 쪽을 믿을지 알 수 없다.
+        // 근거가 약하다는 사실은 `적정가 판정은 보류` 배지와 '계산 기준과 주석'이 말한다.
+        '<div style="flex:1;min-width:320px"><span class="kick">ETF 판정</span>' +
           '<div style="display:flex;align-items:baseline;gap:12px;margin-top:8px;flex-wrap:wrap">' +
             '<span style="font-family:' + disp + ';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(headline) + '</span>' + holdBadge +
             '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + esc(subline) + '</span></div>' +

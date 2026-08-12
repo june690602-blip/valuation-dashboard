@@ -12,7 +12,6 @@ from __future__ import annotations
 import math
 import threading
 from datetime import datetime
-from functools import lru_cache
 
 import numpy as np
 import pandas as pd
@@ -27,6 +26,7 @@ from src.analysis.scoring import (BASIS_DISCLOSED, comparable_peers, peer_median
                                    screen_multiple)
 from src.analysis.valuation import CONSENSUS_METHOD as VAL_CONSENSUS_METHOD
 from src.analysis.valuation import VERDICT_LOG_THRESHOLD, compute_valuation
+from src.data.cache import single_flight_memo
 from src.data.models import actual_prices
 
 MULTIPLE_LABELS = {"per": "PER", "pbr": "PBR", "psr": "PSR", "ev_ebitda": "EV/EBITDA",
@@ -157,13 +157,19 @@ def _defaults(market: str):
     return (0.035 if market == "KR" else 0.045, 0.06 if market == "KR" else 0.05)
 
 
-@lru_cache(maxsize=8)
+@single_flight_memo(maxsize=8)
 def _pipeline(market: str, query: str, peer_count: int, rf: float, mrp: float,
               exclude: tuple = (), extra: tuple = ()):
     """load → indicators → scores → capital_cost → valuation. 순수 파이프라인(캐시).
 
     analyze()와 AI 헬퍼(ai_news·ai_opinion)가 공유 — 분석 직후 AI 버튼은 캐시 적중으로 빠르다.
     exclude/extra(피어 사용자 편집)는 정렬된 튜플로 받아 캐시 키에 포함된다.
+
+    **`lru_cache`가 아닌 이유**(ADR-0047): lru_cache는 호출 **중에** 락을 잡지 않아,
+    같은 종목을 두 사람이 동시에 조회하면 둘 다 miss를 보고 **둘 다** 수집을 돌린다.
+    실측으로 재현된다 — 동시 호출자 4명에 `_load`가 4번 불렸다
+    (`tests/test_single_flight.py`). 아래층 `file_cache`의 키 락이 원천 다운로드는
+    한 벌로 묶어 주지만, 그 위(스레드풀 · 파이프라인 계산 · 직렬화)는 사람 수만큼 돈다.
     """
     from src.analysis.scoring import compute_scores
     d = _load(market, query, peer_count, exclude, extra)
@@ -1128,7 +1134,10 @@ def analyze_etf(market: str, query: str) -> dict:
         "symbol": r.symbol, "name": r.name, "currency": r.currency, "price": num(r.price),
         "asOf": {"price": asof},
         "fund_type": r.fund_type, "type_label": r.type_label,
-        "verdict": r.verdict, "gap": num(r.gap), "confidence": r.confidence, "primary": r.primary,
+        # ⚠ `confidence`는 **내려보내지 않는다** — 주식 쪽과 같은 이유다(ADR-0043).
+        # 실어 두면 화면이 조용히 등급을 되살린다. `EtfResult.confidence`는 진단용으로
+        # 남아 있고, 근거가 약하다는 사실은 판정 보류 배지와 주석이 말한다.
+        "verdict": r.verdict, "gap": num(r.gap), "primary": r.primary,
         "nav": num(r.nav), "premium": num(r.premium),
         # pos·lead·weak = 화면이 축을 게이지로 그리기 위한 정규화 값(0=싼 구간·100=비싼 구간).
         "axes": [{"key": a.key, "title": a.title, "value": a.value, "note": a.note,
