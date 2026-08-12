@@ -970,3 +970,87 @@ class MeasuredRhoTests(unittest.TestCase):
         self.assertEqual(spread, "높음", "흩어짐만 보면 여전히 '높음'이다")
         self.assertLess(n_eff, 2.0)
         self.assertEqual(final, "낮음")
+
+
+class RankAllowedWidthTests(unittest.TestCase):
+    """가중치 폭이 **문헌 순위를 지키는** 범위인가 (ADR-0041).
+
+    이 축의 위험은 값이 틀리는 것이 아니라 **주장과 값이 어긋나는 것**이다. 화면은
+    *"문헌 순위가 허용하는 범위에서"*라고 적는데, 인계문이 쓰라던 두 탐침(동일가중 ·
+    ③가중 2배)은 재정규화하면 각각 순위를 **동률**로 만들고 **역전**시킨다. 그 값으로
+    저 문장을 쓰면 거짓이 되므로, 그 사실 자체를 테스트가 지킨다.
+    """
+
+    def _fv(self, method, mid):
+        from src.analysis.valuation import FairValue
+        return FairValue(method=method, low=mid * 0.9, mid=mid, high=mid * 1.1)
+
+    def _trio(self, one=120.0, three=60.0, five=100.0):
+        return [self._fv("업종 상대가치", one),
+                self._fv("수익가치(RIM)", three),
+                self._fv("정규화 이익", five)]
+
+    def test_handoff_probes_break_the_ranking_they_claim(self):
+        """인계문의 두 탐침이 왜 폭의 근거가 될 수 없는가 — 이것이 ADR-0041의 출발점이다."""
+        from src.analysis.valuation import METHOD_WEIGHTS
+
+        w1, w3 = METHOD_WEIGHTS["업종 상대가치"], METHOD_WEIGHTS["수익가치(RIM)"]
+        self.assertLess(w3, w1, "출발점: 문헌 순위는 ③ < ①⑤ (강부등호)")
+
+        # 동일가중 — ③이 ①⑤와 **동률**이 된다(경계 밖).
+        self.assertEqual(1 / 3, 1 / 3)
+        # ③가중 2배 → 재정규화하면 ③이 **최상위로 역전**된다.
+        raw = {"업종 상대가치": w1, "수익가치(RIM)": w3 * 2, "정규화 이익": w1}
+        tot = sum(raw.values())
+        doubled = {k: v / tot for k, v in raw.items()}
+        self.assertGreater(doubled["수익가치(RIM)"], doubled["업종 상대가치"],
+                           "③가중 2배는 순위를 역전시킨다 — '순위가 허용하는 범위'가 아니다")
+
+    def test_endpoints_really_are_the_extremes(self):
+        """양 끝만 재는 것이 정당한가 — f(ρ)의 단조성을 촘촘한 훑기로 확인한다.
+
+        단조성이 깨지면 최소·최대가 구간 **안쪽**에 생겨 화면의 폭이 조용히 좁아진다.
+        """
+        from src.analysis.valuation import METHOD_WEIGHTS, _rank_allowed_span
+
+        for one, three, five in [(120, 60, 100), (60, 120, 80), (100, 100, 100),
+                                 (50, 400, 70), (300, 10, 290)]:
+            with self.subTest(legs=(one, three, five)):
+                est = self._trio(one, three, five)
+                lo, hi, _lower = _rank_allowed_span(est)
+                top = [e.mid for e in est if METHOD_WEIGHTS[e.method] == 0.25]
+                bot = [e.mid for e in est if METHOD_WEIGHTS[e.method] == 0.15]
+                swept = [(sum(top) + rho * sum(bot)) / (len(top) + rho * len(bot))
+                         for rho in np.linspace(0.0, 1.0, 2001)]
+                self.assertAlmostEqual(lo, min(swept), places=9)
+                self.assertAlmostEqual(hi, max(swept), places=9)
+
+    def test_equal_weight_is_one_end_not_a_separate_number(self):
+        """ρ=1이 곧 동일가중이다 — 화면이 두 값을 따로 말하면 같은 사실이 두 번 산다."""
+        from src.analysis.valuation import _rank_allowed_span
+
+        est = self._trio()
+        lo, hi, _ = _rank_allowed_span(est)
+        equal = float(np.mean([e.mid for e in est]))
+        self.assertIn(round(equal, 9), (round(lo, 9), round(hi, 9)))
+
+    def test_current_weights_sit_inside_the_span(self):
+        """지금 화면에 뜨는 값이 폭 **안**에 있어야 한다 — 밖이면 문장이 자기를 부정한다."""
+        from src.analysis.valuation import _rank_allowed_span, _weighted
+
+        for legs in [(120, 60, 100), (60, 120, 80), (50, 400, 70)]:
+            with self.subTest(legs=legs):
+                est = self._trio(*legs)
+                lo, hi, _ = _rank_allowed_span(est)
+                _l, mid, _h, _w = _weighted(est)
+                self.assertGreaterEqual(mid, lo - 1e-9)
+                self.assertLessEqual(mid, hi + 1e-9)
+
+    def test_one_tier_leaves_no_freedom(self):
+        """①⑤만 서면 문헌이 자유도를 안 남긴다 — 폭을 지어내면 안 된다."""
+        from src.analysis.valuation import _rank_allowed_span
+
+        self.assertIsNone(_rank_allowed_span(
+            [self._fv("업종 상대가치", 120), self._fv("정규화 이익", 100)]))
+        self.assertIsNone(_rank_allowed_span([self._fv("업종 상대가치", 120)]))
+        self.assertIsNone(_rank_allowed_span([self._fv("수익가치(RIM)", 60)]))

@@ -748,6 +748,11 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "fair_high": num(val.fair_high),
             "fair_mid_equal": num(val.fair_mid_equal), "gap_equal": num(val.gap_equal),
             "verdict_equal": val.verdict_equal,
+            # 문헌 순위가 허용하는 가중치 폭 (ADR-0041). 숫자만 내보내고 문장은 화면이
+            # 만든다 — 이 값은 종목마다 다르므로 상수 문구를 JS에 적을 수 없다.
+            "weight_range": {k: (num(v) if isinstance(v, (int, float)) and not isinstance(v, bool)
+                                 else v)
+                             for k, v in (val.weight_range or {}).items()},
             "weights": {k: num(v) for k, v in (val.weights or {}).items()},
             # 컨센서스 반영 종합(①②③④) — 판정에는 쓰지 않고 화면에 나란히 세우는 값(ADR-0006).
             "fair_low_consensus": num(val.fair_low_consensus),
