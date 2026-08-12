@@ -1131,3 +1131,65 @@ class VerdictThresholdTests(unittest.TestCase):
         from src.ui.components import VERDICT_COLORS
 
         self.assertEqual(sorted(VERDICT_COLORS), sorted(VERDICTS))
+
+
+class VerdictScaleParityTests(unittest.TestCase):
+    """화면 눈금이 판정과 같은 문턱을 그리는가.
+
+    **이 검사가 없어서 실제로 어긋났다.** ADR-0042가 문턱을 로그 ±0.897로 옮겼는데
+    `stock.js`의 눈금은 `50 - gap/0.4*40`으로 **±10%/±30%를 그림으로 박아 둔 것**이라
+    옛 문턱을 계속 그렸다 — 삼성전자가 gap −40.1%로 '적정 수준'인데 마커는 고평가 칸에
+    찍혔다. 눈금은 자(scale)라 판정 글자보다 먼저 읽히므로, 어긋나면 판정이 틀려 보인다.
+    """
+
+    def _js(self):
+        from pathlib import Path
+        return (Path(__file__).resolve().parents[1] / "web" / "assets" / "stock.js"
+                ).read_text(encoding="utf-8")
+
+    def test_scale_does_not_hardcode_the_threshold(self):
+        """문턱 숫자를 JS에 옮겨 적으면 다음에 또 같은 식으로 썩는다."""
+        js = self._js()
+        self.assertIn("verdict_threshold_log", js,
+                      "눈금이 파이썬이 보낸 문턱을 써야 한다")
+        self.assertNotIn("gp / 0.4 * 40", js, "옛 고정 눈금이 남아 있다")
+
+    def test_threshold_is_serialized(self):
+        import inspect
+
+        from src.web import serialize
+
+        self.assertIn("verdict_threshold_log", inspect.getsource(serialize))
+
+    def test_marker_lands_in_the_zone_its_verdict_names(self):
+        """파이썬 판정과 JS 눈금 위치가 같은 답을 내는가 — 산식을 그대로 옮겨 대조한다.
+
+        JS는 `p = 50 − log1p(gap)/(2m)·50`이고 칸 경계는 25·75다. 즉 마커가
+        25 미만이면 저평가 칸, 75 초과면 고평가 칸이어야 하고 그것이 `_verdict`와 같아야 한다.
+        """
+        from src.analysis.valuation import VERDICT_LOG_THRESHOLD as M
+        from src.analysis.valuation import _verdict
+
+        def zone_of(gap):
+            p = 50 - (np.log1p(gap) / (M * 2)) * 50
+            p = max(2.0, min(98.0, p))
+            return "저평가" if p < 25 else "고평가" if p > 75 else "적정 수준"
+
+        # 경계 근처와 극단 — 삼성전자 실측(−0.401)을 반드시 포함한다
+        for gap in (-0.99, -0.90, -0.70, -0.5919, -0.5917, -0.401, -0.10, 0.0,
+                    0.10, 0.50, 0.9561, 1.4521, 1.4525, 3.0, 10.0):
+            with self.subTest(gap=gap):
+                self.assertEqual(zone_of(gap), _verdict(gap),
+                                 f"gap {gap:+.4f}에서 눈금과 판정이 다르다")
+
+    def test_samsung_case_that_was_reported(self):
+        """신고된 그 화면 — gap −40.1%가 '적정 수준'인데 눈금은 고평가를 가리켰다."""
+        from src.analysis.valuation import VERDICT_LOG_THRESHOLD as M
+        from src.analysis.valuation import _verdict
+
+        gap = -0.401
+        self.assertEqual(_verdict(gap), "적정 수준")
+        new_pos = 50 - (np.log1p(gap) / (M * 2)) * 50
+        old_pos = 50 - gap / 0.4 * 40
+        self.assertGreater(old_pos, 75, "옛 산식은 고평가 칸을 가리켰다(재현)")
+        self.assertTrue(25 <= new_pos <= 75, f"새 산식은 적정 칸이어야 한다({new_pos:.1f}%)")

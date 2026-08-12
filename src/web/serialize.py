@@ -26,7 +26,7 @@ from src.analysis.scoring import (BASIS_DISCLOSED, comparable_peers, peer_median
                                    rank_peers_cheapness, sanitize_peer_frame,
                                    screen_multiple)
 from src.analysis.valuation import CONSENSUS_METHOD as VAL_CONSENSUS_METHOD
-from src.analysis.valuation import compute_valuation
+from src.analysis.valuation import VERDICT_LOG_THRESHOLD, compute_valuation
 from src.data.models import actual_prices
 
 MULTIPLE_LABELS = {"per": "PER", "pbr": "PBR", "psr": "PSR", "ev_ebitda": "EV/EBITDA",
@@ -748,6 +748,12 @@ def analyze(market: str, query: str, peer_count: int = 9,
             "fair_high": num(val.fair_high),
             "fair_mid_equal": num(val.fair_mid_equal), "gap_equal": num(val.gap_equal),
             "verdict_equal": val.verdict_equal,
+            # 판정 문턱(로그) — **화면 눈금이 이 값으로 칸을 그린다**(ADR-0042).
+            # JS에 숫자를 옮겨 적지 않는 이유: 옛 5구간 막대가 정확히 그 짓을 하고 있었다.
+            # ±10%/±30%를 20/40/60/80% 자리에 그림으로 박아 뒀는데, 문턱이 바뀌자
+            # **막대만 옛 문턱을 계속 그렸다** — 삼성전자가 '적정 수준'인데 눈금은
+            # 고평가 칸을 가리켰다. 눈금은 자(scale)라 판정과 어긋나면 판정보다 먼저 읽힌다.
+            "verdict_threshold_log": num(VERDICT_LOG_THRESHOLD),
             # 문헌 순위가 허용하는 가중치 폭 (ADR-0041). 숫자만 내보내고 문장은 화면이
             # 만든다 — 이 값은 종목마다 다르므로 상수 문구를 JS에 적을 수 없다.
             "weight_range": {k: (num(v) if isinstance(v, (int, float)) and not isinstance(v, bool)

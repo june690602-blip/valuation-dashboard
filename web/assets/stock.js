@@ -133,7 +133,8 @@
      붙던 양 끝과 그 안쪽 둘이다(백테스트에서 가운데 셋이 구별되지 않았다 · ADR-0028). */
   var VERDICTS = ['저평가', '적정 수준', '고평가'];
   function vIdx(v) { var i = VERDICTS.indexOf(v); return i < 0 ? 1 : i; }
-  function vPos(v) { return [22, 50, 78][vIdx(v)]; }
+  // 괴리율이 없을 때만 쓰는 자리 — 각 칸의 **중앙**이다(칸 경계가 25·75이므로).
+  function vPos(v) { return [12.5, 50, 87.5][vIdx(v)]; }
   function vTone(v) { var i = vIdx(v); return i === 0 ? 'positive' : i === 1 ? 'neutral' : 'negative'; }
 
   /* ── 상태 ── */
@@ -910,7 +911,26 @@
     // 판정은 우리가 내린 판단이라 무채 잉크로만 쓴다. 방향은 문자와 눈금 위 위치가 말한다.
     var vColor = 'var(--ink)';
     var gp = v.gap == null ? null : Math.max(-0.4, Math.min(0.4, v.gap));
-    var mpos = gp == null ? pos : (50 - gp / 0.4 * 40);   // 괴리율(연속)→바 위치. +괴리(상승여력)=왼쪽(저평가)
+    /* 괴리율(연속) → 눈금 위치. +괴리(상승여력)=왼쪽(저평가).
+       **로그 공간에서 선형**이다 — 판정 문턱이 로그 대칭이라(ADR-0042) 여기서도 같은 자를
+       써야 칸 경계와 마커가 어긋나지 않는다. 표시 범위는 문턱의 두 배로 잡아, 문턱이
+       정확히 25%·75% 자리에 온다(`zoneEdge`).
+       ⚠ 옛 코드는 `50 - gap/0.4*40`이었다. 그건 ±10%/±30% 문턱을 20/40/60/80% 자리에
+       **그림으로 박아 둔 것**이라, 문턱이 바뀌자 막대만 옛 문턱을 계속 그렸다 —
+       삼성전자가 '적정 수준'인데 눈금은 고평가 칸을 가리켰다. 그래서 숫자를 여기 적지 않고
+       파이썬이 보낸 `verdict_threshold_log`로 그린다.
+       클램프도 없었다 — 괴리율이 크면 마커가 막대 밖으로 나갔다(gap +200%면 left:-150%). */
+    var thrLog = (v.verdict_threshold_log != null && v.verdict_threshold_log > 0)
+      ? v.verdict_threshold_log : 0.897;
+    var zoneEdge = 25;                                  // 문턱이 놓이는 자리(%) — 좌 25 / 우 75
+    function gapToPos(g) {
+      if (g == null || !(g > -1)) return null;          // gap ≤ −1은 적정가 0 이하 — 정의되지 않는다
+      var lg = Math.log(1 + g);
+      var p = 50 - (lg / (thrLog * 2)) * 50;            // 문턱(±thrLog) → 25% / 75%
+      return Math.max(2, Math.min(98, p));              // 막대 밖으로 나가지 않게
+    }
+    var mpos = gapToPos(gp);
+    if (mpos == null) mpos = pos;
     var gapAbs = v.gap == null ? null : Math.abs(v.gap * 100).toFixed(1);
     var verdictLine = v.verdict === '적정 수준'
       ? '현재가가 펀더멘털 적정가 범위 안에 있습니다.'
@@ -1045,8 +1065,12 @@
               '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--ink);font-weight:700' : '') + '">저평가</span>' +
               '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">적정</span>' +
               '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--ink);font-weight:700' : '') + '">고평가</span></div>' +
+            // 칸 셋의 **너비가 곧 문턱**이다 — 25 / 50 / 25. 옛 막대는 다섯 칸이었고 그
+            // 경계가 ±10%/±30%를 뜻했다(ADR-0042 이전). 판정이 셋이 됐으니 칸도 셋이다.
             '<div style="display:flex;height:13px;border-radius:var(--radius-pill);overflow:hidden">' +
-              '<span style="flex:1;background:var(--dv-green);opacity:.82"></span><span style="flex:1;background:var(--dv-green);opacity:.45"></span><span style="flex:1;background:var(--paper-3)"></span><span style="flex:1;background:var(--dv-clay);opacity:.45"></span><span style="flex:1;background:var(--dv-clay);opacity:.82"></span></div>' +
+              '<span style="flex:' + zoneEdge + ';background:var(--dv-green);opacity:.82"></span>' +
+              '<span style="flex:' + (100 - zoneEdge * 2) + ';background:var(--paper-3)"></span>' +
+              '<span style="flex:' + zoneEdge + ';background:var(--dv-clay);opacity:.82"></span></div>' +
             '<div style="position:absolute;left:' + mpos + '%;top:26px;transform:translateX(-50%);width:2px;height:22px;background:var(--ink)"></div>' +
             '<div style="position:absolute;left:' + mpos + '%;top:22px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:var(--ink);border:2px solid var(--paper);box-shadow:var(--shadow-sm)"></div>' +
             '<div style="position:absolute;left:' + mpos + '%;top:51px;transform:translateX(-50%);white-space:nowrap;font-family:' + mono + ';font-size:10.5px;font-weight:700;color:var(--ink)">현재가</div></div>' +
@@ -1180,12 +1204,26 @@
       }
       return '';
     }).join('');
-    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">펀더멘털 적정가 (' + verdictMarks('', ' ') + '가중평균) <span class="val-sub">— 판정 근거</span></span><span></span><span class="mono r" style="font-size:14px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
+    /* 아래 두 행의 `— 판정 근거` / `— 병기`는 **역할 표시**다(어느 값이 판정을 내고 어느
+       값이 참고인가). 그런데 이 표의 넷째 칸 제목이 하필 **'근거'**여서, 같은 행에서
+       '근거'가 두 뜻으로 읽힌다 — 사용자가 "판정 근거라고 써 있는데 눌러도 아무 일도
+       안 난다"고 신고한 자리다. 방법 행들은 그 칸에 `어떻게 나온 값인가` 접힘이 있는데
+       합계 행만 괴리율이 들어가 있어서 더 그렇게 보인다.
+       접힘을 하나 더 만들지 않고(그 칸의 내용은 아래 `계산식과 출처` 접힘이 이미 갖고 있다)
+       **역할 표시에 말풍선을 달아** 눌러 볼 것이 있다는 기대에 실제로 답한다.
+       `.na`는 이 코드베이스의 표준 말풍선이다(점선 밑줄 + cursor:help + hover/focus). */
+    var totalTip = '이 표에서 **판정을 내는 값**입니다. ' + (weightBreak(v.weights) || '가중평균')
+      + '으로 종합했고, 현재가와 이 값의 차이가 곧 괴리율입니다. '
+      + '가중치와 계산식은 아래 “계산식과 출처” 접힘에 있습니다.';
+    var consTip = '판정에는 **넣지 않는** 참고값입니다. ④ 컨센서스 선행 이익까지 더해 본 것으로, '
+      + '펀더멘털 값과의 차이가 곧 시장이 기대하는 실적 변화의 크기입니다.';
+    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">펀더멘털 적정가 (' + verdictMarks('', ' ') + '가중평균) <span class="val-sub na" tabindex="0" data-tip="' + esc(totalTip.replace(/\*\*/g, '')) + '">— 판정 근거</span></span><span class="mono r" style="font-size:12.5px;color:var(--ink-2)">' + (v.fair_low != null && v.fair_high != null ? won(v.fair_low) + '–' + won(v.fair_high) : '') + '</span><span class="mono r" style="font-size:14px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
     // 컨센서스 반영 값은 같은 표 안, 종합 바로 아래 한 행으로 선다. 별도 탭·별도 카드로
     // 떼면 두 값을 나란히 볼 수 없고, 이 도구에서 읽을 거리가 가장 많은 것은 둘의 차이다.
     if (v.fair_mid_consensus != null) {
       total += '<div class="row val-consrow" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' +
-        '<span class="val-consname">컨센서스 반영 (④ 포함) <span class="val-sub">— 병기</span></span><span></span>' +
+        '<span class="val-consname">컨센서스 반영 (④ 포함) <span class="val-sub na" tabindex="0" data-tip="' + esc(consTip.replace(/\*\*/g, '')) + '">— 병기</span></span>' +
+        '<span class="mono r" style="font-size:12.5px;color:var(--ink-3)">' + (v.fair_low_consensus != null && v.fair_high_consensus != null ? won(v.fair_low_consensus) + '–' + won(v.fair_high_consensus) : '') + '</span>' +
         '<span class="mono r val-consval">' + won(v.fair_mid_consensus) + '</span>' +
         '<span class="val-consgap">현재가 대비 ' + fmtSigned(v.gap_consensus) +
         (v.consensus_premium != null ? ' · 펀더멘털 대비 ' + fmtSigned(v.consensus_premium) : '') + '</span></div>';
