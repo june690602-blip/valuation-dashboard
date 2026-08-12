@@ -49,3 +49,5 @@
 | [0036](0036-confidence-cap-measured-as-independence-fraction.md) | 신뢰도 상한을 절대 축 수가 아니라 독립분으로 잰다 — 문턱이 단위를 잃었다 | 채택됨 |
 | [0037](0037-the-panel-is-reproducible-the-inputs-were-not.md) | 패널은 재현된다 — 재현되지 않은 것은 입력이었다 (ADR-0035 정정) | 채택됨 |
 | [0039](0039-rim-persistence-from-literature.md) | ③ 지속계수를 문헌에서 못 박는다 (0.21/0.62/1.00) — 그리고 판정의 자를 결과 뒤에 바꿨다 | 채택됨 |
+| [0040](0040-close-the-open-top-roe-bucket.md) | ROE 최상위 칸이 열려 있던 것을 25%에서 닫는다 — 이익이 세 배가 돼도 배수가 안 움직였다 | 채택됨 |
+| [0038](0038-street-targets-are-not-an-answer-key.md) | 증권가 목표주가는 답안지가 아니다 — ④의 타깃 배수는 지금 판단할 수 없다 (3단계를 접는다) | 채택됨 |

@@ -27,9 +27,13 @@ BASELINE_R2 = {"pbr": 0.434, "per": 0.395, "psr": 0.351, "ev_ebitda": 0.181}
 # `warranted.LEG_MAE`에 지금 박혀 있는 값. 새로 잰 값과 나란히 찍어 **무엇이 얼마나
 # 달라졌는지** 보이게 한다 — #115가 규모 항을 스플라인으로 바꾼 뒤 이 표를 다시 재는 것이
 # 이 스크립트를 고친 이유다(ADR-0022).
+# ⚠ 이 표는 `warranted.LEG_MAE`를 **손으로 베낀 것**이라 쉽게 어긋난다. 실제로 어긋나
+# 있었다(KR per 0.572 대 0.583 · US per 0.374 대 0.406) — 그래서 실측이 코드와 같은데도
+# "화면 문구가 바뀐다" 경고가 떴다. 2026-08-10 ADR-0040에서 맞춰 두었다.
+# **근본 해결은 LEG_MAE를 임포트하는 것이다** — 별건으로 남긴다.
 CURRENT_LEG_MAE = {
-    "KR": {"pbr": 0.563, "per": 0.572, "psr": 0.921, "ev_ebitda": 0.639},
-    "US": {"pbr": 0.470, "per": 0.374},
+    "KR": {"pbr": 0.568, "per": 0.582, "psr": 0.897, "ev_ebitda": 0.671},
+    "US": {"pbr": 0.426, "per": 0.408, "psr": 0.656, "ev_ebitda": 0.381},
 }
 
 
@@ -44,6 +48,9 @@ def main() -> int:
     print("─" * 90)
     bad = 0
     new_mae: dict[str, float] = {}
+    # 잔차 사분위 — 시나리오의 비관/낙관 폭이 여기서 온다(설계 2026-08-10). MAE와 같은
+    # 벡터에서 나오지만 자의 종류가 다르다. 두 값을 나란히 찍어 폭 차이를 보이게 한다.
+    new_q: dict[str, tuple[float, float]] = {}
     for leg, (lo, hi) in LEG_BOUNDS.items():
         v = pd.to_numeric(snap.get(leg), errors="coerce")
         if v is None:
@@ -80,6 +87,7 @@ def main() -> int:
             mae_txt, ins_txt = f"{'—':>9}", f"{'—':>11}"
         else:
             new_mae[leg] = lo["mae"]
+            new_q[leg] = (lo["resid_q25"], lo["resid_q75"])
             mae_txt, ins_txt = f"{lo['mae']:>9.3f}", f"{lo['mae_in_sample']:>11.3f}"
         print(f"{leg:<12}{len(d):>7}{rm:>11.3f}{rr:>10.3f}"
               f"{coef['beta_size']:>+10.3f}{'[확인]' if good else '[문제]':>8}"
@@ -95,6 +103,20 @@ def main() -> int:
             cur = CURRENT_LEG_MAE.get(market, {}).get(leg)
             if cur is not None and abs(v - cur) / cur >= 0.05:
                 print(f"    ※ {leg}: {cur:.3f} → {v:.3f} ({(v/cur - 1):+.0%}) — 화면 문구가 바뀐다")
+    if new_q:
+        print("\n잔차 사분위 — **시나리오의 비관/낙관 폭**이 여기서 온다(설계 2026-08-10).")
+        print("MAE와 같은 잔차 벡터에서 나오지만 자의 종류가 다르다. 배수는")
+        print("`적정배수 × exp(q25)` ~ `적정배수 × exp(q75)`로 벌어진다.")
+        print(f'\n    "{market}": {{'
+              + ", ".join(f'"{k}": ({a:.3f}, {b:.3f})' for k, (a, b) in new_q.items())
+              + "},")
+        for leg, (a, b) in new_q.items():
+            mae = new_mae.get(leg)
+            # 2×MAE로 쟀을 때의 폭을 나란히 찍는다 — 둘이 얼마나 다른지가 설계에서
+            # 사분위를 고른 이유다. 이 두 줄이 붙어 있어야 다음 사람이 다시 안 묻는다.
+            mae_txt = (f"  (2×MAE로 재면 ×{np.exp(-mae):.3f} ~ ×{np.exp(mae):.3f})"
+                       if mae is not None else "")
+            print(f"    ※ {leg}: 배수 ×{np.exp(a):.3f} ~ ×{np.exp(b):.3f}{mae_txt}")
     return 1 if bad else 0
 
 
