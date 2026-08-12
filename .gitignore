@@ -4,6 +4,9 @@
 
 # 캐시·파생물
 data/cache/
+# 페이로드 골든(check_payload_parity.py) — 종목마다 400KB고 시세가 섞여 있어 며칠이면
+# 스테일이다. 재현 수단은 스크립트지 이 파일이 아니다.
+data/parity/
 data/feedback.jsonl
 gemini_context.md
 __pycache__/

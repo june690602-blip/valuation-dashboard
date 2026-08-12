@@ -69,7 +69,11 @@ def _wrap(mod, name: str, label: str | None = None) -> None:
 _DATA_TARGETS = [
     ("src.data.base", ["extract_financials", "extract_ttm", "fetch_prices",
                        "fetch_prices_raw", "fetch_price_frame", "fetch_index_prices",
-                       "build_peer_table", "fetch_info_metrics", "fetch_company_profile"]),
+                       "fetch_price_pair", "build_peer_table", "fetch_info_metrics",
+                       "fetch_company_profile"]),
+    # 병렬 그룹의 **벽시계 시간**. 이 값이 그룹 구성원들의 합보다 한참 작으면 실제로
+    # 겹쳐 돌았다는 뜻이고, 합에 가까우면 어딘가에서 줄을 서 있다는 뜻이다(ADR-0045).
+    ("src.data.parallel", ["gather"]),
     ("src.data.naver", ["fetch_naver_fundamental", "fetch_company_overview"]),
     ("src.data.opendart", ["get_dart_financials"]),
     ("src.data.news", ["fetch_news", "fetch_topic_news", "_google_news"]),
@@ -89,9 +93,12 @@ _PURE_TARGETS = [
 
 # provider가 `from .base import ...`로 당겨 간 이름들 — 여기도 심어야 실제로 걸린다.
 _PROVIDER_REEXPORTS = [
-    "extract_financials", "extract_ttm", "fetch_prices", "fetch_prices_raw",
+    "extract_financials", "extract_ttm", "fetch_price_pair",
     "fetch_index_prices", "build_peer_table", "fetch_naver_fundamental",
     "get_dart_financials", "get_kr_listing", "select_peers_kr", "fetch_info_metrics",
+    # provider가 `from .parallel import gather`로 당겨 갔다 — 여기 안 심으면 병렬 그룹의
+    # 벽시계 시간이 표에서 통째로 빠진다(이 목록이 존재하는 이유 그 자체다).
+    "gather",
 ]
 
 

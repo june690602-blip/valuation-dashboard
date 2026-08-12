@@ -2164,7 +2164,7 @@
      추측이 아니라 순서에서 나오는 사실이다. 계수는 캐시(24시간)가 살아 있으면
      보고 자체가 없으니, 응답이 오면 "캐시"로 적고 함께 닫는다. */
   var LD_ROWS = ['ldFetch', 'ldPeers', 'ldCoef'];
-  var LD_STAGE = { '피어 수집': 1, '업종 회귀 계수': 2 };
+  var LD_STAGE = { '자료 수집': 0, '피어 수집': 1, '업종 회귀 계수': 2 };
   var _ldT0 = 0, _ldTick = null;
 
   function ldReset() {

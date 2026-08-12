@@ -16,6 +16,35 @@ def set_reporter(cb) -> None:
     _local.cb = cb
 
 
+def current_reporter():
+    """이 스레드에 걸린 콜백(없으면 None). 워커에 넘겨 심을 때 쓴다."""
+    return getattr(_local, "cb", None)
+
+
+def bind_reporter(fn, cb=None):
+    """부모 스레드의 리포터를 **워커 안에서도 살려 주는** 래퍼.
+
+    리포터가 `threading.local()`이라 워커 스레드에는 따라가지 않는다. 지금까지
+    `build_peer_table`이 멀쩡히 동작한 것은 `report()`를 **메인 스레드에서만** 부르기
+    때문이고(워커는 `fetch_info_metrics`만 돈다), 수집 자체를 워커로 옮기면 그 전제가
+    깨져 **병렬 구간에서 진행 표시가 조용해진다.**
+
+    **부모 스레드에서 불러야 한다** — 감쌀 때의 스레드에서 콜백을 읽어 가기 때문이다.
+    풀의 워커는 재사용되므로 끝나면 반드시 지운다(안 지우면 다음 태스크가 남의 리포터를
+    물려받아, 이미 끝난 분석의 진행률을 덮어쓴다).
+    """
+    cb = current_reporter() if cb is None else cb
+
+    def inner(*a, **k):
+        set_reporter(cb)
+        try:
+            return fn(*a, **k)
+        finally:
+            set_reporter(None)
+
+    return inner
+
+
 def report(stage: str, done: int, total: int) -> None:
     """진행 보고 — 리포터가 없으면 아무 일도 하지 않는다(데이터 계층 부담 0)."""
     cb = getattr(_local, "cb", None)
