@@ -12,7 +12,7 @@
 후보 셋 (사전등록 §후보)
 ------------------------
     ㉠ 현행 5등급      _verdict(gap) 그대로 · 문턱 ±10% / ±30%
-    ㉡ 3등급 · 오차유도  |log(적정가/주가)| ≥ m,  m = 0.671 (KR LEG_MAE 최대 = ev_ebitda)
+    ㉡ 3등급 · 오차유도  |log(적정가/주가)| ≥ m,  m = 0.897 (KR LEG_MAE 최대 = psr)
     ㉢ 3등급 · 분위     각 시점 단면에서 gap 상위 20% / 하위 20%   ← **채택 후보가 아니다**
 
 ㉢을 채택하지 않는 이유는 통계가 아니라 주장이다 — *"내재가치보다 싸다"*가
@@ -42,13 +42,21 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.stdout.reconfigure(encoding="utf-8")
 
-from src.analysis.valuation import VERDICTS, _verdict  # noqa: E402
 from src.analysis.warranted import LEG_MAE  # noqa: E402
+
+# ⚠ 옛 5등급을 **여기 박아 둔다.** `valuation.VERDICTS`를 부르면 안 된다 —
+# ADR-0042가 그것을 3등급으로 바꿨으므로, 임포트해 쓰면 이 스크립트의 '현행(㉠)' 칸이
+# 조용히 새 규칙이 되어 **비교가 자기 자신과의 비교로 무너진다.** 이 스크립트의 일은
+# 그 결정을 낳은 비교를 언제든 다시 만드는 것이다.
+OLD_VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
+OLD_LO, OLD_HI = 0.10, 0.30
 
 OK, BAD = "[통과]", "[실패]"
 
 # 사전등록 §㉡ — 종목별 최악 다리를 쓸 수 없어(패널에 다리 구성이 없다) 상수 하나를 쓴다.
-ERROR_M = max(LEG_MAE["KR"].values())          # 0.671 · ev_ebitda
+ERROR_M = max(LEG_MAE["KR"].values())          # 0.897 · psr — **손으로 적지 않는다**
+# (사전등록 원문이 괄호에 0.671/ev_ebitda라고 잘못 적었다. 규칙은 "최대"였고 이 줄이
+#  그 규칙이라 측정은 처음부터 0.897로 돌았다 — 사전등록 §정정 참조.)
 TRI = ["고평가", "적정 수준", "저평가"]         # 나쁨 → 좋음 순
 EFFECT_FLOOR = 0.03                             # 사전등록 §성공선 2 — +3%p
 # 사전등록 §성공선 3 — (필요 시점 수, 그중 양수여야 하는 최소 개수)
@@ -57,7 +65,11 @@ ADJUDICATE = ("3년", "5년")                     # 둘 다 통과해야 채택
 
 
 def label_current(gap: float) -> str:
-    return _verdict(gap)
+    """옛 5등급 (±10%/±30%) — ADR-0042 이전의 판정. 위 OLD_* 주석을 볼 것."""
+    return (OLD_VERDICTS[0] if gap >= OLD_HI else
+            OLD_VERDICTS[1] if gap >= OLD_LO else
+            OLD_VERDICTS[2] if gap > -OLD_LO else
+            OLD_VERDICTS[3] if gap > -OLD_HI else OLD_VERDICTS[4])
 
 
 def label_error(gap: float) -> str:
@@ -160,7 +172,7 @@ def main() -> int:
     d["㉡ 오차유도3등급"] = d["gap"].map(label_error)
     d["㉢ 분위3등급"] = label_quantile(d)
 
-    cands = [("㉠ 현행5등급", VERDICTS[::-1], True),      # 나쁨 → 좋음 순으로 뒤집는다
+    cands = [("㉠ 현행5등급", OLD_VERDICTS[::-1], True),      # 나쁨 → 좋음 순으로 뒤집는다
              ("㉡ 오차유도3등급", TRI, True),
              ("㉢ 분위3등급", TRI, False)]                # False = 채택 후보 아님
 

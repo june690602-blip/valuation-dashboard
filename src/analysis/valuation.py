@@ -54,18 +54,43 @@ from .scoring import comparable_peers, peer_median
 from .warranted import (NEFF_FRAC_LOW, NEFF_FRAC_MID, effective_axes,
                         leg_error)
 
-VERDICTS = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
+# 판정 3등급 — **순서가 곧 크기다**(좋음 → 나쁨). ADR-0042가 5등급에서 줄였다.
+# 옛 5등급은 `크게 저평가 / 저평가 / 적정 수준 / 고평가 / 크게 고평가`였고, 백테스트에서
+# **가운데 셋이 구별되지 않았다**(3년 중앙값 −19.0 / −18.5 / −11.8 · ADR-0028).
+VERDICTS = ["저평가", "적정 수준", "고평가"]
 # 신뢰도 등급 — **순서가 곧 크기다**(ADR-0022). 흩어짐이 낸 등급과 실질 축 수가 씌운
 # 상한 중 낮은 쪽을 쓰므로, 두 값을 비교할 자가 필요하다.
 CONFIDENCE_ORDER = ["낮음", "중간", "높음"]
 
+# 판정 문턱 — **로그 공간에서 대칭**이다 (ADR-0042).
+#
+# 값의 출처는 KR `LEG_MAE` 중 **가장 나쁜 다리**(psr)의 로그 MAE다. 로그로 거는 이유는
+# 괴리율이 비(比)라 원 스케일에서 비대칭이기 때문이고, ADR-0017의 안전마진 계산이 이미
+# 그 비대칭을 명시한다. 원 스케일로는 저평가 gap ≥ **+145.2%** · 고평가 gap ≤ **−59.2%**다.
+# **손으로 적지 않는다** — `max(LEG_MAE["KR"].values())`와 같아야 하고 테스트가 지킨다.
+#
+# ⚠ **이 값이 최적이라 고른 것이 아니다.** ADR-0042의 선택성 진단이 밝힌 것 —
+# 같은 비중을 `gap` 순위로만 잘라도 간격이 거의 같았다(3년 +1.2%p · 5년 −0.1%p).
+# 즉 이긴 것은 '오차에 맞춘 문턱'이 아니라 **'극단을 좁게 잡은 것'** 자체다.
+# 이 값은 **그 좁힘을 지어내지 않고 정하는 방법**으로 쓴 것이고, 이 상수를 근거로
+# "문턱을 오차에 교정했다"고 말하면 안 된다.
+#
+# 한국에서만 쟀다(ADR-0030). US의 가장 나쁜 다리는 psr 0.656으로 **27% 낮다** —
+# 같은 상수를 미국에 그대로 쓰고 있고 그쪽에서는 검증되지 않았다.
+VERDICT_LOG_THRESHOLD = 0.897
+
 
 def _verdict(gap: float) -> str:
-    """괴리율 → 5단계 판정 (±10%/±30% 기준)."""
-    return (VERDICTS[0] if gap >= 0.30 else
-            VERDICTS[1] if gap >= 0.10 else
-            VERDICTS[2] if gap > -0.10 else
-            VERDICTS[3] if gap > -0.30 else VERDICTS[4])
+    """괴리율 → 3등급 판정 (로그 ±0.671 · ADR-0042).
+
+    `gap ≤ −1`은 적정가가 0 이하라는 뜻이라 정상 경로에서는 나오지 않지만
+    (`fair_mid > 0`), 로그가 정의되지 않으므로 막아 둔다 — 예외 대신 '고평가'다.
+    """
+    if gap <= -1:
+        return VERDICTS[2]
+    lg = float(np.log1p(gap))
+    return (VERDICTS[0] if lg >= VERDICT_LOG_THRESHOLD else
+            VERDICTS[2] if lg <= -VERDICT_LOG_THRESHOLD else VERDICTS[1])
 
 # 방법별 가중치 — 가격 설명력 순위(선행이익 > 이익 멀티플 > 장부가 기반)를 인코딩한 기본값.
 # 근거: Liu·Nissim·Thomas(2002, JAR, 미국)와 그 국제 확장(2007, FAJ, 10개국)에서

@@ -125,12 +125,20 @@ def roe_rule(kind: str, peer_roe: float | None = None):
     return f
 
 
-def verdict_at(gap: float | None, lo: float, hi: float) -> str | None:
-    """임계를 바꾼 5단계 판정 (기본은 lo=0.10, hi=0.30)."""
+def verdict_at(gap: float | None, m: float) -> str | None:
+    """로그 문턱을 `m`으로 바꿨을 때의 3등급 판정 (ADR-0042).
+
+    **기준값은 이 함수로 만들지 않는다** — `V._verdict`를 그대로 부른다. 예전에는 여기서
+    현행 임계(0.10/0.30)를 손으로 다시 적었는데, 그러면 판정 규칙이 바뀔 때 이 스크립트의
+    '기준'만 조용히 옛 규칙으로 남는다. 흔든 값만 여기서 만든다.
+    """
     if gap is None:
         return None
-    return (V.VERDICTS[0] if gap >= hi else V.VERDICTS[1] if gap >= lo else
-            V.VERDICTS[2] if gap > -lo else V.VERDICTS[3] if gap > -hi else V.VERDICTS[4])
+    if gap <= -1:
+        return V.VERDICTS[2]
+    lg = float(np.log1p(gap))
+    return (V.VERDICTS[0] if lg >= m else
+            V.VERDICTS[2] if lg <= -m else V.VERDICTS[1])
 
 
 def aggregate(estimates, weights: dict, price: float):
@@ -143,7 +151,7 @@ def aggregate(estimates, weights: dict, price: float):
     w = w / w.sum()
     mid = float(np.dot(w, [e.mid for e in estimates]))
     gap = mid / price - 1
-    return mid, gap, verdict_at(gap, 0.10, 0.30)
+    return mid, gap, V._verdict(gap)
 
 
 def confidence_of(mids) -> str | None:
@@ -243,10 +251,13 @@ def shake(d, ind, cc, val, rf, mrp) -> list[dict]:
     for f in (10.0, 40.0):
         rerun("피어 규모필터", f"×20→×{f:.0f}", comparable_peers=peers_with_factor(f))
 
-    # ⑦ 판정 임계 (현행 ±10%/±30%)
-    for lo, hi in ((0.15, 0.35), (0.05, 0.20)):
-        add("판정 임계", f"±10/30→±{lo:.0%}/{hi:.0%}", val.fair_mid, val.gap,
-            verdict_at(val.gap, lo, hi))
+    # ⑦ 판정 임계 (현행 로그 ±0.671 · ADR-0042)
+    # ADR-0042가 "0.671이 최적이라 고른 것이 아니다"라고 못박았으므로, 이 축이 재는 것은
+    # **그 값이 얼마나 안 중요한가**다. 위아래로 넉넉히 흔든다.
+    base_m = V.VERDICT_LOG_THRESHOLD
+    for m in (base_m * 0.7, base_m * 1.3):
+        add("판정 임계", f"log±{base_m:.2f}→±{m:.2f}", val.fair_mid, val.gap,
+            verdict_at(val.gap, m))
 
     # ⑧ RIM ROE 규칙 (#40)
     peer_roe = None

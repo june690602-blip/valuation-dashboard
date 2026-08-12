@@ -128,10 +128,13 @@
     return body;
   }
 
-  var VERDICTS = ['크게 저평가', '저평가', '적정 수준', '고평가', '크게 고평가'];
-  function vIdx(v) { var i = VERDICTS.indexOf(v); return i < 0 ? 2 : i; }
-  function vPos(v) { return [12, 31, 50, 69, 88][vIdx(v)]; }
-  function vTone(v) { var i = vIdx(v); return i <= 1 ? 'positive' : i === 2 ? 'neutral' : 'negative'; }
+  /* 판정 3등급 (ADR-0042). 파이썬 `valuation.VERDICTS`와 **순서까지** 같아야 한다 —
+     `check_math_parity`가 그것을 지킨다. 옛 5등급에서 줄었고, 사라진 것은 '크게'가
+     붙던 양 끝과 그 안쪽 둘이다(백테스트에서 가운데 셋이 구별되지 않았다 · ADR-0028). */
+  var VERDICTS = ['저평가', '적정 수준', '고평가'];
+  function vIdx(v) { var i = VERDICTS.indexOf(v); return i < 0 ? 1 : i; }
+  function vPos(v) { return [22, 50, 78][vIdx(v)]; }
+  function vTone(v) { var i = vIdx(v); return i === 0 ? 'positive' : i === 1 ? 'neutral' : 'negative'; }
 
   /* ── 상태 ── */
   var state = { market: 'KR', query: '035420', kind: 'stock', pricePeriod: '1Y', priceMode: 'abs', chartType: 'line', ma: { m20: true, m60: true, m120: false }, hover: null, bandMetric: 'PER', scnBear: -0.15, scnBull: 0.15, scnMult: 0, peerEx: [], peerAdd: [], _editKey: '' };
@@ -1683,7 +1686,8 @@
     var v = D.verdict, m = D.meta, p = D.price;
     var bulls = (D.commentary || []).filter(function (c) { return c.kind === 'good'; }).slice(0, 4);
     var bears = (D.commentary || []).filter(function (c) { return c.kind === 'bad' || c.kind === 'warn'; }).slice(0, 4);
-    var stance = vIdx(v.verdict) <= 0 ? '큰 저평가 관찰' : vIdx(v.verdict) === 1 ? '저평가 관찰' : vIdx(v.verdict) === 2 ? '적정 범위 관찰' : vIdx(v.verdict) === 3 ? '고평가 관찰' : '큰 고평가 관찰';
+    // 3등급이 된 뒤로는 손으로 분기할 것이 없다 — 등급 어휘를 그대로 쓴다(ADR-0042).
+    var stance = ['저평가 관찰', '적정 범위 관찰', '고평가 관찰'][vIdx(v.verdict)];
     var up = v.gap != null && v.gap >= 0;
     var target = (v.fair_low != null && v.fair_high != null) ? won(v.fair_low) + '~' + won(v.fair_high) : '—';
     var upside = (v.fair_low != null && v.fair_high != null && m.price) ? fmtSigned(v.fair_low / m.price - 1) + '~' + fmtSigned(v.fair_high / m.price - 1) : '';

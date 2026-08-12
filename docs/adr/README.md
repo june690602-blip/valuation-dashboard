@@ -27,7 +27,7 @@
 | [0014](0014-relative-value-by-regression.md) | ①을 피어 중앙값이 아니라 업종·규모·수익성 회귀로 낸다 | 채택됨 |
 | [0015](0015-normalized-earnings-axis.md) | 정규화 이익(장기 평균)을 판정의 네 번째 축으로 더한다 | 채택됨 (창 5년 한계는 [0025]가 대체) |
 | [0016](0016-no-dcf-epv-instead.md) | DCF를 짓지 않는다 — EPV가 더 넓고, 축을 늘리기 전에 할 것이 있다 | 채택됨 |
-| [0017](0017-estimation-error-and-margin-of-safety.md) | 추정 오차와 안전마진을 화면에 낸다 (판정 문턱은 그대로) | 채택됨 |
+| [0017](0017-estimation-error-and-margin-of-safety.md) | 추정 오차와 안전마진을 화면에 낸다 (판정 문턱은 그대로) | 일부 대체됨 (문턱 → 0042) |
 | [0018](0018-declare-what-the-verdict-rests-on.md) | 이 판정이 무엇에 기대는지 화면에 밝힌다 | 채택됨 |
 | [0019](0019-client-math-parity-by-executing-the-browser-code.md) | 이식된 수식은 한 파일에 모으고, 브라우저가 받는 그 파일을 실행해 대조한다 | 채택됨 |
 | [0020](0020-one-ruler-for-multiples-on-screen.md) | 화면의 배수는 공시값 한 벌로 재고, 자가 다르면 비교하지 않는다 | 채택됨 |
@@ -52,3 +52,4 @@
 | [0040](0040-close-the-open-top-roe-bucket.md) | ROE 최상위 칸이 열려 있던 것을 25%에서 닫는다 — 이익이 세 배가 돼도 배수가 안 움직였다 | 채택됨 |
 | [0038](0038-street-targets-are-not-an-answer-key.md) | 증권가 목표주가는 답안지가 아니다 — ④의 타깃 배수는 지금 판단할 수 없다 (3단계를 접는다) | 채택됨 |
 | [0041](0041-weight-width-is-measured-per-stock.md) | 가중치 폭은 종목마다 잰다 — 인계문의 두 탐침은 자기가 말하는 순위를 어겼다 | 채택됨 |
+| [0042](0042-verdict-thresholds-what-passed-was-selectivity.md) | 판정을 3등급으로 넓힌다 — 다만 이긴 것은 '오차 문턱'이 아니라 '극단을 좁게 잡은 것'이었다 | 채택됨 |

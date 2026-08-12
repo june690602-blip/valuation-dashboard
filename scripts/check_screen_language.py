@@ -107,7 +107,7 @@ OBSERVED = ("싼 구간", "비싼 구간", "보통 구간", "싼 편", "비싼 �
 #                 지금은 해당 지점이 없다 — ETF 눈금이 여기 있었으나 R3에서 observed로 정리했다.
 LAYER_SITES = [
     ("src/analysis/valuation.py", r"VERDICTS = \[", 1, "intrinsic",
-     "주식 5단계 판정 — 적정가 4방법 가중 종합 대비"),
+     "주식 3등급 판정 — 적정가 가중 종합(①③⑤) 대비 (ADR-0042로 5등급에서 줄었다)"),
     ("src/analysis/etf.py", r"def _verdict_premium", 12, "observed",
      "ETF 괴리 — NAV는 우리가 추정한 값이 아니라 공표된 값이다"),
     ("src/analysis/etf.py", r"def _dividend_lead", 6, "observed",

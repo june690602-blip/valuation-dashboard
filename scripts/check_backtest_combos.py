@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 
+from src.analysis import valuation as V                                 # noqa: E402
 from src.analysis.valuation import METHOD_WEIGHTS                       # noqa: E402
 
 DATA = ROOT / "data" / "backtest"
@@ -118,7 +119,10 @@ POSTHOC = {
 #
 # 분모로 나눠 쓰는 이유: `fscore_max`가 9·8·7로 섞인다(실측 2025년 644/183/31).
 # 6/9와 6/8을 같은 값으로 두면 데이터가 얇은 종목이 체계적으로 낮은 점수를 받는다.
-BIG_UNDER = "크게 저평가"          # VERDICTS[0] — 표본의 42%가 여기 있다(ADR-0028)
+# 가장 좋은 판정 = VERDICTS[0]. 손으로 적지 않는다 — ADR-0042가 5등급을 3등급으로
+# 줄이면서 옛 이름("크게 저평가")이 어디에도 없는 값이 됐고, 그러면 이 바구니가
+# **조용히 빈 채로** F2 가설을 "표본 없음"으로 통과시킨다.
+BIG_UNDER = V.VERDICTS[0]          # 옛 5등급에서는 "크게 저평가"(표본의 42% · ADR-0028)
 FS_HIGH, FS_LOW = (7, 9), (0, 3)   # 사전등록 개정 4가 못 박은 바구니. **고치지 않는다**
 FS_MIN_BUCKET = 15                 # 한쪽 바구니가 이보다 얇으면 그 시점은 못 잰다
 
@@ -443,7 +447,9 @@ def main() -> int:
     d = panel[panel["date"].dt.year.isin(OUT_SAMPLE)].dropna(subset=["verdict", "fwd_12m"])
     if len(d):
         g = d.groupby("verdict")["fwd_12m"].agg(["count", "mean", "median"])
-        order = ["크게 저평가", "저평가", "적정 수준", "고평가", "크게 고평가"]
+        # 판정 어휘를 손으로 적지 않는다 — ADR-0042가 5등급을 3등급으로 줄였을 때
+        # 여기 손으로 적힌 목록이 통째로 빈 표를 냈다. 좋음 → 나쁨 순은 VERDICTS 순서다.
+        order = list(V.VERDICTS)
         print("\n[판정] 화면의 판정별 이후 12개월 수익률 — 검증기간")
         print(f"{'판정':<12}{'종목수':>7}{'평균':>9}{'중앙':>9}")
         print("─" * 38)
