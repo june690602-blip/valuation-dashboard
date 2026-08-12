@@ -3,6 +3,23 @@
 > 2026-08-13 작성. **이 문서 하나만 읽고 시작할 수 있게 쓴다.**
 > 재현: `python scripts/check_load_timing.py KR 005930`
 
+> ## ✅ 끝났습니다 — [ADR-0045](adr/0045-parallelize-the-load-path.md)
+>
+> 1~5단계 전부 했습니다. 실측(같은 종목·같은 캐시 상태 A/B):
+> **KR warm 4.22s → 2.10s · KR 뉴스 캐시 끊김 5.68s → 2.98s · US warm 4.00s → 1.86s.**
+> 합격선(페이로드 불변)은 양방향으로 확인했습니다 — `check_payload_parity.py`.
+>
+> **⚠ 아래 본문을 그대로 인용하지 마세요.** 사실이 달랐던 두 곳이 있습니다:
+>
+> | 본문 | 실제 |
+> |---|---|
+> | §2 *"산업 뉴스 질의가 KRX/GICS 원본이 된다 — 행동이 바뀌는 유일한 지점"* | **바꾸지 않았습니다.** 그 교환을 받을 이유가 없었습니다 — 거래소 라벨은 ADR-0013이 AI 분류를 넣은 바로 그 이유이고(삼성전자 = '통신 및 방송 장비 제조업'), 합격선이 페이로드 불변입니다. **셋 중 둘만 미리 받고 산업 질의는 조인 뒤에 남겼습니다.** |
+> | §3 *"`load`에서 독립인 것들을 한 그룹으로"* (KR·US 같은 그림) | **US는 그럴 수 없습니다.** `_ai_classify_us`(이름·업종)와 `extract_ttm`(주식수)이 전부 `fetch_info_metrics`에 걸려 있습니다. KR은 그 셋이 `resolve()`에 있어 한 그룹이 되지만, US는 info를 먼저 받고 나머지를 겹칩니다. |
+>
+> 인계문이 **몰랐던 것 하나** — `_patch_kr_peers`가 피어마다 `fetch_naver_fundamental`을
+> 차례로 부르는 순차 루프입니다. 캐시(12시간)가 있고 실측 합계가 0.01초라 이번엔
+> 두었습니다. §7·§8(범위 밖·재지 않은 것)은 **그대로 열려 있습니다.**
+
 ## 한 줄 요약
 
 **계산은 0.04초다. 나머지 13초는 전부 서로 독립인 네트워크 호출을 한 줄로 세워 둔 것이다.**
@@ -82,7 +99,7 @@ resolve → yfinance재무 → DART → 시세 → (주식수) → TTM → 네�
 
 `scripts/check_load_timing.py`가 이 PR에 있다. **먼저 돌려 지금 표를 뜨고 시작해라.**
 
-### 2단계 — 뉴스를 파이프라인과 나란히 (이득 2.4~3.7s)
+### 2단계 — 뉴스를 파이프라인과 나란히 ✅ **끝남** (실측 5.68s → 2.98s)
 
 - `_gather_news_items(d)` → `(name, market, ticker, sector)`로 인자를 낮춘다
 - `analyze()`가 `resolve()`만 먼저 하고 **뉴스와 `_pipeline`을 동시에** 띄운다
@@ -92,7 +109,7 @@ resolve → yfinance재무 → DART → 시세 → (주식수) → TTM → 네�
 > *KRX/GICS 원본*이 된다. 종목에 따라 산업 헤드라인이 달라진다. 오히려 안정적이라고 보지만
 > **골든 테스트가 여기서 걸릴 것이므로 미리 알고 있어라.**
 
-### 3단계 — provider 로드 경로 병렬화 (이득 4~9s)
+### 3단계 — provider 로드 경로 병렬화 ✅ **끝남** (KR 일곱 · US는 info 먼저)
 
 `KRProvider.load` / `USProvider.load`에서 독립인 것들을 한 그룹으로:
 
@@ -106,7 +123,7 @@ resolve → yfinance재무 → DART → 시세 → (주식수) → TTM → 네�
 **핵심 관찰**: `extract_ttm(tk, shares)`의 `shares`는 KRX 상장목록에서 바로 나온다
 (`tk.info` 폴백은 드물다). 그래서 TTM도 같이 띄울 수 있다 — 이걸 놓치면 병렬 그룹이 반쪽이 된다.
 
-### 4단계 — 진행 표시를 스레드에 넘긴다
+### 4단계 — 진행 표시를 스레드에 넘긴다 ✅ **끝남** (`progress.bind_reporter`)
 
 **`progress.py`는 `threading.local()`이다.** 지금 `build_peer_table`이 동작하는 건
 `report()`를 **메인 스레드에서만** 부르기 때문이다(워커는 `fetch_info_metrics`만 돈다).
@@ -115,7 +132,10 @@ resolve → yfinance재무 → DART → 시세 → (주식수) → TTM → 네�
 → 부모의 콜백을 워커에 심는 헬퍼를 `progress.py`에 추가하고, 병렬 그룹에 `자료 수집 n/7`
 단계를 붙인다.
 
-### 5단계 — ADR-0045 + 검증
+### 5단계 — ADR-0045 + 검증 ✅ **끝남**
+
+[ADR-0045](adr/0045-parallelize-the-load-path.md) · `tests/test_load_parallel.py`(19건, Red-Green
+확인) · `scripts/check_payload_parity.py`(합격선). 화면 수집 카드 첫 줄에 `자료 수집 n/7`이 붙는다.
 
 ---
 
