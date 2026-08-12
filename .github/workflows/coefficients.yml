@@ -45,6 +45,24 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
+      # **CI에 기억을 준다**(ADR-0051). `data/cache/`는 `.gitignore`라 러너가 매번 빈 캐시로
+      # 시작했고, 그래서 2,687종목을 밤마다 통째로 생짜 요청했다. yfinance가 레이트리밋
+      # (`Invalid Crumb` 401)으로 죽인 만큼이 **표본에서 통째로 빠졌다** — ev_ebitda가
+      # 1,376 → 565, psr이 1,999 → 728로 얇아진 것이 그것이다.
+      #
+      # `file_cache`에 이미 답이 있다: **받아오다 실패하면 예전 값을 대신 쓴다**(stale-ok).
+      # 어제 캐시만 쥐여주면 오늘 막힌 종목은 어제 값으로 채워지고 표본에서 빠지지 않는다.
+      # 즉 새 개념이 아니라 **있는 장치를 켜는 것**이다.
+      #
+      # restore/save를 갈라 쓰는 이유: 이 잡은 **일부러 실패로 끝날 수 있다**(한 시장을
+      # 이어받으면 빨간불 — ADR-0049). 그때도 캐시는 남겨야 다음 밤이 이어받는다.
+      - name: Restore source cache (어제 받아 둔 원천)
+        uses: actions/cache/restore@v4
+        with:
+          path: data/cache
+          key: coef-source-cache-
+          restore-keys: coef-source-cache-
+
       # ⚠ **이 단계가 사고를 막는 자리다**(ADR-0049). 아래 publish가 출력 폴더를 orphan
       # force-push 하므로, 폴더에 없는 파일은 **브랜치에서도 지워진다.** 2026-08-12 밤에
       # KR이 KRX 차단으로 실패했을 때 정확히 그 일이 났다 — 초록불로 끝나면서 멀쩡하던
@@ -100,3 +118,12 @@ jobs:
           계수가 그만큼 낡았다는 뜻이다 — data-coefficients 브랜치의 meta.json에서 \
           어느 시장이 언제 만들어진 것인지 확인하라(ADR-0049)."
           exit 1
+
+      # `if: always()` — 위 단계가 일부러 실패했을 때도 캐시는 남겨야 한다(ADR-0051).
+      # 키에 run_id를 넣어 매번 새로 쓰고, 복원은 접두사로 가장 최근 것을 집는다.
+      - name: Save source cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/cache
+          key: coef-source-cache-${{ github.run_id }}
