@@ -315,6 +315,30 @@ def fetch_index_prices(symbol: str, period: str = "5y") -> pd.Series:
     return fetch_prices(symbol, period)
 
 
+# 미조정 시세를 못 받았을 때의 안내 — **치명이 아니다.** 분석 계층이 수정주가로 폴백한다.
+# 두 provider가 같은 문구를 쓰므로 한 곳에 둔다(양쪽에 적으면 한 쪽만 고쳐진다).
+RAW_PRICE_WARNING = ("미조정 시세를 받지 못해 역사적 밴드·52주 범위를 수정주가로 계산합니다 "
+                     "— 과거 배수가 다소 낮게(현재가 비싸 보이게) 나올 수 있습니다.")
+
+
+def fetch_price_pair(yahoo_ticker: str, period: str = "5y"):
+    """(수정종가, 미조정종가|None, 경고) — 로드 경로의 시세 태스크 하나.
+
+    둘을 **한 태스크로 묶는** 이유: 같은 스냅샷(`fetch_price_frame`)에서 나오고 캐시 키가
+    같아서, 병렬 그룹에 따로 띄우면 한 쪽이 다른 쪽의 키 락(single-flight)을 기다린다 —
+    워커 자리 하나를 대기에 쓰는 셈이다.
+
+    **실패의 의미가 둘로 갈린다**: 수정종가는 그대로 올린다(그것이 없으면 가격도 시총도
+    없다 — 치명). 미조정은 경고다.
+    """
+    prices = fetch_prices(yahoo_ticker, period)
+    try:
+        raw = fetch_prices_raw(yahoo_ticker, period)
+    except Exception:
+        return prices, None, [RAW_PRICE_WARNING]
+    return prices, raw, []
+
+
 def fetch_ohlcv(yahoo_ticker: str, period: str = "5y") -> pd.DataFrame:
     """일별 OHLCV (수정주가, tz 제거) — 주가차트용.
 

@@ -11,12 +11,12 @@ import pandas as pd
 import yfinance as yf
 
 from .base import (PRICE_PERIOD, DataProvider, build_peer_table,
-                   extract_financials, fill_self_from_financials,
-                   extract_ttm, fetch_index_prices, fetch_prices,
-                   fetch_prices_raw, trim_peers)
+                   extract_financials, extract_ttm, fetch_index_prices,
+                   fetch_price_pair, fill_self_from_financials, trim_peers)
 from .models import FIN_COLUMNS, CompanyData, Consensus, recomm_label
 from .naver import fetch_naver_fundamental
 from .opendart import get_dart_financials
+from .parallel import gather
 from .universe import (detect_financial, find_kr, get_kr_listing,
                        select_peers_kr, yahoo_ticker_kr)
 
@@ -73,6 +73,38 @@ def merge_financials(dart: pd.DataFrame, yf_fin: pd.DataFrame) -> pd.DataFrame:
     return merged.sort_index()
 
 
+def _dart_financials(code: str):
+    """(연간재무, 출처, 경고) — DART 실패는 치명이 아니다(yfinance 재무로 간다)."""
+    try:
+        return get_dart_financials(code)
+    except Exception:
+        return None, "", []
+
+
+def _shares_and_ttm(yt: str, meta: dict):
+    """(TTM, 경고, 주식수, 주식수 출처) — 주식수 확인과 TTM을 **한 태스크로** 묶는다.
+
+    묶는 이유: `extract_ttm(tk, shares)`가 주식수를 필요로 하는데, 그 값은 대개 KRX
+    상장목록에 이미 들어 있어 네트워크가 아니다(`tk.info` 폴백은 드물다). 이걸 놓치고
+    바깥에서 주식수를 기다렸다 넘기면 **병렬 그룹이 반쪽이 된다** — TTM은 실측 1.0~1.5초로
+    이 그룹에서 세 번째로 큰 자리다.
+
+    `yf.Ticker`를 자기가 만든다 — yfinance는 스레드 안전이 보장되지 않아 한 객체를 두
+    스레드가 나눠 쓰면 안 된다(생성 비용은 0이다. 네트워크는 속성에 처음 닿을 때 탄다).
+
+    주식수를 못 찾아도 여기서 예외를 내지 않는다 — 그 안내문은 종목명·코드를 담아야 해서
+    조인 쪽이 만든다.
+    """
+    shares, source = meta["shares"], "KRX 상장목록"
+    if not shares:
+        shares = (yf.Ticker(yt).info or {}).get("sharesOutstanding")
+        source = "Yahoo Finance"
+    if not shares:
+        return None, [], None, source
+    ttm, w = extract_ttm(yf.Ticker(yt), shares)
+    return ttm, w, float(shares), source
+
+
 def _kr_etf_name(query: str) -> str | None:
     """질의가 국내 ETF(6자리 코드 또는 정확한 이름)면 그 이름, 아니면 None. 실패해도 None."""
     try:
@@ -121,17 +153,38 @@ class KRProvider(DataProvider):
         meta = self.resolve(query)
         code, yt = meta["ticker"], meta["yahoo_ticker"]
         warnings: list[str] = []
+        benchmark = "KOSDAQ" if meta["krx_market"].upper().startswith("KOSDAQ") else "KOSPI"
+        # AI 업종분류와 피어 선정이 함께 보는 상장목록. 캐시된 조회라 여기서 미리 잡아 두는
+        # 비용이 없고, 병렬 태스크가 같은 프레임을 나눠 쓰게 된다.
+        listing = get_kr_listing().set_index("Code")
 
-        tk = yf.Ticker(yt)
-        financials, w = extract_financials(tk)
+        # ── 서로 모르는 것들을 한 번에 띄운다 (ADR-0045) ──────────────────
+        # 이 아래 일곱은 **서로를 기다릴 이유가 없다.** 진짜 의존은 셋뿐이고 그 셋은
+        # 이 그룹 안이나 조인에서 풀린다: 시세 → price → mcap · 주식수 → TTM(같은 태스크)
+        # · AI 업종 → 피어 목록(조인 뒤).
+        # **제출 순서 = 느린 것부터.** 워커(4)보다 태스크가 많아 먼저 적은 것이 먼저
+        # 출발하므로, 실측 최대 병목인 Gemini(cold 4초)와 DART(2.5초)를 앞에 둔다.
+        got = gather([
+            ("ai", lambda: _ai_classify_kr(meta["name"], meta["sector"], listing)),
+            ("dart", lambda: _dart_financials(code)),
+            ("fin", lambda: extract_financials(yf.Ticker(yt))),
+            ("price", lambda: fetch_price_pair(yt, PRICE_PERIOD)),
+            ("ttm", lambda: _shares_and_ttm(yt, meta)),
+            ("naver", lambda: fetch_naver_fundamental(code)),
+            ("index", lambda: fetch_index_prices("^KQ11" if benchmark == "KOSDAQ" else "^KS11",
+                                                 PRICE_PERIOD)),
+        ], stage="자료 수집")
+
+        # ── 조인 ─────────────────────────────────────────────────────────
+        # **경고는 순차 시절과 똑같은 순서로 이어붙인다.** 완료 순서로 붙이면 매번 달라져
+        # 화면 문구 순서가 흔들린다 — 합격선이 "페이로드가 한 바이트도 안 바뀐다"이므로
+        # 이 아래 순서는 취향이 아니라 계약이다(tests/test_load_parallel.py가 지킨다).
+        financials, w = got["fin"].unwrap()
         warnings += w
 
         # OpenDART 공시 원본으로 연간 재무 보강 (키 있을 때). yfinance는 결측 보완용.
         fin_source = "Yahoo Finance"
-        try:
-            dart_fin, dart_src, dart_w = get_dart_financials(code)
-        except Exception:
-            dart_fin, dart_src, dart_w = None, "", []
+        dart_fin, dart_src, dart_w = got["dart"].or_else((None, "", []))
         warnings += dart_w
         if dart_fin is not None and not dart_fin.empty:
             financials = merge_financials(dart_fin, financials)
@@ -139,35 +192,23 @@ class KRProvider(DataProvider):
             warnings.append(f"재무제표: {dart_src} {dart_fin.shape[0]}개년 사용 "
                             "(EBITDA·차입금 등 일부는 yfinance로 보완)")
 
-        prices = fetch_prices(yt, PRICE_PERIOD)
-        price = float(prices.iloc[-1])
         # 미조정 종가 — 역사적 PER·PBR 밴드와 52주 범위용(수정종가는 과거를 배당만큼
         # 낮춰 잡아 과거 배수가 실제보다 낮게 나온다). 실패해도 분석 계층이 폴백한다.
-        try:
-            prices_raw = fetch_prices_raw(yt, PRICE_PERIOD)
-        except Exception:
-            prices_raw = None
-            warnings.append("미조정 시세를 받지 못해 역사적 밴드·52주 범위를 수정주가로 계산합니다 "
-                            "— 과거 배수가 다소 낮게(현재가 비싸 보이게) 나올 수 있습니다.")
+        prices, prices_raw, w = got["price"].unwrap()
+        warnings += w
+        price = float(prices.iloc[-1])
 
-        shares = meta["shares"]
-        shares_source = "KRX 상장목록"
-        if not shares:
-            info = tk.info or {}
-            shares = info.get("sharesOutstanding")
-            shares_source = "Yahoo Finance"
+        ttm, ttm_w, shares, shares_source = got["ttm"].unwrap()
         if not shares:
             raise ValueError(f"{meta['name']}({code}) 상장주식수를 확인하지 못했습니다.")
         # 내부 일관성을 위해 시총 = 공식 주식수 × 최근 종가 (공식 시총은 참고치로 보관)
         mcap = shares * price
-
-        ttm, w = extract_ttm(tk, shares)
-        warnings += w
+        warnings += ttm_w
 
         official: dict = {"source": None}
         consensus: Consensus | None = None
         try:
-            nv = fetch_naver_fundamental(code)
+            nv = got["naver"].unwrap()
             official = {
                 "PER": nv.get("per"), "선행PER": nv.get("forward_per"),
                 "PBR": nv.get("pbr"), "EPS": nv.get("eps"), "BPS": nv.get("bps"),
@@ -192,15 +233,11 @@ class KRProvider(DataProvider):
             warnings.append("네이버 금융 지표 조회 실패 — 재무제표 기반 계산값만 사용합니다.")
         official["재무출처"] = fin_source
 
-        benchmark = "KOSDAQ" if meta["krx_market"].upper().startswith("KOSDAQ") else "KOSPI"
-        index_prices = fetch_index_prices("^KQ11" if benchmark == "KOSDAQ" else "^KS11",
-                                          PRICE_PERIOD)
+        index_prices = got["index"].unwrap()
 
         # 피어: (1순위) AI 업종분류 동종기업 → (폴백) KRX 업종분류 시총 상위
-        listing = get_kr_listing().set_index("Code")
         sector, industry = meta["sector"], meta["industry"]
-        ai_sector, ai_industry, ai_codes, ai_err = _ai_classify_kr(
-            meta["name"], sector, listing)
+        ai_sector, ai_industry, ai_codes, ai_err = got["ai"].or_else((None, None, None, None))
         if ai_err:
             warnings.append(
                 f"AI 업종분류를 시도했으나 실패해 KRX 업종분류로 대체했습니다({ai_err}). "

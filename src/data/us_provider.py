@@ -5,11 +5,28 @@ import pandas as pd
 import yfinance as yf
 
 from .base import (PRICE_PERIOD, DataProvider, build_peer_table,
-                   extract_financials, fill_self_from_financials,
-                   extract_ttm, fetch_index_prices, fetch_info_metrics,
-                   fetch_prices, fetch_prices_raw, trim_peers)
+                   extract_financials, extract_ttm, fetch_index_prices,
+                   fetch_info_metrics, fetch_price_pair,
+                   fill_self_from_financials, trim_peers)
 from .models import CompanyData, Consensus, recomm_label
+from .parallel import gather
 from .universe import detect_financial, find_us, peers_us_by_sector, select_peers_us
+
+
+def _us_price_pair(sym: str):
+    """(수정종가, 미조정종가|None, 경고) — 시세 실패가 **치명**인 것이 KR과 다른 점이다.
+
+    상장폐지·거래정지 종목은 재무·시세가 모두 실패하는데 시세 쪽이 먼저, 그리고 확실히
+    실패한다. 그래서 원인을 짚는 안내문을 여기서 만든다 — `Outcome.unwrap()`이 이 예외를
+    타입·메시지 그대로 다시 올리므로, 병렬로 바뀌어도 사용자가 보는 문장은 같다.
+    """
+    try:
+        return fetch_price_pair(sym, PRICE_PERIOD)
+    except Exception:
+        raise ValueError(
+            f"'{sym}' 시세·재무 데이터를 찾을 수 없습니다 — 상장폐지·거래정지 상태이거나 "
+            "잘못된 티커일 수 있어요. (파산·폐지된 종목은 Yahoo Finance에 데이터가 남지 않아 "
+            "분석할 수 없습니다.)")
 
 
 def _ai_classify_us(name: str, hint_industry: str):
@@ -108,45 +125,57 @@ class USProvider(DataProvider):
         sym = meta["yahoo_ticker"]
         warnings: list[str] = []
 
-        tk = yf.Ticker(sym)
-        # 상장폐지·거래정지 종목은 재무·시세 수집이 모두 실패한다. 시세 조회로 먼저 감지해
-        # 명확히 안내한다(파산한 옛 전기차 SPAC 등). 여기서 받은 시세는 아래에서 재사용.
-        try:
-            prices = fetch_prices(sym, PRICE_PERIOD)
-        except Exception:
-            raise ValueError(
-                f"'{sym}' 시세·재무 데이터를 찾을 수 없습니다 — 상장폐지·거래정지 상태이거나 "
-                "잘못된 티커일 수 있어요. (파산·폐지된 종목은 Yahoo Finance에 데이터가 남지 않아 "
-                "분석할 수 없습니다.)")
-        # 미조정 종가 — 역사적 PER·PBR 밴드와 52주 범위용(수정종가는 과거를 배당만큼
-        # 낮춰 잡아 과거 배수가 실제보다 낮게 나온다). 실패해도 분석 계층이 폴백한다.
-        try:
-            prices_raw = fetch_prices_raw(sym, PRICE_PERIOD)
-        except Exception:
-            prices_raw = None
-            warnings.append("미조정 시세를 받지 못해 역사적 밴드·52주 범위를 수정주가로 계산합니다 "
-                            "— 과거 배수가 다소 낮게(현재가 비싸 보이게) 나올 수 있습니다.")
+        # ── 이름·업종·주식수를 먼저 받는다 (ADR-0045) ────────────────────
+        # US가 KR과 갈리는 자리다. `_ai_classify_us`는 **이름과 업종**을, `extract_ttm`은
+        # **주식수**를 필요로 하는데 셋 다 `fetch_info_metrics`에서 나온다 — KR은 이것들이
+        # 상장목록(`resolve`)에 있어 한 그룹으로 묶이지만 US는 그럴 수 없다.
+        # 이 한 번(info 캐시 24시간)을 먼저 치르고 **나머지를 통째로 겹치는** 편이,
+        # 실측 최대 병목인 Gemini를 뒤로 미루는 것보다 빠르다.
+        #
+        # **실패를 여기서 올리지 않는다.** 시세 실패가 더 친절한 안내문을 갖고 있어
+        # 그쪽이 먼저 말해야 하기 때문이다(순차 시절의 순서 = 시세 → 재무 → info).
+        # 실패한 경우 아래 태스크들은 빈 정보로 돌지만, 그 결과는 조인에서 버려진다.
+        info_got = gather([("info", lambda: fetch_info_metrics(sym))])["info"]
+        self_info = info_got.or_else({})
 
-        financials, w = extract_financials(tk)
-        warnings += w
-
-        self_info = fetch_info_metrics(sym)
         name = meta["name"] if meta["in_sp500"] else (self_info.get("name") or sym)
         sector = meta["sector"] or self_info.get("sector") or ""
         industry = self_info.get("industry") or meta.get("sub_industry") or ""
         # AI가 덮어쓰기 **전**의 GICS 섹터를 붙잡아 둔다 — 회귀 계수표와 금융업 판별이
         # 조회하는 문자열이 이것이다(ADR-0044). KR은 `meta["sector"]`가 그 자리다.
         sector_official = sector
+        shares = self_info.get("shares")
+
+        # 이 다섯은 서로 모른다. 제출 순서 = 느린 것부터(Gemini가 단독 최대 병목이다).
+        got = gather([
+            ("ai", lambda: _ai_classify_us(name, industry or sector)),
+            ("fin", lambda: extract_financials(yf.Ticker(sym))),
+            ("price", lambda: _us_price_pair(sym)),
+            # yfinance는 스레드 안전이 보장되지 않아 태스크마다 자기 Ticker를 만든다.
+            ("ttm", lambda: extract_ttm(yf.Ticker(sym), shares)),
+            ("index", lambda: fetch_index_prices("^GSPC", PRICE_PERIOD)),
+        ], stage="자료 수집")
+
+        # ── 조인 ─────────────────────────────────────────────────────────
+        # **경고 순서는 순차 시절과 같아야 한다**(합격선: 페이로드 불변). 상장폐지 종목이
+        # 보는 안내문의 우선순위도 여기서 지켜진다 — 시세가 먼저, 그 다음이 info다.
+        # 미조정 종가는 역사적 PER·PBR 밴드와 52주 범위용이고, 실패해도 분석 계층이 폴백한다.
+        prices, prices_raw, w = got["price"].unwrap()
+        warnings += w
+
+        financials, w = got["fin"].unwrap()
+        warnings += w
+
+        info_got.unwrap()      # info 자체가 실패했다면 이제 올린다(시세 안내문 다음이다)
 
         price = float(prices.iloc[-1])
-        shares = self_info.get("shares")
         mcap = self_info.get("market_cap") or (price * shares if shares else None)
         if not shares or not mcap:
             raise ValueError(
                 f"'{name}({sym})' 주식수·시가총액을 확인하지 못했습니다 — 상장폐지·거래정지 "
                 "종목이거나 데이터가 불완전할 수 있어요.")
 
-        ttm, w = extract_ttm(tk, shares)
+        ttm, w = got["ttm"].unwrap()
         warnings += w
 
         # ADR은 재무를 본국 통화로 공시하는데 주가는 달러다. 그대로 나누면 지표가 환율배만큼
@@ -160,10 +189,10 @@ class USProvider(DataProvider):
                 "나누는 지표(PER·PBR·PSR·EV/EBITDA)와 적정가 ①②③은 환율만큼 어긋나 "
                 "N/A 처리합니다. 컨센서스 선행이익 방법만 사용합니다.")
 
-        index_prices = fetch_index_prices("^GSPC", PRICE_PERIOD)
+        index_prices = got["index"].unwrap()
 
         # 피어 선정: (1순위) AI 업종분류 → (폴백) S&P500 GICS 세부산업/섹터
-        ai_sector, ai_industry, ai_syms, ai_err = _ai_classify_us(name, industry or sector)
+        ai_sector, ai_industry, ai_syms, ai_err = got["ai"].or_else((None, None, None, None))
         if ai_err:
             warnings.append(
                 f"AI 업종분류를 시도했으나 실패해 GICS 분류로 대체했습니다({ai_err}). "

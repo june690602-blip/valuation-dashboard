@@ -638,28 +638,45 @@ def _company(d) -> dict | None:
             "website": prof.get("website"), "employees": prof.get("employees")}
 
 
-def _gather_news_items(d) -> list:
-    """기업(종목명)+산업(업종어)+거시 헤드라인을 모아 중복 제거한 원본 리스트."""
-    from src.data.news import fetch_news, fetch_topic_news
-    items = []
+def _company_news(name: str, market: str, yahoo_ticker: str) -> list:
+    """기업 헤드라인 — 필요한 것은 종목명·시장·야후티커뿐이라 `resolve()`만으로 띄울 수 있다."""
+    from src.data.news import fetch_news
     try:
-        items += fetch_news(d.name, d.market, d.yahoo_ticker)
+        return fetch_news(name, market, yahoo_ticker)
     except Exception:
-        pass
-    sector_q = (d.sector or d.industry or "").strip()
-    if sector_q:
-        try:
-            items += fetch_topic_news(f"{sector_q} 산업" if d.market == "KR" else f"{sector_q} industry",
-                                      d.market, limit=5)
-        except Exception:
-            pass
+        return []
+
+
+def _sector_news(sector_q: str, market: str) -> list:
+    """산업 헤드라인 — **`d.sector`를 쓴다.** 이 하나만 파이프라인 뒤에 남는 이유다."""
+    from src.data.news import fetch_topic_news
+    if not sector_q:
+        return []
     try:
-        macro = "기준금리 OR 물가 OR 환율" if d.market == "KR" else "Fed OR inflation OR treasury yields"
-        items += fetch_topic_news(macro, d.market, limit=5)
+        return fetch_topic_news(f"{sector_q} 산업" if market == "KR" else f"{sector_q} industry",
+                                market, limit=5)
     except Exception:
-        pass
+        return []
+
+
+def _macro_news(market: str) -> list:
+    """거시 헤드라인 — 종목과 무관하다(시장만 알면 언제든 띄울 수 있다)."""
+    from src.data.news import fetch_topic_news
+    try:
+        macro = "기준금리 OR 물가 OR 환율" if market == "KR" else "Fed OR inflation OR treasury yields"
+        return fetch_topic_news(macro, market, limit=5)
+    except Exception:
+        return []
+
+
+def _dedup_news(parts: list[list]) -> list:
+    """기업 → 산업 → 거시 **순서대로** 이어붙이고 제목 앞 40자로 중복 제거.
+
+    순서가 계약이다 — 중복 제거는 먼저 온 것을 남기므로, 세 묶음의 순서가 바뀌면 같은
+    기사에서 다른 제목·출처가 살아남는다. 동시에 받더라도 **완료 순서로 붙이면 안 된다.**
+    """
     seen, uniq = set(), []
-    for it in items:
+    for it in [x for part in parts for x in part]:
         k = it.get("title", "")[:40]
         if k and k not in seen:
             seen.add(k)
@@ -667,10 +684,89 @@ def _gather_news_items(d) -> list:
     return uniq
 
 
-def _news(d) -> list:
+def _gather_news_items(d) -> list:
+    """기업+산업+거시 헤드라인을 모아 중복 제거한 원본 리스트 — 셋을 **동시에** 받는다."""
+    from src.data.parallel import gather
+    got = gather([
+        ("company", lambda: _company_news(d.name, d.market, d.yahoo_ticker)),
+        ("sector", lambda: _sector_news((d.sector or d.industry or "").strip(), d.market)),
+        ("macro", lambda: _macro_news(d.market)),
+    ], workers=3)
+    return _dedup_news([got["company"].or_else([]), got["sector"].or_else([]),
+                        got["macro"].or_else([])])
+
+
+class _NewsPrefetch:
+    """파이프라인과 **나란히** 돌려 둔 뉴스 — 조인할 때 산업 헤드라인만 마저 받는다.
+
+    왜 셋 다 미리 못 받나: 산업 질의가 `d.sector`를 쓰는데 그 값은 AI 업종분류를 거친 뒤에야
+    정해진다. 거래소 원본 라벨로 바꾸면 통째로 미리 받을 수 있지만, 그러면 같은 종목의 산업
+    헤드라인이 달라진다 — 삼성전자가 '반도체'가 아니라 '통신 및 방송 장비 제조업'으로
+    검색된다(ADR-0013이 AI 분류를 넣은 바로 그 이유). 합격선이 "페이로드가 한 바이트도 안
+    바뀐다"이므로 **셋 중 둘만 미리 받고 하나는 남긴다.**
+    """
+
+    def __init__(self, ex, futures: dict, name: str | None):
+        self._ex, self._futures, self._name = ex, futures, name
+
+    def finish(self, d) -> list:
+        # 미리 받을 때의 이름이 실제 종목명과 다르면(S&P500 밖 종목은 info를 봐야 이름이
+        # 정해진다) 그 결과는 버리고 다시 받는다 — 다른 질의로 받은 기사이기 때문이다.
+        if self._name is not None and self._name != d.name:
+            self._futures.pop("company", None)
+
+        def part(key, fallback):
+            fut = self._futures.get(key)
+            if fut is None:
+                return fallback()
+            try:
+                return fut.result()
+            except Exception:
+                return []
+
+        company = part("company", lambda: _company_news(d.name, d.market, d.yahoo_ticker))
+        sector = _sector_news((d.sector or d.industry or "").strip(), d.market)
+        macro = part("macro", lambda: _macro_news(d.market))
+        return _dedup_news([company, sector, macro])
+
+    def close(self) -> None:
+        self._ex.shutdown(wait=False)
+
+
+def _start_news_for(name: str, market: str, yahoo_ticker: str) -> _NewsPrefetch:
+    """이름·티커가 이미 있을 때 기업·거시 헤드라인을 띄운다."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from src.data.progress import bind_reporter
+    ex = ThreadPoolExecutor(max_workers=2, thread_name_prefix="news")
+    futures = {
+        "company": ex.submit(bind_reporter(lambda: _company_news(name, market, yahoo_ticker))),
+        "macro": ex.submit(bind_reporter(lambda: _macro_news(market))),
+    }
+    return _NewsPrefetch(ex, futures, name)
+
+
+def _start_news(market: str, query: str) -> _NewsPrefetch | None:
+    """뉴스 중 파이프라인과 무관한 부분을 먼저 띄운다. 못 띄우면 None(종전대로 뒤에서 받는다).
+
+    `resolve()`를 한 번 더 부르는 비용은 상장목록 조회(캐시)라 0.01초다. 여기서 실패하면
+    조용히 None을 돌려준다 — 같은 실패를 `_pipeline`이 곧 다시 만나 제대로 된 예외를 낸다.
+    """
+    try:
+        if market == "KR":
+            from src.data.kr_provider import KRProvider as Provider
+        else:
+            from src.data.us_provider import USProvider as Provider
+        meta = Provider().resolve(query.strip())
+        return _start_news_for(meta["name"], market, meta["yahoo_ticker"])
+    except Exception:
+        return None
+
+
+def _news(d, items: list | None = None) -> list:
     # 기본 페이로드는 키워드 규칙으로 즉시 분류(무키·무지연). 서술형 AI 분석은 /api/news_ai 버튼.
     from src.analysis.ai_analysis import keyword_classify_news
-    uniq = _gather_news_items(d)
+    uniq = _gather_news_items(d) if items is None else items
     classified = keyword_classify_news(d.name, d.sector or "", uniq)
     out = []
     for it in classified:
@@ -704,9 +800,16 @@ def analyze(market: str, query: str, peer_count: int = 9,
             _PROGRESS[pkey] = {"stage": stage, "done": done, "total": total}
 
     set_reporter(_report)
+    # 뉴스는 파이프라인이 끝나기를 기다릴 이유가 없었다 — 기업·거시 헤드라인이 쓰는 것은
+    # `resolve()`만으로 나오는 값들이다. 파이프라인과 나란히 띄운다(ADR-0045).
+    news_pre = _start_news(market, query) if include_news else None
     try:
         d, ind, scores, cc, val = _pipeline(market, query.strip(), peer_count, rf, mrp,
                                             ex_t, add_t)
+    except BaseException:
+        if news_pre is not None:
+            news_pre.close()
+        raise
     finally:
         set_reporter(None)
         with _PROGRESS_LOCK:
@@ -868,9 +971,12 @@ def analyze(market: str, query: str, peer_count: int = 9,
             payload[key] = {"error": str(e)}
     if include_news:
         try:
-            payload["news"] = _news(d)
+            payload["news"] = _news(d, news_pre.finish(d) if news_pre else None)
         except Exception as e:
             payload["news"] = {"error": str(e)}
+        finally:
+            if news_pre is not None:
+                news_pre.close()
     else:
         payload["news"] = []
     return payload
