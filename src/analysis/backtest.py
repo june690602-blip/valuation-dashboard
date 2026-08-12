@@ -35,7 +35,8 @@ import numpy as np
 import pandas as pd
 
 from ..data.models import CompanyData, actual_prices
-from .valuation import METHOD_WEIGHTS, _fundamental_daily
+from .valuation import (METHOD_WEIGHTS, RIM_PERSISTENCE_CENTER, _fundamental_daily,
+                        rim_value)
 
 # 미래수익률 측정 구간 (거래일 기준)
 HORIZONS = {"3개월": 63, "6개월": 126, "12개월": 252}
@@ -109,7 +110,10 @@ def _default_r_equity(market: str) -> float:
 def _rim_discount(d: CompanyData, r_equity: float) -> pd.Series | None:
     """③ RIM 적정가의 일별 복원 → 저평가율(적정가/주가 − 1). ROE>0에서만 정의.
 
-    지속계수 0.9 시나리오의 적정 PBR = 1 + (ROE−r)·0.9/(0.1+r) (valuation._rim과 동일 식).
+    지속계수는 **판정과 같은 상수**를 읽는다(`RIM_PERSISTENCE_CENTER`). 여기 0.9가 따로
+    박혀 있었고 판정은 0.8이라 **한 저장소 안에 w가 두 개**였다 — ADR-0009가 옛 백테스트를
+    접은 이유 중 하나가 정확히 그것이다("③은 지속계수 0.9 고정(판정은 0.6~1.0)").
+    ADR-0039가 판정을 0.62로 옮기면서 이 자리도 같은 상수를 읽게 통일했다.
     BPS·ROE는 그 시점 재무만 쓰고 r만 상수 근사 → 룩어헤드 없음."""
     bps = _fundamental_daily(d, "total_equity", per_share=True)
     fin = d.financials
@@ -121,7 +125,8 @@ def _rim_discount(d: CompanyData, r_equity: float) -> pd.Series | None:
         return None
     roe = roe.clip(-0.5, 0.6)
     bps = bps.where(bps > 0)
-    fair_pbr = 1.0 + (roe - r_equity) * 0.9 / (0.1 + r_equity)
+    # 계열 연산이라 `rim_value(1.0, ...)`를 적정 PBR로 쓴다(B=1이면 값이 곧 배수다).
+    fair_pbr = rim_value(1.0, roe, r_equity, RIM_PERSISTENCE_CENTER)
     fair = (bps * fair_pbr).where((roe > 0) & bps.notna())
     # 저평가율의 분모는 '그 시점에 실제로 내야 했던 값' = 미조정 주가.
     disc = (fair / actual_prices(d).reindex(fair.index)) - 1.0

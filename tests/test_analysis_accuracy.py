@@ -11,8 +11,10 @@ from src.analysis.backtest import (_non_overlapping_values, _rim_discount,
                                    run_backtest)
 from src.analysis.indicators import _average_balance
 from src.analysis.portfolio import after_tax_row
-from src.analysis.valuation import (BOOK_REJECTED_PBR, _band, _band_quality,
-                                    _fundamental_daily, _rim, compute_valuation)
+from src.analysis.valuation import (BOOK_REJECTED_PBR, RIM_PERSISTENCE,
+                                    RIM_PERSISTENCE_CENTER, _band, _band_quality,
+                                    _fundamental_daily, _rim, compute_valuation,
+                                    rim_value)
 from src.data.models import CompanyData, Consensus, actual_prices
 from src.data.opendart import _parse_report
 
@@ -265,23 +267,60 @@ class BacktestSamplingTests(unittest.TestCase):
 class RimAssumptionTests(unittest.TestCase):
     """RIM 가정 — 지속계수 범위와 '장부가가 의미 있나' 가드."""
 
-    def test_persistence_scenarios_are_0_6_to_1_0_centered_at_0_8(self):
-        """지속계수 w는 초과이익이 얼마나 오래 가는지 — 감도가 커서 범위가 곧 불확실성이다."""
-        fv, fair_pbr = _rim(bps=100.0, roe=0.15, r=0.10)
-        # w=0.6 → 106, w=0.8 → 113.3, w=1.0 → 150 (Ohlson α₁ = w/(1+r−w))
-        self.assertAlmostEqual(fv.low, 106.0, places=1)
-        self.assertAlmostEqual(fv.mid, 113.333, places=2)
-        self.assertAlmostEqual(fv.high, 150.0, places=1)
-        self.assertAlmostEqual(fair_pbr, 1.1333, places=3)   # 중심은 w=0.8
-        self.assertIn("0.6~1.0", fv.note)
+    def test_persistence_scenarios_come_from_the_literature(self):
+        """지속계수 세 점은 전부 문헌값이다(ADR-0039) — 0.21 Wang·Myers / 0.62 FF / 1.00 F&L.
+
+        값을 손으로 적지 않고 상수에서 만든다. 적어 두면 상수를 고칠 때 조용히 썩는다.
+        """
+        self.assertEqual(RIM_PERSISTENCE, (0.21, 0.62, 1.00))
+        self.assertEqual(RIM_PERSISTENCE_CENTER, 0.62)
+        self.assertIn(RIM_PERSISTENCE_CENTER, RIM_PERSISTENCE)
+
+        B, roe, r = 100.0, 0.15, 0.10
+        fv, fair_pbr = _rim(bps=B, roe=roe, r=r)
+        want = {w: rim_value(B, roe, r, w) for w in RIM_PERSISTENCE}
+        self.assertAlmostEqual(fv.low, min(want.values()), places=9)
+        self.assertAlmostEqual(fv.high, max(want.values()), places=9)
+        self.assertAlmostEqual(fv.mid, want[RIM_PERSISTENCE_CENTER], places=9)
+        self.assertAlmostEqual(fair_pbr, fv.mid / B, places=9)
+        # 실측 고정 — 상수가 바뀌면 여기서 걸려 ADR을 함께 고치게 된다.
+        self.assertAlmostEqual(fv.mid, 106.458333, places=5)
+        self.assertIn("0.21~1.00", fv.note)
 
     def test_formula_matches_ohlson_alpha1(self):
         """V = B + B·(ROE−r)·w/(1+r−w). w→1에서 B·ROE/r로 연속 수렴해야 한다."""
         B, roe, r = 100.0, 0.15, 0.10
-        fv, _ = _rim(B, roe, r)
-        for w, got in ((0.6, fv.low), (0.8, fv.mid)):
-            self.assertAlmostEqual(got, B + B * (roe - r) * w / (1 + r - w), places=6)
-        self.assertAlmostEqual(fv.high, B * roe / r, places=6)   # w=1.0 분기
+        for w in RIM_PERSISTENCE:
+            if w >= 1.0:
+                continue
+            self.assertAlmostEqual(rim_value(B, roe, r, w),
+                                   B + B * (roe - r) * w / (1 + r - w), places=9)
+        self.assertAlmostEqual(rim_value(B, roe, r, 1.0), B * roe / r, places=9)
+        # w→1 연속성 — 극한 분기가 다른 식이 아니라는 확인.
+        # α₁ = w/(1+r−w)는 w→1에서 1/r로 가는데 **수렴이 느리다**(w=0.9999에서 0.055 차이).
+        # places=로 조이면 '연속성'이 아니라 수렴 속도를 재게 된다.
+        self.assertAlmostEqual(rim_value(B, roe, r, 0.9999), B * roe / r, delta=0.1)
+
+    def test_backtest_reconstruction_uses_the_same_persistence(self):
+        """복원 백테스트와 판정이 **같은 w**를 쓴다.
+
+        `backtest.py`가 0.9를 따로 박아 두어 한 저장소 안에 w가 둘이었다(판정 0.8).
+        ADR-0009가 옛 백테스트를 접은 이유 중 하나가 그것이라, 다시 갈라지면 실패시킨다.
+        """
+        import inspect
+
+        from src.analysis import backtest as bt
+        # **본문만 본다.** docstring은 옛 0.9를 이력으로 설명하고 있어서 통째로 검사하면
+        # 그 설명 때문에 실패한다 — 지우면 왜 통일했는지가 사라지므로 검사 쪽을 좁힌다.
+        # `getdoc()`은 들여쓰기를 벗긴 문자열이라 원본과 안 맞는다 — 삼중따옴표로 자른다.
+        body = inspect.getsource(bt._rim_discount).split('"""')[-1]
+        self.assertIn("RIM_PERSISTENCE_CENTER", body)
+        self.assertNotIn("0.9", body)
+        # 두 경로가 같은 값을 내는가 — 적정 PBR은 B=1에서의 rim_value다.
+        roe, r = 0.15, 0.10
+        _fv, fair_pbr = _rim(bps=100.0, roe=roe, r=r)
+        self.assertAlmostEqual(fair_pbr, rim_value(1.0, roe, r, RIM_PERSISTENCE_CENTER),
+                               places=9)
 
     def test_excess_return_of_zero_gives_book_value(self):
         """ROE = r이면 초과이익이 없으니 적정가 = 장부가(PBR 1.0)여야 한다."""
