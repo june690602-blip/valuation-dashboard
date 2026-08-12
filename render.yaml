@@ -10,6 +10,11 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python server.py
     healthCheckPath: /
+    # ⚠ 여기에 `disk:`를 붙이려는 사람에게 — 일부러 안 붙였다(ADR-0048).
+    # 캐시가 배포마다 비는 것은 맞지만(Render 문서: 디스크가 없으면 파일시스템은 휘발성),
+    # 디스크를 붙이면 **인스턴스가 하나로 묶이고 무중단 배포가 사라진다**(새 인스턴스를
+    # 띄우기 전에 기존 것을 멈춘다). 대신 서버가 기동 직후 캐시를 채운다(`_warm_cache`) —
+    # 공짜이고 그 둘을 잃지 않는다. 실측: 예열 56초 → 첫 방문자 12.33초 → 2.46초.
     envVars:
       # 외부에서 접속하려면 반드시 0.0.0.0 바인딩(server.py 기본은 로컬 보안상 127.0.0.1)
       - key: HOST
