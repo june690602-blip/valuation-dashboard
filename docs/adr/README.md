@@ -53,3 +53,4 @@
 | [0038](0038-street-targets-are-not-an-answer-key.md) | 증권가 목표주가는 답안지가 아니다 — ④의 타깃 배수는 지금 판단할 수 없다 (3단계를 접는다) | 채택됨 |
 | [0041](0041-weight-width-is-measured-per-stock.md) | 가중치 폭은 종목마다 잰다 — 인계문의 두 탐침은 자기가 말하는 순위를 어겼다 | 채택됨 |
 | [0042](0042-verdict-thresholds-what-passed-was-selectivity.md) | 판정을 3등급으로 넓힌다 — 다만 이긴 것은 '오차 문턱'이 아니라 '극단을 좁게 잡은 것'이었다 | 채택됨 |
+| [0043](0043-the-confidence-badge-did-not-do-what-it-claimed.md) | 신뢰도 배지를 뗀다 — 등급이 주장하는 것을 하지 못했다 (한국 '높음' 0건 · 미국 100% '낮음') | 채택됨 |

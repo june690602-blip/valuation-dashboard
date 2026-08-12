@@ -414,7 +414,9 @@ def run_panel(panel):
             loaded.append((tag, d, ind, cc, val, rf, mrp))
             print(f"  ✓ {tag}: {d.name} {d.price:,.0f} {d.currency} · "
                   f"적정가 {g(val.fair_mid, 'num')} · 괴리 {g(val.gap)} → {val.verdict} "
-                  f"(신뢰도 {val.confidence}, 방법 {len(val.estimates)}개)")
+                  f"(방법 간 편차 "
+                  f"{f'±{val.dispersion:.0%}' if val.dispersion is not None else '—'}, "
+                  f"방법 {len(val.estimates)}개)")
         except Exception as e:  # noqa: BLE001
             print(f"  ✗ {tag}: {type(e).__name__}: {e}")
 

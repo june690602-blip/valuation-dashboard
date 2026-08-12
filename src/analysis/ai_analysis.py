@@ -243,8 +243,11 @@ def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "",
     lines = [
         f"기업: {d.name} ({d.ticker}), 시장 {d.market}, 업종 {d.sector or d.industry}",
         f"현재가 {d.price:,.0f} {cur}, 시가총액 {d.market_cap:,.0f}",
-        f"판정: {val.verdict} (펀더멘털 적정가 ①②③ 대비 괴리율 {pct(val.gap)}, "
-        f"신뢰도 {val.confidence})",
+        # 신뢰도 등급은 프롬프트에서도 뺐다(ADR-0043) — 모델에게 주면 그 등급을 근거처럼
+        # 되받아 쓴다. 대신 잰 값(방법 간 편차)만 넘긴다.
+        f"판정: {val.verdict} (펀더멘털 적정가 ①③⑤ 대비 괴리율 {pct(val.gap)}"
+        + (f", 방법 간 편차 ±{val.dispersion:.0%}" if val.dispersion is not None else "")
+        + ")",
     ]
     # 적정주가(목표가 근거) + 상승여력
     if val.fair_mid:

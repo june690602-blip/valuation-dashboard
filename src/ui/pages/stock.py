@@ -950,7 +950,7 @@ def render():
                     f"font-size:clamp(1.2rem, 0.9rem + 0.9vw, 1.7rem);"
                     f"font-variant-numeric:tabular-nums;'>"
                     f"{fmt_price(d.price, d.currency)}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='text-align:right;'>{verdict_badge_html(val.verdict, val.gap, val.confidence)}</div>",
+        st.markdown(f"<div style='text-align:right;'>{verdict_badge_html(val.verdict, val.gap, val.dispersion)}</div>",
                     unsafe_allow_html=True)
         _render_basket_button(d)
 

@@ -876,15 +876,16 @@ class ConfidenceGradeTests(unittest.TestCase):
         self.assertEqual(self.grade(0.0, 1, n_eff=1.0, capped=True)[0], "낮음")
         self.assertEqual(self.grade(None, 3, n_eff=3.0, capped=True)[0], "낮음")
 
-    def test_result_exposes_both_grades_so_the_screen_can_match_number_to_text(self):
-        """`dispersion`이 뜻하는 등급과 최종 등급을 **둘 다** 내보내야 한다.
+    def test_result_measures_the_spread_but_grades_nothing(self):
+        """판정 결과는 **잰 값만** 내보낸다 — 등급은 어느 이름으로도 다시 붙지 않는다.
 
-        화면은 ±%를 찍고 설명을 고른다. 설명을 **최종 등급**으로 고르면, 상한이 등급을
-        내린 종목에서 *"±10% … 다소 흩어져 있습니다(±15~35%)"*처럼 숫자와 문장이
-        모순된다(PR #130이 찾은 버그). 그래서 `confidence_spread`가 필요하다.
+        예전 이 자리에는 `confidence`·`confidence_spread`·`confidence_cap`이 서로
+        맞는지 확인하는 테스트가 있었다. 그 등급 자체가 폐기됐다(ADR-0043) — KR 패널
+        7,656행에서 '높음'이 0건이었고, *"덜 믿으세요"*라고 붙인 '낮음'이 1·3·5년
+        모두에서 오히려 더 잘 맞았다. 등급이 주장하던 것을 하지 못한 것이다.
 
-        등급 문자열을 파이썬이 내보내는 이유는 임계(0.15/0.35)를 JS에 옮겨 적지 않기
-        위해서다 — 같은 수식이 두 언어에 사는 것이 #84·ADR-0019가 잡은 문제다.
+        **이 테스트는 배지가 조용히 돌아오는 것을 막는 관문이다.** 재료(`dispersion`·
+        `n_eff`)는 관측된 사실이라 남아 있어야 하고, 그 위의 등급은 없어야 한다.
         """
         # **픽스처를 ②에서 ①로 갈았다(ADR-0035).** 예전에는 이익이 11배로 커지는
         # `_company_for_band`가 ②③을 함께 세웠는데, ②가 판정에서 빠지자 ③ 하나만 남아
@@ -894,13 +895,16 @@ class ConfidenceGradeTests(unittest.TestCase):
             _company_with_peers([(1.0, 12.0), (1.2, 14.0), (0.8, 9.0), (1.1, 20.0)]),
             _flat_indicators(), r_equity=0.09)
         self.assertIsNotNone(res.dispersion, "픽스처가 흩어짐을 못 냈다 — 이 테스트가 무의미해진다")
-        self.assertIn(res.confidence_spread, ("높음", "중간", "낮음"))
-        self.assertIn(res.confidence_cap, ("높음", "중간", "낮음"))
-        # 최종 등급은 둘 중 낮은 쪽이어야 한다 — 화면이 이 관계를 전제로 문장을 만든다
-        order = ["낮음", "중간", "높음"]
-        self.assertEqual(res.confidence,
-                         min(res.confidence_spread, res.confidence_cap,
-                             key=order.index))
+        self.assertIsNotNone(res.n_eff, "실질 축 수는 남아 있어야 한다(ADR-0022)")
+        for gone in ("confidence", "confidence_spread", "confidence_cap"):
+            self.assertFalse(
+                hasattr(res, gone),
+                f"`{gone}`가 되살아났다 — 신뢰도 등급은 ADR-0043에서 폐기됐다. "
+                "잰 값(dispersion·n_eff)은 남기되 등급 이름은 붙이지 않는다.")
+        # 판정 어휘에도 등급 이름이 섞이면 안 된다(화면이 그것을 배지로 다시 그린다).
+        for note in res.notes:
+            self.assertNotIn("신뢰도", note.text,
+                             "판정 노트가 아직 '신뢰도'라는 말을 쓴다(ADR-0043)")
 
     def test_spread_grade_follows_the_dispersion_not_the_cap(self):
         # 상한이 등급을 내려도 `confidence_spread`는 흩어짐이 낸 등급을 그대로 유지해야
