@@ -64,7 +64,8 @@ def main(market: str, query: str):
         print(f"  {m}: 제외 — {r}")
     used = "·".join(val.weights) if val.weights else "없음"
     print(f"  펀더멘털 종합({used} · 판정 근거): {fmt(val.fair_mid)} | 괴리율 "
-          f"{fmt(val.gap, 'pct')} → {val.verdict} (신뢰도 {val.confidence})")
+          f"{fmt(val.gap, 'pct')} → {val.verdict}"
+          + (f" (방법 간 편차 ±{val.dispersion:.0%})" if val.dispersion is not None else ""))
     if val.fair_mid_consensus is not None:
         print(f"  컨센서스 반영(위 + ④ · 병기): {fmt(val.fair_mid_consensus)} | 괴리율 "
               f"{fmt(val.gap_consensus, 'pct')} → {val.verdict_consensus}"

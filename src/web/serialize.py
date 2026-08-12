@@ -736,14 +736,13 @@ def analyze(market: str, query: str, peer_count: int = 9,
         "warnings": quality,
         "computed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "verdict": {
-            "verdict": val.verdict, "gap": num(val.gap), "confidence": val.confidence,
+            "verdict": val.verdict, "gap": num(val.gap),
+            # ⚠ `confidence`·`confidence_spread`·`confidence_cap`은 **내려보내지 않는다**
+            # (ADR-0043). 등급을 다시 실으면 화면이 조용히 배지를 되살릴 수 있다.
+            # 재료 둘은 남긴다 — 화면은 이 숫자만 `근거 보기` 안에서 말한다.
             "dispersion": num(getattr(val, "dispersion", None)),
-            # 실질 축 수 (ADR-0022). 흩어짐이 작은데 신뢰도가 낮은 종목의 이유가 이 값이다.
+            # 실질 축 수 (ADR-0022). 편차가 작을 때 그것이 '합의'가 아님을 말해 주는 값이다.
             "n_eff": num(getattr(val, "n_eff", None)),
-            # `confidence`가 어느 쪽에서 나왔나 — 툴팁이 **숫자와 설명을 맞추려면** 필요하다.
-            # 임계(0.15/0.35 · NEFF_LOW/MID)를 JS에 옮겨 적지 않으려고 등급을 내보낸다.
-            "confidence_spread": getattr(val, "confidence_spread", None),
-            "confidence_cap": getattr(val, "confidence_cap", None),
             "fair_low": num(val.fair_low), "fair_mid": num(val.fair_mid),
             "fair_high": num(val.fair_high),
             "fair_mid_equal": num(val.fair_mid_equal), "gap_equal": num(val.gap_equal),

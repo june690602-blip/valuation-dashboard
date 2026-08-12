@@ -178,7 +178,14 @@ RELATIVE_METHODS = ("업종 상대가치", "정규화 이익")
 def confidence_grade(dispersion: float | None, n_methods: int,
                      n_eff: float | None = None,
                      capped: bool = False) -> tuple[str, str, str]:
-    """(최종 등급, 흩어짐 등급, 상한) — 신뢰도를 정한다 (ADR-0022).
+    """(최종 등급, 흩어짐 등급, 상한) — 옛 신뢰도 등급 (ADR-0022 · **ADR-0043으로 폐기**).
+
+    ⚠ **제품 경로에서는 더 이상 부르지 않는다.** 이 함수가 남아 있는 이유는 오직
+    `scripts/check_confidence_horizon.py` 등 **이 등급을 재는 진단**이 부르기 때문이다.
+    화면에 다시 붙이지 마라 — 등급이 주장하던 것을 하지 못한다는 것이 KR 패널
+    7,656행에서 측정됐다('높음' 0건 · '낮음'이 1·3·5년 모두에서 더 잘 맞았다).
+
+    아래는 이 등급이 **왜 그렇게 설계됐는지**의 기록이며, 그 설계가 옳았다는 뜻이 아니다.
 
     **흩어짐만 보면 '방법이 서로 독립'이라는 전제가 깔린다.** 그 전제가 틀렸다 — ①과 ⑤는
     같은 적정 배수를 쓰고(ADR-0015 · AAPL), 구조적으로도 괴리율의 55~60%를
@@ -314,7 +321,9 @@ class ValuationResult:
     fair_high: float | None = None
     gap: float | None = None            # 적정가(mid)/현재가 - 1  (+면 상승여력)
     verdict: str | None = None
-    confidence: str | None = None       # 높음/중간/낮음
+    # ⚠ 여기 있던 `confidence`(높음/중간/낮음)는 **제거됐다**(ADR-0043). 다시 넣지 마라 —
+    # 등급이 주장하던 것을 실제로 하지 못한다는 것이 KR 패널 7,656행에서 측정됐다.
+    # 재료인 `dispersion`·`n_eff`는 아래에 그대로 남아 있고 화면은 숫자만 말한다.
     fair_mid_equal: float | None = None  # 동일가중 종합(민감도 비교용)
     gap_equal: float | None = None       # 동일가중 괴리율
     verdict_equal: str | None = None     # 동일가중 판정
@@ -322,18 +331,12 @@ class ValuationResult:
     # **전 종목 하나의 상수가 아니라 이 종목의 실제 범위**다 — 다리값이 이미 있어서
     # 그냥 계산된다. 칸이 하나면(자유도 없음) 빈 dict로 남고 화면도 아무 말 하지 않는다.
     weight_range: dict = field(default_factory=dict)
-    dispersion: float | None = None      # 방법 간 중심값 변동계수(σ/|μ|) — 신뢰도 산출 근거
+    # 방법 간 중심값 변동계수(σ/|μ|). **관측된 사실이고 등급이 아니다** — 화면은 이 값을
+    # `근거 보기` 안에서 ±N%로만 말한다. 등급 이름을 다시 씌우지 마라(ADR-0043).
+    dispersion: float | None = None
     # 실질 축 수 (ADR-0022). 방법을 몇 개 썼든 서로 겹치면 이 값이 그보다 작다.
-    # 신뢰도 등급의 **상한**이 여기서 나온다 — 흩어짐만으로 낸 등급과 둘 중 낮은 쪽을 쓴다.
+    # 편차가 작을 때 그것이 '합의'가 아니라 '같은 자로 여러 번 쟀다'임을 말해 주는 값이다.
     n_eff: float | None = None
-    # `confidence`가 어느 쪽에서 나왔는지 — 화면이 **숫자와 설명을 맞추려면** 둘이 필요하다.
-    # `dispersion`(±%)이 뜻하는 등급은 `confidence_spread`이고, `n_eff`가 씌운 상한은
-    # `confidence_cap`이며, 최종 `confidence`는 둘 중 낮은 쪽이다. 상한이 등급을 내린
-    # 종목에서 ±%만 보고 설명을 고르면 **숫자와 문장이 서로 모순된다**(PR #130이 찾은 버그).
-    # 임계(0.15/0.35 · NEFF_LOW/MID)를 JS에 옮겨 적지 않으려고 등급 자체를 내보낸다 —
-    # 같은 수식이 두 언어에 사는 것이 #84·ADR-0019가 잡은 문제다.
-    confidence_spread: str | None = None   # 흩어짐만으로 낸 등급
-    confidence_cap: str | None = None      # 실질 축 수가 씌운 상한 등급
     # ── 컨센서스 반영 종합 (①③⑤④) — 병기용, 판정에는 쓰지 않는다 ──
     # 값 자체보다 `consensus_premium`(펀더멘털 대비 얼마나 위인가)이 읽을 거리다:
     # "지금 주가가 정당화되려면 시장이 기대하는 실적 개선이 실제로 와야 한다"는 크기.
@@ -1089,7 +1092,7 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
             "warn",
             f"재무제표는 {mismatch}로 공시되는데 주가는 {d.currency}입니다(ADR 등). 주가를 재무 값으로 "
             "나누는 평가(업종 상대가치·역사적 밴드·RIM)는 환율만큼 어긋나 제외합니다 — 컨센서스 "
-            "선행이익 방법만 사용하므로 판정 신뢰도가 낮습니다."))
+            "선행이익 방법 하나만 남습니다 — 이 판정은 시장 기대와 독립적이지 않습니다."))
 
     shares = d.shares_outstanding
     eps = d.latest("eps")
@@ -1368,29 +1371,18 @@ def compute_valuation(d: CompanyData, ind, r_equity: float,
                 "하나에만 의존해 냈습니다 — 이 판정은 시장 기대와 독립적이지 않습니다. "
                 "보수적으로 해석하세요."))
 
+        # 편차와 실질 축 수는 **재기만 한다**. 예전에는 여기서 `confidence_grade`를 불러
+        # 등급을 붙이고 "보수적으로 해석하세요"라는 경고까지 달았는데, 그 경고가 사실이
+        # 아니었다 — 편차가 큰 쪽('낮음')이 세 자 모두에서 오히려 더 잘 맞았다(ADR-0043).
+        # **잰 값은 남기고 그 위에 얹었던 판단만 걷어낸다.**
         if len(mids) >= 2 and res.fair_mid:
-            disp = float(np.std(mids) / abs(np.mean(mids)))
-            res.dispersion = disp
-            n_eff, capped = effective_axes(list(res.weights or {}), d.market)
-            res.n_eff = n_eff
-            res.confidence, spread, cap = confidence_grade(
-                disp, len(mids), n_eff, capped)
-            res.confidence_spread, res.confidence_cap = spread, cap
-            if res.confidence == "낮음":
-                res.notes.append(ValuationNote("warn", f"평가 방법 간 편차가 큽니다(±{disp:.0%}). "
-                                 "판정을 보수적으로 해석하세요."))
-            if cap != spread and res.confidence == cap:
-                # 상한이 실제로 등급을 내린 경우에만 말한다. 안 그러면 "흩어짐은 작은데
-                # 신뢰도가 낮다"가 이유 없이 보인다.
-                res.notes.append(ValuationNote(
-                    "info",
-                    f"이 판정에 쓴 방법 {len(res.weights or {})}개는 서로 겹칩니다 — 실질적으로 "
-                    f"{n_eff:.1f}개 몫입니다. 값이 가깝게 나온 것이 '여러 방법이 독립적으로 "
-                    "합의했다'는 뜻은 아닙니다."))
+            res.dispersion = float(np.std(mids) / abs(np.mean(mids)))
+            res.n_eff = effective_axes(list(res.weights or {}), d.market)[0]
         else:
-            res.confidence = "낮음"
+            # 방법이 하나면 편차를 잴 수 없다 — 없는 것과 작은 것은 다르므로 말은 해 준다.
+            # 다만 '신뢰도가 낮다'가 아니라 **'대조할 것이 없다'**로 말한다.
             res.notes.append(ValuationNote(
-                "warn", "사용 가능한 평가 방법이 1개뿐이라 신뢰도가 낮습니다."))
+                "warn", "판정에 쓸 수 있는 평가 방법이 1개뿐이라 방법 간 대조가 불가능합니다."))
 
     # 두 종합의 차이 — 이 도구에서 읽을 거리가 가장 많은 숫자다.
     # ④가 없는 종목(커버리지 없음)이면 두 값이 같으므로 아무 말도 하지 않는다.

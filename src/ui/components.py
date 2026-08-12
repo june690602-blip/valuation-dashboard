@@ -140,17 +140,23 @@ def section_header_html(eyebrow: str, title: str, desc: str = "") -> str:
 
 
 def verdict_badge_html(verdict: str | None, gap: float | None,
-                       confidence: str | None) -> str:
+                       dispersion: float | None = None) -> str:
+    """판정 배지. 세 번째 인자는 **신뢰도 등급이 아니라 방법 간 편차(±%)**다 (ADR-0043).
+
+    등급('높음/중간/낮음')은 뗐다 — KR 패널 7,656행에서 '높음'이 0건이었고 '낮음'이
+    세 자 모두에서 오히려 더 잘 맞아, 등급이 주장하던 것을 하지 못했다. 잰 값은 사실이라
+    남기고 그 위에 얹었던 판단만 걷어낸다.
+    """
     if not verdict:
         return ""
     color = VERDICT_COLORS.get(verdict, "#6D6861")
     gap_txt = f" · 적정가 대비 {gap * +100:+.0f}%" if gap is not None else ""
-    conf_txt = f" · 신뢰도 {confidence}" if confidence else ""
+    disp_txt = f" · 방법 간 편차 ±{dispersion:.0%}" if dispersion is not None else ""
     return f"""
     <div style="display:inline-flex;align-items:center;gap:10px;">
       <span style="background:{color};color:#fff;padding:6px 16px;border-radius:20px;
                    font-size:1.05rem;font-weight:700;white-space:nowrap;">{verdict}</span>
-      <span style="color:#52514e;font-size:0.9rem;">{gap_txt.lstrip(" ·")}{conf_txt}</span>
+      <span style="color:#52514e;font-size:0.9rem;">{gap_txt.lstrip(" ·")}{disp_txt}</span>
     </div>"""
 
 

@@ -90,7 +90,9 @@ def _one(code: str, coef, market: str) -> dict | None:
             time.sleep(BACKOFF * (attempt + 1))
     if v.verdict is None or not d.price or not v.fundamental_only:
         return None
-    row = {"code": code, "conf": v.confidence, "disp": v.dispersion,
+    # `v.confidence`는 없어졌다(ADR-0043) — 어차피 이 스크립트는 아래 §C에서
+    # `confidence_grade`를 직접 불러 다시 매기므로 여기서 받아 둘 이유가 없었다.
+    row = {"code": code, "disp": v.dispersion,
            "intrinsic": v.intrinsic_share, "mcap": d.market_cap,
            "methods": [m for m in (v.weights or {}) if m in FUNDAMENTAL_METHODS]}
     # 방법별 **로그 괴리율**. 로그로 재는 이유는 ADR-0014와 같다 — 배수는 곱셈 스케일이고,

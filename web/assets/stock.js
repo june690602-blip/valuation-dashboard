@@ -150,7 +150,7 @@
      **문구의 번호를 손으로 적지 않는다.** 판정에 드는 방법은 종목마다 다르고
      (②·③은 품질 관문에서 빠지고, AAPL은 ①⑤만 선다) 축 구성 자체도 바뀐다.
      `v.weights`의 키가 그 종목에서 실제로 쓴 방법이므로 번호는 거기서 만든다 —
-     헤더 신뢰도 툴팁이 방법 수를 세는 방식(아래 renderHeader)과 같은 근거다.
+     `근거 보기`의 방법 간 편차가 방법 수를 세는 방식(아래 renderHeader)과 같은 근거다.
      화면 아홉 자리가 `①②③`으로 굳어 있었고, ⑤가 축이 된(ADR-0015) 뒤로 그 아홉 자리는
      어느 종목에서도 맞지 않았다. */
   var METHOD_TAB = { '업종 상대가치': ['①', 'peers'], '역사적 밴드': ['②', 'valuation'], '수익가치(RIM)': ['③', 'financials'], '선행 이익(컨센서스)': ['④', null], '정규화 이익': ['⑤', 'financials'] };
@@ -159,7 +159,7 @@
 
   /* 가중치 표의 키 → 번호순 방법 이름. 모르는 방법이 섞여 있으면 **빈 배열**이다 —
      번호를 반만 적으면 "하나 빠뜨렸나"로 읽힌다. 틀린 설명보다 없는 설명이 낫다
-     (신뢰도 툴팁이 등급을 모를 때 문장을 안 붙이는 것과 같은 태도다). */
+     (방법 간 편차가 값을 모를 때 아무 말도 하지 않는 것과 같은 태도다). */
   function methodsOf(weights) {
     var names = Object.keys(weights || {});
     if (!names.length || names.some(function (m) { return !METHOD_TAB[m]; })) return [];
@@ -881,29 +881,13 @@
       + (fundOnly
         ? '회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적으로 계산됩니다. ④ 컨센서스 선행 이익은 판정에 넣지 않고 아래에 따로 병기합니다.'
         : '회사가 이미 낸 실적·자산만으로 서는 방법이 이 종목에서는 하나도 계산되지 않아, 판정이 ④ 컨센서스 선행 이익에 기대고 있습니다 — 이 판정은 시장 기대와 독립적이지 않습니다.');
-    // ±%가 뜻하는 등급은 `confidence_spread`이고, 최종 등급은 실질 축 수(ADR-0022)가
-    // 씌운 상한과 둘 중 **낮은 쪽**이다. 그래서 설명을 최종 등급으로 고르면 안 된다 —
-    // 상한이 등급을 내린 종목에서 "±10% … 다소 흩어져 있습니다(±15~35%)"처럼 숫자와
-    // 문장이 서로 모순됐다(PR #130이 찾은 버그). 등급 문자열은 파이썬이 내보낸다:
-    // 임계(0.15/0.35)를 여기 옮겨 적으면 #84·ADR-0019가 잡은 '수식이 두 언어에 사는' 문제다.
-    // **없으면 `v.confidence`로 물러서지 않는다.** 그것이 정확히 이 버그였다 — 옛 응답과
-    // 새 화면(또는 그 반대)이 섞였을 때 조용히 되살아난다. 등급을 모르면 ±%만 말하고
-    // 문장은 붙이지 않는다. 틀린 설명보다 없는 설명이 낫다(ADR-0011과 같은 태도).
-    var spreadGrade = v.confidence_spread;
-    var confTip = v.dispersion != null
-      ? '판정에 쓰인 방법 간 중심값 편차 ±' + Math.round(v.dispersion * 100) + '% (' + nMeth + '개 방법)'
-        + (spreadGrade === '높음' ? ' — 방법 간 값이 좁게 모여 있습니다(±15% 미만).'
-          : spreadGrade === '중간' ? ' — 방법 간 값이 다소 흩어져 있습니다(±15~35%).'
-          : spreadGrade === '낮음' ? ' — 방법 간 값이 크게 흩어져 있습니다(±35% 이상). 판정을 보수적으로 해석하세요.'
-          : '.')
-        + (v.confidence && spreadGrade && v.confidence !== spreadGrade
-          ? ' 다만 그 방법들이 서로 겹쳐'
-            + (v.n_eff != null ? ' 실질적으로 ' + (Math.round(v.n_eff * 10) / 10) + '개 몫이라' : '')
-            + ' 신뢰도를 ‘' + v.confidence + '’으로 내렸습니다.'
-          : '')
-        + ' 값이 모인 정도이지 방법들이 독립적으로 합의했다는 뜻은 아닙니다. ④ 선행 이익은 판정에 넣지 않으므로 이 편차에도 들어가지 않습니다.'
-      : nMeth <= 1 ? '사용 가능한 평가 방법이 1개뿐이라 낮음으로 처리합니다.'
-      : '편차 정보를 계산하지 못했습니다.';
+    // 여기 있던 **신뢰도 배지와 그 툴팁은 뗐다**(ADR-0043). 등급이 주장하던 것을
+    // 실제로 하지 못했기 때문이다 — KR 패널 7,656행에서 '높음'이 **0건**이고,
+    // *"덜 믿으세요"*라고 붙인 '낮음'이 세 자(1·3·5년) 모두에서 오히려 더 잘 맞았다.
+    // **숫자는 남긴다.** 편차 ±N%는 관측된 사실이라 틀리지 않았다 — 틀린 것은 그 위에
+    // 얹은 등급 이름이었다. 그래서 자리를 헤더 배지에서 `근거 보기` 안으로 옮기고,
+    // '얼마나 믿을 만한가'가 아니라 **'방법들이 얼마나 벌어져 있나'**로만 말한다.
+    // 등급 이름(높음/중간/낮음)을 다시 붙이지 않는 것이 이 변경의 전부다.
     var finYear = (D.financials && D.financials.years && D.financials.years.length)
       ? D.financials.years[D.financials.years.length - 1] : null;
     // 판정 헤드라인 색 · 연속 마커 위치 · 평이한 해설
@@ -955,8 +939,9 @@
     // **합성 오차를 만들지 않는다**: ①은 다리별 값의 중앙값이고 ②③⑤의 오차는 원리적으로
     // 못 재므로(ADR-0009), 잰 것만 늘어놓고 가장 나쁜 다리로 안전마진을 말한다.
     // 색은 쓰지 않는다(R4) — 세기는 진하기로만 말한다.
-    // 이 판정이 무엇에 기대는가 (ADR-0018). 신뢰도는 방법 간 편차만 보는데, 방법이 둘뿐이고
-    // 둘 다 시장 배수 기반이면 편차가 작아도 '확실하다'가 아니라 **'같은 것을 두 번 쟀다'**다.
+    // 이 판정이 무엇에 기대는가 (ADR-0018). 편차는 방법들이 벌어진 정도만 보는데, 방법이
+    // 둘뿐이고 둘 다 시장 배수 기반이면 편차가 작아도 '확실하다'가 아니라
+    // **'같은 것을 두 번 쟀다'**다.
     // 141종목 실측에서 절대가치 실효 비중의 **중앙값이 0.0%**이고 53%가 절대가치 축 없이
     // 판정된다 — 그 사실을 사용자가 볼 수 없었다. 색은 쓰지 않는다(R4).
     var basisBody = '';
@@ -1033,7 +1018,20 @@
        소음이 된다. 이 자리는 앞으로도 늘어난다 — **그릇을 하나로 두고 안에 쌓는다.**
        ⚠ 접어도 사라지지 않아야 하는 것은 여기 넣지 않는다 — 면책·AI 생성 표시·판정
        충돌 경고는 첫 화면에 그대로 둔다. */
-    var evidence = [basisBody, errBody, widthBody].filter(Boolean).join('<br/>');
+    /* 방법 간 편차 — 예전 헤더의 `신뢰도 [등급]` 배지가 서 있던 자리(ADR-0043에서 뗐다).
+       숫자만 사실로 남겨 여기로 들인다. **등급 이름을 붙이지 않고**, "편차가 작으면
+       더 맞다"는 함의도 붙이지 않는다 — 재보니 그 함의가 성립하지 않았다. */
+    var dispBody = '';
+    if (v.dispersion != null) {
+      dispBody = '<b>방법 간 편차</b> — 판정에 쓴 ' + nMeth + '개 방법의 중심값이 서로 <b class="mono">±' +
+        Math.round(v.dispersion * 100) + '%</b> 벌어져 있습니다' +
+        (v.n_eff != null ? ' (다만 서로 겹쳐 실질적으로는 <b class="mono">' +
+          (Math.round(v.n_eff * 10) / 10) + '개</b> 몫입니다)' : '') +
+        '. 값이 모인 정도일 뿐, 방법들이 <b>독립적으로 합의했다</b>는 뜻도 <b>판정이 더 맞다</b>는 ' +
+        '뜻도 아닙니다 — 편차가 작다고 판정이 더 잘 맞지는 않았습니다(ADR-0043). ' +
+        '④ 선행 이익은 판정에 넣지 않으므로 이 편차에도 들어가지 않습니다.';
+    }
+    var evidence = [basisBody, errBody, widthBody, dispBody].filter(Boolean).join('<br/>');
     var evidenceFold = evidence
       ? fold('근거 보기 — 이 판정이 무엇에 기대고, 얼마나 틀리는가', evidence) : '';
     // ── B (기본) ──
@@ -1044,7 +1042,9 @@
           '<div><div style="display:flex;align-items:center;gap:6px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(m.ticker) + '</span>' + badge(m.market + ' · ' + m.benchmark, 'info') + '</div>' +
           '<div style="font-family:' + disp + ';font-weight:700;font-size:29px;letter-spacing:-0.01em;line-height:1;margin-top:2px">' + esc(m.name) + '</div></div></div>' +
           '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(m.price) + '</div></div>' +
-        '<div style="flex:1;min-width:320px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="kick">밸류에이션 판정</span><span style="font-size:12px;color:var(--ink-3)">신뢰도 <b class="na" tabindex="0" data-tip="' + esc(confTip) + '" style="color:var(--ink-2)">' + esc(v.confidence || '—') + '</b></span></div>' +
+        // 이 줄 오른쪽 끝에 `신뢰도 [등급]` 배지가 있었다 — ADR-0043에서 뗐다.
+        // 편차 숫자는 아래 `근거 보기` 안으로 옮겼다(dispBody).
+        '<div style="flex:1;min-width:320px"><span class="kick">밸류에이션 판정</span>' +
           // 큰 판정 헤드라인 — 결론(저평가/적정/고평가)이 한눈에
           '<div style="display:flex;align-items:baseline;gap:12px;margin-top:8px;flex-wrap:wrap">' +
             '<span style="font-family:' + disp + ';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(v.verdict || '—') + '</span>' +
@@ -1325,7 +1325,7 @@
       var ourMult = (e4 && e4.mid != null) ? e4.mid / c.forward_eps : null;
       rows.push('<b>목표주가 역산</b>: 증권가 목표가(' + fmtPrice(c.target_mean) + ')는 선행 EPS × <b class="mono">' + fmtX(impliedPer) + '</b>를 적용한 셈입니다' +
         (ourMult != null ? ' — 이 대시보드 ④는 보수 원칙으로 <b class="mono">' + fmtX(ourMult) + '</b>를 적용했습니다. 두 값 차이의 대부분은 "정당한 멀티플이 몇 배냐"(성장 프리미엄) 가정에서 나옵니다' : '') +
-        '. 증권사 리포트의 정성적 근거(수주·신제품·업황 전망)는 무료 데이터에 포함되지 않아 이렇게 역산으로만 추정합니다');
+        '. 증권사 리포트의 정성적 근거(수주·신제품·업황 전망)는 리포트 본문의 서술이라 숫자로 옮겨 담을 수 없어, 목표주가에서 이렇게 역산으로만 되짚습니다');
     }
     body.innerHTML =
       '<div class="tile-strip">' + strip + '</div>' +
@@ -1743,7 +1743,7 @@
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600;color:var(--dv-negative)">약세 논거·리스크</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.8">' + li(bears) + '</ul></div></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">' +
         '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">적정가 추정 범위 · 괴리율</div><div style="display:flex;align-items:baseline;gap:10px;margin-top:10px"><span class="mono" style="font-size:22px;font-weight:600">' + target + '</span><span style="font-size:13px;color:' + (up ? 'var(--dv-positive)' : 'var(--dv-negative)') + '">' + upside + '</span></div><div style="font-size:11.5px;color:var(--ink-3);margin-top:6px">' + verdictMarks() + '(회사 실적·자산 기반) 추정 범위이며 추천 목표가가 아닙니다</div></div>' +
-        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">관찰을 재검토할 기준</div><div style="font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-top:10px">52주 최저 <b class="mono">' + stop + '</b> 이탈 시 현재 추세 해석을 다시 확인하세요. 신뢰도 <b>' + esc(v.confidence || '—') + '</b> — 방법 간 편차가 크면 보수적으로 해석하세요.</div></div></div>' +
+        '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:16px 18px"><div style="font-size:13px;font-weight:600">관찰을 재검토할 기준</div><div style="font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-top:10px">52주 최저 <b class="mono">' + stop + '</b> 이탈 시 현재 추세 해석을 다시 확인하세요. 이 판정이 무엇에 기대고 얼마나 틀리는지는 <b>02 요약·판정</b> 탭의 ‘근거 보기’에 있습니다.</div></div></div>' +
       '<div style="font-size:10.5px;color:var(--ink-3);margin-top:14px;line-height:1.6">본 스탠스는 대시보드 산출 데이터에 기반한 규칙적 요약이며, 서술형 AI 평가·최종 판단은 이용자 책임입니다. 특정 종목의 매수·매도 추천이 아닙니다.</div>';
     var ob = $('opBtn'); if (ob) ob.addEventListener('click', function () { aiFetch('opinion', $('opOut'), ob); });
   }
