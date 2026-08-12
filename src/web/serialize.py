@@ -1134,7 +1134,10 @@ def analyze_etf(market: str, query: str) -> dict:
         "symbol": r.symbol, "name": r.name, "currency": r.currency, "price": num(r.price),
         "asOf": {"price": asof},
         "fund_type": r.fund_type, "type_label": r.type_label,
-        "verdict": r.verdict, "gap": num(r.gap), "confidence": r.confidence, "primary": r.primary,
+        # ⚠ `confidence`는 **내려보내지 않는다** — 주식 쪽과 같은 이유다(ADR-0043).
+        # 실어 두면 화면이 조용히 등급을 되살린다. `EtfResult.confidence`는 진단용으로
+        # 남아 있고, 근거가 약하다는 사실은 판정 보류 배지와 주석이 말한다.
+        "verdict": r.verdict, "gap": num(r.gap), "primary": r.primary,
         "nav": num(r.nav), "premium": num(r.premium),
         # pos·lead·weak = 화면이 축을 게이지로 그리기 위한 정규화 값(0=싼 구간·100=비싼 구간).
         "axes": [{"key": a.key, "title": a.title, "value": a.value, "note": a.note,

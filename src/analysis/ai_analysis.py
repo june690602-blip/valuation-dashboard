@@ -252,8 +252,14 @@ def build_opinion_context(d, ind, val, cc, scores, news_summary: str = "",
     # 적정주가(목표가 근거) + 상승여력
     if val.fair_mid:
         upside = val.fair_mid / d.price - 1 if d.price else None
+        # 번호를 손으로 적지 않는다. 판정에 드는 방법은 종목마다 다르고(②는 ADR-0035로
+        # 빠졌고 ③은 장부 왜곡이면 빠진다 — AAPL은 ①⑤만 선다), 여기 '①②③'이 손으로
+        # 적혀 있었다. PR #139가 화면 아홉 자리를 `v.weights`에서 유도하도록 고칠 때
+        # **이 프롬프트만 남았다.** 모델에게 틀린 구성을 주면 근거처럼 되받아 쓴다.
+        from .valuation import marks_of
+        marks = marks_of(val.weights or {})
         lines.append(
-            f"펀더멘털 적정주가 범위(①②③ 가중평균, =목표가 근거): "
+            f"펀더멘털 적정주가 범위({marks + ' ' if marks else ''}가중평균, =목표가 근거): "
             f"{val.fair_low:,.0f} ~ {val.fair_high:,.0f} {cur}"
             + (f", 중심 {val.fair_mid:,.0f} → 현재가 대비 상승여력 {pct(upside)}" if upside is not None else ""))
         # 방법별 세부 (편차=신뢰도 판단 근거)
