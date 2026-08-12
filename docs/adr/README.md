@@ -56,4 +56,5 @@
 | [0043](0043-the-confidence-badge-did-not-do-what-it-claimed.md) | 신뢰도 배지를 뗀다 — 등급이 주장하는 것을 하지 못했다 (한국 '높음' 0건 · 미국 100% '낮음') | 채택됨 |
 | [0044](0044-the-regression-sector-label-must-be-the-exchange-one.md) | 회귀에 넣는 업종 라벨은 거래소 분류여야 한다 — AI가 지은 이름이 전부 '기타'로 떨어지고 있었다 | 채택됨 |
 | [0045](0045-parallelize-the-load-path.md) | 로드 경로를 병렬로 묶는다 — 계산은 0.04초였고 나머지는 줄을 서 있었다 | 채택됨 |
+| [0047](0047-the-pipeline-cache-did-not-hold-a-lock.md) | 파이프라인 캐시가 호출 중에 락을 잡지 않았다 — 그리고 AI 버튼은 한 번도 적중한 적이 없었다 | 채택됨 |
 | [0046](0046-the-peer-loop-was-the-last-queue.md) | 피어 보정 루프가 마지막 줄이었다 — 웜에서 0.01초, 콜드에서 3.60초 | 채택됨 |
