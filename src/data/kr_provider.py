@@ -207,6 +207,10 @@ class KRProvider(DataProvider):
                 "피어 구성이 달라지므로 업종 비교와 상대가치 결과가 평소와 다를 수 있습니다.")
         if ai_codes and len(ai_codes) >= 4:
             peer_codes = [code] + [c for c in ai_codes if c != code]
+            # ⚠ 여기서 덮어쓰는 것은 **표시·피어용 라벨**이다. ①⑤의 적정 배수 회귀는
+            # KRX 라벨로 적합된 계수표를 조회하므로 아래 `sector_official`을 쓴다 —
+            # 이 구분이 없어서 AI가 지은 이름('반도체')이 계수표('반도체 제조업')에
+            # 없어 전부 '기타'로 떨어지고 있었다(ADR-0044).
             sector = ai_sector or sector
             industry = ai_industry or industry
             peer_basis = f"AI 업종분류 '{ai_sector or industry}'"
@@ -290,6 +294,8 @@ class KRProvider(DataProvider):
         return CompanyData(
             ticker=code, yahoo_ticker=yt, name=meta["name"], market="KR",
             currency="KRW", sector=sector, industry=industry,
+            # 회귀용 라벨은 **AI가 손대기 전의 KRX 분류**로 고정한다(ADR-0044).
+            sector_official=meta["sector"],
             price=price, market_cap=float(mcap), shares_outstanding=float(shares),
             financials=financials, ttm=ttm, prices=prices, prices_raw=prices_raw,
             index_prices=index_prices, benchmark_name=benchmark,

@@ -54,3 +54,4 @@
 | [0041](0041-weight-width-is-measured-per-stock.md) | 가중치 폭은 종목마다 잰다 — 인계문의 두 탐침은 자기가 말하는 순위를 어겼다 | 채택됨 |
 | [0042](0042-verdict-thresholds-what-passed-was-selectivity.md) | 판정을 3등급으로 넓힌다 — 다만 이긴 것은 '오차 문턱'이 아니라 '극단을 좁게 잡은 것'이었다 | 채택됨 |
 | [0043](0043-the-confidence-badge-did-not-do-what-it-claimed.md) | 신뢰도 배지를 뗀다 — 등급이 주장하는 것을 하지 못했다 (한국 '높음' 0건 · 미국 100% '낮음') | 채택됨 |
+| [0044](0044-the-regression-sector-label-must-be-the-exchange-one.md) | 회귀에 넣는 업종 라벨은 거래소 분류여야 한다 — AI가 지은 이름이 전부 '기타'로 떨어지고 있었다 | 채택됨 |
