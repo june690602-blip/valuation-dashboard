@@ -1054,3 +1054,80 @@ class RankAllowedWidthTests(unittest.TestCase):
             [self._fv("업종 상대가치", 120), self._fv("정규화 이익", 100)]))
         self.assertIsNone(_rank_allowed_span([self._fv("업종 상대가치", 120)]))
         self.assertIsNone(_rank_allowed_span([self._fv("수익가치(RIM)", 60)]))
+
+
+class VerdictThresholdTests(unittest.TestCase):
+    """판정 문턱을 못 박는다 (ADR-0042).
+
+    **이 클래스가 없어서 사고가 날 뻔했다.** 5등급 → 3등급으로 바꾸고 문턱을 ±10%/±30%에서
+    로그 ±0.897로 옮겼는데 **411개 테스트가 전부 그대로 통과했다** — 판정 규칙을 지키는
+    테스트가 하나도 없었다. 등급 어휘는 화면 곳곳의 입력이라(색 표·배지·눈금 위치)
+    조용히 어긋나면 화면이 말없이 틀린다.
+    """
+
+    def test_three_grades_ordered_best_to_worst(self):
+        from src.analysis.valuation import VERDICTS
+
+        self.assertEqual(VERDICTS, ["저평가", "적정 수준", "고평가"])
+
+    def test_threshold_is_symmetric_in_log_not_in_gap(self):
+        """로그 대칭이 이 문턱의 핵심이다 — gap은 비(比)라 원 스케일에서 비대칭이다."""
+        from src.analysis.valuation import VERDICT_LOG_THRESHOLD as M
+        from src.analysis.valuation import _verdict
+
+        up, down = np.expm1(M), np.expm1(-M)
+        self.assertAlmostEqual(up, 1.4523, places=3)    # 저평가 = 적정가가 현재가의 ~2.5배
+        self.assertAlmostEqual(down, -0.5918, places=3)
+        # 경계 바로 안/밖
+        self.assertEqual(_verdict(up + 1e-9), "저평가")
+        self.assertEqual(_verdict(up - 1e-3), "적정 수준")
+        self.assertEqual(_verdict(down - 1e-9), "고평가")
+        self.assertEqual(_verdict(down + 1e-3), "적정 수준")
+        # 원 스케일로 대칭이었다면 gap=−0.956에서 고평가여야 하는데 그렇지 않다
+        self.assertEqual(_verdict(-0.60), "고평가")
+        self.assertNotEqual(up, -down)
+
+    def test_threshold_comes_from_measured_error_not_a_made_up_number(self):
+        """0.897은 KR LEG_MAE의 최댓값(psr)이다.
+
+        **이 테스트가 실제로 오류를 잡았다** — 상수를 손으로 0.671(ev_ebitda, 두 번째로
+        나쁜 다리)이라 적어 뒀는데 측정은 0.897로 돌고 있었다. 문서 다섯 곳이 함께
+        틀려 있었다. 상수를 손으로 적으면 또 어긋난다.
+        """
+        from src.analysis.valuation import VERDICT_LOG_THRESHOLD
+        from src.analysis.warranted import LEG_MAE
+
+        self.assertAlmostEqual(VERDICT_LOG_THRESHOLD, max(LEG_MAE["KR"].values()), places=6)
+
+    def test_gap_at_or_below_minus_one_does_not_raise(self):
+        """적정가가 0 이하면 로그가 없다 — 예외 대신 '고평가'로 떨어져야 한다."""
+        from src.analysis.valuation import _verdict
+
+        for g in (-1.0, -1.5, -3.0):
+            with self.subTest(gap=g):
+                self.assertEqual(_verdict(g), "고평가")
+
+    def test_javascript_verdict_list_matches_python(self):
+        """화면의 등급 목록이 파이썬과 **순서까지** 같은가.
+
+        stock.js는 `VERDICTS.indexOf()`로 색·눈금 위치·강조를 정한다. 순서가 어긋나면
+        저평가 종목이 고평가 색으로 뜬다 — 예외 없이, 조용히.
+        """
+        import re
+        from pathlib import Path
+
+        from src.analysis.valuation import VERDICTS
+
+        js = (Path(__file__).resolve().parents[1] / "web" / "assets" / "stock.js"
+              ).read_text(encoding="utf-8")
+        m = re.search(r"var VERDICTS = \[(.*?)\];", js, re.S)
+        self.assertIsNotNone(m, "stock.js에서 VERDICTS를 찾지 못했다")
+        got = [x.strip().strip("'\"") for x in m.group(1).split(",")]
+        self.assertEqual(got, VERDICTS)
+
+    def test_verdict_color_table_covers_every_grade(self):
+        """색 표에 빠진 등급이 있으면 그 판정만 색 없이 뜬다."""
+        from src.analysis.valuation import VERDICTS
+        from src.ui.components import VERDICT_COLORS
+
+        self.assertEqual(sorted(VERDICT_COLORS), sorted(VERDICTS))
