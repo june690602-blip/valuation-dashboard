@@ -1,0 +1,62 @@
+# ①의 회귀 계수를 밤에 구워 별도 브랜치에 둔다 (이슈 #131).
+#
+# 왜: 계수가 없으면 서버가 전 종목 2,871개를 긁는다(실측 58초, 레이트리밋이 겹치면 더).
+# 그 시간을 **방문자가 아니라 CI가 낸다.** 새벽에 아무도 안 기다린다.
+#
+# main에 커밋하지 않는 이유 둘:
+#   1. 봇 커밋이 main 히스토리에 매일 쌓인다
+#   2. Render가 main 푸시마다 자동 재배포한다 — 데이터 갱신으로 배포가 돌 이유가 없다
+# 그래서 `data-coefficients` 브랜치에 **orphan + force-push**로 둔다. 그 브랜치는
+# 커밋이 늘 하나뿐이고, main과 히스토리를 공유하지 않으며, PR도 만들지 않는다.
+#
+# 시크릿이 필요 없다 — 계수 수집은 네이버·yfinance·FDR만 쓴다(DART 키는 안 쓴다).
+name: Coefficients
+
+on:
+  schedule:
+    # 매일 18:40 UTC = 한국시간 03:40. 정각을 피한 건 정각에 CI가 몰려 느려지기 때문이다.
+    - cron: "40 18 * * *"
+  workflow_dispatch:      # 손으로도 돌릴 수 있게 — 브랜치를 처음 만들 때 이걸 쓴다
+
+permissions:
+  contents: write         # 브랜치에 푸시해야 한다
+
+concurrency:
+  group: coefficients
+  cancel-in-progress: false   # 반쯤 만들다 잘리면 브랜치에 깨진 파일이 남는다
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30       # 실측 1분 남짓. 레이트리밋으로 늘어질 때를 감안한 상한이다
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Build coefficients
+        run: python scripts/build_coefficients.py --out dist/coefficients
+
+      # orphan 커밋으로 덮어쓴다 — 브랜치 히스토리가 자라지 않는다(늘 커밋 1개).
+      # 빌드가 실패하면 이 단계에 오지 않으므로 **이전 파일이 브랜치에 그대로 남는다.**
+      - name: Publish to data branch
+        run: |
+          set -euo pipefail
+          cd dist/coefficients
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q --orphan data-coefficients
+          git add -A
+          git commit -q -m "chore(data): 회귀 계수 갱신 — $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push -q --force \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
+            data-coefficients
+          echo "→ https://github.com/${{ github.repository }}/tree/data-coefficients"

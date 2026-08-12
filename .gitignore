@@ -51,3 +51,6 @@ data/backtest/*
 
 # 미국 백테스트 수집 데이터(파생물)
 data/backtest_us/
+
+# 계수 빌드 산출물 — main에 커밋하지 않는다. CI가 data-coefficients 브랜치로 보낸다(이슈 #131).
+dist/
