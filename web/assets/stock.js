@@ -1204,12 +1204,26 @@
       }
       return '';
     }).join('');
-    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">펀더멘털 적정가 (' + verdictMarks('', ' ') + '가중평균) <span class="val-sub">— 판정 근거</span></span><span></span><span class="mono r" style="font-size:14px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
+    /* 아래 두 행의 `— 판정 근거` / `— 병기`는 **역할 표시**다(어느 값이 판정을 내고 어느
+       값이 참고인가). 그런데 이 표의 넷째 칸 제목이 하필 **'근거'**여서, 같은 행에서
+       '근거'가 두 뜻으로 읽힌다 — 사용자가 "판정 근거라고 써 있는데 눌러도 아무 일도
+       안 난다"고 신고한 자리다. 방법 행들은 그 칸에 `어떻게 나온 값인가` 접힘이 있는데
+       합계 행만 괴리율이 들어가 있어서 더 그렇게 보인다.
+       접힘을 하나 더 만들지 않고(그 칸의 내용은 아래 `계산식과 출처` 접힘이 이미 갖고 있다)
+       **역할 표시에 말풍선을 달아** 눌러 볼 것이 있다는 기대에 실제로 답한다.
+       `.na`는 이 코드베이스의 표준 말풍선이다(점선 밑줄 + cursor:help + hover/focus). */
+    var totalTip = '이 표에서 **판정을 내는 값**입니다. ' + (weightBreak(v.weights) || '가중평균')
+      + '으로 종합했고, 현재가와 이 값의 차이가 곧 괴리율입니다. '
+      + '가중치와 계산식은 아래 “계산식과 출처” 접힘에 있습니다.';
+    var consTip = '판정에는 **넣지 않는** 참고값입니다. ④ 컨센서스 선행 이익까지 더해 본 것으로, '
+      + '펀더멘털 값과의 차이가 곧 시장이 기대하는 실적 변화의 크기입니다.';
+    var total = '<div class="row total" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr;border-bottom:none"><span style="font-size:13.5px;font-weight:700">펀더멘털 적정가 (' + verdictMarks('', ' ') + '가중평균) <span class="val-sub na" tabindex="0" data-tip="' + esc(totalTip.replace(/\*\*/g, '')) + '">— 판정 근거</span></span><span class="mono r" style="font-size:12.5px;color:var(--ink-2)">' + (v.fair_low != null && v.fair_high != null ? won(v.fair_low) + '–' + won(v.fair_high) : '') + '</span><span class="mono r" style="font-size:14px;font-weight:700">' + won(v.fair_mid) + '</span><span style="font-size:12px;font-weight:600;color:' + (v.gap >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">현재가 대비 ' + fmtSigned(v.gap) + '</span></div>';
     // 컨센서스 반영 값은 같은 표 안, 종합 바로 아래 한 행으로 선다. 별도 탭·별도 카드로
     // 떼면 두 값을 나란히 볼 수 없고, 이 도구에서 읽을 거리가 가장 많은 것은 둘의 차이다.
     if (v.fair_mid_consensus != null) {
       total += '<div class="row val-consrow" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr">' +
-        '<span class="val-consname">컨센서스 반영 (④ 포함) <span class="val-sub">— 병기</span></span><span></span>' +
+        '<span class="val-consname">컨센서스 반영 (④ 포함) <span class="val-sub na" tabindex="0" data-tip="' + esc(consTip.replace(/\*\*/g, '')) + '">— 병기</span></span>' +
+        '<span class="mono r" style="font-size:12.5px;color:var(--ink-3)">' + (v.fair_low_consensus != null && v.fair_high_consensus != null ? won(v.fair_low_consensus) + '–' + won(v.fair_high_consensus) : '') + '</span>' +
         '<span class="mono r val-consval">' + won(v.fair_mid_consensus) + '</span>' +
         '<span class="val-consgap">현재가 대비 ' + fmtSigned(v.gap_consensus) +
         (v.consensus_premium != null ? ' · 펀더멘털 대비 ' + fmtSigned(v.consensus_premium) : '') + '</span></div>';
