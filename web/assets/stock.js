@@ -133,7 +133,8 @@
      붙던 양 끝과 그 안쪽 둘이다(백테스트에서 가운데 셋이 구별되지 않았다 · ADR-0028). */
   var VERDICTS = ['저평가', '적정 수준', '고평가'];
   function vIdx(v) { var i = VERDICTS.indexOf(v); return i < 0 ? 1 : i; }
-  function vPos(v) { return [22, 50, 78][vIdx(v)]; }
+  // 괴리율이 없을 때만 쓰는 자리 — 각 칸의 **중앙**이다(칸 경계가 25·75이므로).
+  function vPos(v) { return [12.5, 50, 87.5][vIdx(v)]; }
   function vTone(v) { var i = vIdx(v); return i === 0 ? 'positive' : i === 1 ? 'neutral' : 'negative'; }
 
   /* ── 상태 ── */
@@ -910,7 +911,26 @@
     // 판정은 우리가 내린 판단이라 무채 잉크로만 쓴다. 방향은 문자와 눈금 위 위치가 말한다.
     var vColor = 'var(--ink)';
     var gp = v.gap == null ? null : Math.max(-0.4, Math.min(0.4, v.gap));
-    var mpos = gp == null ? pos : (50 - gp / 0.4 * 40);   // 괴리율(연속)→바 위치. +괴리(상승여력)=왼쪽(저평가)
+    /* 괴리율(연속) → 눈금 위치. +괴리(상승여력)=왼쪽(저평가).
+       **로그 공간에서 선형**이다 — 판정 문턱이 로그 대칭이라(ADR-0042) 여기서도 같은 자를
+       써야 칸 경계와 마커가 어긋나지 않는다. 표시 범위는 문턱의 두 배로 잡아, 문턱이
+       정확히 25%·75% 자리에 온다(`zoneEdge`).
+       ⚠ 옛 코드는 `50 - gap/0.4*40`이었다. 그건 ±10%/±30% 문턱을 20/40/60/80% 자리에
+       **그림으로 박아 둔 것**이라, 문턱이 바뀌자 막대만 옛 문턱을 계속 그렸다 —
+       삼성전자가 '적정 수준'인데 눈금은 고평가 칸을 가리켰다. 그래서 숫자를 여기 적지 않고
+       파이썬이 보낸 `verdict_threshold_log`로 그린다.
+       클램프도 없었다 — 괴리율이 크면 마커가 막대 밖으로 나갔다(gap +200%면 left:-150%). */
+    var thrLog = (v.verdict_threshold_log != null && v.verdict_threshold_log > 0)
+      ? v.verdict_threshold_log : 0.897;
+    var zoneEdge = 25;                                  // 문턱이 놓이는 자리(%) — 좌 25 / 우 75
+    function gapToPos(g) {
+      if (g == null || !(g > -1)) return null;          // gap ≤ −1은 적정가 0 이하 — 정의되지 않는다
+      var lg = Math.log(1 + g);
+      var p = 50 - (lg / (thrLog * 2)) * 50;            // 문턱(±thrLog) → 25% / 75%
+      return Math.max(2, Math.min(98, p));              // 막대 밖으로 나가지 않게
+    }
+    var mpos = gapToPos(gp);
+    if (mpos == null) mpos = pos;
     var gapAbs = v.gap == null ? null : Math.abs(v.gap * 100).toFixed(1);
     var verdictLine = v.verdict === '적정 수준'
       ? '현재가가 펀더멘털 적정가 범위 안에 있습니다.'
@@ -1045,8 +1065,12 @@
               '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--ink);font-weight:700' : '') + '">저평가</span>' +
               '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">적정</span>' +
               '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--ink);font-weight:700' : '') + '">고평가</span></div>' +
+            // 칸 셋의 **너비가 곧 문턱**이다 — 25 / 50 / 25. 옛 막대는 다섯 칸이었고 그
+            // 경계가 ±10%/±30%를 뜻했다(ADR-0042 이전). 판정이 셋이 됐으니 칸도 셋이다.
             '<div style="display:flex;height:13px;border-radius:var(--radius-pill);overflow:hidden">' +
-              '<span style="flex:1;background:var(--dv-green);opacity:.82"></span><span style="flex:1;background:var(--dv-green);opacity:.45"></span><span style="flex:1;background:var(--paper-3)"></span><span style="flex:1;background:var(--dv-clay);opacity:.45"></span><span style="flex:1;background:var(--dv-clay);opacity:.82"></span></div>' +
+              '<span style="flex:' + zoneEdge + ';background:var(--dv-green);opacity:.82"></span>' +
+              '<span style="flex:' + (100 - zoneEdge * 2) + ';background:var(--paper-3)"></span>' +
+              '<span style="flex:' + zoneEdge + ';background:var(--dv-clay);opacity:.82"></span></div>' +
             '<div style="position:absolute;left:' + mpos + '%;top:26px;transform:translateX(-50%);width:2px;height:22px;background:var(--ink)"></div>' +
             '<div style="position:absolute;left:' + mpos + '%;top:22px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:var(--ink);border:2px solid var(--paper);box-shadow:var(--shadow-sm)"></div>' +
             '<div style="position:absolute;left:' + mpos + '%;top:51px;transform:translateX(-50%);white-space:nowrap;font-family:' + mono + ';font-size:10.5px;font-weight:700;color:var(--ink)">현재가</div></div>' +
