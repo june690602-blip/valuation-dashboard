@@ -113,6 +113,10 @@ flowchart LR
 
 ## 데이터 소스와 계보
 
+**공개 출처만 씁니다.** 사설 데이터 벤더를 쓰면 화면의 숫자를 제3자가 검증할 수 없기
+때문입니다 — 위 원칙 1(검증 가능성)의 실행입니다. 우선순위는 **공시 원본 → 거래소 공식
+집계 → 시장 데이터 제공자** 순이고, 항목마다 실제로 쓴 출처를 응답과 화면에 그대로 밝힙니다.
+
 | 데이터 | 한국 | 미국 |
 |---|---|---|
 | 연간 재무제표 (우선) | **OpenDART 공시 원본** (키 있을 때, ~6개년 연결) | — |
@@ -126,7 +130,8 @@ flowchart LR
 계산 시각을 표시합니다. 캐시는 `data/cache/`(원천 12~24시간)와 서버 인메모리(분석 30분,
 AI 6시간)에 저장됩니다.
 
-**API 키 (선택, 무료)** — `.streamlit/secrets.toml` 또는 환경변수. 없어도 앱은 동작합니다.
+**API 키는 선택 사항입니다** — 없어도 전 기능이 동작하며, OpenDART 공시 원본과 Gemini 해설만
+켜집니다. `.streamlit/secrets.toml` 또는 환경변수로 읽습니다(두 곳 다 발급은 무상입니다).
 - `OPENDART_API_KEY` — [opendart.fss.or.kr](https://opendart.fss.or.kr) · `GEMINI_API_KEY` — [aistudio.google.com](https://aistudio.google.com)
 - 템플릿: [.streamlit/secrets.toml.example](.streamlit/secrets.toml.example) · 키는 `.gitignore`로 커밋에서 제외되며, 저장소 전체 이력에 키가 없음을 정기 점검합니다.
 
@@ -155,38 +160,19 @@ python scripts/check_payload_parity.py compare KR 005930    # 고친 뒤 페이�
 마지막 둘은 **성능을 고칠 때 쓰는 짝**입니다. 빨라진 것은 초시계가 말해 주지만 조용히
 달라진 값은 아무도 말해 주지 않으므로, **바꾸기 전에** 골든을 뜨고 나중에 대조합니다.
 
-## 배포하기 (Render + Cloudflare)
+## 운영
 
-살아있는 파이썬 백엔드(`/api/*`)가 있어 정적 호스팅(GitHub Pages 등)으로는 안 되고,
-Render·Railway 같은 PaaS가 맞습니다. `server.py`는 `PORT`·`HOST` 환경변수를 읽어 **배포 준비 완료** 상태입니다.
+라이브 서비스는 **Render**(파이썬 백엔드)와 **Cloudflare**(도메인·SSL)로 돌아갑니다.
+`/api/*`가 살아 있어야 하므로 정적 호스팅으로는 동작하지 않고, 리포에 배포 청사진
+(`render.yaml`)이 포함돼 있습니다.
 
-리포에 포함된 준비물:
-- **`render.yaml`** — 빌드·시작 명령과 `HOST=0.0.0.0`을 담은 Render 청사진(연결하면 자동 인식)
-- **`.env.example`** — 필요한 키 템플릿(`OPENDART_API_KEY`·`GEMINI_API_KEY`)
-- **`scripts/prewarm_cache.py`** — 캐시를 손으로 데우는 CLI(특정 종목만 데울 때). **배포 때는
-  안 돌려도 됩니다** — 서버가 기동 직후 같은 일을 스스로 합니다(아래).
+**서버는 기동 직후 캐시를 스스로 채웁니다** — Render의 파일시스템이 휘발성이라 배포마다
+캐시가 비는데, 예열이 없으면 그 시간을 방문자가 냅니다. 실측 **12.33초 → 2.46초**
+([ADR-0048](docs/adr/0048-warm-the-showcase-on-boot-not-a-disk.md)).
+업종 회귀 계수는 **밤에 CI가 미리 구워** 별도 브랜치에 두고, 그 빌드가 실패해도
+**이전 계수를 파괴하지 않고 이어받습니다**([ADR-0049](docs/adr/0049-the-build-must-not-destroy-what-it-could-not-rebuild.md)).
 
-클릭 순서:
-1. [Render](https://render.com) 가입 → **New → Blueprint** → 이 GitHub 리포 연결(`render.yaml` 자동 감지).
-2. **Environment**에 비밀 키 입력: `OPENDART_API_KEY`, `GEMINI_API_KEY` (그리고 `HOST=0.0.0.0` — render.yaml에 이미 있음).
-3. 도메인: [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/)에서 도메인 구매 → DNS에서 Render 주소로 **CNAME** → Cloudflare 프록시로 무료 SSL·캐싱.
-
-> **첫 방문자가 콜드를 겪지 않게 서버가 기동 직후 캐시를 채웁니다**([ADR-0048](docs/adr/0048-warm-the-showcase-on-boot-not-a-disk.md)).
-> Render는 디스크를 붙이지 않으면 파일시스템이 휘발성이라 **배포·재시작마다 `data/cache/`가
-> 통째로 빕니다.** 실측한 완전 콜드는 **12.33초**이고, 예열이 없으면 그 12초는 언제나 방문자가
-> 냅니다. 백그라운드 데몬 스레드라 서버는 그동안에도 정상 응답합니다.
->
-> 실측(빈 캐시에서 기동): 예열 **56초**(서버가 냄) → 첫 방문자 **쇼케이스 2.46초 ·
-> 쇼케이스 밖 7.89초**. 재현: `python scripts/check_load_timing.py KR 005930`
->
-> **디스크는 일부러 안 붙였습니다** — Render 디스크는 인스턴스를 하나로 묶고 **무중단 배포를
-> 없앱니다**(새 인스턴스 전에 기존 것을 멈춤). 예열은 공짜이고 그 둘을 잃지 않습니다.
-
-> 무료로 쓰려면 `render.yaml`의 `plan: starter`를 `free`로 바꾸면 되지만, 15분 방치 시 잠들어
-> 첫 방문자가 콜드스타트(~50초)를 겪습니다. 상시 링크라면 항상 켜짐(starter, 월 $7)을 권장합니다.
->
-> 데이터 주의: yfinance·네이버 스크래핑은 데이터센터 IP에서 더 자주 막힙니다. 기동 예열이
-> 쇼케이스 종목을 미리 채워 두므로 첫인상에서 실패를 피할 수 있습니다(OpenDART는 정식 키 API라 안정적).
+절차와 운영 주의사항은 [docs/DEPLOY.md](docs/DEPLOY.md)에 있습니다.
 
 ## 폴더 구조
 
