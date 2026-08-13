@@ -137,6 +137,20 @@ def single_flight_memo(maxsize: int = 8):
     return deco
 
 
+# 원천 하나가 이 시간을 넘으면 한 줄 남긴다 (ADR-0052).
+#
+# **왜 필요한가**: 느린 *실패*는 예외로 남지만 느린 *성공*은 아무 흔적도 안 남긴다.
+# 2026-08-13에 첫 조회가 50초 걸린 일이 있었는데, 로그에도 화면에도 아무것도 없어
+# 원인을 특정하지 못했다 — 자는 서버·예열 경합·코드 경로를 하나씩 재서 배제하는 데
+# 몇 시간이 들었고 그러고도 추정으로 끝났다. 이 한 줄이 있었으면 5분이었다.
+#
+# 8초인 근거: 실측한 개별 원천은 0.2~4.9초다(Gemini 분류 3.7~4.9 · DART 3.3~3.8 ·
+# 시세 1.5~2.7 · 네이버 0.3). 8초는 그 바깥이라 정상 조회에서는 조용하다.
+#
+# `file_cache`에 두는 이유: 원천 20개가 전부 이 데코레이터를 지난다. 한 곳이면 된다.
+SLOW_SOURCE_SEC = 8.0
+
+
 def _key(name: str, args, kwargs) -> str:
     raw = json.dumps([args, kwargs], default=str, ensure_ascii=False, sort_keys=True)
     return f"{name}_{hashlib.md5(raw.encode()).hexdigest()[:12]}"
@@ -181,23 +195,41 @@ def file_cache(name: str, ttl_hours: float = 24.0, validate=None):
                 hit, cached = fresh_hit()
                 if hit:
                     return cached
-                return _build(fn, args, kwargs, pq, js, validate)
+                return _build(fn, args, kwargs, pq, js, validate, name)
 
         return wrapper
 
     return deco
 
 
-def _build(fn, args, kwargs, pq: Path, js: Path, validate):
+def _note_if_slow(name: str, started: float, how: str = "") -> None:
+    """느린 원천을 **한 줄로** 남긴다. 정상 조회에서는 아무것도 안 찍는다.
+
+    ⚠ 여기서 나는 예외가 조회를 죽이면 안 된다 — 진단 장치가 본 기능을 무너뜨리는 것은
+    없는 것보다 나쁘다.
+    """
+    try:
+        took = time.time() - started
+        if took >= SLOW_SOURCE_SEC:
+            print(f"  [느림] {name or '(이름 없음)'} {took:.1f}초{' ' + how if how else ''}",
+                  flush=True)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _build(fn, args, kwargs, pq: Path, js: Path, validate, name: str = ""):
     """원천을 실제로 부르고 저장한다. **키 락을 잡은 채** 불린다."""
+    started = time.time()
     try:
         result = fn(*args, **kwargs)
     except Exception:
+        _note_if_slow(name, started, "실패")
         # 원천 실패 시 만료된 캐시라도 사용
         for path in (pq, js):
             if path.exists():
                 return _load(path)
         raise
+    _note_if_slow(name, started)
     if validate is not None and not validate(result):
         # 빈 결과 — 저장하지 않고, 검사를 통과하는 이전 캐시가 있으면 그걸 반환
         for path in (pq, js):

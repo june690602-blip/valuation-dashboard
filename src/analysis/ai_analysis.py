@@ -25,6 +25,10 @@ def _strip_json(text: str) -> str:
 
 
 # ── ① 업종분류 + 피어 후보 ──────────────────────────────────────────
+# 로드 경로 안의 Gemini 호출에 허용하는 **총** 시간(초) — 아래 `classify_peers` 참조.
+CLASSIFY_BUDGET_SEC = 20.0
+
+
 @file_cache("ai_peers", ttl_hours=168, validate=lambda c: bool(isinstance(c, dict) and c.get("peers")))
 def classify_peers(name: str, market: str, hint_industry: str = "") -> dict:
     """{'sector','industry','peers':[{'name','ticker'}...]} 반환. 같은 시장 상장사 위주.
@@ -48,7 +52,19 @@ def classify_peers(name: str, market: str, hint_industry: str = "") -> dict:
   "industry": "구체 업종",
   "peers": [{{"name": "동종 상장사명", "ticker": "코드/심볼"}}]}}
 peers는 입력 기업을 제외하고 {mkt} 상장사만 8~12개."""
-    raw = generate_text(prompt, temperature=0.2, max_tokens=1024, json_out=True)
+    # **이 호출만 방문자를 세워 둔다** — 로드 경로 안에 있고, 병렬 그룹에서 가장 느린
+    # 축이라 이 시간이 곧 첫 조회 시간이 된다(ADR-0052). 그래서 총 예산을 준다.
+    #
+    # 예산을 줘도 **가격은 안 바뀐다.** 판정 ①⑤의 적정 배수는 `regression_sector(d)` —
+    # 즉 **거래소 공식 분류**로 조회하고(ADR-0044), 피어도 자사 재무도 여기 안 들어간다.
+    # 이 호출이 정하는 것은 화면의 업종 이름표와 피어 목록이고, 실패하면 이미
+    # 거래소 분류 폴백이 돈다(그 사실은 화면의 '피어 기준'에 그대로 적힌다).
+    #
+    # 20초인 근거: 실측이 3.7~4.9초다(`scripts/check_load_timing.py`). 4배 남짓의
+    # 여유이고, **"60초 × 후보 수는 아니다"만 말하는 보수적인 상한**이다 —
+    # 정밀한 값은 느린 호출 로그가 며칠 쌓인 뒤에 정한다.
+    raw = generate_text(prompt, temperature=0.2, max_tokens=1024, json_out=True,
+                        budget=CLASSIFY_BUDGET_SEC)
     data = json.loads(_strip_json(raw))
     peers = []
     for p in data.get("peers", []):
