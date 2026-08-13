@@ -275,7 +275,7 @@
 > **② 역사적 밴드를 판정에서 뺀다**(차트는 남긴다) · **가중치 숫자는 안 바꾸고 폭만
 > 보여준다** · **근거·보험성 문구는 첫 화면에서 빼고 눌러서 보게 한다** ·
 > **F-Score는 무기한 보류**([ADR-0034](docs/adr/0034-fscore-predicts-but-failed-its-own-gate.md)).
-> **다음 ADR 번호는 0053.** (0038 street-targets · 0039 rim-persistence · 0040 roe-buckets가
+> **다음 ADR 번호는 0054.** (0038 street-targets · 0039 rim-persistence · 0040 roe-buckets가
 > 서로 다른 브랜치에서 동시에 잡혔습니다 — `check_adr_index.py`는 브랜치를 가로질러 보지
 > 못하므로 **새 ADR을 쓰기 전에 다른 워크트리의 `docs/adr/`를 확인하세요.**
 > 2026-08-13에도 0046·0047·0048을 세 브랜치가 나눠 썼고, 번호를 **미리 갈라 잡아** 피했습니다.)

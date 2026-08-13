@@ -61,5 +61,6 @@
 | [0050](0050-a-thin-build-must-not-replace-a-thick-one.md) | 얇은 빌드가 두꺼운 빌드를 덮어쓰면 안 된다 — 그리고 기둥은 per·pbr이었다 | 채택됨 |
 | [0051](0051-ci-had-no-memory.md) | 요동친 게 아니라 CI에 기억이 없었다 — 계수 빌드에 캐시를 붙인다 | 채택됨 |
 | [0052](0052-bound-the-wait-and-leave-a-trace.md) | 방문자의 대기를 묶고 흔적을 남긴다 — 50초를 재현하지 못했기 때문이다 | 채택됨 |
+| [0053](0053-most-verdicts-are-neutral-by-design.md) | 대부분이 '적정 수준'인 것은 설계다 — 다만 미국은 한국의 자를 쓰고 있다 | 채택됨 |
 | [0047](0047-the-pipeline-cache-did-not-hold-a-lock.md) | 파이프라인 캐시가 호출 중에 락을 잡지 않았다 — 그리고 AI 버튼은 한 번도 적중한 적이 없었다 | 채택됨 |
 | [0046](0046-the-peer-loop-was-the-last-queue.md) | 피어 보정 루프가 마지막 줄이었다 — 웜에서 0.01초, 콜드에서 3.60초 | 채택됨 |
