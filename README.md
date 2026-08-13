@@ -155,6 +155,7 @@ python scripts/check_sector_label.py --live 005930 000660   # 회귀가 거래�
 python scripts/check_load_timing.py KR 005930  # 첫 조회가 어디서 시간을 쓰는가 (ADR-0045)
 python scripts/check_payload_parity.py save KR 005930       # 고치기 전에 골든을 뜬다
 python scripts/check_payload_parity.py compare KR 005930    # 고친 뒤 페이로드가 그대로인가
+python scripts/check_verdict_mix.py             # 판정이 저평가·적정·고평가로 얼마나 갈리나 (ADR-0053)
 ```
 
 마지막 둘은 **성능을 고칠 때 쓰는 짝**입니다. 빨라진 것은 초시계가 말해 주지만 조용히
