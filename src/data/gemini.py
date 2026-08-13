@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from functools import lru_cache
 from pathlib import Path
 
@@ -16,6 +17,11 @@ import requests
 
 BASE = "https://generativelanguage.googleapis.com/v1beta"
 ROOT = Path(__file__).resolve().parents[2]
+
+# 요청 하나의 상한. **이것만으로는 방문자의 대기가 안 묶인다** — `generate_text`가
+# 모델 후보를 순서대로 시도하므로 최악은 60초가 아니라 **60초 × 후보 수**다(후보는
+# 보통 5개 이상). 그래서 총 예산(`budget`)을 따로 둔다 (ADR-0052).
+REQUEST_TIMEOUT = 60.0
 
 
 def _from_secrets(key_name: str) -> str | None:
@@ -139,8 +145,13 @@ def resolve_model() -> str:
 
 
 def generate_text(prompt: str, temperature: float = 0.4, max_tokens: int = 2048,
-                  json_out: bool = False) -> str:
-    """프롬프트 → 텍스트. 접근 가능한 모델을 순서대로 시도. 실패 시 명확한 RuntimeError."""
+                  json_out: bool = False, budget: float | None = None) -> str:
+    """프롬프트 → 텍스트. 접근 가능한 모델을 순서대로 시도. 실패 시 명확한 RuntimeError.
+
+    `budget` — **전체 시도에 허용된 총 시간(초).** 방문자를 기다리게 하는 호출은 이걸 준다.
+    None이면 종전대로 모델마다 `REQUEST_TIMEOUT`을 다 쓴다(온디맨드 해설 버튼처럼
+    사람이 누르고 기다리는 자리는 그대로 둔다 — 긴 답을 중간에 자르면 그게 더 나쁘다).
+    """
     key = get_api_key()
     if not key:
         raise RuntimeError("Gemini API 키가 설정되지 않았습니다.")
@@ -148,8 +159,16 @@ def generate_text(prompt: str, temperature: float = 0.4, max_tokens: int = 2048,
     if json_out:
         cfg["responseMimeType"] = "application/json"
 
+    started = time.monotonic()
     denied, exhausted, last = [], False, ""
     for model in resolve_candidates():
+        timeout = REQUEST_TIMEOUT
+        if budget is not None:
+            left = budget - (time.monotonic() - started)
+            if left <= 0:
+                last = f"시간 예산 {budget:.0f}초를 다 썼다(모델 {len(denied) + 1}개 시도)"
+                break
+            timeout = min(REQUEST_TIMEOUT, left)
         # Gemini 2.5 계열은 기본적으로 추론(thinking) 토큰을 소모하는데, 그게
         # maxOutputTokens 예산을 다 먹어 본문(특히 JSON)이 잘려 나온다(finishReason=MAX_TOKENS).
         # 분석용 짧은 응답에는 추론이 불필요하므로 2.5 계열에서만 thinking을 끈다.
@@ -158,7 +177,7 @@ def generate_text(prompt: str, temperature: float = 0.4, max_tokens: int = 2048,
             model_cfg["thinkingConfig"] = {"thinkingBudget": 0}
         body = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": model_cfg}
         r = requests.post(f"{BASE}/models/{model}:generateContent",
-                          params={"key": key}, json=body, timeout=60)
+                          params={"key": key}, json=body, timeout=timeout)
         if r.status_code == 200:
             parts = (r.json().get("candidates", [{}])[0].get("content", {}) or {}).get("parts", [])
             text = "".join(p.get("text", "") for p in parts).strip()
