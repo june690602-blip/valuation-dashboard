@@ -55,6 +55,76 @@ def _n(df) -> int:
     return 0 if df is None else int(getattr(df, "shape", [0])[0] or 0)
 
 
+def _has_substance(m) -> bool:
+    """`base._info_has_substance`와 같은 판정 — 야후가 레이트리밋으로 주는 '빈 성공'을 거른다."""
+    return isinstance(m, dict) and any(
+        m.get(k) is not None for k in ("marketCap", "currentPrice", "trailingPE", "priceToBook"))
+
+
+def _sweep(yf, tickers, workers, gap=0.0):
+    """`.info`를 직접 부르며 50개 단위로 실속 비율을 찍는다 (우리 캐시를 타지 않는다)."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(t):
+        if gap:
+            time.sleep(gap)
+        try:
+            return _has_substance(yf.Ticker(t).info)
+        except Exception:  # noqa: BLE001 — 실패도 '못 얻었다'로 센다
+            return False
+
+    got, block, marks = 0, 0, []
+    t0 = time.time()
+    with ThreadPoolExecutor(workers) as ex:
+        for i, ok in enumerate(ex.map(one, tickers), 1):
+            got += ok
+            block += ok
+            if i % 50 == 0:
+                marks.append(f"{block}/50")
+                block = 0
+    if len(tickers) % 50:
+        marks.append(f"{block}/{len(tickers) % 50}")
+    print(f"    50개 단위 실속: {' · '.join(marks)}")
+    print(f"    합계 {got}/{len(tickers)} ({got / len(tickers):.0%}) · {time.time() - t0:.0f}초")
+    return got / len(tickers)
+
+
+def _volume_test(yf) -> str | None:
+    """많이 부르면 죽는가 — IP 차단과 레이트리밋을 가르는 실험."""
+    try:
+        from src.data.universe import get_sp1500
+        uni = get_sp1500()
+        col = "Symbol" if "Symbol" in uni.columns else uni.columns[0]
+        syms = [str(s) for s in uni[col].tolist()]
+    except Exception as e:  # noqa: BLE001
+        print(f"\n{BAD} 유니버스를 못 받았다: {type(e).__name__}: {str(e)[:70]}")
+        return None
+    if len(syms) < 350:
+        print(f"\n{BAD} 유니버스가 {len(syms)}개뿐이라 양 실험을 못 한다.")
+        return None
+
+    print(f"\n■ 양을 늘리면 죽는가 — 유니버스 {len(syms):,}종목 중 일부로 잰다")
+    print("  ㉠ 지금 설정 그대로 (250종목 · 워커 12) — 계수 빌드가 하는 방식")
+    a = _sweep(yf, syms[:250], workers=12)
+
+    print("  ㉡ 곧바로 다른 100종목을 **천천히** (워커 2 · 종목마다 0.3초)")
+    b = _sweep(yf, syms[250:350], workers=2, gap=0.3)
+
+    print(f"\n  ㉠ {a:.0%}  vs  ㉡ {b:.0%}")
+    if a < 0.5 and b >= 0.8:
+        print("  → **㉠은 죽고 ㉡은 산다. 레이트리밋이다.**")
+        return "ratelimit"
+    if a < 0.5 and b < 0.5:
+        print("  → **둘 다 죽었다.** 이미 한도를 태웠거나 IP가 막힌 것이다"
+              " — 위 5종목이 성공했으므로 '한도를 태웠다' 쪽이 유력하다.")
+        return "ratelimit"
+    if a >= 0.8:
+        print("  → **250종목까지는 멀쩡하다.** 더 큰 양에서 무너지거나, 오늘은 야후가 관대하다.")
+        return None
+    return None
+
+
 def main() -> int:
     import yfinance as yf
 
@@ -160,10 +230,28 @@ def main() -> int:
                 traceback.print_exc()
     print(f"  → {made}/{len(TICKERS)}종목에서 대체 레시피가 배수를 만들었다")
 
+    # ── 4. 양을 늘리면 죽는가 — IP 차단인가 레이트리밋인가 ───────────────────
+    #
+    # 2026-08-14 러너 실측에서 **5종목은 전부 성공**했는데 같은 날 계수 빌드(1,506종목)는
+    # 다리 0개였다. CLAUDE.md는 *"러너 IP에서 빈 값을 준다"*고 적었지만, IP가 원인이면
+    # 5종목도 비어야 한다. 코드 주석은 다른 말을 한다 —
+    # `_info_has_substance`가 *"야후가 **레이트리밋으로** 빈 info를 성공처럼 줄 때를
+    # 걸러낸다"*이다. **둘 중 어느 쪽인지 여기서 가른다.**
+    #
+    # 캐시를 타지 않으려고 `yf.Ticker().info`를 직접 부른다 — 우리 캐시가 아니라
+    # 야후를 재야 한다.
+    vol = _volume_test(yf)
+
     # ── 판정 ────────────────────────────────────────────────────────────────
     print("\n" + "=" * 78)
     print("■ 판정")
-    if filled:
+    if vol == "ratelimit":
+        print("  **IP 차단이 아니라 레이트리밋이다.** 적게 부르면 되고 많이 부르면 빈다.")
+        print("  → 고칠 곳은 원천이 아니라 **부르는 방식**이다(동시성·간격·순서).")
+        print("    지금은 KR(2,700종목)이 먼저 12스레드로 훑고 그 다음 US(1,506종목)가 돈다.")
+    elif vol == "blocked":
+        print("  **적은 양에서도 빈다 — IP 차단으로 보인다.** 대체 원천이 필요하다.")
+    elif filled:
         print("  야후 info가 여기서는 **살아 있다.** 이 자리는 문제의 자리가 아니다"
               " — 러너에서 돌려야 뜻이 있다.")
     elif made:
