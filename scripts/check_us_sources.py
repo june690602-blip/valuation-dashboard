@@ -90,6 +90,48 @@ def _sweep(yf, tickers, workers, gap=0.0, mark=50):
     return got / len(tickers)
 
 
+def _refresh(level: int) -> str:
+    """야후 인증 토큰(crumb)을 되살린다. 단계를 올려 가며 무엇이 필요한지 가른다.
+
+    `.info`(quoteSummary)는 **crumb**이라는 토큰을 요구하고 yfinance는 그것을 싱글턴
+    `YfData`에 들고 있다. 러너 실측(2026-08-14): 803종목까지 100%로 되다가 그 뒤
+    **전부 401 `Invalid Crumb`**이 됐다. 토큰이 죽었는데 yfinance가 다시 받지 않는 것이다.
+
+    `_get_cookie_basic`이 ㉠ 메모리의 `_cookie` → ㉡ **디스크에 저장된 쿠키** 순으로
+    재사용하므로, 메모리만 비우면 낡은 쿠키를 디스크에서 되읽어 온다. 그래서 단계를 나눈다.
+    """
+    from yfinance import data as D
+    d = D.YfData()
+    d._crumb = None                                    # 1단계: 토큰만 버린다
+    if level >= 2:
+        d._cookie = None                               # 2단계: 쿠키도 버린다
+        d._logged_in = False
+        try:
+            d._session.cookies.clear()
+        except Exception:  # noqa: BLE001 — 없으면 없는 대로 간다
+            pass
+    if level >= 3:
+        try:                                           # 3단계: 디스크에 저장된 쿠키까지
+            from yfinance import cache as C
+            C.get_cookie_cache().store("curlCffi", {})
+        except Exception:  # noqa: BLE001
+            pass
+    return {1: "토큰만", 2: "토큰+쿠키+세션", 3: "토큰+쿠키+세션+디스크"}[level]
+
+
+def _recover_test(yf, syms) -> None:
+    """죽은 뒤에 되살릴 수 있는가 — 이게 되면 고칠 방법이 정해진다."""
+    print("\n■ 죽은 토큰을 되살릴 수 있는가 (위에서 이미 401이 난 상태다)")
+    for level in (1, 2, 3):
+        what = _refresh(level)
+        print(f"  {level}단계 — {what} 를 버리고 100종목 다시")
+        rate = _sweep(yf, syms[:100], workers=12, mark=100)
+        if rate >= 0.8:
+            print(f"    → **{level}단계로 살아난다({rate:.0%}).** 고칠 방법은 이것이다.")
+            return
+    print("  → 세 단계 다 못 살렸다. 토큰 갱신 말고 다른 수가 필요하다.")
+
+
 def _volume_test(yf) -> str | None:
     """많이 부르면 죽는가 — IP 차단과 레이트리밋을 가르는 실험."""
     try:
@@ -115,9 +157,11 @@ def _volume_test(yf) -> str | None:
         print(f"\n  → **전체 {len(syms):,}종목이 멀쩡하다({a:.0%}).** 양만으로는 안 죽는다"
               " — 계수 빌드와 이 탐침의 **다른 차이**를 찾아야 한다(KR이 먼저 도는 것 등).")
         return "volume-ok"
-    print(f"\n  → **전체에서는 {a:.0%}로 무너진다.** 위 블록별 숫자에서 무너진 지점을 보라"
-          " — 앞은 되고 뒤가 빈다면 레이트리밋이다.")
-    return "ratelimit"
+    print(f"\n  → **전체에서는 {a:.0%}로 무너진다.** 블록별 숫자에서 무너진 지점을 보라 —"
+          " 앞이 100%이고 뒤가 0%인 **절벽**이면 레이트리밋이 아니라 **토큰이 죽은 것**이다"
+          " (401 `Invalid Crumb`).")
+    _recover_test(yf, syms)
+    return "crumb"
 
 
 def main() -> int:
@@ -240,10 +284,10 @@ def main() -> int:
     # ── 판정 ────────────────────────────────────────────────────────────────
     print("\n" + "=" * 78)
     print("■ 판정")
-    if vol == "ratelimit":
-        print("  **IP 차단이 아니라 레이트리밋이다.** 적게 부르면 되고 많이 부르면 빈다.")
-        print("  → 고칠 곳은 원천이 아니라 **부르는 방식**이다(동시성·간격·순서).")
-        print("    지금은 KR(2,700종목)이 먼저 12스레드로 훑고 그 다음 US(1,506종목)가 돈다.")
+    if vol == "crumb":
+        print("  **IP 차단도 레이트리밋도 아니다 — 야후 인증 토큰(crumb)이 도중에 죽는다.**")
+        print("  → 고칠 곳은 원천이 아니라 **토큰을 다시 받는 것**이다.")
+        print("    지금은 KR(2,700종목)이 먼저 훑으면서 토큰을 태우고, US 차례에는 이미 죽어 있다.")
     elif vol == "blocked":
         print("  **적은 양에서도 빈다 — IP 차단으로 보인다.** 대체 원천이 필요하다.")
     elif filled:
