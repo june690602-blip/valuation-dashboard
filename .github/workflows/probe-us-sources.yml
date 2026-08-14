@@ -39,3 +39,16 @@ jobs:
 
       - name: Probe
         run: python scripts/check_us_sources.py
+
+      # ㉡ **실제 빌드 코드를 미국만** 돌린다 — 이게 가장 결정적이다.
+      # 매일 실패하는 Coefficients는 `--markets KR US`라 한국 2,700종목을 먼저 훑고
+      # 그 다음 미국을 친다. 여기서 **미국만** 돌려 성공하면 범인은 "한국이 먼저 도는 것"이고,
+      # 여기서도 실패하면 미국 자체의 문제다. 캐시를 복원하지 않으므로 순수하게 새로 받는다.
+      - name: Build US only (실제 코드 · KR을 먼저 돌리지 않는다)
+        run: python scripts/build_coefficients.py --markets US --out /tmp/coef-probe
+
+      - name: Show what it made
+        if: always()
+        run: |
+          ls -la /tmp/coef-probe || true
+          cat /tmp/coef-probe/meta.json || true

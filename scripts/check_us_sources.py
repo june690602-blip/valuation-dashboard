@@ -61,8 +61,8 @@ def _has_substance(m) -> bool:
         m.get(k) is not None for k in ("marketCap", "currentPrice", "trailingPE", "priceToBook"))
 
 
-def _sweep(yf, tickers, workers, gap=0.0):
-    """`.info`를 직접 부르며 50개 단위로 실속 비율을 찍는다 (우리 캐시를 타지 않는다)."""
+def _sweep(yf, tickers, workers, gap=0.0, mark=50):
+    """`.info`를 직접 부르며 `mark`개 단위로 실속 비율을 찍는다 (우리 캐시를 타지 않는다)."""
     import time
     from concurrent.futures import ThreadPoolExecutor
 
@@ -80,12 +80,12 @@ def _sweep(yf, tickers, workers, gap=0.0):
         for i, ok in enumerate(ex.map(one, tickers), 1):
             got += ok
             block += ok
-            if i % 50 == 0:
-                marks.append(f"{block}/50")
+            if i % mark == 0:
+                marks.append(f"{block}/{mark}")
                 block = 0
-    if len(tickers) % 50:
-        marks.append(f"{block}/{len(tickers) % 50}")
-    print(f"    50개 단위 실속: {' · '.join(marks)}")
+    if len(tickers) % mark:
+        marks.append(f"{block}/{len(tickers) % mark}")
+    print(f"    {mark}개 단위 실속: {' · '.join(marks)}")
     print(f"    합계 {got}/{len(tickers)} ({got / len(tickers):.0%}) · {time.time() - t0:.0f}초")
     return got / len(tickers)
 
@@ -104,25 +104,20 @@ def _volume_test(yf) -> str | None:
         print(f"\n{BAD} 유니버스가 {len(syms)}개뿐이라 양 실험을 못 한다.")
         return None
 
-    print(f"\n■ 양을 늘리면 죽는가 — 유니버스 {len(syms):,}종목 중 일부로 잰다")
-    print("  ㉠ 지금 설정 그대로 (250종목 · 워커 12) — 계수 빌드가 하는 방식")
-    a = _sweep(yf, syms[:250], workers=12)
+    # 355호출로는 안 죽었다(2026-08-14 러너 실측 100% · 4초). 실제 빌드는 KR 2,700을
+    # 먼저 훑고 그 다음 US 1,506을 치므로 **한 작업에서 4,200번**을 부른다. 그러니
+    # **유니버스 전체**로 올려 본다 — 무너지는 지점이 곧 원인이다.
+    print(f"\n■ 양을 늘리면 죽는가 — 유니버스 **{len(syms):,}종목 전체**를 지금 설정으로 훑는다")
+    print("  (워커 12 · 계수 빌드가 하는 방식 그대로 · 250개 단위로 실속을 찍는다)")
+    a = _sweep(yf, syms, workers=12, mark=250)
 
-    print("  ㉡ 곧바로 다른 100종목을 **천천히** (워커 2 · 종목마다 0.3초)")
-    b = _sweep(yf, syms[250:350], workers=2, gap=0.3)
-
-    print(f"\n  ㉠ {a:.0%}  vs  ㉡ {b:.0%}")
-    if a < 0.5 and b >= 0.8:
-        print("  → **㉠은 죽고 ㉡은 산다. 레이트리밋이다.**")
-        return "ratelimit"
-    if a < 0.5 and b < 0.5:
-        print("  → **둘 다 죽었다.** 이미 한도를 태웠거나 IP가 막힌 것이다"
-              " — 위 5종목이 성공했으므로 '한도를 태웠다' 쪽이 유력하다.")
-        return "ratelimit"
     if a >= 0.8:
-        print("  → **250종목까지는 멀쩡하다.** 더 큰 양에서 무너지거나, 오늘은 야후가 관대하다.")
-        return None
-    return None
+        print(f"\n  → **전체 {len(syms):,}종목이 멀쩡하다({a:.0%}).** 양만으로는 안 죽는다"
+              " — 계수 빌드와 이 탐침의 **다른 차이**를 찾아야 한다(KR이 먼저 도는 것 등).")
+        return "volume-ok"
+    print(f"\n  → **전체에서는 {a:.0%}로 무너진다.** 위 블록별 숫자에서 무너진 지점을 보라"
+          " — 앞은 되고 뒤가 빈다면 레이트리밋이다.")
+    return "ratelimit"
 
 
 def main() -> int:
