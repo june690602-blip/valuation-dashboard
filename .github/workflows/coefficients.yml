@@ -94,7 +94,13 @@ jobs:
 
       # orphan 커밋으로 덮어쓴다 — 브랜치 히스토리가 자라지 않는다(늘 커밋 1개).
       # 위 seed 덕분에 이 force-push는 **이번에 못 만든 시장을 지우지 않는다.**
+      # ⚠ **main에서만 낸다.** 이 단계는 `data-coefficients`를 orphan force-push 하는데,
+      # 그 브랜치는 **라이브 서비스가 읽는 곳**이다. 브랜치에서 손으로 돌린 시험 실행이
+      # 운영 계수를 덮어쓰면 안 된다 — ADR-0049가 데인 것과 같은 종류(빌드가 데이터를
+      # 파괴하는 것)이고, 그때는 예약 실행이 범인이었지만 여기서는 시험 실행이 범인이 된다.
+      # 시험은 아래 '만든 것 보여주기'로 확인한다.
       - name: Publish to data branch
+        if: github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
           cd dist/coefficients
@@ -108,6 +114,14 @@ jobs:
             "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
             data-coefficients
           echo "→ https://github.com/${{ github.repository }}/tree/data-coefficients"
+
+      # main이 아닐 때(시험 실행) 무엇이 나왔는지만 보여 준다 — 내보내지는 않는다.
+      - name: Show what it made (main이 아니라 내보내지 않았다)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "⚠ main이 아니므로 data-coefficients에 내보내지 않았다. 만든 것은 아래와 같다."
+          ls -la dist/coefficients
+          cat dist/coefficients/meta.json
 
       # **초록불이 거짓말하지 않게 한다.** 예전에는 KR을 못 만들어도 초록이었고, 그래서
       # 아무도 몰랐다. 좋은 쪽은 이미 위에서 냈으므로 여기서 실패해도 잃는 것이 없다.
