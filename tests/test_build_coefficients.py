@@ -243,5 +243,36 @@ class KrxListingRetryTests(unittest.TestCase):
         self.assertIsNotNone(ctx.exception.__cause__, "원 예외를 보존해야 한다")
 
 
+class MarketOrderTests(_ScriptCase):
+    """**US가 먼저 돌아야 한다** — 알파벳순으로 되돌리면 미국이 다시 전멸한다.
+
+    야후는 한 러너 IP에서 약 800번을 넘기면 그 뒤로 전부 끊는다(2026-08-14 러너 실측:
+    1,506종목 중 803에서 절벽 · 끊긴 뒤엔 토큰을 다시 받아도, 주가·재무 같은 다른
+    통로로도 안 된다). 그래서 **먼저 도는 시장이 예산을 다 태운다.**
+
+    KR이 먼저면 US는 차례가 왔을 때 이미 끊겨 다리 0개가 된다. KR은 기둥(per·pbr)이
+    네이버라 야후가 끊겨도 얇아질 뿐이므로, 예산은 **잃을 것이 많은 US에 먼저** 준다.
+
+    이 테스트가 지키는 것은 숫자가 아니라 **순서**다 — 기본값이 조용히
+    알파벳순으로 돌아가는 것을 막는다.
+    """
+
+    def test_the_default_order_puts_us_first(self):
+        seen = []
+
+        def fake_build(market):
+            seen.append(market)
+            return {"per": {"a": 1.0}}, 100
+
+        argv = ["build", "--out", str(self.out)]        # --markets를 주지 않는다 = 기본값
+        with patch.object(self.mod, "build", fake_build), \
+             patch.object(self.mod, "ROOT", Path("/")), \
+             patch.object(sys, "argv", argv):
+            self.mod.main()
+
+        self.assertEqual(seen, ["US", "KR"],
+                         "US가 먼저여야 한다 — KR이 먼저 돌면 야후 예산을 태워 US가 전멸한다")
+
+
 if __name__ == "__main__":
     unittest.main()

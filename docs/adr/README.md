@@ -65,3 +65,4 @@
 | [0047](0047-the-pipeline-cache-did-not-hold-a-lock.md) | 파이프라인 캐시가 호출 중에 락을 잡지 않았다 — 그리고 AI 버튼은 한 번도 적중한 적이 없었다 | 채택됨 |
 | [0046](0046-the-peer-loop-was-the-last-queue.md) | 피어 보정 루프가 마지막 줄이었다 — 웜에서 0.01초, 콜드에서 3.60초 | 채택됨 |
 | [0054](0054-the-threshold-is-not-the-thing-to-move.md) | 문턱은 옮길 자리가 아니었다 — 좁히면 두 시장 모두 나빠지고, 미국은 가운데가 문제다 | 채택됨 |
+| [0055](0055-the-budget-goes-to-whoever-has-no-backup.md) | 야후 예산은 받쳐 줄 것이 없는 쪽에 먼저 준다 — 진단 셋이 전부 틀렸었다 | 채택됨 |
