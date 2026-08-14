@@ -130,6 +130,58 @@ def _recover_test(yf, syms) -> None:
             print(f"    → **{level}단계로 살아난다({rate:.0%}).** 고칠 방법은 이것이다.")
             return
     print("  → 세 단계 다 못 살렸다. 토큰 갱신 말고 다른 수가 필요하다.")
+    _after_cliff_recipe(yf, syms)
+
+
+def _after_cliff_recipe(yf, syms) -> None:
+    """절벽 **이후에** 대체 레시피가 사는가 — 이 답이 곧 해법이다.
+
+    `.info`는 quoteSummary API라 crumb 토큰을 요구하고 그것이 죽었다. 그런데 주가는
+    **chart API**, 재무제표는 **fundamentals-timeseries API**로 **다른 통로**다.
+    토큰이 죽은 지금도 그 둘이 살아 있다면, 시총 = 주가 × 주식수로 배수를 직접 만들어
+    `.info` 없이 계수를 세울 수 있다.
+    """
+    from src.data.base import extract_financials
+    print("\n■ 절벽 **이후에** 대체 레시피가 사는가 (토큰이 죽은 지금 상태에서 20종목)")
+    made = fin_ok = px_ok = 0
+    sample = syms[900:920]        # 절벽 뒤 구간에서 고른다
+    for s in sample:
+        try:
+            tk = yf.Ticker(s)
+            h = tk.history(period="5d", auto_adjust=False)
+            px_ok += _n(h) > 0
+            fin, _w = extract_financials(tk)
+            fin_ok += fin is not None and not fin.empty
+            if fin is None or fin.empty or not _n(h):
+                continue
+            last = fin.iloc[-1]
+
+            def _f(col, row=None):
+                v = (row if row is not None else last).get(col)
+                try:
+                    v = float(v)
+                except (TypeError, ValueError):
+                    return None
+                return v if v == v and v != 0 else None
+
+            sh, ni, eq, rev = (_f("shares_outstanding"), _f("net_income"),
+                               _f("total_equity"), _f("revenue"))
+            if not sh or float(h["Close"].iloc[-1]) <= 0:
+                continue   # 시총 = 주가 × 주식수 — 둘 다 있어야 배수가 나온다
+            made += sum(x is not None and x > 0 for x in (ni, eq, rev)) > 0
+        except Exception:  # noqa: BLE001 — 실패도 '못 얻었다'로 센다
+            pass
+    n = len(sample)
+    print(f"  주가(chart) {px_ok}/{n} · 재무제표(fundamentals) {fin_ok}/{n}"
+          f" · **배수를 만든 종목 {made}/{n}**")
+    if made >= n * 0.8:
+        print("  → **토큰이 죽어도 대체 레시피는 산다.** 이것이 해법이다 —"
+              " `collect_us`가 `.info` 하나에 매달린 구조를 깨고 이 경로로 받치면 된다.")
+    elif px_ok >= n * 0.8:
+        print("  → 주가는 살지만 재무제표가 죽었다. 재무는 SEC EDGAR 같은 다른 원천이 필요하다.")
+    else:
+        print("  → 이 통로도 죽었다. 야후 전체가 이 IP에서 막힌 상태다"
+              " — 그렇다면 **부르는 양을 줄이는 것**이 유일한 수다.")
 
 
 def _volume_test(yf) -> str | None:
