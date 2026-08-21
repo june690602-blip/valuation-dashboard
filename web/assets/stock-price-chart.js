@@ -1,5 +1,5 @@
 /* 주가차트 (Canvas · 리서치 차트형 시간축 탐색) — stock.js에서 떼어냈다(이슈 #79 ㉮의 1단계).
-   원래부터 전역 D·state를 읽지 않고 인자로 받던 유일한 덩어리라 첫 분리 대상이 됐다.
+   원래부터 전역 페이로드·state를 읽지 않고 인자로 받던 유일한 덩어리라 첫 분리 대상이 됐다.
    밖의 것은 다섯 개만 쓴다(esc·fmtPrice·fmtSigned·$·CUR). 복사본을 만들면 같은 이름이
    파일마다 다른 뜻이 되므로(R5 조서 2번 바구니) 복사하지 않고 fmt 인자로 주입받는다.
    CUR은 통화 코드라 값으로 넘긴다 — 차트는 렌더마다 새로 만들어지고 CUR은 그 전에 정해진다. */
@@ -12,9 +12,11 @@
   var CH_FONT_SANS = '"IBM Plex Sans KR", system-ui, sans-serif';
   var CH_FONT_MONO = '"Noto Sans KR", system-ui, monospace';
 
-  window.makePriceChart = function (container, D, state, fmt) {
+  /* `payload`는 **주식 응답(/api/analyze)만** 받는다 — ETF 응답에서 `price`는
+     시계열 객체가 아니라 현재가 숫자다. 호출부가 `Dstock`을 넘겨 그 구분을 지킨다(이슈 #80). */
+  window.makePriceChart = function (container, payload, state, fmt) {
     var esc = fmt.esc, fmtPrice = fmt.fmtPrice, fmtSigned = fmt.fmtSigned, $ = fmt.$, CUR = fmt.CUR;
-    var d = D.price;
+    var d = payload.price;
     var rel = state.priceMode === 'rel';
     var fullClose = Array.isArray(d.close) ? d.close : [];
     var N = fullClose.length;
@@ -71,7 +73,7 @@
     if (rel) {
       while (compareBase < n && (close[compareBase] == null || bench[compareBase] == null)) compareBase++;
       if (compareBase >= n) {
-        $('priceStatusName').textContent = (D.meta.name || D.meta.ticker || '종목') + ' · 상대성과';
+        $('priceStatusName').textContent = (payload.meta.name || payload.meta.ticker || '종목') + ' · 상대성과';
         $('priceStatusMeta').textContent = '벤치마크와 공통으로 유효한 거래일이 없습니다.';
         $('priceStatusPrice').textContent = '—'; $('priceStatusChange').textContent = '비교 불가';
         $('priceStatusChange').style.color = 'var(--ink-3)'; $('priceStatusMetrics').innerHTML = '';
@@ -130,7 +132,7 @@
     var cv = document.createElement('canvas');
     cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px'; cv.style.display = 'block'; cv.style.touchAction = 'pan-y'; cv.style.cursor = 'crosshair';
     cv.tabIndex = 0; cv.setAttribute('role', 'img'); cv.setAttribute('aria-describedby', 'priceCaption');
-    cv.setAttribute('aria-label', D.meta.name + ' 일봉 주가 차트. 좌우 화살표로 이동하고 더하기와 빼기로 확대·축소하며 Home 또는 Escape로 전체 보기를 할 수 있습니다.');
+    cv.setAttribute('aria-label', payload.meta.name + ' 일봉 주가 차트. 좌우 화살표로 이동하고 더하기와 빼기로 확대·축소하며 Home 또는 Escape로 전체 보기를 할 수 있습니다.');
     cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
     container.innerHTML = ''; container.appendChild(cv);
     var ctx = cv.getContext('2d');
@@ -142,13 +144,13 @@
     function metric(label, value) { return '<div class="chart-status-metric"><dt>' + esc(label) + '</dt><dd>' + esc(value) + '</dd></div>'; }
     function updateStatus(i) {
       i = Math.max(0, Math.min(n - 1, i == null ? latestIndex : i));
-      var name = D.meta.name || D.meta.ticker || '종목', source = d.source || '', delay = d.delay_note || '';
+      var name = payload.meta.name || payload.meta.ticker || '종목', source = d.source || '', delay = d.delay_note || '';
       $('priceStatusName').textContent = name + (rel ? ' · 상대성과' : '');
-      var metaText = ['일봉', D.meta.currency || CUR, '기준일 ' + displayDate(dates[i]), source, delay].filter(Boolean).join(' · ');
+      var metaText = ['일봉', payload.meta.currency || CUR, '기준일 ' + displayDate(dates[i]), source, delay].filter(Boolean).join(' · ');
       $('priceStatusMeta').textContent = metaText; $('priceStatusMeta').title = metaText;
       if (rel) {
         var sv = stockY[i] == null ? null : stockY[i] - 100, bv = benchY[i] == null ? null : benchY[i] - 100;
-        var excess = sv == null || bv == null ? null : sv - bv, benchName = D.meta.benchmark_name || D.meta.benchmark || '벤치마크';
+        var excess = sv == null || bv == null ? null : sv - bv, benchName = payload.meta.benchmark_name || payload.meta.benchmark || '벤치마크';
         $('priceStatusPrice').textContent = signedPctPoint(sv);
         $('priceStatusChange').textContent = excess == null ? '초과수익률 —' : '초과 ' + (excess >= 0 ? '+' : '') + excess.toFixed(2) + '%p';
         $('priceStatusChange').style.color = excess == null ? 'var(--ink-3)' : excess >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)';
@@ -237,7 +239,7 @@
       var ly = (rel ? plotT + plotH : volTop + volH) + 15;
       for (var t = 0; t <= 4; t++) { var lx = padL + t / 4 * xw, labelDate = displayDate(dates[idxAtX(lx)]); ctx.fillText(viewEnd - viewStart > 300 ? labelDate.slice(2, 7) : labelDate.slice(5), lx, ly); }
       if (!rel) { ctx.fillStyle = COL.ink3; ctx.font = '10px ' + CH_FONT_SANS; ctx.textAlign = 'left'; ctx.fillText('거래량', padL, volTop - 4); }
-      if (rel) { var benchName = D.meta.benchmark_name || D.meta.benchmark || '벤치마크'; ctx.textAlign = 'left'; ctx.font = '11px ' + CH_FONT_SANS; ctx.fillStyle = COL.ink; ctx.fillText(D.meta.name, padL + 2, plotT + 12); ctx.fillStyle = COL.clay; ctx.fillText(benchName, padL + 2 + ctx.measureText(D.meta.name).width + 10, plotT + 12); }
+      if (rel) { var benchName = payload.meta.benchmark_name || payload.meta.benchmark || '벤치마크'; ctx.textAlign = 'left'; ctx.font = '11px ' + CH_FONT_SANS; ctx.fillStyle = COL.ink; ctx.fillText(payload.meta.name, padL + 2, plotT + 12); ctx.fillStyle = COL.clay; ctx.fillText(benchName, padL + 2 + ctx.measureText(payload.meta.name).width + 10, plotT + 12); }
       /* 축 태그는 마크 위, 축 여백에 고정 */
       if (!rel && latest != null && latest >= ymin && latest <= ymax) axisTag(fmtChartPrice(latest), padL + xw + 3, yDoc(latest), 'right', COL.ink, COL.paper);
       if (hover != null && hover >= 0 && hover < n) {

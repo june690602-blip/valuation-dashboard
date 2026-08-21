@@ -10,7 +10,8 @@ from __future__ import annotations
 import pandas as pd
 import yfinance as yf
 
-from .base import fetch_index_prices, fetch_prices, fetch_prices_raw
+from .base import (_norm_div_yield, fetch_index_prices, fetch_prices,
+                   fetch_prices_raw)
 from .models import ETFData
 
 # 벤치마크 선택 키워드 — category(예: 'Large Blend'/'Long Government') 우선,
@@ -93,7 +94,10 @@ def fetch_etf(symbol: str) -> ETFData:
         try:
             bi = yf.Ticker(bench_sym).info or {}
             bench_pe = bi.get("trailingPE")
-            bench_yield = bi.get("yield")
+            # 주식 경로와 같은 방어를 건다(이슈 #58) — 야후는 배당수익률을 버전에 따라
+            # 소수(0.021)로도 퍼센트(2.1)로도 준다. 지금은 전부 소수로 오므로 이 줄은
+            # 값을 바꾸지 않는다. **바뀌면 방어를 잘못 끼운 것이다.**
+            bench_yield = _norm_div_yield(bi.get("yield"))
         except Exception:
             warnings.append(f"벤치마크({bench_sym}) 지표를 가져오지 못해 상대 비교 일부를 생략합니다.")
         try:
@@ -175,7 +179,9 @@ def fetch_etf(symbol: str) -> ETFData:
         benchmark_name=bench_sym or "",
         nav=info.get("navPrice"), category=category,
         basket_pe=info.get("trailingPE"), basket_pb=info.get("priceToBook"),
-        div_yield=info.get("yield"), aum=info.get("totalAssets"),
+        # 단위가 100배 틀리면 배당수익률 역사밴드가 통째로 튀고, 그 밴드는 주식·가치·
+        # 배당형 ETF 판정의 주도 축이다 — 여기서 막는다(이슈 #58 · 한국 경로는 `_pct`로 이미 정상).
+        div_yield=_norm_div_yield(info.get("yield")), aum=info.get("totalAssets"),
         expense_ratio=expense_ratio,
         bench_pe=bench_pe, bench_yield=bench_yield, bench_label=bench_label,
         top_holdings=top_holdings, sectors=sectors, asset_classes=asset_classes,

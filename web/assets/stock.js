@@ -139,8 +139,22 @@
 
   /* ── 상태 ── */
   var state = { market: 'KR', query: '035420', kind: 'stock', pricePeriod: '1Y', priceMode: 'abs', chartType: 'line', ma: { m20: true, m60: true, m120: false }, hover: null, bandMetric: 'PER', scnBear: -0.15, scnBull: 0.15, scnMult: 0, peerEx: [], peerAdd: [], _editKey: '' };
-  var D = null;
-  var EXAMPLES = { KR: [['삼성전자', '005930'], ['현대차', '005380'], ['NAVER', '035420'], ['KB금융', '105560']], US: [['Apple', 'AAPL'], ['Microsoft', 'MSFT'], ['Coca-Cola', 'KO'], ['Rivian', 'RIVN']] };
+  /* 응답 페이로드 — **스키마가 둘이라 변수도 둘이다**(이슈 #80).
+     예전에는 전역 `D` 하나에 두 응답을 번갈아 담았는데, 두 스키마가 같은 이름의 서로 다른
+     것을 뜻했다:
+
+       | | 주식(/api/analyze) | ETF(/api/analyze_etf) |
+       |---|---|---|
+       | 이름 | `D.meta.name` | `D.name` |
+       | 판정 | `D.verdict.verdict` — **객체** | `D.verdict` — **문자열** |
+       | `D.price` | 주가 **시계열 객체**(`.error`를 본다) | 현재가 **숫자** |
+
+     사고가 안 난 이유는 타입이 아니라 `setEtfMode()`가 두 뷰를 서로 감췄기 때문이다 —
+     **화면 표시 상태가 안전장치 노릇**을 하고 있었다. 이제 `if (Dstock)` 가드가
+     ETF 모드에서 저절로 거짓이 되므로, 표시 상태가 아니라 **타입이 막는다.**
+     둘 중 하나만 채워지는 것은 `load()`가 보장한다(한쪽을 담을 때 다른 쪽을 비운다). */
+  var Dstock = null, Detf = null;
+  var EXAMPLES ={ KR: [['삼성전자', '005930'], ['현대차', '005380'], ['NAVER', '035420'], ['KB금융', '105560']], US: [['Apple', 'AAPL'], ['Microsoft', 'MSFT'], ['Coca-Cola', 'KO'], ['Rivian', 'RIVN']] };
 
   /* ── 방법 번호 ────────────────────────────────────────────────────────
      방법 → 적정가 재료 번호·재료 탭 (요약 표에서 근거가 되는 탭으로 바로 이동).
@@ -171,7 +185,7 @@
   /* 판정(펀더멘털 종합)에 쓴 번호 — '①②③⑤'. 만들지 못하면 빈 문자열이고, 그때는
      앞뒤 장식(`' · '`·괄호)도 함께 사라져 문장이 번호 없이 그대로 읽힌다. */
   function verdictMarks(open, close) {
-    var s = marksOf((D && D.verdict || {}).weights);
+    var s = marksOf((Dstock && Dstock.verdict || {}).weights);
     return s ? (open || '') + s + (close || '') : '';
   }
   /* '①②③⑤ 가중평균(①27.8 · ②27.8 · ③16.7 · ⑤27.8%)' — 퍼센트도 손으로 적지 않는다.
@@ -190,8 +204,8 @@
 
   function bulletChart() {
     if (window.matchMedia && window.matchMedia('(max-width: 560px)').matches) return bulletChartNarrow();
-    var est = D.verdict.estimates || [];
-    var cur = D.meta.price, avg = D.verdict.fair_mid;
+    var est = Dstock.verdict.estimates || [];
+    var cur = Dstock.meta.price, avg = Dstock.verdict.fair_mid;
     var vals = [cur]; est.forEach(function (e) { if (e.low != null) vals.push(e.low); if (e.high != null) vals.push(e.high); if (e.mid != null) vals.push(e.mid); });
     if (avg != null) vals.push(avg);
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), sp = (hi - lo) || hi * 0.2 || 1;
@@ -241,8 +255,8 @@
   // viewBox로 삼아 배율을 1 부근에 두고(선언 크기 = 화면 크기), 왼쪽 라벨 열을 없애
   // 방법 이름을 막대 위로 올린다. 근거 문구는 바로 아래 방법별 표에 그대로 있어 뺀다.
   function bulletChartNarrow() {
-    var est = D.verdict.estimates || [];
-    var cur = D.meta.price, avg = D.verdict.fair_mid;
+    var est = Dstock.verdict.estimates || [];
+    var cur = Dstock.meta.price, avg = Dstock.verdict.fair_mid;
     var vals = [cur]; est.forEach(function (e) { if (e.low != null) vals.push(e.low); if (e.high != null) vals.push(e.high); if (e.mid != null) vals.push(e.mid); });
     if (avg != null) vals.push(avg);
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), sp = (hi - lo) || hi * 0.2 || 1;
@@ -309,7 +323,7 @@
 
   function radarChart() {
     var order = ['밸류에이션', '수익성', '성장성', '재무 안정성', '현금흐름'];
-    var cats = order.map(function (k) { return [k === '재무 안정성' ? '재무안정성' : k, D.scores.cats[k]]; });
+    var cats = order.map(function (k) { return [k === '재무 안정성' ? '재무안정성' : k, Dstock.scores.cats[k]]; });
     var cx = 190, cy = 158, R = 112, W = 380, H = 300;
     var pt = function (val, i) { var a = (-90 + i * 72) * Math.PI / 180, rr = R * (val || 0) / 100; return [cx + rr * Math.cos(a), cy + rr * Math.sin(a)]; };
     var els = [];
@@ -326,7 +340,7 @@
     if (v == null) {
       // 금융업은 이 두 축의 지표(부채비율·유동비율·FCF수익률 등)가 부적합해 의도적으로 제외한다.
       // '산출 불가'(데이터 실패)로 오해되지 않게 사유를 분명히 구분한다.
-      if (D.meta && D.meta.is_financial && (k === '재무 안정성' || k === '현금흐름'))
+      if (Dstock.meta && Dstock.meta.is_financial && (k === '재무 안정성' || k === '현금흐름'))
         return '금융업 특성상 일반 지표가 부적합 — 제외';
       return nullScoreReason(k);
     }
@@ -337,7 +351,7 @@
 
   // 점수 미산출 사유 — details의 지표별 피어 보유 수(n)로 원인을 구분해 보여준다.
   function nullScoreReason(k) {
-    var rows = (D.scores.details || {})[k] || [];
+    var rows = (Dstock.scores.details || {})[k] || [];
     if (!rows.length) return '산출 불가';
     var maxN = 0, selfMissing = true;
     rows.forEach(function (r) { if (r.n != null && r.n > maxN) maxN = r.n; if (r.target != null) selfMissing = false; });
@@ -348,7 +362,7 @@
   function scoreBars() {
     var order = ['밸류에이션', '수익성', '성장성', '재무 안정성', '현금흐름'];
     return order.map(function (k) {
-      var v = D.scores.cats[k]; var good = v != null && v >= 50; var w = v == null ? 0 : v;
+      var v = Dstock.scores.cats[k]; var good = v != null && v >= 50; var w = v == null ? 0 : v;
       return el('div', { style: { display: 'grid', gridTemplateColumns: '92px 1fr', gap: '16px', alignItems: 'center' } },
         el('span', { style: { fontSize: '14px', fontWeight: 600 } }, k === '재무 안정성' ? '재무안정성' : k),
         el('div', {},
@@ -365,19 +379,20 @@
     }).join('');
   }
 
-  /* 주가차트(Canvas)는 assets/stock-price-chart.js에 있다 — 전역 D·state를 인자로만
-     받던 덩어리라 이슈 #79 ㉮의 1단계로 먼저 떼어냈다. 포맷터는 아래 호출부에서 넘긴다. */
+  /* 주가차트(Canvas)는 assets/stock-price-chart.js에 있다 — 전역 페이로드·state를 인자로만
+     받던 덩어리라 이슈 #79 ㉮의 1단계로 먼저 떼어냈다. 포맷터는 아래 호출부에서 넘긴다.
+     **주식 스키마만 받는다** — `Dstock`을 넘기므로 ETF 응답이 흘러들 자리가 없다(#80). */
   var priceChartInst = null;
   function renderPrice() {
     var wrap = $('priceChart');
     if (priceChartInst) { priceChartInst.destroy(); priceChartInst = null; }
-    if (!D || !D.price || D.price.error) { wrap.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:20px 0">주가 데이터를 불러오지 못했습니다.</div>'; return; }
+    if (!Dstock || !Dstock.price || Dstock.price.error) { wrap.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:20px 0">주가 데이터를 불러오지 못했습니다.</div>'; return; }
     if (!wrap.clientWidth) return;  // 숨김 상태(탭 비활성) — 탭 활성화 때 다시 그린다
-    priceChartInst = window.makePriceChart(wrap, D, state, { esc: esc, fmtPrice: fmtPrice, fmtSigned: fmtSigned, $: $, CUR: CUR });
+    priceChartInst = window.makePriceChart(wrap, Dstock, state, { esc: esc, fmtPrice: fmtPrice, fmtSigned: fmtSigned, $: $, CUR: CUR });
   }
 
   function bandChart() {
-    var b = D.band[state.bandMetric.toLowerCase()];
+    var b = Dstock.band[state.bandMetric.toLowerCase()];
     if (!b) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px', padding: '20px 0' } }, '밴드를 계산할 수 없습니다 (상장기간 부족 또는 적자).');
     var M = b.price.length, price = b.price, lo = b.q10 || b.q25, mid = b.q50, hi = b.q90 || b.q75;
     var W = 760, padL = 6, padR = 58, plotT = 10, plotH = 228, xw = W - padL - padR;
@@ -401,7 +416,7 @@
   }
   function renderBand() {
     $('bandChart').innerHTML = bandChart();
-    var b = D.band[state.bandMetric.toLowerCase()];
+    var b = Dstock.band[state.bandMetric.toLowerCase()];
     var cap = $('bandCaption');
     if (b && b.percentile != null) {
       var p = b.percentile, qy = b.quality || {};
@@ -513,7 +528,7 @@
   /* 가격과 수익성 지도 — 주가차트와 같은 문법(헤어라인 그리드·모노 축라벨·절제된 팔레트).
      업종 중앙값 십자선이 사분면을 정의하고, 라벨은 겹치면 숨겼다가 hover 때 드러낸다. */
   function peerScatter() {
-    var pts = (D.peers && D.peers.scatter) || [];
+    var pts = (Dstock.peers && Dstock.peers.scatter) || [];
     if (pts.length < 2) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px' } }, '피어 표본이 부족합니다.');
     var W = 760, H = 438, padL = 58, padR = 26, padT = 26, padB = 56;
     var xw = W - padL - padR, plotH = H - padT - padB;
@@ -727,7 +742,7 @@
   }
 
   function betaScatter() {
-    var w = D.wacc; var pts = (w && w.reg_points) || [];
+    var w = Dstock.wacc; var pts = (w && w.reg_points) || [];
     if (pts.length < 10) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px' } }, '베타 회귀 표본이 부족합니다.');
     var beta = w.beta_line || w.beta_l || 1;
     var lim = Math.max.apply(null, pts.map(function (p) { return Math.max(Math.abs(p[0] || 0), Math.abs(p[1] || 0)); })) * 1.05 || 0.06;
@@ -739,13 +754,13 @@
     pts.forEach(function (p) { if (p[0] == null || p[1] == null) return; els.push(el('circle', { cx: X(p[0]), cy: Y(p[1]), r: 2.4, fill: 'var(--dv-slate)', fillOpacity: 0.55 })); });
     els.push(el('line', { x1: X(-lim), y1: Y(beta * -lim), x2: X(lim), y2: Y(beta * lim), stroke: 'var(--dv-navy)', strokeWidth: 2 }));
     els.push(el('text', { x: pad + xw - 6, y: top + 16, fontSize: 12, fill: 'var(--dv-navy)', fontFamily: 'var(--font-sans)', fontWeight: 600, textAnchor: 'end' }, 'β = ' + (w.beta_l != null ? w.beta_l.toFixed(2) : '—') + (w.r2 != null ? '  R²=' + w.r2.toFixed(2) : '')));
-    els.push(el('text', { x: pad + xw, y: H - 4, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '시장(' + D.meta.benchmark + ') 주간수익률 →'));
+    els.push(el('text', { x: pad + xw, y: H - 4, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)', textAnchor: 'end' }, '시장(' + Dstock.meta.benchmark + ') 주간수익률 →'));
     els.push(el('text', { x: pad - 30, y: top + 6, fontSize: 10.5, fill: 'var(--ink-3)', fontFamily: 'var(--font-sans)' }, '종목 수익률'));
     return el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
 
   function waccWaterfall() {
-    var w = D.wacc;
+    var w = Dstock.wacc;
     if (!w || w.wacc == null) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px' } }, '금융업 등은 WACC가 의미를 갖지 않아 생략합니다.');
     var rf = w.rf * 100, ke = w.k_e * 100, kd = (w.k_d_after != null ? w.k_d_after : 0) * 100, wacc = w.wacc * 100;
     var vmax = Math.ceil(Math.max(ke, wacc, kd, rf) * 1.15);
@@ -759,7 +774,7 @@
   }
 
   function roicSeries() {
-    var w = D.wacc; var rs = w && w.roic_series;
+    var w = Dstock.wacc; var rs = w && w.roic_series;
     if (!rs || !rs.y.length) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px' } }, 'ROIC 시계열을 계산할 수 없습니다.');
     var years = rs.x, roic = rs.y.map(function (v) { return v == null ? null : v * 100; });
     var wacc = w.wacc != null ? years.map(function () { return w.wacc * 100; }) : null;
@@ -769,7 +784,7 @@
   }
 
   function backtestScatter() {
-    var bt = D.backtest; var pts = (bt && bt.scatter) || [];
+    var bt = Dstock.backtest; var pts = (bt && bt.scatter) || [];
     if (pts.length < 10) return el('div', { style: { color: 'var(--ink-3)', fontSize: '13px' } }, '백테스트 표본이 부족합니다.');
     var xs = pts.map(function (p) { return p[0]; }), ys = pts.map(function (p) { return p[1]; });
     var xMin = Math.min(-10, Math.min.apply(null, xs)), xMax = Math.max(50, Math.max.apply(null, xs));
@@ -800,10 +815,10 @@
      통계를 주장하지 않는다 — 비중복 표본이 2~4개뿐이라 평균·승률은 통계가 못 되지만,
      "언제 켜졌고 그 뒤 어떻게 갔나"는 표본 수와 무관하게 사실 그대로다. */
   function signalTimeline() {
-    var t = D.backtest && D.backtest.timeline;
+    var t = Dstock.backtest && Dstock.backtest.timeline;
     if (!t || !t.dates || t.dates.length < 2) return '<div style="color:var(--ink-3);font-size:13px">관찰할 시계열이 부족합니다.</div>';
     var xs = t.dates, ds = t.discount, ps = t.price, fs = t.fair || [];
-    var n = xs.length, th = (D.backtest.threshold != null ? D.backtest.threshold : 0.30);
+    var n = xs.length, th = (Dstock.backtest.threshold != null ? Dstock.backtest.threshold : 0.30);
     var W = 900, padL = 6, padR = 52, topA = 14, hA = 132, gap = 30, hB = 96;
     var topB = topA + hA + gap, H = topB + hB + 26, xw = W - padL - padR;
     function X(i) { return padL + (n <= 1 ? 0 : i / (n - 1) * xw); }
@@ -859,8 +874,70 @@
 
   function badge(text, tone) { return el('span', { className: 'badge' + (tone ? ' badge-' + tone : '') }, esc(text)); }
 
+  /* ── 헤더 카드 공용 조각 (이슈 #81) ─────────────────────────────────────
+     `renderHeader`(주식)와 `renderEtfHeader`(ETF)가 **같은 눈금을 각자 적고** 있었다.
+     R4가 판정 색을 무채 잉크로 바꿀 때 두 자리를 각각 고쳐야 했고, 같은 주석이 두 번
+     적혀 있었다 — **한 곳을 놓치면 R4가 지운 색이 한쪽에만 돌아온다.** 그 자리를 없앤다.
+
+     ⚠ **어휘는 합치지 않는다.** 주식 '저평가/적정/고평가'와 ETF '싼 구간/보통/비싼 구간'은
+     R3가 일부러 가른 것이다 — ETF는 재무제표가 없어 적정가를 아예 계산하지 않으므로
+     관찰 어휘만 쓴다. 그래서 라벨은 **인자로 받는다**.
+
+     ⚠ **눈금 막대(zone bar)는 공용이 아니다.** 이슈 #81은 두 막대가 "글자 하나까지
+     같다"고 적었는데 그 뒤 ADR-0042가 주식 판정을 3등급으로 바꾸면서 주식은 칸 셋
+     (너비가 곧 문턱), ETF는 칸 다섯으로 **갈라졌다.** 억지로 합치면 한쪽 문턱이 거짓이 된다. */
+
+  // 판정 헤드라인·마커의 잉크 — R4가 확정했다(판정에는 색을 쓰지 않는다).
+  // 두 뷰가 이 상수 하나만 보므로 다음에 고칠 자리도 하나다.
+  var VERDICT_INK = 'var(--ink)';
+
+  /** 좌측 신원 블록 — 머리글자 원형 + 티커 + 배지 + 이름 + 현재가. */
+  function hdrIdentity(o) {
+    var mono = 'var(--font-mono)', disp = 'var(--font-display)';
+    return '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:10px">' +
+      '<span style="width:38px;height:38px;flex:none;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;font-family:' + disp + ';font-weight:900;font-size:17px">' + esc(o.initial) + '</span>' +
+      '<div><div style="display:flex;align-items:center;gap:6px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(o.ticker) + '</span>' + o.badgeHtml + '</div>' +
+      '<div style="font-family:' + disp + ';font-weight:700;font-size:' + o.nameSize + ';letter-spacing:-0.01em;line-height:' + o.nameLine + ';margin-top:2px">' + esc(o.name) + '</div></div></div>' +
+      '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(o.price) + '</div></div>';
+  }
+
+  /** 3존 라벨 — 지금 어느 구간인지는 **진하기**로 말한다(활성 --ink 700 / 비활성 --ink-3).
+      방향은 문자와 위치가 말하고 색은 쓰지 않는다(R4). `labels`는 [왼쪽, 가운데, 오른쪽]. */
+  function hdrZoneLabels(labels, tone) {
+    var on = ';color:var(--ink);font-weight:700';
+    return '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:6px">' +
+      '<span style="flex:1;text-align:left' + (tone === 'positive' ? on : '') + '">' + esc(labels[0]) + '</span>' +
+      '<span style="flex:1;text-align:center' + (tone === 'neutral' ? on : '') + '">' + esc(labels[1]) + '</span>' +
+      '<span style="flex:1;text-align:right' + (tone === 'negative' ? on : '') + '">' + esc(labels[2]) + '</span></div>';
+  }
+
+  /** 눈금 위 마커 세 줄(선·점·라벨). 두 뷰가 글자 하나까지 같았다.
+      ⚠ ETF 쪽 색이 `relHead ? vColor : 'var(--ink)'`였는데 `vColor`가 그 함수 안에서
+      `'var(--ink)'`로 고정이라 **분기가 아무 일도 하지 않았다** — 접어서 상수로 둔다. */
+  function hdrMarker(mpos, label) {
+    var mono = 'var(--font-mono)';
+    return '<div style="position:absolute;left:' + mpos + '%;top:26px;transform:translateX(-50%);width:2px;height:22px;background:' + VERDICT_INK + '"></div>' +
+      '<div style="position:absolute;left:' + mpos + '%;top:22px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:' + VERDICT_INK + ';border:2px solid var(--paper);box-shadow:var(--shadow-sm)"></div>' +
+      '<div style="position:absolute;left:' + mpos + '%;top:51px;transform:translateX(-50%);white-space:nowrap;font-family:' + mono + ';font-size:10.5px;font-weight:700;color:' + VERDICT_INK + '">' + esc(label) + '</div>';
+  }
+
+  /** 큰 판정 헤드라인 + 부제. `extraHtml`은 헤드라인 바로 뒤에 붙는 것(ETF의 보류 배지). */
+  function hdrHeadline(headline, sublineHtml, extraHtml) {
+    var disp = 'var(--font-display)';
+    return '<div style="display:flex;align-items:baseline;gap:12px;margin-top:8px;flex-wrap:wrap">' +
+      '<span style="font-family:' + disp + ';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.01em;color:' + VERDICT_INK + '">' + esc(headline) + '</span>' + (extraHtml || '') +
+      '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + sublineHtml + '</span></div>';
+  }
+
+  /** 카드 껍데기 — 좌(신원) · 중(판정) · 우(버튼) 셋을 한 테두리에 담는다. */
+  function hdrCard(leftHtml, midHtml, buttonsHtml) {
+    return '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
+      leftHtml + midHtml +
+      '<div style="display:flex;flex-direction:column;gap:8px">' + buttonsHtml + '</div></div>';
+  }
+
   function renderHeader() {
-    var m = D.meta, v = D.verdict;
+    var m = Dstock.meta, v = Dstock.verdict;
     var initial = /[A-Za-z]/.test(m.name[0]) ? m.name[0].toUpperCase() : m.name[0];
     var tone = vTone(v.verdict), pos = vPos(v.verdict), gapCol = v.gap != null && v.gap >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)';
     var mono = 'var(--font-mono)', disp = 'var(--font-display)';
@@ -888,12 +965,12 @@
     // 얹은 등급 이름이었다. 그래서 자리를 헤더 배지에서 `근거 보기` 안으로 옮기고,
     // '얼마나 믿을 만한가'가 아니라 **'방법들이 얼마나 벌어져 있나'**로만 말한다.
     // 등급 이름(높음/중간/낮음)을 다시 붙이지 않는 것이 이 변경의 전부다.
-    var finYear = (D.financials && D.financials.years && D.financials.years.length)
-      ? D.financials.years[D.financials.years.length - 1] : null;
-    // 판정 헤드라인 색 · 연속 마커 위치 · 평이한 해설
-    // 판정은 색을 쓰지 않는다(R4) — 초록·클레이는 '숫자의 부호'(등락·수익률·괴리율) 전용이고,
-    // 판정은 우리가 내린 판단이라 무채 잉크로만 쓴다. 방향은 문자와 눈금 위 위치가 말한다.
-    var vColor = 'var(--ink)';
+    var finYear = (Dstock.financials && Dstock.financials.years && Dstock.financials.years.length)
+      ? Dstock.financials.years[Dstock.financials.years.length - 1] : null;
+    // 연속 마커 위치 · 평이한 해설
+    // 판정 헤드라인 색은 공용 `VERDICT_INK`이 갖는다 — 판정은 색을 쓰지 않는다(R4).
+    // 초록·클레이는 '숫자의 부호'(등락·수익률·괴리율) 전용이고, 판정은 우리가 내린
+    // 판단이라 무채 잉크로만 쓴다. 방향은 문자와 눈금 위 위치가 말한다.
     var gp = v.gap == null ? null : Math.max(-0.4, Math.min(0.4, v.gap));
     /* 괴리율(연속) → 눈금 위치. +괴리(상승여력)=왼쪽(저평가).
        **로그 공간에서 선형**이다 — 판정 문턱이 로그 대칭이라(ADR-0042) 여기서도 같은 자를
@@ -1035,20 +1112,16 @@
     var evidenceFold = evidence
       ? fold('근거 보기 — 이 판정이 무엇에 기대고, 얼마나 틀리는가', evidence) : '';
     // ── B (기본) ──
-    $('hv-B').innerHTML =
-      '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
-        '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:10px">' +
-          '<span style="width:38px;height:38px;flex:none;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;font-family:' + disp + ';font-weight:900;font-size:17px">' + esc(initial) + '</span>' +
-          '<div><div style="display:flex;align-items:center;gap:6px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(m.ticker) + '</span>' + badge(m.market + ' · ' + m.benchmark, 'info') + '</div>' +
-          '<div style="font-family:' + disp + ';font-weight:700;font-size:29px;letter-spacing:-0.01em;line-height:1;margin-top:2px">' + esc(m.name) + '</div></div></div>' +
-          '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(m.price) + '</div></div>' +
-        // 이 줄 오른쪽 끝에 `신뢰도 [등급]` 배지가 있었다 — ADR-0043에서 뗐다.
-        // 편차 숫자는 아래 `근거 보기` 안으로 옮겼다(dispBody).
+    // 신원 블록·헤드라인·3존 라벨·마커는 ETF 헤더와 **같은 함수**를 쓴다(이슈 #81).
+    // 이 줄 오른쪽 끝에 `신뢰도 [등급]` 배지가 있었다 — ADR-0043에서 뗐다.
+    // 편차 숫자는 아래 `근거 보기` 안으로 옮겼다(dispBody).
+    $('hv-B').innerHTML = hdrCard(
+      hdrIdentity({ initial: initial, ticker: m.ticker,
+        badgeHtml: badge(m.market + ' · ' + m.benchmark, 'info'),
+        name: m.name, nameSize: '29px', nameLine: '1', price: m.price }),
         '<div style="flex:1;min-width:320px"><span class="kick">밸류에이션 판정</span>' +
           // 큰 판정 헤드라인 — 결론(저평가/적정/고평가)이 한눈에
-          '<div style="display:flex;align-items:baseline;gap:12px;margin-top:8px;flex-wrap:wrap">' +
-            '<span style="font-family:' + disp + ';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(v.verdict || '—') + '</span>' +
-            '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + verdictLine + '</span></div>' +
+          hdrHeadline(v.verdict || '—', verdictLine) +
           // 판정과 아래 근거가 반대 방향일 때만 뜬다 — 큰 글씨를 본 사람이 스크롤하기 전에
           // "왜 아래는 반대로 말하나"를 먼저 읽게 한다. 반대가 아니면 아무 말도 하지 않는다(#69).
           // 문장은 파이썬(commentary.verdict_conflict)이 만들고 여기서는 자리만 잡는다.
@@ -1058,22 +1131,17 @@
             ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--line-strong);border-left:3px solid var(--warning);border-radius:var(--radius-sm);background:var(--paper-2);font-size:12px;color:var(--ink-2);line-height:1.6">' + v.conflict.short + '</div>'
             : '') +
           // 3존 라벨(저평가·적정·고평가) + 연속 마커
-          // 지금 어느 구간인지는 **진하기**로 말한다 — 활성 --ink(굵게) / 비활성 --ink-3.
           // 눈금 막대 자체는 자(scale)라서 초록·클레이를 유지한다(판단이 아니라 눈금이다).
           '<div style="position:relative;margin-top:14px;padding-bottom:24px">' +
-            '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:6px">' +
-              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--ink);font-weight:700' : '') + '">저평가</span>' +
-              '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">적정</span>' +
-              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--ink);font-weight:700' : '') + '">고평가</span></div>' +
+            hdrZoneLabels(['저평가', '적정', '고평가'], tone) +
             // 칸 셋의 **너비가 곧 문턱**이다 — 25 / 50 / 25. 옛 막대는 다섯 칸이었고 그
             // 경계가 ±10%/±30%를 뜻했다(ADR-0042 이전). 판정이 셋이 됐으니 칸도 셋이다.
+            // **이 막대는 ETF와 공용이 아니다** — ETF는 칸이 다섯이라 합치면 문턱이 거짓이 된다.
             '<div style="display:flex;height:13px;border-radius:var(--radius-pill);overflow:hidden">' +
               '<span style="flex:' + zoneEdge + ';background:var(--dv-green);opacity:.82"></span>' +
               '<span style="flex:' + (100 - zoneEdge * 2) + ';background:var(--paper-3)"></span>' +
               '<span style="flex:' + zoneEdge + ';background:var(--dv-clay);opacity:.82"></span></div>' +
-            '<div style="position:absolute;left:' + mpos + '%;top:26px;transform:translateX(-50%);width:2px;height:22px;background:var(--ink)"></div>' +
-            '<div style="position:absolute;left:' + mpos + '%;top:22px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:var(--ink);border:2px solid var(--paper);box-shadow:var(--shadow-sm)"></div>' +
-            '<div style="position:absolute;left:' + mpos + '%;top:51px;transform:translateX(-50%);white-space:nowrap;font-family:' + mono + ';font-size:10.5px;font-weight:700;color:var(--ink)">현재가</div></div>' +
+            hdrMarker(mpos, '현재가') + '</div>' +
           // 현재가 vs 적정가 vs 괴리율 — 수치 요약
           '<div style="margin-top:6px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)">' +
             '<span>현재가 <b style="font-family:' + mono + ';color:var(--ink)">' + fmtPrice(m.price) + '</b></span>' +
@@ -1081,22 +1149,42 @@
             '<span>괴리율 <b style="font-family:' + mono + ';color:' + gapCol + '">' + fmtSigned(v.gap) + '</b></span></div>' +
           consLine +
           evidenceFold +
-          '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (D.computed_at ? ' · 계산 ' + esc(D.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>' +
-        '<div style="display:flex;flex-direction:column;gap:8px"><button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button></div></div>';
+          '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc(m.asof || '—') + (finYear ? ' · 재무 FY' + esc(String(finYear)) : '') + (Dstock.computed_at ? ' · 계산 ' + esc(Dstock.computed_at) : '') + ' <span class="na" tabindex="0" data-tip="주가·지표는 표시된 거래일 종가 기준입니다. 결과는 서버에서 30분간 캐시되어 같은 종목 재조회는 즉시 뜹니다(AI 해설은 6시간).">ⓘ</span></div></div>',
+      '<button id="basketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button><button class="btn btn-secondary btn-sm">관심종목</button>');
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
   }
 
-  /* 포트폴리오 담기 — 채권·포트폴리오 화면과 같은 바스켓(common.js의 loadBasket/saveBasket) */
-  function addToBasket() {
-    var m = D.meta, b = loadBasket();
-    b[m.yahoo_ticker] = { name: m.name, yahoo: m.yahoo_ticker, ticker: m.ticker,
-      type: (m.market === 'KR' ? '국내주식' : '해외주식'), currency: m.currency, 'class': '주식' };
+  /* 포트폴리오 담기 — 채권·포트폴리오 화면과 같은 바스켓(common.js의 loadBasket/saveBasket).
+     주식과 ETF가 **같은 되먹임을 두 벌** 적고 있었다 — 버튼 문구를 1.8초 바꿨다 되돌리는
+     부분이 글자 하나까지 같았다(이슈 #81의 '같이 움직이는 곳'). 여기 모은다.
+
+     ⚠ **레코드의 모양은 부르는 쪽이 만든다.** 키와 `type`·`class`가 화면마다 다르다 —
+     주식은 야후 티커를 그대로 키로 쓰고, 국내 ETF는 6자리 코드에 `.KS`를 붙여야 시세가
+     붙는다. 그 차이를 여기로 끌어들이면 이 함수가 화면을 알아야 해서 다시 갈라진다.
+
+     읽고 쓰기 자체는 common.js가 갖는다 — 'invportfolio'는 주식·ETF·채권·포트폴리오
+     네 화면이 공유하는 계약이라 한 곳에 있어야 한다. */
+  function basketAdd(btnId, key, record) {
+    var b = loadBasket();
+    b[key] = record;
     saveBasket(b);
-    var btn = $('basketBtn'); if (btn) { btn.textContent = '✓ 담았어요 — 🧺 포트폴리오에서 확인'; setTimeout(function () { btn.textContent = '＋ 포트폴리오에 담기'; }, 1800); }
+    var btn = $(btnId);
+    if (btn) {
+      btn.textContent = '✓ 담았어요 — 🧺 포트폴리오에서 확인';
+      setTimeout(function () { btn.textContent = '＋ 포트폴리오에 담기'; }, 1800);
+    }
+  }
+
+  function addToBasket() {
+    var m = Dstock.meta;
+    basketAdd('basketBtn', m.yahoo_ticker, {
+      name: m.name, yahoo: m.yahoo_ticker, ticker: m.ticker,
+      type: (m.market === 'KR' ? '국내주식' : '해외주식'),
+      currency: m.currency, 'class': '주식' });
   }
 
   function renderTiles() {
-    var t = D.tiles, fin = D.meta.is_financial;
+    var t = Dstock.tiles, fin = Dstock.meta.is_financial;
     var items = [
       ['시가총액', t.market_cap != null ? fmtMoney(t.market_cap) : na('주가 또는 상장주식수를 확인하지 못했습니다.')],
       // 'TTM'을 떼었다 — 이 값은 이제 공시 배수라 관측 창을 우리가 정하지 않는다(ADR-0020).
@@ -1111,7 +1199,7 @@
   }
 
   function renderWarnings() {
-    var w = D.warnings || [];
+    var w = Dstock.warnings || [];
     if (!w.length) { $('warnWrap').innerHTML = ''; return; }
     $('warnWrap').innerHTML =
       '<div style="border:1px solid var(--line-strong);border-radius:var(--radius-sm);background:var(--paper-2)">' +
@@ -1145,7 +1233,7 @@
   function renderSummary() {
     $('bulletChart').innerHTML = bulletChart();
     // 방법별 표
-    var est = D.verdict.estimates || [], v = D.verdict;
+    var est = Dstock.verdict.estimates || [], v = Dstock.verdict;
     var head = '<div class="row head" style="grid-template-columns:1.6fr 1.2fr 0.9fr 1.5fr"><span class="col-label">방법</span><span class="col-label r">적정가 범위</span><span class="col-label r">중심</span><span class="col-label">근거</span></div>';
     // METHOD_TAB·CANON은 모듈 위쪽 한 벌 — 헤더 툴팁·불릿차트도 같은 표를 본다.
     var estMap = {}; est.forEach(function (e) { estMap[e.method] = e; });
@@ -1257,16 +1345,16 @@
       '<b>출처</b> · 재무 OpenDART·Yahoo Finance / 컨센서스 FnGuide(네이버금융)·LSEG I/B/E/S(Yahoo)');
     $('methodsTable').innerHTML = est.length ? head + rows + total + formula : '<div style="color:var(--ink-3);font-size:13px;padding:16px 0">적정주가를 계산할 방법이 없습니다(데이터 부족).</div>';
     // 점수
-    $('scoreOverall').textContent = D.scores.overall != null ? Math.round(D.scores.overall) : '—';
+    $('scoreOverall').textContent = Dstock.scores.overall != null ? Math.round(Dstock.scores.overall) : '—';
     $('radarChart').innerHTML = radarChart();
     $('scoreBars').innerHTML = scoreBars();
     // 금융업이면 두 축이 '—'로 비는 이유를 한 줄로 밝힌다(05·07 탭 안내와 톤 통일).
-    $('scoreFinNote').innerHTML = (D.meta && D.meta.is_financial)
+    $('scoreFinNote').innerHTML = (Dstock.meta && Dstock.meta.is_financial)
       ? '<div style="font-size:11.5px;color:var(--ink-3);line-height:1.65;margin-top:18px;padding-top:12px;border-top:1px dashed var(--line)">금융업(은행·보험·증권)은 부채 대부분이 예금·보험부채라 일반 <b>재무 안정성·현금흐름</b> 지표(부채비율·유동비율·FCF수익률 등)가 부적합해 상대점수에서 제외합니다. 은행 건전성은 BIS 자기자본비율·고정이하여신비율 등 <b>감독당국 공시</b>로 평가해야 하며, 본 도구는 무료 공개 데이터 범위상 이를 제공하지 않습니다.</div>'
       : '';
     // 해설 — 두 무리로 나눠 그린다. 무리는 파이썬이 group으로 붙여 보낸다.
     // 문장을 뒤져서 가르지 않는 이유는 R3 발견 7과 같다 — 문자열 규약은 조용히 깨진다(#68).
-    var cmts = D.commentary || [];
+    var cmts = Dstock.commentary || [];
     var basis = cmts.filter(function (c) { return c.group !== 'reading'; });
     var reading = cmts.filter(function (c) { return c.group === 'reading'; });
 
@@ -1284,7 +1372,7 @@
       || '<div style="color:var(--ink-3);font-size:13px">해설을 생성할 수 없습니다.</div>';
 
     // 판정↔근거 충돌 설명(있을 때만)은 이 블록의 첫 카드로 오고, 그것만 한 단 띄운다.
-    var clash = (D.verdict && D.verdict.conflict) ? D.verdict.conflict.detail : null;
+    var clash = (Dstock.verdict && Dstock.verdict.conflict) ? Dstock.verdict.conflict.detail : null;
     var block = $('readingBlock');
     if (block) {
       block.hidden = !reading.length;
@@ -1299,17 +1387,17 @@
   function renderConsensus() {
     var body = $('consensusBody'), meta = $('consensusMeta');
     if (!body) return;
-    var c = D.consensus;
+    var c = Dstock.consensus;
     if (!c || c.error) {
       meta.textContent = '커버리지 없음';
       body.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:4px 0">애널리스트 컨센서스가 없는 종목입니다 — 증권사가 분석 리포트를 내지 않는 소형주에 흔합니다. 판정은 원래 ' + (verdictMarks() || '회사 실적·자산') + '만으로 내므로 판정 자체는 그대로지만, 대조해 볼 시장 시각이 없다는 뜻입니다.</div>';
       return;
     }
     meta.textContent = (c.n_analysts != null ? '애널리스트 ' + c.n_analysts + '명 평균'
-      : D.meta.market === 'KR' ? 'FnGuide · 42개 증권사 집계' : '애널리스트 평균') + (c.as_of ? ' · ' + c.as_of : '');
+      : Dstock.meta.market === 'KR' ? 'FnGuide · 42개 증권사 집계' : '애널리스트 평균') + (c.as_of ? ' · ' + c.as_of : '');
     function tone(v) { return v == null ? 'var(--ink)' : v >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)'; }
-    var strip = tilesHtml([['현재가', fmtPrice(D.meta.price)],
-      ['펀더멘털 적정가 · 이 대시보드', fmtPrice(D.verdict.fair_mid), D.verdict.gap != null ? '현재가 대비 ' + fmtSigned(D.verdict.gap) : '', { vColor: tone(D.verdict.gap) }],
+    var strip = tilesHtml([['현재가', fmtPrice(Dstock.meta.price)],
+      ['펀더멘털 적정가 · 이 대시보드', fmtPrice(Dstock.verdict.fair_mid), Dstock.verdict.gap != null ? '현재가 대비 ' + fmtSigned(Dstock.verdict.gap) : '', { vColor: tone(Dstock.verdict.gap) }],
       ['컨센서스 목표주가 · 증권가', fmtPrice(c.target_mean), c.target_upside != null ? '현재가 대비 ' + fmtSigned(c.target_upside) : '', { vColor: tone(c.target_upside) }],
       ['투자의견 평균', c.recomm_label || '—', c.recomm_score != null ? c.recomm_score.toFixed(2) + ' / 5.0' : '']
     ]);
@@ -1320,7 +1408,7 @@
     // 목표주가 역산 — 증권가가 어떤 멀티플을 깔았는지 되짚어 차이의 원인을 보여준다
     if (c.target_mean != null && c.forward_eps) {
       var impliedPer = c.target_mean / c.forward_eps;
-      var e4 = null, ests = D.verdict.estimates || [];
+      var e4 = null, ests = Dstock.verdict.estimates || [];
       for (var ei = 0; ei < ests.length; ei++) if (ests[ei].method === '선행 이익(컨센서스)') e4 = ests[ei];
       var ourMult = (e4 && e4.mid != null) ? e4.mid / c.forward_eps : null;
       rows.push('<b>목표주가 역산</b>: 증권가 목표가(' + fmtPrice(c.target_mean) + ')는 선행 EPS × <b class="mono">' + fmtX(impliedPer) + '</b>를 적용한 셈입니다' +
@@ -1337,7 +1425,7 @@
   }
 
   function renderPriceTab() {
-    var p = D.price;
+    var p = Dstock.price;
     if (!p || p.error) { $('priceTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">주가 데이터를 불러오지 못했습니다.</div>'; $('priceChart').innerHTML = ''; return; }
     tiles($('priceTiles'), [
       ['현재가', fmtPrice(p.cur)],
@@ -1354,10 +1442,10 @@
 
   function renderValuation() {
     var head = '<div class="row head" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr"><span class="col-label">지표</span><span class="col-label r">현재</span><span class="col-label r">업종 중앙값</span><span class="col-label r">자기 과거</span><span class="col-label r">vs 업종</span></div>';
-    var rows = (D.multiples || []).map(function (r, i) {
+    var rows = (Dstock.multiples || []).map(function (r, i) {
       var vs = '<span style="color:var(--ink-3)">— 참고</span>';
       if (r.vs != null && r.cheaper != null) { var col = r.cheaper ? 'var(--dv-positive)' : 'var(--dv-negative)'; vs = '<span style="color:' + col + '"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + col + ';margin-right:4px"></span>' + r.vs.toFixed(0) + '% ' + (r.cheaper ? '낮음' : '높음') + '</span>'; }
-      var last = i === D.multiples.length - 1;
+      var last = i === Dstock.multiples.length - 1;
       return '<div class="row" style="grid-template-columns:1.1fr 1fr 1fr 1fr 1.1fr' + (last ? ';border-bottom:none' : '') + '"><span style="font-size:13.5px">' + esc(r.label) + '</span><span class="mono r" style="font-size:13.5px">' + fmtMult(r.key, r.current) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + fmtMult(r.key, r.med) + '</span><span class="mono r" style="font-size:13.5px;color:var(--ink-3)">' + (r.own_band != null ? fmtX(r.own_band) : '—') + '</span><span class="r" style="font-size:12.5px">' + vs + '</span></div>';
     }).join('');
     // 공시 배수를 받지 못해 자체계산으로 내려간 지표는 업종 중앙값과 자가 달라 비교 판정을
@@ -1365,7 +1453,7 @@
     // 업종 중앙값이 **있는데도** 판정을 못 낸 경우만 밝힌다. 중앙값 자체가 없는 지표
     // (P/FCF·PEG — 피어에 대해 수집하지 않는다)는 근거와 무관하게 원래 비교가 안 되므로,
     // 거기까지 이 문장을 붙이면 거의 모든 종목에 항상 뜨는 잡음이 된다.
-    var ownCalc = (D.multiples || []).filter(function (r) {
+    var ownCalc = (Dstock.multiples || []).filter(function (r) {
       return r.basis === '자체계산' && r.med != null;
     });
     if (ownCalc.length) {
@@ -1382,7 +1470,7 @@
   function renderScenario() {
     var body = $('scenarioBody');
     if (!body) return;
-    var s = D.scenario;
+    var s = Dstock.scenario;
     if (!s || s.error || !s.cases || !s.cases.length) {
       body.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:4px 0">이익(EPS)이 적자이거나 밴드·피어 데이터가 부족해 이익 기반 시나리오를 만들 수 없습니다.</div>';
       return;
@@ -1394,7 +1482,7 @@
         // 케이스 가격은 finmath.js 한 벌 — 파이썬 쌍둥이(scenario.case_price)와 CI가 대조한다(#84).
         var dlt = caseDelta(cs.name), m = cs.multiple * (1 + state.scnMult);
         var p = FM.scenarioCasePrice(s.eps_base, dlt, cs.multiple, state.scnMult);
-        var up = D.meta.price ? p / D.meta.price - 1 : null;
+        var up = Dstock.meta.price ? p / Dstock.meta.price - 1 : null;
         return [cs.name, fmtPrice(p), '', {
           kickColor: CASE_TONE[cs.name],
           subHtml: 'EPS ' + fmtSigned(dlt) + ' × ' + fmtX(m) +
@@ -1405,13 +1493,13 @@
     // 자동 해석 한 줄 — 그리드에서 현재가 위 칸 수 + 비관 케이스의 완충 여부
     function readLine() {
       var parts = [];
-      if (s.grid && s.grid.values && D.meta.price) {
+      if (s.grid && s.grid.values && Dstock.meta.price) {
         var tot = 0, green = 0;
-        s.grid.values.forEach(function (row) { row.forEach(function (v) { if (v != null) { tot++; if (v > D.meta.price) green++; } }); });
+        s.grid.values.forEach(function (row) { row.forEach(function (v) { if (v != null) { tot++; if (v > Dstock.meta.price) green++; } }); });
         if (tot) parts.push('민감도 ' + tot + '칸 중 <b>' + green + '칸(' + Math.round(green / tot * 100) + '%)</b>이 현재가 위');
       }
       var bear = s.cases[0], up = null;
-      if (bear && D.meta.price) up = FM.scenarioCasePrice(s.eps_base, state.scnBear, bear.multiple, state.scnMult) / D.meta.price - 1;
+      if (bear && Dstock.meta.price) up = FM.scenarioCasePrice(s.eps_base, state.scnBear, bear.multiple, state.scnMult) / Dstock.meta.price - 1;
       if (up != null) parts.push('비관 케이스는 현재가 대비 <b style="color:' + (up >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + '">' + fmtSigned(up) + '</b>' + (up >= 0 ? ' (하방 완충이 있는 편)' : ' (비관 가정 실현 시 하락 여지)'));
       return parts.length ? '지금 가정에서는 ' + parts.join(', ') + '입니다.' : '';
     }
@@ -1430,7 +1518,7 @@
       s.grid.values.forEach(function (row, ri) {
         cells += '<div class="mono" style="padding:8px 10px;background:var(--paper-2);font-size:11.5px;color:var(--ink-2);border-top:1px solid var(--line)">' + esc(s.grid.eps_labels[ri]) + '</div>';
         row.forEach(function (v, ci) {
-          var up = (v != null && D.meta.price) ? v / D.meta.price - 1 : null;
+          var up = (v != null && Dstock.meta.price) ? v / Dstock.meta.price - 1 : null;
           var pct = up == null ? 0 : Math.min(Math.abs(up) * 55, 24);
           var bg = up == null ? 'transparent' : 'color-mix(in srgb, ' + (up >= 0 ? 'var(--dv-green)' : 'var(--dv-clay)') + ' ' + pct.toFixed(0) + '%, transparent)';
           var isBase = ri === Math.floor(s.grid.values.length / 2) && ci === Math.floor(cols / 2);
@@ -1476,7 +1564,7 @@
   }
 
   function renderCompany() {
-    var c = D.company;
+    var c = Dstock.company;
     var info = '';
     if (c && c.summary && !c.error) {
       info += '<p style="font-size:14px;color:var(--ink-2);line-height:1.7;margin:0">' + esc(c.summary) + '</p><div style="display:flex;gap:24px;margin-top:18px;border-top:1px solid var(--line);padding-top:16px">';
@@ -1489,16 +1577,16 @@
     // AI 뉴스 분석 버튼(키 있고 뉴스 있을 때) — 서술형 Gemini 분석
     var naw = $('newsAiWrap');
     if (naw) {
-      var hasNews = D.news && !D.news.error && D.news.length;
-      if (D.meta.ai_available && hasNews) {
+      var hasNews = Dstock.news && !Dstock.news.error && Dstock.news.length;
+      if (Dstock.meta.ai_available && hasNews) {
         naw.innerHTML = '<button id="newsAiBtn" class="btn btn-secondary btn-sm">✦ AI 뉴스 분석 (Gemini)</button><div id="newsAiOut"></div>';
         var nb = $('newsAiBtn'); nb.addEventListener('click', function () { aiFetch('news', $('newsAiOut'), nb); });
-      } else if (!D.meta.ai_available) {
+      } else if (!Dstock.meta.ai_available) {
         naw.innerHTML = '<div style="font-size:11.5px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:12px;line-height:1.6">💡 <b style="color:var(--ink-2)">Gemini API 키</b>를 설정하면 위 헤드라인을 감성·핵심이슈·촉매·리스크로 분석해 줍니다. <span style="font-family:var(--font-mono)">.streamlit/secrets.toml</span>에 <span style="font-family:var(--font-mono)">GEMINI_API_KEY</span>를 넣으세요.</div>';
       } else { naw.innerHTML = ''; }
     }
     // 뉴스
-    var news = D.news;
+    var news = Dstock.news;
     if (!news || news.error || !news.length) { $('newsList').innerHTML = '<div style="font-size:13px;color:var(--ink-3)">관련 뉴스를 찾지 못했습니다.</div>'; return; }
     var CATCOL = { '기업': ['var(--dv-navy)', '종목 직접 관련'], '산업': ['var(--dv-teal)', '업종·경쟁사'], '거시': ['var(--dv-gold)', 'PEST 태그'] };
     var html = '';
@@ -1518,7 +1606,7 @@
   }
 
   function renderFinancials() {
-    var f = D.financials;
+    var f = Dstock.financials;
     if (!f || f.error) { $('finGrowth').innerHTML = '<div style="color:var(--ink-3);font-size:13px">재무 데이터를 불러오지 못했습니다.</div>'; return; }
     var unit = f.unit;
     // 단위 설명 — 서버가 회사 크기로 고른다(조/억 · B/M). 달러 단위는 뜻을 밝힌다.
@@ -1574,7 +1662,7 @@
   }
 
   function renderPeers() {
-    var pr = D.peers;
+    var pr = Dstock.peers;
     if (!pr || pr.error) { $('peerTable').innerHTML = '<div style="color:var(--ink-3);font-size:13px">피어 데이터를 불러오지 못했습니다.</div>'; return; }
     $('peerLabel').textContent = '피어 비교 — ' + (pr.sector || '업종');
     if (pr.basis) $('peerBasis').textContent = pr.basis;
@@ -1610,9 +1698,9 @@
   }
 
   function renderWacc() {
-    var w = D.wacc;
+    var w = Dstock.wacc;
     if (!w || w.error) { $('waccTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">자본비용을 계산하지 못했습니다.</div>'; return; }
-    $('waccPeriod').textContent = w.period_label ? '회귀 표본 · ' + w.period_label + ' (벤치마크 ' + D.meta.benchmark + ')' : '';
+    $('waccPeriod').textContent = w.period_label ? '회귀 표본 · ' + w.period_label + ' (벤치마크 ' + Dstock.meta.benchmark + ')' : '';
     tiles($('waccTiles'), [
       ['레버드 β_L', w.beta_l != null ? w.beta_l.toFixed(2) : '—'], ['무부채 β_U', w.beta_u != null ? w.beta_u.toFixed(2) : '—'],
       ['유효세율 t', fmtPct(w.tax, 0)], ['D/E (시가)', fmtPct(w.de, 0)],
@@ -1638,7 +1726,7 @@
   }
 
   function renderBacktest() {
-    var bt = D.backtest;
+    var bt = Dstock.backtest;
     if (!bt || bt.error || !bt.ok) {
       $('btTiles').innerHTML = '<div style="color:var(--ink-3);font-size:13px">' + esc((bt && (bt.warnings || [])[0]) || '과거 신호를 복원할 수 없습니다 (표본 부족).') + '</div>';
       $('btLede').innerHTML = ''; $('signalTimeline').innerHTML = ''; $('backtestScatter').innerHTML = '';
@@ -1674,7 +1762,7 @@
       + ' <b>이 탭은 성과를 주장하지 않습니다</b> — 겹치지 않는 12개월 표본이 <b class="mono">' + nEv + '개</b>뿐이라, 평균수익·승률을 내면 숫자만 그럴듯하고 통계가 되지 못합니다.';
     // 화면의 판정과 이 신호(②+③)는 재료도 창(window)도 달라 **같은 종목에 반대를 말할 수 있다**.
     // 그 대비를 화면이 보여주지 않으면 사용자는 "어느 쪽이 맞나"에서 멈춘다. 차이의 이유까지 적는다.
-    var vg = D.verdict && D.verdict.gap, ld = t.latest_discount;
+    var vg = Dstock.verdict && Dstock.verdict.gap, ld = t.latest_discount;
     if (vg != null && ld != null) {
       var flip = (vg >= 0) !== (ld >= 0);
       lede += '<div class="cons-callout' + (flip ? ' clash' : '') + '">' +
@@ -1721,9 +1809,9 @@
   }
 
   function renderAi() {
-    var v = D.verdict, m = D.meta, p = D.price;
-    var bulls = (D.commentary || []).filter(function (c) { return c.kind === 'good'; }).slice(0, 4);
-    var bears = (D.commentary || []).filter(function (c) { return c.kind === 'bad' || c.kind === 'warn'; }).slice(0, 4);
+    var v = Dstock.verdict, m = Dstock.meta, p = Dstock.price;
+    var bulls = (Dstock.commentary || []).filter(function (c) { return c.kind === 'good'; }).slice(0, 4);
+    var bears = (Dstock.commentary || []).filter(function (c) { return c.kind === 'bad' || c.kind === 'warn'; }).slice(0, 4);
     // 3등급이 된 뒤로는 손으로 분기할 것이 없다 — 등급 어휘를 그대로 쓴다(ADR-0042).
     var stance = ['저평가 관찰', '적정 범위 관찰', '고평가 관찰'][vIdx(v.verdict)];
     var up = v.gap != null && v.gap >= 0;
@@ -1768,27 +1856,25 @@
     return 50 - g * 40;                                 // gap>0(쌈)=왼쪽(저평가)
   }
   function addEtfToBasket() {
-    var b = loadBasket();
     // 포트폴리오는 야후 티커를 키로 쓴다 — 국내 ETF는 6자리 코드에 .KS를 붙여야 시세가 붙는다.
-    var kr = D.currency === 'KRW', yahoo = kr ? D.symbol + '.KS' : D.symbol;
-    b[yahoo] = { name: D.name, yahoo: yahoo, ticker: D.symbol,
-      type: kr ? '국내기타ETF' : '해외ETF', currency: D.currency, 'class': 'ETF' };
-    saveBasket(b);
-    var btn = $('etfBasketBtn'); if (btn) { btn.textContent = '✓ 담았어요 — 🧺 포트폴리오에서 확인'; setTimeout(function () { btn.textContent = '＋ 포트폴리오에 담기'; }, 1800); }
+    var kr = Detf.currency === 'KRW', yahoo = kr ? Detf.symbol + '.KS' : Detf.symbol;
+    basketAdd('etfBasketBtn', yahoo, {
+      name: Detf.name, yahoo: yahoo, ticker: Detf.symbol,
+      type: kr ? '국내기타ETF' : '해외ETF', currency: Detf.currency, 'class': 'ETF' });
   }
   function renderEtfHeader() {
-    var initial = /[A-Za-z]/.test(D.name[0]) ? D.name[0].toUpperCase() : D.name[0];
-    var tone = etfTone(D.verdict);
-    // 주식과 같은 규약 — 판단은 무채 잉크, 색은 숫자의 부호에만(R4)
-    var vColor = 'var(--ink)';
-    var mono = 'var(--font-mono)', disp = 'var(--font-display)';
-    var mpos = etfMarkerPos(D.gap, D.primary);
-    var held = D.verdict == null;
-    var headline = held ? '판정 보류' : D.verdict;
-    var primAxis = (D.axes || []).filter(function (a) { return a.key === D.primary; })[0];
+    var initial = /[A-Za-z]/.test(Detf.name[0]) ? Detf.name[0].toUpperCase() : Detf.name[0];
+    var tone = etfTone(Detf.verdict);
+    // 판단은 무채 잉크, 색은 숫자의 부호에만(R4) — 여기 있던 `vColor` 지역 상수는
+    // 공용 `VERDICT_INK` 하나로 모였다(이슈 #81). 주식과 같은 값을 두 번 적지 않는다.
+    var mono = 'var(--font-mono)';
+    var mpos = etfMarkerPos(Detf.gap, Detf.primary);
+    var held = Detf.verdict == null;
+    var headline = held ? '판정 보류' : Detf.verdict;
+    var primAxis = (Detf.axes || []).filter(function (a) { return a.key === Detf.primary; })[0];
     // 판정 보류 유형이라도 상대 위치가 있으면 그걸 헤드라인으로 — "보류"만 크게 띄우면
     // 쓸 정보가 없다는 인상만 남는다. 대신 '적정가 판정은 보류'를 작은 뱃지로 붙여 톤을 지킨다.
-    var rel = D.relative || {}, relHead = held && rel.stance && rel.pos != null;
+    var rel = Detf.relative || {}, relHead = held && rel.stance && rel.pos != null;
     if (relHead) {
       headline = rel.stance;
       tone = rel.pos >= 65 ? 'negative' : rel.pos <= 35 ? 'positive' : 'neutral';
@@ -1800,51 +1886,44 @@
           : '이 유형은 이익·배당 기반 적정가가 어려워, 아래 참고 지표만 제공합니다.')
       : (primAxis ? primAxis.value : '');
     var holdBadge = relHead ? ' ' + badge('적정가 판정은 보류') : '';
-    $('hv-B').innerHTML =
-      '<div style="border:1px solid var(--line);border-radius:var(--radius-md);padding:22px 24px;display:flex;gap:32px;align-items:center;flex-wrap:wrap">' +
-        '<div style="min-width:210px"><div style="display:flex;align-items:center;gap:10px">' +
-          '<span style="width:38px;height:38px;flex:none;border-radius:var(--radius-sm);background:var(--ink);color:var(--paper);display:inline-flex;align-items:center;justify-content:center;font-family:' + disp + ';font-weight:900;font-size:17px">' + esc(initial) + '</span>' +
-          '<div><div style="display:flex;align-items:center;gap:6px"><span style="font-family:' + mono + ';font-size:12px;color:var(--ink-3)">' + esc(D.symbol) + '</span>' + badge('ETF · ' + D.type_label, 'info') + '</div>' +
-          '<div style="font-family:' + disp + ';font-weight:700;font-size:22px;letter-spacing:-0.01em;line-height:1.15;margin-top:2px">' + esc(D.name) + '</div></div></div>' +
-          '<div style="font-family:' + mono + ';font-size:29px;font-weight:500;margin-top:14px">' + fmtPrice(D.price) + '</div></div>' +
-        // 이 줄 오른쪽 끝에도 `신뢰도 [등급]`이 서 있었다 — 주식 쪽과 같은 이유로 뗀다.
-        // ADR-0043은 ETF 산식이 다르다는 이유로 남겨 뒀는데, 그러면 **같은 자리의 같은
-        // 단어가 화면마다 다른 뜻**이 된다. 가이드가 "신뢰도 등급은 뗐습니다"라고 말하는
-        // 옆에서 ETF만 등급을 달고 있으면 읽는 사람은 어느 쪽을 믿을지 알 수 없다.
-        // 근거가 약하다는 사실은 `적정가 판정은 보류` 배지와 '계산 기준과 주석'이 말한다.
+    // 신원 블록·헤드라인·3존 라벨·마커는 주식 헤더와 **같은 함수**를 쓴다(이슈 #81).
+    // 헤더 오른쪽 끝에도 `신뢰도 [등급]`이 서 있었다 — 주식 쪽과 같은 이유로 뗐다.
+    // ADR-0043은 ETF 산식이 다르다는 이유로 남겨 뒀는데, 그러면 **같은 자리의 같은
+    // 단어가 화면마다 다른 뜻**이 된다. 가이드가 "신뢰도 등급은 뗐습니다"라고 말하는
+    // 옆에서 ETF만 등급을 달고 있으면 읽는 사람은 어느 쪽을 믿을지 알 수 없다.
+    // 근거가 약하다는 사실은 `적정가 판정은 보류` 배지와 '계산 기준과 주석'이 말한다.
+    $('hv-B').innerHTML = hdrCard(
+      hdrIdentity({ initial: initial, ticker: Detf.symbol,
+        badgeHtml: badge('ETF · ' + Detf.type_label, 'info'),
+        name: Detf.name, nameSize: '22px', nameLine: '1.15', price: Detf.price }),
         '<div style="flex:1;min-width:320px"><span class="kick">ETF 판정</span>' +
-          '<div style="display:flex;align-items:baseline;gap:12px;margin-top:8px;flex-wrap:wrap">' +
-            '<span style="font-family:' + disp + ';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.01em;color:' + vColor + '">' + esc(headline) + '</span>' + holdBadge +
-            '<span style="font-size:13px;color:var(--ink-2);line-height:1.4">' + esc(subline) + '</span></div>' +
+          hdrHeadline(headline, esc(subline), holdBadge) +
           '<div style="position:relative;margin-top:14px;padding-bottom:24px">' +
             // ETF 눈금은 **항상** 관찰 어휘다. ETF는 재무제표가 없어 적정가(내재가치)를 아예
             // 계산하지 않고, 세 축(NAV 괴리·바스켓 상대·배당 밴드) 모두 '이미 있는 기준 안에서의
             // 위치'를 잴 뿐이다. 예전에는 적정가 판정을 보류한 경우에만 싼/비싼 구간으로 바꿔 달았는데
             // (PR #47), 그러면 배당 밴드로 판정한 ETF는 헤드라인이 "다소 비싼 구간"인데 눈금은
             // "저평가·적정·고평가"가 되어 한 화면에서 층위가 갈렸다(R3 발견 1의 뒤끝).
-            '<div style="display:flex;font-size:11.5px;letter-spacing:.02em;color:var(--ink-3);margin-bottom:6px">' +
-              '<span style="flex:1;text-align:left' + (tone === 'positive' ? ';color:var(--ink);font-weight:700' : '') + '">싼 구간</span>' +
-              '<span style="flex:1;text-align:center' + (tone === 'neutral' ? ';color:var(--ink);font-weight:700' : '') + '">보통</span>' +
-              '<span style="flex:1;text-align:right' + (tone === 'negative' ? ';color:var(--ink);font-weight:700' : '') + '">비싼 구간</span></div>' +
+            // **그래서 라벨은 주식과 합치지 않는다** — 공용 함수에 인자로 넘긴다.
+            hdrZoneLabels(['싼 구간', '보통', '비싼 구간'], tone) +
+            // ETF 막대는 칸이 **다섯**이다(주식은 ADR-0042 이후 셋) — 두 막대는 공용이 아니다.
             '<div style="display:flex;height:13px;border-radius:var(--radius-pill);overflow:hidden">' +
               '<span style="flex:1;background:var(--dv-green);opacity:.82"></span><span style="flex:1;background:var(--dv-green);opacity:.45"></span><span style="flex:1;background:var(--paper-3)"></span><span style="flex:1;background:var(--dv-clay);opacity:.45"></span><span style="flex:1;background:var(--dv-clay);opacity:.82"></span></div>' +
             (mpos == null
               ? '<div style="position:absolute;left:50%;top:25px;transform:translateX(-50%);white-space:nowrap;font-size:10.5px;color:var(--ink-3)">판정 보류 — 참고 지표만</div>'
-              : '<div style="position:absolute;left:' + mpos + '%;top:26px;transform:translateX(-50%);width:2px;height:22px;background:var(--ink)"></div>' +
-                '<div style="position:absolute;left:' + mpos + '%;top:22px;transform:translateX(-50%);width:11px;height:11px;border-radius:50%;background:var(--ink);border:2px solid var(--paper);box-shadow:var(--shadow-sm)"></div>' +
-                '<div style="position:absolute;left:' + mpos + '%;top:51px;transform:translateX(-50%);white-space:nowrap;font-family:' + mono + ';font-size:10.5px;font-weight:700;color:' + (relHead ? vColor : 'var(--ink)') + '">' + (relHead ? '상대 위치(참고)' : '현재가') + '</div>') +
+              : hdrMarker(mpos, relHead ? '상대 위치(참고)' : '현재가')) +
           '</div>' +
-          '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc((D.asOf && D.asOf.price) || '—') + ' · 벤치마크 ' + esc(D.metrics.bench_label || '—') + '</div></div>' +
-        '<div style="display:flex;flex-direction:column;gap:8px"><button id="etfBasketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button></div></div>';
+          '<div style="margin-top:8px;font-family:' + mono + ';font-size:10.5px;color:var(--ink-3)">기준 · 주가 ' + esc((Detf.asOf && Detf.asOf.price) || '—') + ' · 벤치마크 ' + esc(Detf.metrics.bench_label || '—') + '</div></div>',
+      '<button id="etfBasketBtn" class="btn btn-primary btn-sm">＋ 포트폴리오에 담기</button>');
     var bb = $('etfBasketBtn'); if (bb) bb.addEventListener('click', addEtfToBasket);
   }
   function renderEtfTiles() {
-    var mk = {}; (D.masked || []).forEach(function (m) { mk[m[0]] = m[1]; });
-    var mt = D.metrics, tr = D.trend;
+    var mk = {}; (Detf.masked || []).forEach(function (m) { mk[m[0]] = m[1]; });
+    var mt = Detf.metrics, tr = Detf.trend;
     var perCell = mk['바스켓 PER'] ? na(mk['바스켓 PER']) : (mt.basket_pe != null ? fmtX(mt.basket_pe) : na('구성종목의 이익 지표를 무료 데이터로 모으지 못해 바스켓 PER를 계산할 수 없습니다.'));
     var items = [
-      ['현재가', fmtPrice(D.price)],
-      ['NAV 대비', D.premium != null ? fmtSigned(D.premium) : na('NAV(순자산가치)를 받지 못했습니다.')],
+      ['현재가', fmtPrice(Detf.price)],
+      ['NAV 대비', Detf.premium != null ? fmtSigned(Detf.premium) : na('NAV(순자산가치)를 받지 못했습니다.')],
       ['배당수익률', mt.div_yield != null ? fmtPct(mt.div_yield, 2) : na('분배 이력이 없거나 무료 소스가 제공하지 않아 배당수익률을 계산할 수 없습니다.')],
       ['바스켓 PER', perCell],
       ['52주 위치', tr.w52_pos != null ? Math.round(tr.w52_pos) + '%' : na('시세 이력이 짧습니다.')],
@@ -1854,7 +1933,7 @@
     }).join('');
   }
   function etfChart() {
-    var s = D.priceSeries || { x: [], y: [] };
+    var s = Detf.priceSeries || { x: [], y: [] };
     var ys = s.y || [], xs = s.x || [];
     if (ys.length < 2) return '<div style="color:var(--ink-3);font-size:13px">시세 이력이 부족합니다.</div>';
     var W = 900, H = 240, padL = 6, padR = 6, padT = 12, padB = 22;
@@ -1913,8 +1992,8 @@
   }
   // ① 판정 — 종합 신호 한 줄 + 축별 게이지 행
   function etfPanelVerdict() {
-    var rel = D.relative || {}, sc = D.signalCounts || {};
-    var rows = (D.axes || []).map(function (a, i) {
+    var rel = Detf.relative || {}, sc = Detf.signalCounts || {};
+    var rows = (Detf.axes || []).map(function (a, i) {
       var tone = etfSigTone(a.available ? a.pos : null, a.weak);
       var lead = a.available ? (a.lead || a.note) : a.note;
       var tip = a.note && a.lead ? ' <span class="na" tabindex="0" data-tip="' + esc(a.note) + '" style="color:var(--ink-3);cursor:help">ⓘ</span>' : '';
@@ -1944,22 +2023,22 @@
         '<div style="max-width:420px;margin-top:12px">' + etfGauge(rel.pos, st, true) + '</div>' +
         '<div style="font-size:11.5px;color:var(--ink-3);margin-top:8px;line-height:1.6">적정가(펀더멘털) 판정이 아니라 <b>시장 대비 가격비율의 5년 위치</b>입니다 — 성장 우위가 구조적이면 약할 수 있어 방향 참고로만 보세요.</div></div>';
     }
-    var notesHtml = (D.notes || []).length
+    var notesHtml = (Detf.notes || []).length
       ? '<div style="margin-top:18px;border-left:3px solid var(--dv-navy);background:var(--paper-2);border-radius:var(--radius-sm);padding:12px 16px;font-size:12.5px;color:var(--ink-2);line-height:1.7">' +
-        (D.notes || []).map(function (n) { return '· ' + esc(n); }).join('<br/>') + '</div>' : '';
+        (Detf.notes || []).map(function (n) { return '· ' + esc(n); }).join('<br/>') + '</div>' : '';
     return '<div class="method-map"><span class="method-chip">ETF 적정가</span><span>기업 재무가 없는 ETF는 여러 축을 <b>같은 자(싼 구간 ↔ 비싼 구간)</b>로 환산해 함께 봅니다 — ①NAV 괴리 ②바스켓 지표(벤치마크 대비) ③배당수익률 역사밴드 ④금리 대비 이익수익률(ERP).</span></div>' +
       '<div style="margin-top:18px">' + summary + rows + '</div>' + notesHtml;
   }
   // ② 구성·보유 — 상위종목·섹터·자산군
   function etfAssetClasses() {
-    var ac = D.assetClasses || []; if (!ac.length) return '';
+    var ac = Detf.assetClasses || []; if (!ac.length) return '';
     return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">' + ac.map(function (a) {
       return '<span style="font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px 10px">' + esc(a.label) + ' <b class="mono">' + (a.weight * 100).toFixed(1) + '%</b></span>';
     }).join('') + '</div>';
   }
   // 국가 비중 — 한국(네이버)에서만 온다. 해외형이 실제로 어디에 투자하는지 확인용.
   function etfCountries() {
-    var cs = (D.countries || []).filter(function (c) { return c.weight > 0.0005; });
+    var cs = (Detf.countries || []).filter(function (c) { return c.weight > 0.0005; });
     if (!cs.length) return '';
     return '<div style="margin-top:14px"><div class="kick" style="margin-bottom:6px">투자 국가</div>' +
       '<div style="display:flex;flex-wrap:wrap;gap:8px">' + cs.map(function (c) {
@@ -1967,7 +2046,7 @@
       }).join('') + '</div></div>';
   }
   function etfPanelHoldings() {
-    var h = D.holdings || [], secs = D.sectors || [];
+    var h = Detf.holdings || [], secs = Detf.sectors || [];
     if (!h.length && !secs.length) {
       return etfSectionHead('01', '자산군 구성', '이 ETF는 개별 종목 구성을 제공하지 않습니다(채권·원자재 등). 자산군 비중만 표시합니다.', null) +
         '<div class="analysis-section-body">' + (etfAssetClasses() || '<span style="color:var(--ink-3)">구성 데이터가 없습니다.</span>') + '</div>';
@@ -2013,7 +2092,7 @@
   }
   // ③ 성과·추이 — 벤치마크 대비 오버레이 + 수익률표
   function etfRelChart() {
-    var rs = D.relSeries || {}, xs = rs.x || [], e = rs.etf || [], b = rs.bench || [];
+    var rs = Detf.relSeries || {}, xs = rs.x || [], e = rs.etf || [], b = rs.bench || [];
     if (e.length < 2) return etfChart();
     var all = e.concat(b), lo = Math.min.apply(null, all), hi = Math.max.apply(null, all);
     var W = 900, H = 280, padL = 6, padR = 6, padT = 14, padB = 22, rng = (hi - lo) || 1; lo -= rng * 0.06; hi += rng * 0.06; rng = hi - lo;
@@ -2031,7 +2110,7 @@
       el('text', { x: W - padR, y: H - 5, textAnchor: 'end', fontFamily: EMONO, fontSize: 10, fill: 'var(--ink-3)' }, esc(xs[xs.length - 1] || ''))];
     // 두 선이 겹쳐 있어 "이 날 몇 %p 앞섰나"를 눈으로 재기 어렵다 — 초과분까지 계산해서 띄운다.
     // 값은 시작=100 정규화라 (값 − 100)이 그 시점까지의 누적 수익률이다.
-    var benchName = D.metrics && D.metrics.bench_label ? D.metrics.bench_label : '벤치마크';
+    var benchName = Detf.metrics && Detf.metrics.bench_label ? Detf.metrics.bench_label : '벤치마크';
     function pp(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; }
     els = els.concat(hoverBands(e.length, X, padT, plotH,
       function (i) {
@@ -2048,23 +2127,23 @@
     return el('svg', { viewBox: '0 0 ' + W + ' ' + H, style: { width: '100%', height: 'auto', display: 'block' } }, els);
   }
   function etfPanelPerf() {
-    var r = D.returns || {}, hasBench = D.relSeries && (D.relSeries.x || []).length > 1;
+    var r = Detf.returns || {}, hasBench = Detf.relSeries && (Detf.relSeries.x || []).length > 1;
     var retItems = [['연초대비(YTD)', r.ytd], ['3년(연평균)', r.y3], ['5년(연평균)', r.y5]];
     var retHtml = retItems.map(function (it) {
       var v = it[1], col = v == null ? 'var(--ink-3)' : v >= 0 ? 'var(--dv-positive)' : 'var(--dv-negative)';
       return '<div style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px"><div class="kick">' + it[0] + '</div><div class="mono" style="font-size:22px;font-weight:500;margin-top:6px;color:' + col + '">' + (v == null ? '—' : fmtSigned(v)) + '</div></div>';
     }).join('');
-    return etfSectionHead('01', hasBench ? '벤치마크 대비 누적 성과' : '최근 5년 추이', (hasBench ? '시작점을 100으로 맞춰 ' + esc(D.metrics.bench_label || '벤치마크') + '와 겹쳐 봅니다. 위에 있을수록 벤치마크보다 잘했다는 뜻입니다.' : '최근 5년 종가 흐름입니다.'), null) +
+    return etfSectionHead('01', hasBench ? '벤치마크 대비 누적 성과' : '최근 5년 추이', (hasBench ? '시작점을 100으로 맞춰 ' + esc(Detf.metrics.bench_label || '벤치마크') + '와 겹쳐 봅니다. 위에 있을수록 벤치마크보다 잘했다는 뜻입니다.' : '최근 5년 종가 흐름입니다.'), null) +
       '<div class="analysis-section-body">' + etfRelChart() +
         // 한 화면에 두 계열이 산다 — 종가 라인은 총수익, 배당 밴드·NAV 괴리는 실거래가.
         // 어느 쪽으로 통일해도 한쪽이 틀리므로 통일하는 대신 기준을 밝힌다(#57).
-        (D.priceBasisNote ? fold('가격 기준', esc(D.priceBasisNote)) : '') + '</div>' +
+        (Detf.priceBasisNote ? fold('가격 기준', esc(Detf.priceBasisNote)) : '') + '</div>' +
       etfSectionHead('02', '기간별 수익률', '야후 파이낸스 기준 총수익률(분배금 포함). 과거 실적이며 미래를 보장하지 않습니다.', null) +
       '<div class="analysis-section-body"><div style="display:flex;flex-wrap:wrap;gap:12px">' + retHtml + '</div></div>';
   }
   // ④ 비용·추적 — 총보수·추적오차·순자산 + 분배금 이력
   function etfDistChart() {
-    var ds = D.distributions || []; if (!ds.length) return '<div style="color:var(--ink-3);font-size:12.5px">분배금(배당) 이력이 없습니다.</div>';
+    var ds = Detf.distributions || []; if (!ds.length) return '<div style="color:var(--ink-3);font-size:12.5px">분배금(배당) 이력이 없습니다.</div>';
     var maxA = Math.max.apply(null, ds.map(function (d) { return d.amount || 0; })) || 1;
     return '<div style="display:flex;align-items:flex-end;gap:16px;height:130px;padding-top:8px">' + ds.map(function (d) {
       return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%">' +
@@ -2074,20 +2153,20 @@
     }).join('') + '</div>';
   }
   function etfPanelCost() {
-    var mt = D.metrics || {}, fi = D.fundInfo || {};
-    var teTip = D.trackingErrorNote || '';
+    var mt = Detf.metrics || {}, fi = Detf.fundInfo || {};
+    var teTip = Detf.trackingErrorNote || '';
     // 추적오차는 같은 이름이라도 출처에 따라 뜻이 다르다 — 한국은 운용사가 낸 기초지수 복제오차,
     // 미국은 우리가 대용 벤치마크로 낸 추정치. 부제목도 그에 맞춰 갈라 준다.
     // 이름까지 갈라 준다 — 미국의 추정값은 8~11%도 흔해서, 한국 공시값(0.4% 수준)과
     // 같은 '추적오차'로 나란히 놓이면 미국 ETF가 형편없이 운용되는 것처럼 읽힌다.
-    var pub = !!fi.base_index && D.trackingError != null;
+    var pub = !!fi.base_index && Detf.trackingError != null;
     var teName = pub ? '추적오차' : '벤치마크 대비 변동성';
     var teSub = pub ? '기초지수 복제 정확도 (운용사 공시)' : '비교 벤치마크와의 일간 수익률 차이 (추정)';
     var rows = [
       // 국내 ETF 보수 인하 경쟁으로 0.0068% 같은 값이 흔하다 — 2자리로 자르면 0.01%로 뭉개져
       // 비교가 안 되므로, 아주 낮은 구간에서만 소수 자리를 늘린다.
       ['총보수(연)', mt.expense_ratio != null ? fmtPct(mt.expense_ratio, mt.expense_ratio < 0.0005 ? 4 : 2) : na('운용사 총보수(expense ratio) 데이터를 무료 소스에서 받지 못했습니다.'), '펀드 운용 수수료'],
-      [teName, D.trackingError != null ? '<span class="na" tabindex="0" data-tip="' + esc(teTip) + '">' + fmtPct(D.trackingError, 2) + ' ⓘ</span>' : na('벤치마크가 없어 계산하지 못했습니다.'), teSub],
+      [teName, Detf.trackingError != null ? '<span class="na" tabindex="0" data-tip="' + esc(teTip) + '">' + fmtPct(Detf.trackingError, 2) + ' ⓘ</span>' : na('벤치마크가 없어 계산하지 못했습니다.'), teSub],
       ['순자산(AUM)', mt.aum != null ? fmtMoney(mt.aum) : na('운용사 순자산(AUM) 공시를 무료 소스에서 받지 못했습니다 — 펀드 규모는 판단에서 빼세요.'), '펀드 규모'],
       ['비교 벤치마크', esc(mt.bench_label || '—'), '상대 비교 기준']];
     // 아래 네 줄은 한국(네이버)에서만 오는 값 — 미국은 없으므로 행 자체를 만들지 않는다.
@@ -2107,7 +2186,7 @@
   }
   // ⑤ 뉴스 — Google News 헤드라인
   function etfPanelNews() {
-    var news = D.news || [];
+    var news = Detf.news || [];
     if (!news.length) return etfSectionHead('01', '관련 뉴스', null, null) + '<div class="analysis-section-body"><span style="color:var(--ink-3)">최근 관련 뉴스를 가져오지 못했습니다.</span></div>';
     var list = news.map(function (n) {
       var cat = n.category ? '<span style="flex:none;font-size:10.5px;color:var(--dv-navy);border:1px solid var(--line);border-radius:var(--radius-pill);padding:2px 8px">' + esc(n.category) + '</span>' : '';
@@ -2119,8 +2198,8 @@
       '<div class="analysis-section-body">' + list + '</div>';
   }
   function renderEtf() {
-    CUR = D.currency || 'USD';
-    document.title = D.name + ' — 투자지표';
+    CUR = Detf.currency || 'USD';
+    document.title = Detf.name + ' — 투자지표';
     setEtfMode(true);
     $('warnWrap').innerHTML = '';
     renderEtfHeader();
@@ -2135,7 +2214,7 @@
     }).join('');
     var disc = '<div style="margin-top:22px;border-top:1px solid var(--line);padding-top:14px;display:flex;align-items:center;gap:8px;color:var(--ink-3)">' +
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>' +
-      '<span style="font-size:11.5px">학습·분석 보조 도구이며 투자 자문이 아닙니다. 무료 공개 데이터의 결측·지연을 포함할 수 있습니다. 출처 · ' + esc((D.sources || []).join(' · ')) + '</span></div>';
+      '<span style="font-size:11.5px">학습·분석 보조 도구이며 투자 자문이 아닙니다. 무료 공개 데이터의 결측·지연을 포함할 수 있습니다. 출처 · ' + esc((Detf.sources || []).join(' · ')) + '</span></div>';
     $('etfView').innerHTML = bar + panelHtml + disc;
     var etb = $('etfTabBar');
     etb.addEventListener('click', function (e) {
@@ -2148,13 +2227,13 @@
 
   function renderAll() {
     setEtfMode(false);
-    CUR = D.meta.currency;
-    document.title = D.meta.name + ' — 투자지표';
-    var sources = D.meta.sources || {};
+    CUR = Dstock.meta.currency;
+    document.title = Dstock.meta.name + ' — 투자지표';
+    var sources = Dstock.meta.sources || {};
     var sourceLines = Object.keys(sources).map(function (k) {
       return '<b style="color:var(--ink-2)">' + esc(k) + '</b> · ' + esc(sources[k]);
     });
-    $('finSource').innerHTML = sourceLines.length ? sourceLines.join('<br/>') : esc(D.meta.fin_source || '출처 정보 없음');
+    $('finSource').innerHTML = sourceLines.length ? sourceLines.join('<br/>') : esc(Dstock.meta.fin_source || '출처 정보 없음');
     renderHeader(); renderTiles(); renderWarnings();
     renderSummary(); renderPriceTab(); renderValuation(); renderCompany();
     renderFinancials(); renderPeers(); renderWacc(); renderBacktest(); renderAi();
@@ -2262,7 +2341,9 @@
         .then(function (res) {
           if (seq !== _reqSeq) return;
           if (!res.ok || res.j.error) { setStatus(true, res.j.error || 'ETF 분석에 실패했습니다.', true); return; }
-          D = res.j; state.hover = null; renderEtf(); setStatus(false);
+          // 한쪽을 담을 때 **다른 쪽을 비운다** — 주식→ETF로 갈아탄 뒤 `if (Dstock)`
+          // 가드가 옛 주식 응답으로 참이 되면 ETF 화면에서 주식 렌더러가 돈다(#80).
+          Detf = res.j; Dstock = null; state.hover = null; renderEtf(); setStatus(false);
         })
         .catch(function (e) { if (seq !== _reqSeq) return; setStatus(true, '서버에 연결하지 못했습니다: ' + e.message, true); });
       return;
@@ -2282,7 +2363,7 @@
         // kind 없이 들어온 링크가 사실 ETF였다면(서버가 kind:'etf'로 알려 줌) 오류 대신 ETF 분석으로.
         if (!res.ok && res.j && res.j.kind === 'etf') { state.kind = 'etf'; load(); return; }
         if (!res.ok || res.j.error) { setStatus(true, res.j.error || '분석에 실패했습니다.', true); return; }
-        D = res.j; state.hover = null; renderAll(); setStatus(false);
+        Dstock = res.j; Detf = null; state.hover = null; renderAll(); setStatus(false);
       })
       .catch(function (e) { if (seq !== _reqSeq) return; stopProgress(); setStatus(true, '서버에 연결하지 못했습니다: ' + e.message, true); });
   }
@@ -2297,7 +2378,7 @@
     bar.querySelectorAll('.tabbtn').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-tab') === tab); });
     document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-tab') === tab); });
     state.hover = null;
-    if (tab === 'price' && D) renderPrice();
+    if (tab === 'price' && Dstock) renderPrice();
   }
 
   function init() {
@@ -2317,12 +2398,12 @@
     // 예시 칩은 모두 기업 종목이라 kind를 주식으로 되돌린다(ETF 보다가 눌러도 9탭으로).
     $('examples').addEventListener('click', function (e) { var s = e.target.closest('[data-code]'); if (!s) return; state.kind = 'stock'; state.query = s.getAttribute('data-code'); $('tickerInput').value = state.query; load(); });
     // 주가 컨트롤
-    wireSeg('priceModeSeg', function (v) { state.priceMode = v; state.hover = null; var showAbs = v === 'abs'; $('maToggles').style.display = showAbs ? 'inline-flex' : 'none'; var cts = $('chartTypeSeg'); if (cts) cts.style.display = showAbs ? '' : 'none'; if (D) renderPrice(); });
-    wireSeg('chartTypeSeg', function (v) { state.chartType = v; state.hover = null; if (D) renderPrice(); });
-    wireSeg('periodSeg', function (v) { state.pricePeriod = v; state.hover = null; if (D) renderPrice(); });
+    wireSeg('priceModeSeg', function (v) { state.priceMode = v; state.hover = null; var showAbs = v === 'abs'; $('maToggles').style.display = showAbs ? 'inline-flex' : 'none'; var cts = $('chartTypeSeg'); if (cts) cts.style.display = showAbs ? '' : 'none'; if (Dstock) renderPrice(); });
+    wireSeg('chartTypeSeg', function (v) { state.chartType = v; state.hover = null; if (Dstock) renderPrice(); });
+    wireSeg('periodSeg', function (v) { state.pricePeriod = v; state.hover = null; if (Dstock) renderPrice(); });
     $('priceReset').addEventListener('click', function () { if (priceChartInst && priceChartInst.reset) priceChartInst.reset(); });
-    document.querySelectorAll('#maToggles .ma-btn').forEach(function (btn) { btn.setAttribute('aria-pressed', btn.classList.contains('on') ? 'true' : 'false'); btn.addEventListener('click', function () { var k = btn.getAttribute('data-ma'); state.ma[k] = !state.ma[k]; btn.classList.toggle('on', state.ma[k]); btn.setAttribute('aria-pressed', state.ma[k] ? 'true' : 'false'); var col = { m20: 'var(--dv-gold)', m60: 'var(--dv-slate)', m120: 'var(--dv-plum)' }[k]; btn.style.borderColor = state.ma[k] ? col : 'var(--line-strong)'; btn.style.color = state.ma[k] ? 'var(--ink)' : 'var(--ink-3)'; btn.querySelector('.dash').style.background = state.ma[k] ? col : 'var(--line-strong)'; if (D) renderPrice(); }); });
-    wireSeg('bandSeg', function (v) { state.bandMetric = v; if (D) renderBand(); });
+    document.querySelectorAll('#maToggles .ma-btn').forEach(function (btn) { btn.setAttribute('aria-pressed', btn.classList.contains('on') ? 'true' : 'false'); btn.addEventListener('click', function () { var k = btn.getAttribute('data-ma'); state.ma[k] = !state.ma[k]; btn.classList.toggle('on', state.ma[k]); btn.setAttribute('aria-pressed', state.ma[k] ? 'true' : 'false'); var col = { m20: 'var(--dv-gold)', m60: 'var(--dv-slate)', m120: 'var(--dv-plum)' }[k]; btn.style.borderColor = state.ma[k] ? col : 'var(--line-strong)'; btn.style.color = state.ma[k] ? 'var(--ink)' : 'var(--ink-3)'; btn.querySelector('.dash').style.background = state.ma[k] ? col : 'var(--line-strong)'; if (Dstock) renderPrice(); }); });
+    wireSeg('bandSeg', function (v) { state.bandMetric = v; if (Dstock) renderBand(); });
     // 접이식·사이드바
     wireCollapse('assumeToggle', 'assumeBody', 'flex');
     wireCollapse('finTableToggle', 'finTableBody', 'block');
@@ -2334,7 +2415,7 @@
     // 창 크기 변경 시 주가 차트(캔버스)만 다시 — 활성 탭일 때.
     // 적정가 차트도 같이: 폰↔데스크톱 배치가 갈리고(≤560px) 좁은 배치는 컨테이너 실폭을
     // viewBox로 쓰므로, 회전·크기 변경 뒤에는 다시 그려야 크기가 맞는다.
-    var rzT; window.addEventListener('resize', function () { clearTimeout(rzT); rzT = setTimeout(function () { var p = $('panel-price'); if (D && p && p.classList.contains('on')) renderPrice(); var s = $('panel-summary'); if (D && s && s.classList.contains('on')) $('bulletChart').innerHTML = bulletChart(); }, 180); });
+    var rzT; window.addEventListener('resize', function () { clearTimeout(rzT); rzT = setTimeout(function () { var p = $('panel-price'); if (Dstock && p && p.classList.contains('on')) renderPrice(); var s = $('panel-summary'); if (Dstock && s && s.classList.contains('on')) $('bulletChart').innerHTML = bulletChart(); }, 180); });
     // 딥링크: ?q=&market= (홈 예시카드·교차검색 착지)
     try {
       var sp = new URLSearchParams(location.search);
