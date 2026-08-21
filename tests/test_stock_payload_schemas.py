@@ -168,6 +168,37 @@ class HeaderCardSharedTests(unittest.TestCase):
         self.assertIn("['저평가', '적정', '고평가']", self.src)
         self.assertIn("['싼 구간', '보통', '비싼 구간']", self.src)
 
+    def test_basket_feedback_is_written_once(self):
+        """포트폴리오 담기 되먹임이 다시 두 벌이 되지 않는다(이슈 #81 '같이 움직이는 곳').
+
+        주식·ETF 버튼이 같은 문구를 1.8초 바꿨다 되돌리는 부분을 각자 적고 있었다.
+        문구를 고칠 일이 생기면 한 곳만 보면 되게 `basketAdd()`로 모았다."""
+        for text in ("✓ 담았어요 — 🧺 포트폴리오에서 확인", "＋ 포트폴리오에 담기'; }, 1800"):
+            with self.subTest(text=text[:20]):
+                self.assertEqual(
+                    self.src.count(text), 1,
+                    f"'{text[:20]}…'가 두 번 이상 적혀 있다 — basketAdd()로 모을 것")
+
+    def test_basket_record_shape_stays_at_the_caller(self):
+        """레코드 모양(키·type·class)은 부르는 쪽이 만든다.
+
+        주식은 야후 티커를 그대로 키로 쓰고 국내 ETF는 `.KS`를 붙인다 — 그 차이를
+        `basketAdd()` 안으로 끌어들이면 공용 함수가 화면을 알아야 해서 다시 갈라진다."""
+        self.assertIn("'국내주식'", self.src)
+        self.assertIn("'국내기타ETF'", self.src)
+        for token in ("'국내주식'", "'국내기타ETF'", "Detf.symbol + '.KS'"):
+            with self.subTest(token=token):
+                self.assertNotIn(token, self._basket_add_body(),
+                                 f"{token}이 basketAdd() 안으로 들어왔다")
+
+    def _basket_add_body(self) -> str:
+        start = self.src.find("function basketAdd(")
+        end = self.src.find("function addToBasket(")
+        # 없어졌으면 되살아난 중복을 뜻하므로, 예외 대신 이유가 보이는 실패로 낸다.
+        self.assertNotEqual(start, -1, "basketAdd()가 없다 — 담기 로직이 다시 갈라졌다")
+        self.assertGreater(end, start, "addToBasket()이 basketAdd() 뒤에 있어야 한다")
+        return self.src[start:end]
+
 
 if __name__ == "__main__":
     unittest.main()

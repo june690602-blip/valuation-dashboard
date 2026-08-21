@@ -1154,13 +1154,33 @@
     var bb = $('basketBtn'); if (bb) bb.addEventListener('click', addToBasket);
   }
 
-  /* 포트폴리오 담기 — 채권·포트폴리오 화면과 같은 바스켓(common.js의 loadBasket/saveBasket) */
-  function addToBasket() {
-    var m = Dstock.meta, b = loadBasket();
-    b[m.yahoo_ticker] = { name: m.name, yahoo: m.yahoo_ticker, ticker: m.ticker,
-      type: (m.market === 'KR' ? '국내주식' : '해외주식'), currency: m.currency, 'class': '주식' };
+  /* 포트폴리오 담기 — 채권·포트폴리오 화면과 같은 바스켓(common.js의 loadBasket/saveBasket).
+     주식과 ETF가 **같은 되먹임을 두 벌** 적고 있었다 — 버튼 문구를 1.8초 바꿨다 되돌리는
+     부분이 글자 하나까지 같았다(이슈 #81의 '같이 움직이는 곳'). 여기 모은다.
+
+     ⚠ **레코드의 모양은 부르는 쪽이 만든다.** 키와 `type`·`class`가 화면마다 다르다 —
+     주식은 야후 티커를 그대로 키로 쓰고, 국내 ETF는 6자리 코드에 `.KS`를 붙여야 시세가
+     붙는다. 그 차이를 여기로 끌어들이면 이 함수가 화면을 알아야 해서 다시 갈라진다.
+
+     읽고 쓰기 자체는 common.js가 갖는다 — 'invportfolio'는 주식·ETF·채권·포트폴리오
+     네 화면이 공유하는 계약이라 한 곳에 있어야 한다. */
+  function basketAdd(btnId, key, record) {
+    var b = loadBasket();
+    b[key] = record;
     saveBasket(b);
-    var btn = $('basketBtn'); if (btn) { btn.textContent = '✓ 담았어요 — 🧺 포트폴리오에서 확인'; setTimeout(function () { btn.textContent = '＋ 포트폴리오에 담기'; }, 1800); }
+    var btn = $(btnId);
+    if (btn) {
+      btn.textContent = '✓ 담았어요 — 🧺 포트폴리오에서 확인';
+      setTimeout(function () { btn.textContent = '＋ 포트폴리오에 담기'; }, 1800);
+    }
+  }
+
+  function addToBasket() {
+    var m = Dstock.meta;
+    basketAdd('basketBtn', m.yahoo_ticker, {
+      name: m.name, yahoo: m.yahoo_ticker, ticker: m.ticker,
+      type: (m.market === 'KR' ? '국내주식' : '해외주식'),
+      currency: m.currency, 'class': '주식' });
   }
 
   function renderTiles() {
@@ -1836,13 +1856,11 @@
     return 50 - g * 40;                                 // gap>0(쌈)=왼쪽(저평가)
   }
   function addEtfToBasket() {
-    var b = loadBasket();
     // 포트폴리오는 야후 티커를 키로 쓴다 — 국내 ETF는 6자리 코드에 .KS를 붙여야 시세가 붙는다.
     var kr = Detf.currency === 'KRW', yahoo = kr ? Detf.symbol + '.KS' : Detf.symbol;
-    b[yahoo] = { name: Detf.name, yahoo: yahoo, ticker: Detf.symbol,
-      type: kr ? '국내기타ETF' : '해외ETF', currency: Detf.currency, 'class': 'ETF' };
-    saveBasket(b);
-    var btn = $('etfBasketBtn'); if (btn) { btn.textContent = '✓ 담았어요 — 🧺 포트폴리오에서 확인'; setTimeout(function () { btn.textContent = '＋ 포트폴리오에 담기'; }, 1800); }
+    basketAdd('etfBasketBtn', yahoo, {
+      name: Detf.name, yahoo: yahoo, ticker: Detf.symbol,
+      type: kr ? '국내기타ETF' : '해외ETF', currency: Detf.currency, 'class': 'ETF' });
   }
   function renderEtfHeader() {
     var initial = /[A-Za-z]/.test(Detf.name[0]) ? Detf.name[0].toUpperCase() : Detf.name[0];
