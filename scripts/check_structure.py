@@ -74,7 +74,8 @@ _tally = {OK: 0, BAD: 0, NA: 0}
 #          ㉢ serialize.py의 계산)은 그대로다.
 KNOWN_OPEN = 2
 
-WEB_JS = ["common.js", "finmath.js", "stock.js", "stock-price-chart.js", "portfolio.js",
+WEB_JS = ["common.js", "finmath.js", "stock.js", "stock-format.js",
+          "stock-price-chart.js", "portfolio.js",
           "bond.js", "test.js", "feedback.js", "analytics.js"]
 PAGES = ["home.html", "stock.html", "guide.html", "test.html", "bond.html",
          "portfolio.html", "admin.html"]
@@ -108,7 +109,8 @@ def nlines(rel: str) -> int:
 FILE_SIZES = {
     "web/assets/common.js": "공용 헬퍼 한 벌(#83). 여기 밖에 사본이 생기면 B 검사가 잡는다",
     "web/assets/stock.js": "8탭 렌더 + ETF 뷰 + SVG 차트가 한 IIFE에 산다",
-    "web/assets/stock-price-chart.js": "주가 캔버스 차트. (container, D, state, fmt)만 받는다",
+    "web/assets/stock-format.js": "포맷터·판정 어휘. 통화(CUR)의 주인이다(#79)",
+    "web/assets/stock-price-chart.js": "주가 캔버스 차트. (container, payload, state, fmt)만 받는다",
     "web/assets/portfolio.js": "차트 3종 + 바스켓 관리",
     "web/assets/bond.js": "채권 수학 이식 + 차트 3종",
     "web/assets/test.js": "성향진단 위저드",
@@ -146,6 +148,8 @@ INLINE_BUDGET = {
     # 그 상자들의 인라인 스타일이 통째로 빠졌다: 308 → 303. 이어서 요약 표의 '근거' 칸이
     # 통째로 접힘이 되며 그 칸의 글자 스타일도 CSS로 올라갔다: 303 → 301.
     "web/assets/stock.js": 301,
+    # `na()`가 쓰는 것은 클래스(.na)이지 인라인 스타일이 아니라 0건이다(#79).
+    "web/assets/stock-format.js": 0,
     "web/assets/stock-price-chart.js": 1,
     "web/assets/portfolio.js": 30,
     "web/assets/bond.js": 19,

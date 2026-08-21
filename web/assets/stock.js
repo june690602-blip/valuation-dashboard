@@ -14,6 +14,15 @@
   /* 파이썬 쌍둥이가 있는 수식은 finmath.js 한 벌 — CI가 Node로 실행해 대조한다(#84). */
   var FM = window.DVMath;
 
+  /* 포맷터·판정 어휘는 stock-format.js 한 벌 — 이름을 그대로 받아 오므로 아래 호출부
+     60여 곳은 손대지 않는다(이슈 #79). 통화(`CUR`)의 주인도 그쪽이다 — 여기서
+     읽을 때는 `FMT.currency()`를 부른다. */
+  var FMT = window.DVFmt;
+  var won = FMT.won, fmtPrice = FMT.fmtPrice, fmtMoney = FMT.fmtMoney, fmtPct = FMT.fmtPct,
+      fmtX = FMT.fmtX, fmtSigned = FMT.fmtSigned, fmtMult = FMT.fmtMult, na = FMT.na,
+      compactWon = FMT.compactWon;
+  var VERDICTS = FMT.VERDICTS, vIdx = FMT.vIdx, vPos = FMT.vPos, vTone = FMT.vTone;
+
 
   /* ── 미니 마크다운 (Gemini 응답: ### 제목 · **굵게** · - 목록 · > 인용) ── */
   function mdToHtml(md) {
@@ -47,23 +56,6 @@
       })
       .catch(function (e) { btn.disabled = false; btn.textContent = old; out.innerHTML = '<div style="font-size:12.5px;color:var(--danger);margin-top:8px">서버 연결 실패: ' + esc(e.message) + '</div>'; });
   }
-
-  /* ── 포맷터 ── */
-  var CUR = 'KRW';
-  function won(v) { return v == null ? '—' : Math.round(v).toLocaleString('en-US'); }
-  function fmtPrice(v) { if (v == null) return '—'; return CUR === 'KRW' ? won(v) + '원' : '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  function fmtMoney(v) {
-    if (v == null) return '—'; var a = Math.abs(v);
-    if (CUR === 'KRW') { if (a >= 1e12) return (v / 1e12).toFixed(1) + '조원'; if (a >= 1e8) return Math.round(v / 1e8).toLocaleString('en-US') + '억원'; return won(v) + '원'; }
-    if (a >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B'; if (a >= 1e6) return '$' + (v / 1e6).toFixed(0) + 'M'; return '$' + won(v);
-  }
-  function fmtPct(v, d) { return v == null ? '—' : (v * 100).toFixed(d == null ? 1 : d) + '%'; }
-  function fmtX(v) { if (v == null) return '—'; return (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : v.toFixed(0)) + '×'; }
-  function fmtSigned(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'; }
-  function fmtMult(key, v) { if (v == null) return '—'; if (key === 'div_yield') return (v * 100).toFixed(1) + '%'; if (key === 'peg') return v.toFixed(2); return fmtX(v); }
-  /* 빈 값 '—'에 이유 말풍선을 붙인다(순수 CSS 툴팁, .na) — 왜 없는지 짧게 알린다. */
-  function na(reason) { return '<span class="na" tabindex="0" data-tip="' + esc(reason) + '">—</span>'; }
-  function compactWon(v) { if (v == null) return '—'; return CUR === 'KRW' ? Math.round(v / 1000).toLocaleString('en-US') + '천' : '$' + Math.round(v).toLocaleString('en-US'); }
 
   /* ①이 회귀로 나왔을 때의 계수 분해 — **접힘 본문만** 돌려준다. 접는 것은 부르는 쪽이
      한다(요약 표의 '근거' 칸이 통째로 접힘 하나가 되었기 때문이다). 검증하려는 사람만
@@ -127,15 +119,6 @@
       + ' <b>완화할 뿐 제거하지 않습니다</b>.</div>';
     return body;
   }
-
-  /* 판정 3등급 (ADR-0042). 파이썬 `valuation.VERDICTS`와 **순서까지** 같아야 한다 —
-     `check_math_parity`가 그것을 지킨다. 옛 5등급에서 줄었고, 사라진 것은 '크게'가
-     붙던 양 끝과 그 안쪽 둘이다(백테스트에서 가운데 셋이 구별되지 않았다 · ADR-0028). */
-  var VERDICTS = ['저평가', '적정 수준', '고평가'];
-  function vIdx(v) { var i = VERDICTS.indexOf(v); return i < 0 ? 1 : i; }
-  // 괴리율이 없을 때만 쓰는 자리 — 각 칸의 **중앙**이다(칸 경계가 25·75이므로).
-  function vPos(v) { return [12.5, 50, 87.5][vIdx(v)]; }
-  function vTone(v) { var i = vIdx(v); return i === 0 ? 'positive' : i === 1 ? 'neutral' : 'negative'; }
 
   /* ── 상태 ── */
   var state = { market: 'KR', query: '035420', kind: 'stock', pricePeriod: '1Y', priceMode: 'abs', chartType: 'line', ma: { m20: true, m60: true, m120: false }, hover: null, bandMetric: 'PER', scnBear: -0.15, scnBull: 0.15, scnMult: 0, peerEx: [], peerAdd: [], _editKey: '' };
@@ -388,7 +371,7 @@
     if (priceChartInst) { priceChartInst.destroy(); priceChartInst = null; }
     if (!Dstock || !Dstock.price || Dstock.price.error) { wrap.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:20px 0">주가 데이터를 불러오지 못했습니다.</div>'; return; }
     if (!wrap.clientWidth) return;  // 숨김 상태(탭 비활성) — 탭 활성화 때 다시 그린다
-    priceChartInst = window.makePriceChart(wrap, Dstock, state, { esc: esc, fmtPrice: fmtPrice, fmtSigned: fmtSigned, $: $, CUR: CUR });
+    priceChartInst = window.makePriceChart(wrap, Dstock, state, { esc: esc, fmtPrice: fmtPrice, fmtSigned: fmtSigned, $: $, CUR: FMT.currency() });
   }
 
   function bandChart() {
@@ -1653,7 +1636,7 @@
       cols = 'minmax(56px,1.4fr) repeat(' + tb.years.length + ',minmax(0,1fr))';
     var head = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;border-top:1px solid var(--line-strong);padding:8px 0;border-bottom:1px solid var(--line)"><span style="font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em">항목(' + (unit === 'B' ? '10억 달러' : unit === 'M' ? '백만 달러' : unit + '원') + ')</span>' + tb.years.map(function (y) { return '<span style="font-size:11px;color:var(--ink-3);text-align:right">' + y + '</span>'; }).join('') + '</div>';
     var body = Object.keys(tb.rows).map(function (name, ri) {
-      var isEps = name === 'EPS', krw = CUR === 'KRW';
+      var isEps = name === 'EPS', krw = FMT.currency() === 'KRW';
       // EPS는 통화 원단위(스케일 무관) — KR은 원(정수), US는 달러(센트까지)
       var cells = tb.rows[name].map(function (v) { return '<span style="text-align:right">' + (v == null ? '—' : isEps ? (krw ? Math.round(v).toLocaleString('en-US') : v.toFixed(2)) : v.toFixed(2)) + '</span>'; }).join('');
       return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:8px 0;' + (ri < 3 ? 'border-bottom:1px solid var(--line);' : '') + 'font-family:var(--font-mono);font-size:12.5px"><span style="font-family:var(--font-sans)">' + name + (isEps ? (krw ? '(원)' : '($)') : '') + '</span>' + cells + '</div>';
@@ -1667,20 +1650,20 @@
     $('peerLabel').textContent = '피어 비교 — ' + (pr.sector || '업종');
     if (pr.basis) $('peerBasis').textContent = pr.basis;
     var cols = '1.3fr 0.9fr 0.7fr 0.7fr 0.8fr';
-    var head = '<div class="row head" style="grid-template-columns:' + cols + '"><span class="col-label">종목</span><span class="col-label r">시총(' + (pr.cap_unit || (CUR === 'KRW' ? '조' : 'B')) + ')</span><span class="col-label r">PER</span><span class="col-label r">PBR</span><span class="col-label r">ROE</span></div>';
+    var head = '<div class="row head" style="grid-template-columns:' + cols + '"><span class="col-label">종목</span><span class="col-label r">시총(' + (pr.cap_unit || (FMT.currency() === 'KRW' ? '조' : 'B')) + ')</span><span class="col-label r">PER</span><span class="col-label r">PBR</span><span class="col-label r">ROE</span></div>';
     var naPeer = '이 종목의 해당 지표가 원천 데이터(Yahoo·KRX)에 없습니다 — 적자 기업은 PER가 비게 됩니다.';
     var body = pr.rows.map(function (p, i) {
-      var mc = p.market_cap == null ? na('주가 또는 상장주식수를 받지 못해 시가총액을 계산할 수 없습니다.') : (p.market_cap / (pr.cap_div || (CUR === 'KRW' ? 1e12 : 1e9))).toFixed(1);
+      var mc = p.market_cap == null ? na('주가 또는 상장주식수를 받지 못해 시가총액을 계산할 수 없습니다.') : (p.market_cap / (pr.cap_div || (FMT.currency() === 'KRW' ? 1e12 : 1e9))).toFixed(1);
       var last = i === pr.rows.length - 1;
       // 제외 키: KR은 상장목록 이름, US는 심볼(data-key) — 서버 exclude 매칭과 동일 기준
-      var exKey = CUR === 'KRW' ? p.name : (p.key || p.name);
+      var exKey = FMT.currency() === 'KRW' ? p.name : (p.key || p.name);
       var xBtn = p.is_self ? '' : '<button type="button" class="peer-x" data-ex="' + esc(exKey) + '" title="이 피어 제외" aria-label="' + esc(p.name) + ' 피어에서 제외">×</button>';
       return '<div class="row' + (p.is_self ? ' self' : '') + '" data-q="' + esc(p.q || '') + '" data-key="' + esc(p.key || '') + '" style="grid-template-columns:' + cols + ';font-family:var(--font-mono);font-size:12.5px;cursor:pointer' + (last ? ';border-bottom:none' : '') + '"><span class="peer-name" style="font-family:var(--font-sans)' + (p.is_self ? ';font-weight:700' : '') + '">' + xBtn + esc(p.name) + '</span><span class="r">' + mc + '</span><span class="r">' + (p.per != null ? p.per.toFixed(1) : na(naPeer)) + '</span><span class="r">' + (p.pbr != null ? p.pbr.toFixed(2) : na(naPeer)) + '</span><span class="r">' + (p.roe != null ? (p.roe * 100).toFixed(1) : na(naPeer)) + '</span></div>';
     }).join('');
     var edited = state.peerEx.length || state.peerAdd.length;
     var addRow = '<div class="peer-addrow">'
       + '<button type="button" class="peer-addbtn">＋ 피어 추가</button>'
-      + '<input class="peer-addinput" type="text" placeholder="' + (CUR === 'KRW' ? '종목명 또는 코드 (예: 카카오, 035720)' : '심볼 (예: MSFT)') + '" aria-label="추가할 피어">'
+      + '<input class="peer-addinput" type="text" placeholder="' + (FMT.currency() === 'KRW' ? '종목명 또는 코드 (예: 카카오, 035720)' : '심볼 (예: MSFT)') + '" aria-label="추가할 피어">'
       + (edited ? '<button type="button" class="peer-reset">편집 초기화 (제외 ' + state.peerEx.length + ' · 추가 ' + state.peerAdd.length + ')</button>' : '')
       + '</div>';
     $('peerTable').innerHTML = head + body + addRow;
@@ -2198,7 +2181,7 @@
       '<div class="analysis-section-body">' + list + '</div>';
   }
   function renderEtf() {
-    CUR = Detf.currency || 'USD';
+    FMT.setCurrency(Detf.currency || 'USD');
     document.title = Detf.name + ' — 투자지표';
     setEtfMode(true);
     $('warnWrap').innerHTML = '';
@@ -2227,7 +2210,7 @@
 
   function renderAll() {
     setEtfMode(false);
-    CUR = Dstock.meta.currency;
+    FMT.setCurrency(Dstock.meta.currency);
     document.title = Dstock.meta.name + ' — 투자지표';
     var sources = Dstock.meta.sources || {};
     var sourceLines = Object.keys(sources).map(function (k) {

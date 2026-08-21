@@ -191,6 +191,40 @@ class HeaderCardSharedTests(unittest.TestCase):
                 self.assertNotIn(token, self._basket_add_body(),
                                  f"{token}이 basketAdd() 안으로 들어왔다")
 
+    def test_formatters_live_in_one_file(self):
+        """포맷터가 stock.js로 되돌아오지 않는다(이슈 #79).
+
+        `stock-format.js`로 뗀 뒤 stock.js는 **이름만 별칭으로 받는다** — 호출부
+        60여 곳을 손대지 않으려는 선택이라, 별칭이 아니라 정의가 되살아나면 같은
+        이름이 두 곳에서 다른 뜻이 될 수 있다(R5 2번 바구니가 `esc()` 4벌에서 겪은 일).
+        """
+        fmt_js = (STOCK_JS.parent / "stock-format.js").read_text(encoding="utf-8")
+        for fn in ("won", "fmtPrice", "fmtMoney", "fmtPct", "fmtX", "fmtSigned",
+                   "fmtMult", "na", "compactWon", "vIdx", "vPos", "vTone"):
+            with self.subTest(fn=fn):
+                self.assertIn(f"function {fn}(", fmt_js,
+                              f"{fn}이 stock-format.js에 없다")
+                self.assertNotIn(f"  function {fn}(", self.src,
+                                 f"{fn}이 stock.js에 다시 정의됐다 — 별칭만 받아야 한다")
+
+    def test_currency_has_one_owner(self):
+        """통화(`CUR`)의 주인은 stock-format.js 하나다.
+
+        예전에는 stock.js의 맨몸 전역이었고 `renderAll()`·`renderEtf()` 두 곳이 각자
+        대입했다. 여기 맨몸 `CUR`이 되살아나면 두 주인이 생겨 화면마다 다른 통화로
+        포맷될 수 있다."""
+        # 뒤의 `:`까지 빼는 것은 **속성 키를 오탐하지 않으려는** 것이다 —
+        # `makePriceChart(..., { …, CUR: FMT.currency() })`의 `CUR:`은 그 모듈이
+        # 받는 인자 이름이지 여기서 전역을 읽는 자리가 아니다.
+        bare_cur = re.compile(r"(?<![\w.$:])CUR(?![\w$:])")
+        offenders = []
+        for no, _fn, code in _scan():
+            if bare_cur.search(code):
+                offenders.append((no, code.strip()[:80]))
+        self.assertEqual(offenders, [],
+                         "stock.js에 맨몸 `CUR`이 되살아났다 — FMT.currency()를 쓸 것:\n" +
+                         "\n".join(f"  stock.js:{n}: {t}" for n, t in offenders))
+
     def _basket_add_body(self) -> str:
         start = self.src.find("function basketAdd(")
         end = self.src.find("function addToBasket(")

@@ -179,7 +179,8 @@ def check_layers():
 COLLOQUIAL = re.compile(r"(싼|비싼|높은|낮은|큰|작은|좋은|나쁜|많은|적은)\s?(편|쪽)(?=[입이라의니\s.,'\"])")
 COLLOQUIAL_SCOPE = [
     "src/analysis/commentary.py", "src/analysis/etf.py", "src/analysis/valuation.py",
-    "web/assets/stock.js", "web/stock.html", "web/guide.html", "web/home.html",
+    "web/assets/stock.js", "web/assets/stock-format.js",
+    "web/stock.html", "web/guide.html", "web/home.html",
 ]
 
 # 격식 규약을 적용하지 않는 구간. `guide.html`의 쉬운 버전(`v-basic`)은 "올라가죠"처럼
@@ -313,7 +314,8 @@ def check_string_contracts():
 # 있다는 사실과 어긋나지 않는다. 이 예외가 없으면 옳게 고친 문장까지 [문제]로 떨어진다.
 FIXED_COUNT = re.compile(r"(?<!최대 )(네 가지 방법|네 방법|4방법|4가지 방법|네 답)")
 COUNT_SCOPE = ["web/guide.html", "web/home.html", "web/stock.html",
-               "web/assets/stock.js", "src/analysis/etf.py", "src/data/models.py",
+               "web/assets/stock.js", "web/assets/stock-format.js",
+               "src/analysis/etf.py", "src/data/models.py",
                "src/ui/pages/home.py", "src/ui/pages/stock.py"]
 
 

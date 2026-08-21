@@ -1114,20 +1114,32 @@ class VerdictThresholdTests(unittest.TestCase):
     def test_javascript_verdict_list_matches_python(self):
         """화면의 등급 목록이 파이썬과 **순서까지** 같은가.
 
-        stock.js는 `VERDICTS.indexOf()`로 색·눈금 위치·강조를 정한다. 순서가 어긋나면
+        화면은 `VERDICTS.indexOf()`로 색·눈금 위치·강조를 정한다. 순서가 어긋나면
         저평가 종목이 고평가 색으로 뜬다 — 예외 없이, 조용히.
+
+        ⚠ **파일 경로를 박지 않는다.** 예전에는 `stock.js`를 직접 열었는데, 이슈 #79로
+        그 목록이 `stock-format.js`로 옮겨가자 이 검사가 깨졌다(그래서 이동을 잡아냈다 —
+        제 일을 한 것이다). 다음 분할에서 또 옮겨도 따라가도록 `web/assets/`를 훑는다.
+        **정의가 딱 하나여야 한다는 것도 함께 검사한다** — 두 벌이 되면 한쪽만 고치는
+        사고가 나고, 그건 이 검사가 막으려는 바로 그 실패다.
         """
         import re
         from pathlib import Path
 
         from src.analysis.valuation import VERDICTS
 
-        js = (Path(__file__).resolve().parents[1] / "web" / "assets" / "stock.js"
-              ).read_text(encoding="utf-8")
-        m = re.search(r"var VERDICTS = \[(.*?)\];", js, re.S)
-        self.assertIsNotNone(m, "stock.js에서 VERDICTS를 찾지 못했다")
-        got = [x.strip().strip("'\"") for x in m.group(1).split(",")]
-        self.assertEqual(got, VERDICTS)
+        assets = Path(__file__).resolve().parents[1] / "web" / "assets"
+        pat = re.compile(r"var VERDICTS = \[(.*?)\];", re.S)
+        found = []
+        for js_path in sorted(assets.glob("*.js")):
+            for m in pat.finditer(js_path.read_text(encoding="utf-8")):
+                found.append((js_path.name, m.group(1)))
+        self.assertEqual(
+            len(found), 1,
+            "web/assets/ 안의 `var VERDICTS = [...]` 정의가 정확히 하나여야 한다 — "
+            f"찾은 것: {[n for n, _ in found] or '없음'}")
+        got = [x.strip().strip("'\"") for x in found[0][1].split(",")]
+        self.assertEqual(got, VERDICTS, f"{found[0][0]}의 등급 목록이 파이썬과 다르다")
 
     def test_verdict_color_table_covers_every_grade(self):
         """색 표에 빠진 등급이 있으면 그 판정만 색 없이 뜬다."""
