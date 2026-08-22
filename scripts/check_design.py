@@ -93,6 +93,7 @@ PAGES = [
 ]
 SCRIPTS = [
     "web/assets/stock.js",
+    "web/assets/stock-format.js",
     "web/assets/bond.js",
     "web/assets/portfolio.js",
     "web/assets/test.js",

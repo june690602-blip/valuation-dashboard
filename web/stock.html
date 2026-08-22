@@ -663,6 +663,9 @@
 
 <script src="assets/common.js"></script>
 <script src="assets/finmath.js"></script>
+<!-- 포맷터·판정 어휘(이슈 #79). common.js의 esc를 쓰므로 그 뒤, stock.js가 이름을
+     받아 가므로 그 앞이다. defer를 붙이면 이 순서가 깨진다. -->
+<script src="assets/stock-format.js"></script>
 <script src="assets/stock-price-chart.js"></script>
 <script src="assets/stock.js"></script>
 <script src="assets/feedback.js" defer></script>
