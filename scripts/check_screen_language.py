@@ -342,6 +342,44 @@ def check_fixed_counts():
     say(BAD, f"방법 수를 4로 못 박은 문구 {len(hits)}곳", detail)
 
 
+# ── D2. 방법을 열거하는 자리 ─────────────────────────────────────────────────
+# D가 "수를 못 박지 마라"라면 여기는 **"열거하려면 빠뜨리지 마라"**다. 적정가 방법은
+# 다섯(①②③④⑤)이고 판정에 드는 것은 ①③⑤인데, 화면이 방법을 **늘어놓는** 자리에서
+# 하나가 빠지면 "그 방법은 없다"로 읽힌다. 실제로 ⑤가 축이 된(ADR-0015) 뒤에도 네 자리가
+# ④에서 멈춰 있었다(PR #179). 이건 정적 라벨이라 렌더링 테스트로는 잡히지 않는다 —
+# 화면은 멀쩡히 그려지고 빠진 방법만 조용히 사라진다(C의 문자열 규약과 같은 종류다).
+# 새 열거 문구를 만들면 여기에 등록해야 통과한다.
+METHOD_LISTS = [
+    ("web/stock.html", r'id="summary-value-title">적정가 추정', 2,
+     ["상대가치", "역사적 밴드", "RIM", "정규화 이익", "선행 이익"],
+     "요약 탭 '적정가 추정' 섹션 메타 — 표는 stock.js의 CANON 다섯을 그린다"),
+    ("web/assets/stock.js", r"<b>계산식</b>", 2, ["①", "②", "③", "④", "⑤"],
+     "'계산식과 출처' 접힘 — 방법별 산식"),
+    ("web/guide.html", r"밸류·재무·업종 \(근거\)", 1,
+     ["업종", "자기 역사", "RIM", "정규화 이익", "선행 이익"],
+     "사용설명서 흐름 03 — 근거로 볼 방법들"),
+]
+
+
+def check_method_lists():
+    print("\n■ D2. 방법 열거 — 늘어놓는 자리에서 하나가 빠지면 '그 방법은 없다'로 읽힌다")
+    for path, anchor, span, need, note in METHOD_LISTS:
+        got = _slice(path, anchor, span)
+        if got is None:
+            say(BAD, f"{path} — 앵커를 찾지 못함",
+                f"앵커 `{anchor}` 가 사라졌습니다. 문구가 옮겨졌다면 레지스트리를 갱신하세요.")
+            continue
+        text, ln = got
+        missing = [t for t in need if t not in screen_text(text, path)]
+        where = f"{path}:{ln} · {note}"
+        if missing:
+            say(BAD, where,
+                f"빠진 방법 {missing} — 다섯을 늘어놓는 자리입니다. "
+                "판정에 드는 것은 ①③⑤지만, 여기는 계산하는 방법 전부를 적는 자리입니다.")
+        else:
+            say(OK, where, f"다섯 모두 있음 {need}")
+
+
 # ── E. 면책 ──────────────────────────────────────────────────────────────────
 DISCLAIMER_PAGES = {
     "web/home.html": "홈", "web/stock.html": "주식·ETF", "web/bond.html": "금리",
@@ -431,6 +469,7 @@ def main(argv):
     check_string_contracts()
     check_data_contracts()
     check_fixed_counts()
+    check_method_lists()
     check_disclaimer()
     check_na_reasons()
     note_limits()

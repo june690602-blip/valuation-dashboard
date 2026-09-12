@@ -97,7 +97,7 @@ def render_landing(market: str):
     st.markdown(
         "**종목 하나를 입력하면** 재무제표·주가·업종 데이터를 자동 수집해 다음을 보여줍니다.\n"
         "- 5개 카테고리(밸류에이션·수익성·성장성·안정성·현금흐름) **업종 상대 점수**\n"
-        "- 3가지 방법(업종 상대가치 · 역사적 밴드 · RIM)으로 삼각측량한 **적정주가와 판정** — "
+        "- 3가지 방법(업종 상대가치 · RIM · 정규화 이익)으로 삼각측량한 **적정주가와 판정** — "
         "셋 다 회사가 이미 낸 실적·자산에서 나온 값이라 시장 기대와 독립적입니다. "
         "종목의 특성상 성립하지 않는 방법은 제외하고 가중치를 다시 배분합니다\n"
         "- 컨센서스 선행 이익을 더한 **'컨센서스 반영' 적정가를 나란히 병기** — 판정에는 넣지 않고, "
@@ -132,7 +132,7 @@ def render_summary_tab(d, ind, scores, cc, val):
     c1, c2 = st.columns([3, 2])
     with c1:
         st.markdown(section_header_html("Fair Value", "적정주가 vs 현재가",
-                                        "판정 = 상대가치 · 역사적 밴드 · RIM (선행 이익은 병기)"),
+                                        "판정 = 상대가치 · RIM · 정규화 이익 (역사적 밴드·선행 이익은 병기)"),
                     unsafe_allow_html=True)
         if val.estimates:
             st.plotly_chart(charts.fair_value_bullet(val.estimates, val.fair_mid,
