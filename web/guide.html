@@ -391,8 +391,8 @@
         <div class="flow">
           <div class="flow-row"><span class="num">01</span><h3>종목 불러오기</h3><p>KR은 6자리 코드/종목명, US는 티커. 좌측 사이드바(시장·종목)는 스크롤해도 고정됩니다. 좌상단 로고로 홈 복귀.</p></div>
           <div class="flow-row"><span class="num">02</span><h3>요약·판정 (결론)</h3><p>적정가 방법별 가중 종합 vs 현재가, 괴리율을 먼저 보고 <b>‘근거 보기’</b>를 펼쳐 이 판정이 무엇에 기대는지 확인합니다. <span class="hl">괴리율 +는 상승 여력(저평가), −는 고평가</span>입니다. 증권가 <strong>컨센서스 목표주가·투자의견과의 교차검증</strong>도 여기서.</p></div>
-          <div class="flow-row"><span class="num">03</span><h3>밸류·재무·업종 (근거)</h3><p>업종·자기 역사·RIM·선행 이익의 방향이 일치하는지, 이익·현금흐름이 받쳐주는지, 경쟁사 대비 싼 이유가 있는지. 밸류에이션 탭의 <strong>시나리오·민감도</strong>로 가정을 바꿔 봅니다.</p></div>
-          <div class="flow-row"><span class="num">04</span><h3>자본비용 (반대 근거)</h3><p>ROIC−WACC 스프레드로 이 회사가 자본비용을 넘는 수익을 내는지 확인합니다. <span class="hl">사후검증(백테스트) 탭은 무기한 보류했습니다</span> — 판정과 다른 계산을 검증하고 있었고, 무료 데이터 길이로는 정렬이 불가능합니다. 자기검증은 요약 탭의 <b>가중치 민감도·방법 간 편차·컨센서스 병기</b>가 대신합니다.</p></div>
+          <div class="flow-row"><span class="num">03</span><h3>밸류·재무·업종 (근거)</h3><p>업종·자기 역사·RIM·정규화 이익·선행 이익의 방향이 일치하는지, 이익·현금흐름이 받쳐주는지, 경쟁사 대비 싼 이유가 있는지. 밸류에이션 탭의 <strong>시나리오·민감도</strong>로 가정을 바꿔 봅니다.</p></div>
+          <div class="flow-row"><span class="num">04</span><h3>자본비용 (반대 근거)</h3><p>ROIC−WACC 스프레드로 이 회사가 자본비용을 넘는 수익을 내는지 확인합니다. <span class="hl">사후검증(백테스트) 탭은 무기한 보류했습니다</span> — 판정과 다른 계산을 검증하고 있었고, 그 탭이 검증하던 ② 역사적 밴드는 그 뒤 판정에서 빠졌습니다. 자기검증은 요약 탭의 <b>가중치 민감도·방법 간 편차·컨센서스 병기</b>가 대신합니다.</p></div>
           <div class="flow-row"><span class="num">05</span><h3>공시·뉴스로 교차 확인</h3><p>최근 공시·뉴스 원문으로 핵심 가정을 검증합니다. AI 종합 평가는 참고용 서술이며 주문 기준이 아닙니다.</p></div>
         </div>
         <div class="callout" style="margin-top:18px"><span class="hl">방법 간 편차 = 방법들의 값이 벌어진 정도</span>(방법 간 중심값 변동계수). 데이터 정확도나 수익 가능성을 보증하는 값이 아니며, <b>합의의 정도도 아닙니다</b> — 방법들이 같은 배수를 나눠 쓰면 구조적으로 가까이 모입니다. <b>여기 있던 ‘신뢰도’ 등급은 뗐습니다</b>(<a href="https://github.com/june690602-blip/valuation-dashboard/blob/main/docs/adr/0043-the-confidence-badge-did-not-do-what-it-claimed.md">ADR-0043</a>) — 등급이 주장하던 것을 실제로 하지 못했기 때문입니다. 편차가 크면 어떤 방법의 값이 유독 다른지 먼저 확인하세요.</div>
@@ -415,7 +415,7 @@
               <tr><td>⑤ 재무 분석</td><td>적정가 재료 ③</td><td>성장·수익성·안정성·현금흐름과 재무제표 원본. 음수 영업현금흐름은 해당 연도를 짚어 자동 해설합니다.</td></tr>
               <tr><td>⑥ 업종 비교</td><td>적정가 재료 ①</td><td>피어 지표·산점도·저평가 랭킹. <b>피어 편집</b> — 행에 커서를 올려 ×로 빼고, 표 아래 ＋로 더해 재계산(편집 내역은 화면에 명시). 규모가 지나치게 다른 피어는 자동 제외됩니다.</td></tr>
               <tr><td>⑦ 자본비용</td><td>적정가 재료 ③</td><td>베타 회귀 → 하마다 언레버링 → CAPM → <b>WACC</b>, 그리고 ROIC 스프레드(ROIC−WACC). 금융업은 자금조달 구조가 달라 WACC를 제공하지 않고 사유를 표시합니다.</td></tr>
-              <tr><td>백테스트</td><td><b>무기한 보류</b></td><td>만들어 봤지만 판정과 <b>다른 계산</b>을 검증하고 있었습니다 — ①은 아예 없고(과거 피어 복원 불가), ②의 기준배수도 판정은 자기 과거 전체(종목마다 2.8~5.0년) 분위였는데 백테스트는 직전 1.5년 롤링 중앙값이었습니다(②는 그 뒤 판정에서 빠졌습니다). 창을 맞추려면 데이터가 더 길어야 해서 지금은 정렬이 불가능합니다. 탭 입구를 닫아 두었습니다.</td></tr>
+              <tr><td>백테스트</td><td><b>무기한 보류</b></td><td>만들어 봤지만 판정과 <b>다른 계산</b>을 검증하고 있었습니다 — ①이 아예 없고, ②의 기준배수도 판정은 자기 과거 전체(종목마다 2.8~5.0년) 분위였는데 백테스트는 직전 1.5년 롤링 중앙값이었습니다. 그 뒤 <b>②는 판정에서 빠졌습니다</b> — 창을 맞춰도 검증할 대상이 남지 않습니다. 탭 입구를 닫아 두었습니다.</td></tr>
               <tr><td>⑧ 종합 평가</td><td>결론·AI 서술</td><td>계산 결과를 Gemini가 문장으로 종합(온디맨드). 스탠스·<b>목표가·손절선</b>·성향별 편입비중까지 생성할 수 있으나 <b>언어모델 출력</b>이므로 면책을 붙이고 주문 기준으로 쓰지 않습니다.</td></tr>
             </tbody>
           </table>
@@ -543,7 +543,7 @@
           <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>사용된 각 방법의 적정가 방향과 방법 간 편차를 함께 확인했다.</span></div>
           <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>이익과 현금흐름이 함께 좋아지는지 봤다.</span></div>
           <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>업종·과거 대비 싸거나 비싼 이유를 확인했다.</span></div>
-          <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>ROIC−WACC를 보고, 이 도구가 자기 판정을 사후검증하지 못한다는 한계를 알았다.</span></div>
+          <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>ROIC−WACC를 보고, 이 판정이 한국 2017~2025·12개월 지평에서 확인됐을 뿐 미국 같은 기간에서는 확인되지 않았다는 한계를 알았다.</span></div>
           <div class="check-item"><span class="check-box" aria-hidden="true"></span><span>최근 공시·뉴스 원문으로 핵심 가정을 교차 확인했다.</span></div>
         </div>
         <div class="bottom-actions">
