@@ -22,6 +22,7 @@ import sys
 import threading
 import time
 import traceback
+from collections import OrderedDict
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -39,11 +40,47 @@ for _stream in (sys.stdout, sys.stderr):
         except Exception:
             pass
 
-_CACHE: dict = {}
-_AI_CACHE: dict = {}
+_CACHE: OrderedDict = OrderedDict()
+_AI_CACHE: OrderedDict = OrderedDict()
 _LOCK = threading.Lock()
 _TTL = 1800     # 30분
 _AI_TTL = 21600  # 6시간 (AI 결과는 헤드라인·펀더멘털이 크게 안 바뀌므로 길게 캐시)
+
+# 항목 수 상한 — **TTL만으로는 아무것도 줄지 않는다.** 예전에는 평범한 dict였고 넣기만
+# 했다. TTL은 '다시 쓸지'를 정할 뿐이라, 다시 찾지 않는 키는 프로세스가 죽을 때까지
+# 남는다. 키는 검색어 원문·피어 수(5~15)·뉴스 여부·피어 편집으로 갈라지므로 **화면
+# 조작만으로도** 늘어난다. 실측으로 분석 결과 하나가 1.9~3.0MB이고(같은 종목에 피어
+# 수만 바꿔 13개를 만들자 +39MB), 파이썬은 한 번 올라간 메모리를 OS에 돌려주지 않는다.
+# 512MB 인스턴스에서 그 고점은 그대로 남아 SIGKILL의 재료가 된다.
+# 32인 근거: 최악이 32 × 3.0MB ≈ 95MB다. 30분 TTL 안에 서로 다른 종목을 32개 넘게
+# 보는 경우는 드물고, 넘더라도 잃는 것은 속도뿐이다.
+_CACHE_MAX = 32
+_AI_CACHE_MAX = 32
+
+
+def _peek(store: OrderedDict, key, now: float):
+    """살아 있으면 값, 아니면 None. 맞은 키는 뒤로 보내 LRU 순서를 지킨다."""
+    with _LOCK:
+        hit = store.get(key)
+        if hit is None or now - hit[0] >= hit[2]:
+            return None
+        store.move_to_end(key)
+        return hit[1]
+
+
+def _remember(store: OrderedDict, key, data, now: float, ttl: int, cap: int):
+    """값을 넣고 **만료분을 치운 뒤 상한을 지킨다.**
+
+    만료 청소가 실질적인 몫이다 — 30분 TTL이면 어느 30분 창에 만들어진 것만 남는다.
+    상한은 그 창 안에 몰려 들어올 때를 막는 뒷문이다(오래 안 쓴 것부터 버린다).
+    """
+    with _LOCK:
+        store[key] = (now, data, ttl)
+        store.move_to_end(key)
+        for k in [k for k, (t, _d, tt) in store.items() if now - t >= tt]:
+            del store[k]
+        while len(store) > cap:
+            store.popitem(last=False)
 
 # ── 관리 페이지 무차별 대입 방어 ──────────────────────────────────────
 # 관리 토큰은 시도 제한이 없으면 길이만이 유일한 방어선이다. 실패를 IP별로 세어 잠그면
@@ -106,42 +143,36 @@ def cached_analyze(market: str, query: str, peer_count: int, include_news: bool,
                    exclude: str = "", extra: str = "") -> dict:
     key = (market, query, peer_count, include_news, exclude, extra)
     now = time.time()
-    with _LOCK:
-        hit = _CACHE.get(key)
-        if hit and now - hit[0] < _TTL:
-            return hit[1]
+    hit = _peek(_CACHE, key, now)
+    if hit is not None:
+        return hit
     from src.web.serialize import analyze  # 지연 임포트(서버 기동을 빠르게)
     data = analyze(market, query, peer_count=peer_count, include_news=include_news,
                    exclude=exclude, extra=extra)
-    with _LOCK:
-        _CACHE[key] = (now, data)
+    _remember(_CACHE, key, data, now, _TTL, _CACHE_MAX)
     return data
 
 
 def cached_analyze_etf(market: str, query: str) -> dict:
     key = ("etf", market, query)
     now = time.time()
-    with _LOCK:
-        hit = _CACHE.get(key)
-        if hit and now - hit[0] < _TTL:
-            return hit[1]
+    hit = _peek(_CACHE, key, now)
+    if hit is not None:
+        return hit
     from src.web.serialize import analyze_etf  # 지연 임포트(서버 기동을 빠르게)
     data = analyze_etf(market, query)
-    with _LOCK:
-        _CACHE[key] = (now, data)
+    _remember(_CACHE, key, data, now, _TTL, _CACHE_MAX)
     return data
 
 
 def cached_generic(key: str, fn, ttl: int = _TTL) -> dict:
     """범용 캐시 — 채권 곡선·히스토리 등 파라미터 적은 결과에 사용."""
     now = time.time()
-    with _LOCK:
-        hit = _CACHE.get(("g", key))
-        if hit and now - hit[0] < ttl:
-            return hit[1]
+    hit = _peek(_CACHE, ("g", key), now)
+    if hit is not None:
+        return hit
     data = fn()
-    with _LOCK:
-        _CACHE[("g", key)] = (now, data)
+    _remember(_CACHE, ("g", key), data, now, ttl, _CACHE_MAX)
     return data
 
 
@@ -149,15 +180,13 @@ def cached_ai(kind: str, market: str, query: str, peer_count: int) -> dict:
     """Gemini AI 결과 캐시. kind: 'news'(뉴스 분석) | 'opinion'(종합 투자평가)."""
     key = (kind, market, query, peer_count)
     now = time.time()
-    with _LOCK:
-        hit = _AI_CACHE.get(key)
-        if hit and now - hit[0] < _AI_TTL:
-            return hit[1]
+    hit = _peek(_AI_CACHE, key, now)
+    if hit is not None:
+        return hit
     from src.web.serialize import ai_news, ai_opinion  # 지연 임포트
     fn = ai_news if kind == "news" else ai_opinion
     data = fn(market, query, peer_count=peer_count)
-    with _LOCK:
-        _AI_CACHE[key] = (now, data)
+    _remember(_AI_CACHE, key, data, now, _AI_TTL, _AI_CACHE_MAX)
     return data
 
 
