@@ -34,6 +34,31 @@ Log = Callable[[str], None]
 OK, BAD = "[완료]", "[실패]"
 
 
+def mem_note() -> str:
+    """현재 메모리와 지금까지의 최고치를 로그 조각으로. 리눅스가 아니면 빈 문자열.
+
+    **왜 남기나.** 이 예열이 기동 중 **한 번에** 고점을 찍는다 — 운영 실측으로 가동
+    3분에 이미 최고 515MB였고 인스턴스 한도가 512MiB다. 그런데 어느 단계에서 치솟는지는
+    밖에서 볼 방법이 없었다(대시보드는 분 단위 그래프이고, 예열은 100초에 끝난다).
+    느린 원천을 한 줄 남긴 것과 같은 이유다(ADR-0052) — **없는 표시는 몇 시간을 먹는다.**
+
+    `/proc`이 없는 윈도우에서는 조용히 빈 문자열이라 로컬 로그 모양이 바뀌지 않는다.
+    """
+    try:
+        with open("/proc/self/status", encoding="utf-8") as f:
+            cur = hwm = None
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    cur = int(line.split()[1]) // 1024
+                elif line.startswith("VmHWM:"):
+                    hwm = int(line.split()[1]) // 1024
+    except OSError:
+        return ""
+    if cur is None:
+        return ""
+    return f" · 메모리 {cur}MB(최고 {hwm}MB)" if hwm is not None else f" · 메모리 {cur}MB"
+
+
 def warm_stock(market: str, query: str, log: Log = print) -> bool:
     """종목 하나의 분석 캐시를 채운다. 성공 여부를 돌려주되 예외는 올리지 않는다.
 
@@ -47,7 +72,7 @@ def warm_stock(market: str, query: str, log: Log = print) -> bool:
     except Exception as e:  # noqa: BLE001 — 예열 실패가 무엇도 막으면 안 된다
         log(f"  {BAD} {market} {query}: {type(e).__name__}: {e}")
         return False
-    log(f"  {OK} {market} {query}  ({time.time() - t0:.1f}s)")
+    log(f"  {OK} {market} {query}  ({time.time() - t0:.1f}s){mem_note()}")
     return True
 
 
@@ -56,7 +81,7 @@ def warm_bonds(log: Log = print) -> None:
     from src.web.serialize import bond_data, bond_history
     try:
         bond_data()
-        log(f"  {OK} bond_data (수익률곡선·기준금리·뉴스)")
+        log(f"  {OK} bond_data (수익률곡선·기준금리·뉴스){mem_note()}")
     except Exception as e:  # noqa: BLE001
         log(f"  {BAD} bond_data: {e}")
     for market in ("KR", "US"):
@@ -66,7 +91,7 @@ def warm_bonds(log: Log = print) -> None:
                 bond_history(market, tenor)
             except Exception:  # noqa: BLE001
                 pass
-        log(f"  {OK} {market} 금리 이력 {len(TENORS)}개 테너  ({time.time() - t0:.1f}s)")
+        log(f"  {OK} {market} 금리 이력 {len(TENORS)}개 테너  ({time.time() - t0:.1f}s){mem_note()}")
 
 
 def warm_all(log: Log = print) -> None:

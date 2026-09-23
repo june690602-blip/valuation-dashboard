@@ -475,6 +475,7 @@ def _warm_coefficients() -> None:
     `coefficients_or_none`의 계약).
     """
     from src.data.universe_multiples import coefficients_or_none
+    from src.web.prewarm import mem_note
     for market in ("KR", "US"):
         t0 = time.time()
         try:
@@ -484,7 +485,8 @@ def _warm_coefficients() -> None:
             continue
         took = time.time() - t0
         state = "캐시" if took < 1 else f"{took:.0f}초 걸려 새로 만듦"
-        print(f"  [예열] {market} 회귀 계수 {'준비됨' if got else '없음(피어 중앙값 폴백)'} — {state}", flush=True)
+        print(f"  [예열] {market} 회귀 계수 {'준비됨' if got else '없음(피어 중앙값 폴백)'} — {state}"
+              f"{mem_note()}", flush=True)
 
 
 def _warm_cache() -> None:
@@ -517,7 +519,8 @@ def _warm_cache() -> None:
             # 개별 실패는 아래 계층이 이미 삼킨다. 여기까지 온 것은 예상 밖이므로
             # **한 줄로 남기고 넘어간다** — 조용히 죽으면 예열이 도는 줄로 오해한다.
             print(f"  [예열] 중단됨(무시): {type(e).__name__}: {e}", flush=True)
-        print(f"  [예열] 완료 — 총 {time.time() - started:.0f}초", flush=True)
+        from src.web.prewarm import mem_note as _m
+        print(f"  [예열] 완료 — 총 {time.time() - started:.0f}초{_m()}", flush=True)
 
     threading.Thread(target=run, daemon=True, name="warm-cache").start()
 
