@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import time
+from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
@@ -20,8 +21,56 @@ from .cache import file_cache
 # 파괴하지 않는 것"(`scripts/build_coefficients.py`)이다.
 KRX_RETRY_WAITS = (2.0, 6.0)
 
+# 업종분류(KRX-DESC)는 fdr이 **그날 날짜의 CSV 한 장**만 본다 — 캐시 저장소가 발행을
+# 멈추면 그대로 404다. 실제로 2026-09-17을 끝으로 desc 발행이 멈췄고(같은 저장소의
+# 상장목록은 계속 갱신됐다), 그날부터 업종이 통째로 비어 **KR 회귀 계수가 6일간
+# 0행**이었다. 업종 분류는 하루 단위로 바뀌는 값이 아니므로 최근에 있는 날짜로 물러난다.
+KRX_DESC_URL = ("https://raw.githubusercontent.com/FinanceData/fdr_krx_data_cache/"
+                "refs/heads/master/data/listing/desc/{day}.csv")
+KRX_DESC_LOOKBACK_DAYS = 45
+
+
+def _krx_desc_recent():
+    """업종분류 표를 최근 있는 날짜로 받아온다. 창 안에 아무것도 없으면 None."""
+    today = date.today()
+    for back in range(KRX_DESC_LOOKBACK_DAYS):
+        day = today - timedelta(days=back)
+        try:
+            df = pd.read_csv(KRX_DESC_URL.format(day=day.isoformat()),
+                             index_col=0, dtype={"Code": str})
+        except Exception:  # noqa: BLE001 — 없는 날짜는 404다. 다음 날짜로 넘어간다
+            continue
+        if back:
+            print(f"[universe] KRX 업종분류 최신 파일이 없어 {day}자로 물러났습니다.", flush=True)
+        return df
+    return None
+
+
+def _krx_desc():
+    """업종분류 표. fdr이 실패하면 날짜를 물러나 직접 받는다. 둘 다 없으면 None."""
+    import FinanceDataReader as fdr
+
+    try:
+        return fdr.StockListing("KRX-DESC")
+    except Exception:  # noqa: BLE001 — 원인을 가리지 않는다. 물러나는 길이 따로 있다
+        return _krx_desc_recent()
+
+
+def _kr_listing_usable(df) -> bool:
+    """업종이 절반도 안 채워진 목록은 **캐시에 남기지 않는다.**
+
+    예전에는 업종 조회 실패를 조용히 삼키고 `Sector`를 NaN으로 채웠다. 그 목록이
+    24시간 캐시에 눌러앉으면 그동안 KR 계수·피어 선정이 통째로 죽는데 화면에는
+    아무 표시도 없다. 한 번의 원천 실패가 하루를 먹지 않게 여기서 막는다.
+    """
+    cols = getattr(df, "columns", None)
+    if cols is None or "Code" not in cols or len(df) < 1000:
+        return False
+    return "Sector" in cols and bool(df["Sector"].notna().mean() >= 0.5)
+
+
 # ── 한국 ────────────────────────────────────────────────────────────────
-@file_cache("kr_listing", ttl_hours=24)
+@file_cache("kr_listing", ttl_hours=24, validate=_kr_listing_usable)
 def get_kr_listing() -> pd.DataFrame:
     """KRX 상장 목록: Code, Name, Market, Sector(업종분류), SubSector, Marcap, Stocks, Close.
 
@@ -51,15 +100,18 @@ def get_kr_listing() -> pd.DataFrame:
     keep = [c for c in ["Code", "Name", "Market", "Marcap", "Stocks", "Close"] if c in base.columns]
     base = base[keep].copy()
 
-    try:
-        desc = fdr.StockListing("KRX-DESC")
+    desc = _krx_desc()
+    if desc is None:
+        # 예전에는 이 실패를 `except Exception: pass`로 삼켰다. 그러면 업종이 빈
+        # 목록이 정상처럼 흘러가 KR 계수가 조용히 0행이 된다 — 6일 걸려 발견했다.
+        print("[universe] KRX 업종분류를 받지 못했습니다 — 업종 없이 진행합니다. "
+              "이번 KR 회귀 계수는 만들어지지 않습니다.", flush=True)
+    else:
         desc = desc.rename(columns={"Symbol": "Code",
                                     "Industry": "Sector", "Sector": "SubSector"})
         cols = [c for c in ["Code", "Sector", "SubSector"] if c in desc.columns]
         if "Sector" in cols:
             base = base.merge(desc[cols], on="Code", how="left")
-    except Exception:
-        pass
     for c in ("Sector", "SubSector"):
         if c not in base.columns:
             base[c] = np.nan
