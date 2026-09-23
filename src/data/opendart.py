@@ -113,24 +113,42 @@ def _num(s) -> float:
 
 @file_cache("dart_corpmap", ttl_hours=24 * 7)
 def get_corp_code_map() -> pd.DataFrame:
-    """전체 상장사 stock_code → corp_code 매핑 (DataFrame, index=stock_code)."""
+    """전체 상장사 stock_code → corp_code 매핑 (DataFrame, index=stock_code).
+
+    **XML을 통째로 트리에 올리지 않는다.** 이 파일은 상장·비상장을 합쳐 10만 건 규모라
+    `ET.fromstring`으로 한 번에 올리면 트리가 원본의 몇 배로 부푼다. 그 순간 압축 바이트·
+    복사본·압축 해제 바이트·트리가 **동시에** 살아 있다.
+
+    왜 중요한가: 운영 실측에서 기동 예열의 메모리 고점이 **521MB**였고 인스턴스 한도가
+    512MiB다. 그 고점은 **첫 종목 분석에서 찍히고 그 뒤로는 오르지 않는다**(예열 로그
+    `[완료] KR 005930 … 메모리 283MB(최고 521MB)`). 첫 분석에만 있는 무거운 일이
+    이 호출이다 — 7일 캐시라 두 번째부터는 아예 타지 않는다.
+
+    `iterparse`로 한 건씩 읽고 **읽은 가지는 즉시 버린다**. 루트를 비우지 않으면 처리한
+    자식이 루트에 계속 매달려 결국 같은 트리가 된다 — 그래서 `root.clear()`가 핵심이다.
+    """
     key = get_api_key()
     if not key:
         raise ValueError("OpenDART API 키가 없습니다.")
     r = requests.get(f"{BASE}/corpCode.xml", params={"crtfc_key": key}, timeout=60)
     r.raise_for_status()
     import xml.etree.ElementTree as ET
-    z = zipfile.ZipFile(io.BytesIO(r.content))
-    root = ET.fromstring(z.read(z.namelist()[0]))
     rows = []
-    for li in root.iter("list"):
-        sc = (li.findtext("stock_code") or "").strip()
-        if sc and sc != " ":
-            rows.append({"stock_code": sc.zfill(6),
-                         "corp_code": (li.findtext("corp_code") or "").strip(),
-                         "corp_name": (li.findtext("corp_name") or "").strip()})
-    df = pd.DataFrame(rows).drop_duplicates("stock_code").set_index("stock_code")
-    return df
+    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+        with z.open(z.namelist()[0]) as fp:       # 압축 해제 바이트도 통째로 들지 않는다
+            context = ET.iterparse(fp, events=("start", "end"))
+            _event, root = next(context)          # 루트만 잡아 둔다
+            for event, li in context:
+                if event != "end" or li.tag != "list":
+                    continue
+                sc = (li.findtext("stock_code") or "").strip()
+                if sc and sc != " ":
+                    rows.append({"stock_code": sc.zfill(6),
+                                 "corp_code": (li.findtext("corp_code") or "").strip(),
+                                 "corp_name": (li.findtext("corp_name") or "").strip()})
+                root.clear()                      # 읽은 가지를 즉시 버린다
+    del r                                          # ZIP 바이트도 더 붙잡지 않는다
+    return pd.DataFrame(rows).drop_duplicates("stock_code").set_index("stock_code")
 
 
 def _find_row(rows: list[dict], sj_set: set, ids: list[str], keywords: list[str]) -> dict | None:
