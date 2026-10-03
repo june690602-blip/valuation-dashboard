@@ -1,0 +1,39 @@
+{
+ "built_at": "2026-10-03 21:43 UTC",
+ "markets": {
+  "US": {
+   "ok": true,
+   "rows": 1504,
+   "legs": [
+    "ev_ebitda",
+    "pbr",
+    "per",
+    "psr"
+   ],
+   "leg_n": {
+    "ev_ebitda": 1297,
+    "pbr": 1381,
+    "per": 1309,
+    "psr": 1497
+   },
+   "built_at": "2026-10-03 21:43 UTC"
+  },
+  "KR": {
+   "ok": true,
+   "rows": 2682,
+   "legs": [
+    "ev_ebitda",
+    "pbr",
+    "per",
+    "psr"
+   ],
+   "leg_n": {
+    "ev_ebitda": 1389,
+    "pbr": 2534,
+    "per": 1568,
+    "psr": 2022
+   },
+   "built_at": "2026-10-03 21:43 UTC"
+  }
+ }
+}
