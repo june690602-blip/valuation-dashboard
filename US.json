@@ -1,0 +1,274 @@
+{
+ "pbr": {
+  "leg": "pbr",
+  "intercept": -3.761184185728561,
+  "beta_size": 0.19745947249370827,
+  "size_knots": [
+   24.057148823840187,
+   25.66009544761634
+  ],
+  "size_slopes": [
+   -0.1291083274772244,
+   -0.023443304752092116
+  ],
+  "roe_coef": {
+   "≤-20%": 0.0,
+   "-20~-5%": -0.24461458441007997,
+   "-5~0%": -0.3628896799851272,
+   "0~5%": -0.3075060312481075,
+   "5~10%": -0.19479110325379884,
+   "10~15%": -0.006227220015176231,
+   "15~25%": 0.2921114027619082,
+   ">25%": 0.8956138173207034
+  },
+  "sector_coef": {
+   "Communication Services": 0.0,
+   "Consumer Discretionary": 0.10598933259009809,
+   "Consumer Staples": 0.1629975679349781,
+   "Energy": -0.17037633473988703,
+   "Financials": -0.25693337487121937,
+   "Health Care": 0.40330370187143744,
+   "Industrials": 0.31285087661132377,
+   "Information Technology": 0.5744810247979654,
+   "Materials": 0.04301541981396691,
+   "Real Estate": 0.0636244898167769,
+   "Utilities": -0.03795794519571714,
+   "기타": 0.0
+  },
+  "n": 1375,
+  "mcap_min": 434670784.0,
+  "mcap_max": 4165393448960.0,
+  "sector_median_mcap": {
+   "Communication Services": 15243848192.0,
+   "Consumer Discretionary": 4613607424.0,
+   "Consumer Staples": 7383654400.0,
+   "Energy": 7000274688.0,
+   "Financials": 5753796352.0,
+   "Health Care": 8079023104.0,
+   "Industrials": 7744782848.0,
+   "Information Technology": 9082405888.0,
+   "Materials": 7156828672.0,
+   "Real Estate": 5670127616.0,
+   "Utilities": 16782513152.0,
+   "기타": 6908144640.0
+  },
+  "sector_median_roe_coef": {
+   "Communication Services": -0.006227220015176231,
+   "Consumer Discretionary": 0.2921114027619082,
+   "Consumer Staples": -0.006227220015176231,
+   "Energy": -0.006227220015176231,
+   "Financials": -0.006227220015176231,
+   "Health Care": -0.006227220015176231,
+   "Industrials": 0.2921114027619082,
+   "Information Technology": -0.006227220015176231,
+   "Materials": -0.006227220015176231,
+   "Real Estate": -0.19479110325379884,
+   "Utilities": -0.19479110325379884,
+   "기타": -0.006227220015176231
+  }
+ },
+ "per": {
+  "leg": "per",
+  "intercept": 0.14064442612324587,
+  "beta_size": 0.11793095023921099,
+  "size_knots": [
+   24.389181216834494,
+   25.86785594995991
+  ],
+  "size_slopes": [
+   -0.05587884779861894,
+   -0.0272845880000644
+  ],
+  "roe_coef": {
+   "≤-20%": 0.0,
+   "-20~-5%": 0.0,
+   "-5~0%": 1.4141515949012913,
+   "0~5%": 0.9658368028463868,
+   "5~10%": 0.1914128345294963,
+   "10~15%": -0.061606407781400085,
+   "15~25%": -0.15789001498091382,
+   ">25%": -0.1549019726354135
+  },
+  "sector_coef": {
+   "Communication Services": 0.0,
+   "Consumer Discretionary": 0.1025192507128192,
+   "Consumer Staples": 0.3035470031001781,
+   "Energy": 0.0232300788114254,
+   "Financials": -0.1497914276603937,
+   "Health Care": 0.4692428025425323,
+   "Industrials": 0.39611155998747005,
+   "Information Technology": 0.6458373363744421,
+   "Materials": 0.2635717133130382,
+   "Real Estate": 0.25151821264327645,
+   "Utilities": -0.04775825732580168,
+   "기타": 0.0
+  },
+  "n": 1305,
+  "mcap_min": 434670784.0,
+  "mcap_max": 5170596937728.0,
+  "sector_median_mcap": {
+   "Communication Services": 15243848192.0,
+   "Consumer Discretionary": 5346924032.0,
+   "Consumer Staples": 12148731392.0,
+   "Energy": 9375994368.0,
+   "Financials": 5841449472.0,
+   "Health Care": 10909149184.0,
+   "Industrials": 9020974080.0,
+   "Information Technology": 11712954368.0,
+   "Materials": 8056143872.0,
+   "Real Estate": 8361693184.0,
+   "Utilities": 15124274688.0,
+   "기타": 8243041280.0
+  },
+  "sector_median_roe_coef": {
+   "Communication Services": -0.10825419020840679,
+   "Consumer Discretionary": -0.1549019726354135,
+   "Consumer Staples": -0.1549019726354135,
+   "Energy": -0.1549019726354135,
+   "Financials": -0.061606407781400085,
+   "Health Care": -0.1549019726354135,
+   "Industrials": -0.1549019726354135,
+   "Information Technology": -0.1549019726354135,
+   "Materials": -0.061606407781400085,
+   "Real Estate": 0.1914128345294963,
+   "Utilities": 0.1914128345294963,
+   "기타": -0.1549019726354135
+  }
+ },
+ "psr": {
+  "leg": "psr",
+  "intercept": -5.439297926652884,
+  "beta_size": 0.25789073260037887,
+  "size_knots": [
+   24.244385714404714,
+   25.807337511035623
+  ],
+  "size_slopes": [
+   -0.12513544941966015,
+   0.0999474994981836
+  ],
+  "roe_coef": {
+   "≤-20%": 0.0,
+   "-20~-5%": -0.3475225978490791,
+   "-5~0%": -0.12087982996454226,
+   "0~5%": 0.10758206473975496,
+   "5~10%": 0.02126629566879819,
+   "10~15%": 0.06253007137122789,
+   "15~25%": 0.13076542805620062,
+   ">25%": 0.29809451425965927
+  },
+  "sector_coef": {
+   "Communication Services": 0.0,
+   "Consumer Discretionary": -0.4098177357320006,
+   "Consumer Staples": -0.5024826812072276,
+   "Energy": 0.07890641589682809,
+   "Financials": 0.4941573349787052,
+   "Health Care": 0.4484860145233448,
+   "Industrials": 0.01767718579242191,
+   "Information Technology": 0.6974218442108565,
+   "Materials": -0.11149902159689452,
+   "Real Estate": 1.1583055187257554,
+   "Utilities": 0.3698869471886454,
+   "기타": 0.0
+  },
+  "n": 1493,
+  "mcap_min": 413310976.0,
+  "mcap_max": 5170596937728.0,
+  "sector_median_mcap": {
+   "Communication Services": 13358774784.0,
+   "Consumer Discretionary": 4937613824.0,
+   "Consumer Staples": 11227155456.0,
+   "Energy": 7037029376.0,
+   "Financials": 5794866176.0,
+   "Health Care": 9370398720.0,
+   "Industrials": 7864202752.0,
+   "Information Technology": 9981207552.0,
+   "Materials": 7154340352.0,
+   "Real Estate": 6521747968.0,
+   "Utilities": 16782513152.0,
+   "기타": 7221646848.0
+  },
+  "sector_median_roe_coef": {
+   "Communication Services": 0.04189818352001304,
+   "Consumer Discretionary": 0.10758206473975496,
+   "Consumer Staples": 0.10758206473975496,
+   "Energy": 0.10758206473975496,
+   "Financials": 0.06253007137122789,
+   "Health Care": 0.06253007137122789,
+   "Industrials": 0.13076542805620062,
+   "Information Technology": 0.10758206473975496,
+   "Materials": 0.06253007137122789,
+   "Real Estate": 0.06253007137122789,
+   "Utilities": 0.02126629566879819,
+   "기타": 0.06253007137122789
+  }
+ },
+ "ev_ebitda": {
+  "leg": "ev_ebitda",
+  "intercept": 0.03573510695426852,
+  "beta_size": 0.10560321069391965,
+  "size_knots": [
+   24.273981443749516,
+   25.80279419301438
+  ],
+  "size_slopes": [
+   -0.015427259196971,
+   -0.0257855388406251
+  ],
+  "roe_coef": {
+   "≤-20%": 0.0,
+   "-20~-5%": 0.278311449021416,
+   "-5~0%": 0.028603323805775682,
+   "0~5%": 0.1652572464513946,
+   "5~10%": -0.0026905071154397593,
+   "10~15%": -0.07386354421197971,
+   "15~25%": -0.05183674920177555,
+   ">25%": -0.008241928984166773
+  },
+  "sector_coef": {
+   "Communication Services": 0.0,
+   "Consumer Discretionary": 0.03908209606212372,
+   "Consumer Staples": 0.016701449685111957,
+   "Energy": -0.3946437475713561,
+   "Financials": -0.058028890906168515,
+   "Health Care": 0.2828909829964034,
+   "Industrials": 0.24392147338823175,
+   "Information Technology": 0.5439493113402509,
+   "Materials": -0.04625983296402319,
+   "Real Estate": 0.3818925079794721,
+   "Utilities": 0.0677421864900445,
+   "기타": 0.0
+  },
+  "n": 1297,
+  "mcap_min": 413310976.0,
+  "mcap_max": 5170596937728.0,
+  "sector_median_mcap": {
+   "Communication Services": 14309630976.0,
+   "Consumer Discretionary": 4934890240.0,
+   "Consumer Staples": 11227155456.0,
+   "Energy": 7000274688.0,
+   "Financials": 10183484416.0,
+   "Health Care": 10294426624.0,
+   "Industrials": 7853192704.0,
+   "Information Technology": 10231272960.0,
+   "Materials": 7141403648.0,
+   "Real Estate": 6980637696.0,
+   "Utilities": 16782513152.0,
+   "기타": 7814297600.0
+  },
+  "sector_median_roe_coef": {
+   "Communication Services": -0.008241928984166773,
+   "Consumer Discretionary": -0.008241928984166773,
+   "Consumer Staples": -0.008241928984166773,
+   "Energy": -0.008241928984166773,
+   "Financials": -0.008241928984166773,
+   "Health Care": -0.008241928984166773,
+   "Industrials": -0.008241928984166773,
+   "Information Technology": -0.008241928984166773,
+   "Materials": -0.008241928984166773,
+   "Real Estate": -0.0026905071154397593,
+   "Utilities": -0.0026905071154397593,
+   "기타": -0.008241928984166773
+  }
+ }
+}
