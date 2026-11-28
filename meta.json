@@ -1,0 +1,35 @@
+{
+ "built_at": "2026-11-28 10:38 UTC",
+ "markets": {
+  "US": {
+   "ok": true,
+   "rows": 1502,
+   "legs": [
+    "ev_ebitda",
+    "pbr",
+    "per",
+    "psr"
+   ],
+   "leg_n": {
+    "ev_ebitda": 1306,
+    "pbr": 1384,
+    "per": 1307,
+    "psr": 1494
+   },
+   "built_at": "2026-11-28 10:38 UTC"
+  },
+  "KR": {
+   "ok": false,
+   "error": "schema",
+   "carried_over": true,
+   "built_at": "2026-11-25 11:28 UTC",
+   "rows": 2701,
+   "legs": [
+    "ev_ebitda",
+    "pbr",
+    "per",
+    "psr"
+   ]
+  }
+ }
+}
